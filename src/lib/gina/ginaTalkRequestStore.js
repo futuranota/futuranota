@@ -348,6 +348,23 @@ export function declineTalkRequest(userId, now = new Date()) {
 }
 
 /**
+ * After a block is moved later, allow the popover to arm again at the new start.
+ * @param {string} userId
+ * @param {string[]} docIds
+ * @param {Date} [now]
+ */
+export function clearTalkRequestNotifiedDocIds(userId, docIds, now = new Date()) {
+  const cur = getTalkRequestState(userId, now);
+  if (!cur) return cur;
+  const drop = new Set((Array.isArray(docIds) ? docIds : []).map((id) => String(id || "").trim()).filter(Boolean));
+  if (!drop.size) return cur;
+  const notified = (cur.notifiedDocIds || []).filter((id) => !drop.has(String(id)));
+  const next = { ...cur, notifiedDocIds: notified };
+  writeTalkRequestState(userId, next);
+  return next;
+}
+
+/**
  * @param {string} userId
  */
 export function clearTalkRequest(userId) {

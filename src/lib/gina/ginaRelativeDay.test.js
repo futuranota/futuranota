@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   calendarDayDelta,
+  isGinaDayBeforeToday,
   formatGinaRelativeDay,
   formatGinaShortDate,
   formatGinaDayBadge,
   formatGinaAbsoluteTooltip,
   buildGinaTimeDisplay,
+  toGinaDayOnlyRow,
 } from "./ginaRelativeDay.js";
 
 const NOW = new Date("2026-08-07T15:00:00");
@@ -16,6 +18,16 @@ function atDay(offset, hours = 9, minutes = 0) {
   d.setHours(hours, minutes, 0, 0);
   return d.toISOString();
 }
+
+describe("isGinaDayBeforeToday", () => {
+  it("today and later are not before today", () => {
+    expect(isGinaDayBeforeToday(atDay(0, 9), NOW)).toBe(false);
+    expect(isGinaDayBeforeToday(atDay(1), NOW)).toBe(false);
+  });
+  it("yesterday is before today", () => {
+    expect(isGinaDayBeforeToday(atDay(-1), NOW)).toBe(true);
+  });
+});
 
 describe("calendarDayDelta", () => {
   it("same calendar day is 0", () => {
@@ -84,6 +96,20 @@ describe("buildGinaTimeDisplay", () => {
     expect(out.relativeDay).toBe("Mañana");
     expect(out.dayBadge).toBe("08 Ago");
     expect(out.timeLabel).toBe("08 Ago");
+  });
+});
+
+describe("toGinaDayOnlyRow", () => {
+  it("drops clock hours and keeps the day badge", () => {
+    const row = toGinaDayOnlyRow({
+      dayBadge: "07 Ago",
+      timeClock: "9:00 a. m. – 10:00 a. m.",
+      timeLabel: "07 Ago · 9:00 a. m. – 10:00 a. m.",
+      time: "07 Ago · 9:00 a. m. – 10:00 a. m.",
+    });
+    expect(row.timeClock).toBeNull();
+    expect(row.timeLabel).toBe("07 Ago");
+    expect(row.time).toBe("07 Ago");
   });
 });
 

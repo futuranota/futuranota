@@ -2,11 +2,12 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { buildTalkRequestPopoverCopy } from "../../lib/gina/ginaTalkRequest.js";
 import { playGinaVoipCallSound } from "../../lib/ginaVoipCallSound.js";
+import { ShimmeringText } from "./ShimmeringText.jsx";
 
 const GINA_AVATAR_SRC = "/uploads/Assistance-visuals/Gina-Assistance.png";
 
 /**
- * Overlay: Gina is requesting to talk — Accept / Decline.
+ * Overlay: Gina is requesting to talk — Verificar / Omitir.
  * @param {{
  *   open: boolean,
  *   locale?: string,
@@ -60,9 +61,15 @@ export function GinaTalkRequestPopover({
           height={56}
         />
         <p className="gina-talk-request-popover__title">
-          <span className="gina-talk-request-popover__emph">{copy.titleEmph}</span>
-          {" "}
-          <span className="gina-talk-request-popover__muted">{copy.titleMuted}</span>
+          <ShimmeringText
+            text={copy.title}
+            startOnView={false}
+            color="#a1a0a0"
+            shimmerColor="#ffffff"
+            duration={2.2}
+            spread={1.8}
+            className="gina-talk-request-popover__shimmer"
+          />
         </p>
       </div>
       <div className="gina-talk-request-popover__actions">

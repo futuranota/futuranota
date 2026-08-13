@@ -2122,9 +2122,41 @@
   border-color: #57bc6c;
 }
 
+.gina-viz__checklist-row--next {
+  background: rgba(232, 196, 90, 0.18);
+  border-color: rgba(232, 196, 90, 0.45);
+}
+
 .gina-viz__checklist-row--next .gina-viz__checklist-title {
-  color: #fff;
+  color: #f6e7b0;
   font-weight: 600;
+}
+
+.gina-chat-card__notify-todos {
+  margin: 10px 0 4px;
+}
+
+.gina-chat-card__notify-todos-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+  color: #f0f0f0;
+}
+
+.gina-chat-card__notify-todos-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gina-chat-card__notify-todos-item {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #c8c8c8;
 }
 
 .gina-viz__checklist-check {
@@ -2848,6 +2880,22 @@
   color: #a1a0a0;
 }
 
+.gina-talk-request-popover__title .gina-shimmer-text,
+.gina-talk-request-popover__shimmer {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gina-talk-request-popover__shimmer {
+    background-image: none;
+    color: #ffffff;
+    -webkit-text-fill-color: #ffffff;
+  }
+}
+
 .gina-talk-request-popover__actions {
   display: flex;
   flex-wrap: wrap;
@@ -2858,7 +2906,7 @@
 .gina-talk-request-popover__btn {
   appearance: none;
   border: none;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 8px 18px;
   font-size: 13px;
   font-weight: 650;
@@ -2867,7 +2915,7 @@
 
 .gina-talk-request-popover__btn.is-accept {
   background: #c8e6c0;
-  color: #111111;
+  color: #2a5c32;
 }
 
 .gina-talk-request-popover__btn.is-decline {

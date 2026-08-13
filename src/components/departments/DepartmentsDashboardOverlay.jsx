@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useDepartmentsStore, cascadeFolderCategoryClear } from "../../stores/departmentsStore.js";
 import { findDepartmentById, normalizeDescription } from "../../lib/departments.js";
+import { flushDepartmentsSync } from "../../lib/departmentsSync.js";
 
 const DEPT_BG_SRC = "/uploads/department-img.png";
 
@@ -142,6 +143,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       description: normalizeDescription(description),
     });
     setEditingDeptMeta(false);
+    void flushDepartmentsSync();
   };
 
   const addTag = () => {
@@ -228,6 +230,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       departmentId: created.id,
       objectId: session.objectId ?? null,
     });
+    void flushDepartmentsSync();
   };
 
   const handleDelete = () => {
@@ -280,14 +283,18 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       }
     });
 
-    // Atomic write — avoids multi-step remove/add races wiping tags.
+    // Keep department name/description with the tag write so a tags-only
+    // save cannot drop metadata the overlay still has in memory.
     updateDepartment(existing.id, {
+      category: (existing.category || name).trim() || existing.category,
+      description: normalizeDescription(existing.description || description),
       subcategories: tagsToSave.map((tag) => ({
         label: tag.label,
-        description: tag.description || "",
+        description: normalizeDescription(tag.description),
       })),
     });
 
+    void flushDepartmentsSync();
     onClose?.();
   };
 
@@ -496,7 +503,11 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                               <button
                                 type="button"
                                 className="lp-departments-sub-chip__label"
-                                title={t("sidebar.departmentEditSub")}
+                                title={
+                                  sub.description
+                                    ? `${sub.label} — ${sub.description}`
+                                    : t("sidebar.departmentEditSub")
+                                }
                                 onClick={() => beginEditTag(sub)}
                               >
                                 {sub.label}

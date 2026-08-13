@@ -83,6 +83,7 @@ import {
   acceptTalkRequest,
   declineTalkRequest,
   hasTalkNotificationsDecision,
+  clearTalkRequestNotifiedDocIds,
 } from "../../lib/gina/ginaTalkRequestStore.js";
 import {
   buildTalkNotificationsEnabledAck,
@@ -93,6 +94,9 @@ import {
   buildTalkRequestThanksText,
   buildTalkRequestNotifyPrompt,
   buildTalkRequestNotifyDisplayText,
+  getTalkRequestTodoMock,
+  listUnfinishedPriorBlocks,
+  buildTalkRequestConditionText,
 } from "../../lib/gina/ginaTalkRequest.js";
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
@@ -4105,6 +4109,12 @@ export function LeftPanel({
       const remainingIds = sessionMoveDocIds.filter((id) => actionableAfter.has(id));
       const assignedDocIds = sessionMoveDocIds.filter((id) => !actionableAfter.has(id));
       const assignedCount = assignedDocIds.length || appliedCountLocal;
+      const movedIds = assignedDocIds.length
+        ? assignedDocIds
+        : (batchApplies.map((row) => String(row.id || "")).filter(Boolean));
+      if (movedIds.length) {
+        try { clearTalkRequestNotifiedDocIds(ginaUserId, movedIds, now); } catch { /* ignore */ }
+      }
 
       if (remainingIds.length > 0) {
         const nextId = remainingIds[0];
@@ -4293,6 +4303,10 @@ export function LeftPanel({
         };
       }
       const next = routed.toolContext?.nextDocument || null;
+      const pool = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const prior = listUnfinishedPriorBlocks(pool, next);
       const daySheetViz = buildGinaVisualization("day_sheet", routed.toolContext, {
         locale: localeKey,
         now: ctx.now,
@@ -4306,12 +4320,20 @@ export function LeftPanel({
             compact: true,
             locale: localeKey,
             talkRequestNotify: true,
+            talkRequestDocId: next?.id || null,
+            nextDocumentId: next?.id || daySheetViz.data?.nextDocumentId || null,
           },
         }
         : null;
       return {
         message: buildTalkRequestNotifyText({ locale: localeKey }),
         startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
+        notifyTodoMock: getTalkRequestTodoMock(localeKey),
+        textAfter: buildTalkRequestConditionText({
+          locale: localeKey,
+          currentTitle: next?.title || "",
+          priorTitles: prior.map((d) => d.title || d.name),
+        }),
         visualization,
         chips: buildTalkRequestNotifyChips({ locale: localeKey }),
       };

@@ -143,3 +143,55 @@ export function folderMatchesDepartmentFilter(folder, filterDepartmentId) {
   if (!filterDepartmentId) return !folderDept;
   return folderDept === String(filterDepartmentId);
 }
+
+/**
+ * Union tags by label; keep a non-empty description from either side.
+ * @param {unknown} primary
+ * @param {unknown} secondary
+ * @returns {DepartmentCategoryTag[]}
+ */
+export function mergeSubcategoryLists(primary, secondary) {
+  const newer = normalizeSubcategories(primary);
+  const older = normalizeSubcategories(secondary);
+  const olderByKey = new Map(
+    older.map((tag) => [tag.label.toLowerCase(), tag]),
+  );
+  const seen = new Set();
+  const out = [];
+  for (const tag of newer) {
+    const key = tag.label.toLowerCase();
+    seen.add(key);
+    const prev = olderByKey.get(key);
+    out.push({
+      label: tag.label,
+      description: tag.description || prev?.description || "",
+    });
+  }
+  for (const tag of older) {
+    const key = tag.label.toLowerCase();
+    if (seen.has(key)) continue;
+    out.push(tag);
+  }
+  return out;
+}
+
+/**
+ * Prefer the newer row, but never drop department / tag descriptions the
+ * other side still has (older DBs and PostgREST cache can upsert tags while
+ * stripping `description`).
+ * @param {DepartmentEntity} local
+ * @param {DepartmentEntity} remote
+ * @returns {DepartmentEntity}
+ */
+export function mergeDepartmentRecords(local, remote) {
+  const remoteTs = Date.parse(remote?.updatedAt || "") || 0;
+  const localTs = Date.parse(local?.updatedAt || "") || 0;
+  const newer = localTs > remoteTs ? local : remote;
+  const older = newer === local ? remote : local;
+  return {
+    ...newer,
+    category: String(newer?.category || older?.category || "").trim(),
+    description: normalizeDescription(newer?.description || older?.description),
+    subcategories: mergeSubcategoryLists(newer?.subcategories, older?.subcategories),
+  };
+}

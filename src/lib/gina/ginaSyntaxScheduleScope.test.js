@@ -102,6 +102,15 @@ const ctx = {
       objectId: "co1",
       status: "not_started",
     },
+    n7: {
+      id: "n7",
+      title: "Blog ayer",
+      parentDocId: "f1",
+      objectId: "co1",
+      status: "in_progress",
+      anchorAt: "2026-08-06T09:00:00",
+      anchorFinishAt: "2026-08-06T10:00:00",
+    },
   },
 };
 
@@ -230,10 +239,11 @@ describe("schedule scope routing → list_all table", () => {
     const completed = viz.data.documents.find((d) => d.title === "Blog semana");
     expect(completed?.struck).toBe(true);
     expect(completed?.status).toBe("completed");
-    // Passed morning slots are not on the main vigentes table
+    // Today stays on the week table even if morning hours already passed.
     const titles = (viz.data.documents || []).map((d) => d.title);
-    expect(titles).not.toContain("Blog hoy");
-    expect(titles).not.toContain("Sales hoy sin cat");
+    expect(titles).toContain("Blog hoy");
+    expect(titles).toContain("Sales hoy sin cat");
+    expect(titles).not.toContain("Blog ayer");
     expect(titles).not.toContain("Past due semana");
     expect(titles).not.toContain("Viejo");
 
@@ -257,10 +267,11 @@ describe("schedule scope routing → list_all table", () => {
     });
     expect(viz.data.weekDisplayMode).toBe("folder_pct");
     expect(viz.data.title).toMatch(/esta semana.*folder|folder.*esta semana/i);
-    // % uses vigentes only — passed morning docs excluded from progress source
+    // % follows the week table: today stays, previous-day overdue does not
     const pctTitles = (viz.data.documents || []).map((d) => d.title);
-    expect(pctTitles).not.toContain("Blog hoy");
+    expect(pctTitles).toContain("Blog hoy");
     expect(pctTitles).toContain("Blog semana");
+    expect(pctTitles).not.toContain("Blog ayer");
     expect(Array.isArray(viz.data.folderProgress)).toBe(true);
     expect(viz.data.folderProgress.length).toBeGreaterThan(0);
     expect(Array.isArray(viz.data.folderPctChart)).toBe(true);
@@ -297,13 +308,23 @@ describe("schedule scope routing → list_all table", () => {
       now,
     });
     expect(viz.data.weekDisplayMode).toBe("overdue");
-    // n6 is already past_due → not markable; n3 completed Wed morning is not markable
+    // Previous calendar days only — today's passed hours stay on the week table
     const titles = (viz.data.documents || []).map((d) => d.title);
-    expect(titles).toContain("Blog hoy");
-    expect(titles).toContain("Sales hoy sin cat");
+    expect(titles).toContain("Blog ayer");
+    expect(titles).not.toContain("Blog hoy");
+    expect(titles).not.toContain("Sales hoy sin cat");
     expect(titles).not.toContain("Past due semana");
     expect(titles).not.toContain("Viejo");
     expect(titles).not.toContain("Blog semana");
+    expect(viz.data.timeDayOnly).toBe(true);
+    for (const row of viz.data.documents || []) {
+      expect(row.timeClock).toBeFalsy();
+      expect(String(row.timeLabel || "")).not.toMatch(/\d{1,2}:\d{2}/);
+      expect(String(row.timeLabel || "")).toMatch(/\d{2}\s+\w+/);
+    }
+    const overdueHeadline = buildGinaFunnelHeadline(viz, { locale: "es", salt: 1 });
+    expect(overdueHeadline).toMatch(/por d[ií]a/i);
+    expect(overdueHeadline).not.toMatch(/horas pasadas/i);
     const chips = buildGinaReplyChips({
       family: "count_documents",
       visualization: viz,

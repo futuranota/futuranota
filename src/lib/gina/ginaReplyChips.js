@@ -2176,8 +2176,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
               : "Esta semana no hay horarios vencidos que aún necesiten cambio de status.";
           }
           return en
-            ? `Here are **${n}** overdue schedule${n === 1 ? "" : "s"} from this week (hours passed, status not updated).${layerNote}`
-            : `Aquí tienes **${n}** horario${n === 1 ? "" : "s"} vencido${n === 1 ? "" : "s"} de esta semana (horas pasadas, status sin actualizar).${layerNote}`;
+            ? `Here are **${n}** overdue schedule${n === 1 ? "" : "s"} from this week, by day.${layerNote}`
+            : `Aquí tienes **${n}** horario${n === 1 ? "" : "s"} vencido${n === 1 ? "" : "s"} de esta semana, por día.${layerNote}`;
         }
         return en
           ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} for this week, by weekday.${layerNote}`

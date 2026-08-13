@@ -29,7 +29,7 @@ import {
   buildGinaStatusRail,
   compareDocsByStatusThenTime,
 } from "./ginaStatusColors.js";
-import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
+import { buildGinaTimeDisplay, isGinaDayBeforeToday, toGinaDayOnlyRow } from "./ginaRelativeDay.js";
 import { resolveGinaTableView } from "./ginaTableViewContract.js";
 import { getGinaPrefs } from "./ginaPrefs.js";
 import {
@@ -815,19 +815,23 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       const allWeekDocs = railMode === "weekday"
         ? sortDocsByWeekdayThenTime(docs, { weekStartsOn })
         : docs;
-      // Main week table + %: only vigentes (slot not passed). Overdue → dedicated mode.
-      const weekVigentes = resolved.layout === "schedules_week"
-        ? allWeekDocs.filter((d) => !isPassedSlot(d, now))
-        : allWeekDocs;
+      // Week overdue = previous calendar days only (not today's passed hours).
+      // Today stays on the main week table even if the slot already ended.
       const weekOverdueMarkable = resolved.layout === "schedules_week"
         ? allWeekDocs.filter((d) => (
-          isMarkablePassedSlot(d, now)
+          isGinaDayBeforeToday(d.anchorAt, now)
+          && isMarkablePassedSlot(d, now)
           && d.status !== "completed"
           && d.completed !== true
         ))
         : [];
+      const weekVigentes = resolved.layout === "schedules_week"
+        ? allWeekDocs.filter((d) => (
+          !isGinaDayBeforeToday(d.anchorAt, now) || !isPassedSlot(d, now)
+        ))
+        : allWeekDocs;
       if (weekDisplayMode === "overdue") {
-        docs = weekOverdueMarkable;
+        docs = weekOverdueMarkable.map(toGinaDayOnlyRow);
       } else if (resolved.layout === "schedules_week" && railMode === "weekday") {
         docs = weekVigentes;
       } else if (railMode === "weekday") {
@@ -982,6 +986,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           fromCountDocuments: true,
           locale,
           weekDisplayMode: weekDisplayMode || undefined,
+          timeDayOnly: weekDisplayMode === "overdue",
           folderProgress,
           weekProgress,
           folderPctChart,

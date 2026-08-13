@@ -2,7 +2,11 @@ import { supabase, formatSupabaseError } from "./supabaseClient.js";
 import { useDepartmentsStore, normalizeDepartment } from "../stores/departmentsStore.js";
 import { generateId } from "./ids.js";
 import { resolveSyncUserId } from "./resolveSyncUserId.js";
-import { normalizeDescription, normalizeSubcategories } from "./departments.js";
+import {
+  mergeDepartmentRecords,
+  normalizeDescription,
+  normalizeSubcategories,
+} from "./departments.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
 
@@ -73,7 +77,8 @@ async function syncDepartmentsToSupabase(departments) {
       .from("departments")
       .upsert(rows, { onConflict: "id" });
 
-    // Older DBs may lack `description` — retry without it so tags still sync.
+    // Older PostgREST caches may reject `description`. Retry without it so
+    // tags still land — local description is preserved on the next hydrate merge.
     if (error && /description/i.test(String(error.message || error.code || ""))) {
       const rowsWithoutDescription = rows.map(({ description: _d, ...rest }) => rest);
       ({ error } = await supabase
@@ -163,8 +168,8 @@ export function initDepartmentsSync(useDepartmentsStoreArg) {
         const remoteById = new Map(remote.map((dept) => [dept.id, dept]));
         const localById = new Map(local.map((dept) => [dept.id, dept]));
 
-        // Prefer whichever side has the newer updatedAt so a failed upsert
-        // cannot wipe locally-saved tags on the next hydrate.
+        // Merge so a newer remote row that dropped `description` (schema cache)
+        // cannot wipe local department / tag metadata.
         const merged = [];
         const seen = new Set();
 
@@ -175,9 +180,7 @@ export function initDepartmentsSync(useDepartmentsStoreArg) {
             merged.push(remoteDept);
             continue;
           }
-          const remoteTs = Date.parse(remoteDept.updatedAt || "") || 0;
-          const localTs = Date.parse(localDept.updatedAt || "") || 0;
-          merged.push(localTs > remoteTs ? localDept : remoteDept);
+          merged.push(mergeDepartmentRecords(localDept, remoteDept));
         }
 
         for (const localDept of local) {

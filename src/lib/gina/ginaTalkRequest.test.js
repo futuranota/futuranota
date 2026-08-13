@@ -12,12 +12,18 @@ import {
   shouldShowTalkRequestPopover,
   skipTalkNotifications,
   writeTalkRequestState,
+  clearTalkRequestNotifiedDocIds,
 } from "./ginaTalkRequestStore.js";
 import {
   buildTalkRequestNotifyPrompt,
   buildTalkRequestNotifyDisplayText,
   buildTalkRequestNotifyText,
   buildTalkRequestNotifyStartDocLines,
+  formatTalkRequestAssignedTime,
+  getTalkRequestTodoMock,
+  listUnfinishedPriorBlocks,
+  buildTalkRequestConditionText,
+  parseDaySheetRescheduleIntent,
   buildTalkRequestPopoverCopy,
   buildTalkNotificationsEnableChips,
   buildTalkNotificationsOfferText,
@@ -162,6 +168,17 @@ describe("ginaTalkRequestStore", () => {
     }], now, since);
     const accepted = acceptTalkRequest(uid, now);
     expect(accepted.docId).toBe("a");
+    expect(getTalkRequestState(uid, now)?.notifiedDocIds).toContain("a");
+    clearTalkRequestNotifiedDocIds(uid, ["a"], now);
+    expect(getTalkRequestState(uid, now)?.notifiedDocIds || []).not.toContain("a");
+    // Re-arm after the id is cleared (moved later).
+    evalEdge(uid, [{
+      id: "a",
+      title: "A",
+      anchorAt: "2026-08-09T20:00:00",
+    }], now, since);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
+    acceptTalkRequest(uid, now);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
     expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
 
@@ -284,16 +301,19 @@ describe("ginaTalkRequestStore", () => {
 });
 
 describe("ginaTalkRequest copy + router", () => {
-  it("popover copy matches Accept / Decline mock", () => {
+  it("popover copy matches Verificar / Omitir", () => {
     const en = buildTalkRequestPopoverCopy("en");
     expect(en.title).toMatch(/next task is ready on the agenda/i);
     expect(en.titleEmph).toBe("Your");
     expect(en.titleMuted).toMatch(/next task is ready/i);
-    expect(en.accept).toBe("accept");
-    expect(en.decline).toBe("Decline");
+    expect(en.accept).toBe("verify");
+    expect(en.decline).toBe("skip");
     const es = buildTalkRequestPopoverCopy("es");
+    expect(es.title).toMatch(/siguiente tarea ya está lista en la agenda/i);
     expect(es.titleEmph).toBe("Tu");
     expect(es.titleMuted).toMatch(/siguiente tarea ya está lista en la agenda/i);
+    expect(es.accept).toBe("verificar");
+    expect(es.decline).toBe("omitir");
   });
 
   it("offer chips enable / skip notifications", () => {
@@ -325,26 +345,97 @@ describe("ginaTalkRequest copy + router", () => {
 
   it("notify text is short intro (fields go in startDocLines)", () => {
     const text = buildTalkRequestNotifyText({ locale: "es" });
-    expect(text).toMatch(/¿Estás casi listo\?/i);
-    expect(text).toMatch(/Ya es hora del documento que agendaste/i);
+    expect(text).toMatch(/¿Estás listo para comenzar\?/i);
+    expect(text).toMatch(/Es hora de tu siguiente bloque agendado/i);
     expect(text).not.toMatch(/comienza pronto/i);
   });
 
-  it("notify startDocLines highlight Departamento / Documento / horario", () => {
+  it("notify startDocLines highlight Departamento / Documento / horario / tiempo", () => {
     const lines = buildTalkRequestNotifyStartDocLines({
       title: "Blogs",
       department: "Marketing",
       category: "Content",
       timeClock: "7:00 PM – 7:30 PM",
+      anchorAt: "2026-08-13T14:00:00",
+      anchorFinishAt: "2026-08-13T16:00:00",
     }, "es");
     expect(lines.map((r) => r.label)).toEqual([
       "Departamento",
       "Documento",
       "horario",
+      "tiempo asignado",
     ]);
     expect(lines[0].value).toContain("Marketing");
     expect(lines[1].value).toBe("Blogs");
     expect(lines[2].value).toMatch(/7:00/);
+    expect(lines[3].value).toBe("2 horas");
+  });
+
+  it("formats assigned time from the schedule window", () => {
+    expect(formatTalkRequestAssignedTime({
+      anchorAt: "2026-08-13T14:00:00",
+      anchorFinishAt: "2026-08-13T16:00:00",
+    }, "es")).toBe("2 horas");
+    expect(formatTalkRequestAssignedTime({
+      anchorAt: "2026-08-13T09:00:00",
+      anchorFinishAt: "2026-08-13T09:30:00",
+    }, "es")).toBe("30 minutos");
+  });
+
+  it("todo mock is fixed 0/3 example copy", () => {
+    const mock = getTalkRequestTodoMock("es");
+    expect(mock.done).toBe(0);
+    expect(mock.total).toBe(3);
+    expect(mock.items).toHaveLength(3);
+    expect(mock.title).toMatch(/0\/3/);
+  });
+
+  it("lists unfinished prior blocks and builds condition copy", () => {
+    const current = {
+      id: "n2",
+      title: "Horizon blog title 2",
+      anchorAt: "2026-08-13T14:00:00",
+      status: "not_started",
+    };
+    const docs = [
+      {
+        id: "n1",
+        title: "Horizon blog title 1",
+        anchorAt: "2026-08-13T09:00:00",
+        status: "in_progress",
+      },
+      current,
+      {
+        id: "n0",
+        title: "Done earlier",
+        anchorAt: "2026-08-13T08:00:00",
+        status: "completed",
+      },
+    ];
+    const prior = listUnfinishedPriorBlocks(docs, current);
+    expect(prior.map((d) => d.title)).toEqual(["Horizon blog title 1"]);
+    const withPrior = buildTalkRequestConditionText({
+      locale: "es",
+      currentTitle: current.title,
+      priorTitles: prior.map((d) => d.title),
+    });
+    expect(withPrior).toMatch(/bloque anterior/i);
+    expect(withPrior).toContain("[ Horizon blog title 1 ]");
+    expect(withPrior).toContain("[ Horizon blog title 2 ]");
+    const caughtUp = buildTalkRequestConditionText({
+      locale: "es",
+      currentTitle: current.title,
+      priorTitles: [],
+    });
+    expect(caughtUp).toMatch(/Todo al día/i);
+  });
+
+  it("parses selected-row reschedule protocol", () => {
+    expect(parseDaySheetRescheduleIntent("GinaDaySheetReschedule:a,b")).toEqual({
+      match: true,
+      docIds: ["a", "b"],
+    });
+    expect(parseDaySheetRescheduleIntent("Reagendar para hoy").match).toBe(false);
   });
 
   it("routes enable opt-in to gina_talk_notifications_enable", () => {
@@ -400,5 +491,18 @@ describe("ginaTalkRequest copy + router", () => {
       departments: [],
     });
     expect(routed.family).toBe("gina_talk_request_thanks");
+  });
+
+  it("routes selected-row reschedule to cascade picker", () => {
+    const routed = runGinaQueryFamily("GinaDaySheetReschedule:n1,n2", {
+      now: new Date("2026-08-09T18:00:00"),
+      userId: "talk-user",
+      nodes: {},
+      docs: {},
+      departments: [],
+    });
+    expect(routed.family).toBe("schedule_recovery_reschedule_pick");
+    expect(routed.toolContext.rescheduleMode).toBe("cascade");
+    expect(routed.toolContext.cascadeMoveDocIds).toEqual(["n1", "n2"]);
   });
 });

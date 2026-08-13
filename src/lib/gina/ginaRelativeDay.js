@@ -31,6 +31,12 @@ function normalizeLocale(locale) {
   return s.toLowerCase().startsWith("en") ? "en" : "es";
 }
 
+/** True when `value` is a calendar day strictly before `now`. */
+export function isGinaDayBeforeToday(value, now = new Date()) {
+  const delta = calendarDayDelta(now, value);
+  return delta != null && delta < 0;
+}
+
 /** Calendar-day delta: to − from (0 = same day). */
 export function calendarDayDelta(from, to) {
   const a = toDate(from);
@@ -140,5 +146,22 @@ export function buildGinaTimeDisplay(opts = {}, now = new Date(), locale = "es")
     timeClock,
     absoluteDate,
     timeLabel,
+  };
+}
+
+/**
+ * Week overdue cells: calendar day only (no clock hours).
+ * @param {object} row
+ */
+export function toGinaDayOnlyRow(row = {}) {
+  const fromLabel = typeof row.timeLabel === "string"
+    ? String(row.timeLabel).split("·")[0].trim()
+    : "";
+  const day = row.dayBadge || fromLabel || row.time || "—";
+  return {
+    ...row,
+    timeClock: null,
+    timeLabel: day,
+    time: day,
   };
 }

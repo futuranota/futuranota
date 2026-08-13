@@ -77,6 +77,9 @@ import {
   buildTalkRequestNotifyStartDocLines,
   buildTalkRequestNotifyText,
   buildTalkRequestThanksText,
+  getTalkRequestTodoMock,
+  listUnfinishedPriorBlocks,
+  buildTalkRequestConditionText,
 } from "../../lib/gina/ginaTalkRequest.js";
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
@@ -543,6 +546,10 @@ export function NodeQueryModal({
         };
       }
       const next = routed.toolContext?.nextDocument || null;
+      const pool = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const prior = listUnfinishedPriorBlocks(pool, next);
       const daySheetViz = buildGinaVisualization("day_sheet", routed.toolContext, {
         locale: localeKey,
         now,
@@ -556,12 +563,20 @@ export function NodeQueryModal({
             compact: true,
             locale: localeKey,
             talkRequestNotify: true,
+            talkRequestDocId: next?.id || null,
+            nextDocumentId: next?.id || daySheetViz.data?.nextDocumentId || null,
           },
         }
         : null;
       return {
         message: buildTalkRequestNotifyText({ locale: localeKey }),
         startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
+        notifyTodoMock: getTalkRequestTodoMock(localeKey),
+        textAfter: buildTalkRequestConditionText({
+          locale: localeKey,
+          currentTitle: next?.title || "",
+          priorTitles: prior.map((d) => d.title || d.name),
+        }),
         visualization,
         chips: buildTalkRequestNotifyChips({ locale: localeKey }),
       };

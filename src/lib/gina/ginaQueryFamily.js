@@ -94,6 +94,7 @@ import {
   isSkipTalkNotificationsIntent,
   isTalkRequestThanksIntent,
   parseTalkRequestNotifyIntent,
+  parseDaySheetRescheduleIntent,
 } from "./ginaTalkRequest.js";
 import {
   enableTalkNotifications,
@@ -3045,6 +3046,28 @@ export function runGinaQueryFamily(text, ctx = {}) {
           docs: ctx.docs,
           recoveryPhase: "brief",
           hint: "User continued to the next schedule recovery step",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  {
+    const parsedSheetReschedule = parseDaySheetRescheduleIntent(text);
+    if (parsedSheetReschedule.match && parsedSheetReschedule.docIds.length) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_pick",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          rescheduleMode: "cascade",
+          cascadeMoveDocIds: parsedSheetReschedule.docIds,
+          sessionMoveDocIds: parsedSheetReschedule.docIds,
+          hint: "Day-sheet row reschedule — cascade picker for selected docs",
         },
         workspaceInventory: inventory,
       };

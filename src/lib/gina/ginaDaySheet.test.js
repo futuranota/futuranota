@@ -16,6 +16,7 @@ import {
   clearPendingDaySheetSelection,
   applyDaySheetCompletionBatch,
   buildDaySheetBatchCompleteAck,
+  buildDaySheetBatchCompleteChips,
   buildDaySheetPendingActionChips,
 } from "./ginaDaySheet.js";
 import {
@@ -200,16 +201,16 @@ describe("ginaDaySheet helpers", () => {
       nextTitle: "Three",
       locale: "es",
     });
-    expect(ack).toMatch(/¡Listo! Tachamos \*\*2\*\* Documentos/);
-    expect(ack).toMatch(/Aún tienes pendiente \*\*Three\*\*/);
-    expect(ack).toMatch(/seguir avanzando/);
+    expect(ack).toMatch(/¡Listo! Tachamos \*\*2\*\* documentos/);
+    expect(ack).toMatch(/Qué deseas hacer ahora/);
+    expect(ack).not.toMatch(/Aún tienes pendiente/);
 
     const singular = buildDaySheetBatchCompleteAck({
       count: 1,
       nextTitle: "Three",
       locale: "es",
     });
-    expect(singular).toMatch(/Tachamos \*\*1\*\* Documento\./);
+    expect(singular).toMatch(/Tachamos \*\*1\*\* documento\./);
 
     const empty = buildDaySheetBatchCompleteAck({ count: 2, nextTitle: "", locale: "es" });
     expect(empty).toMatch(/No queda nada pendiente/);
@@ -219,8 +220,32 @@ describe("ginaDaySheet helpers", () => {
       "day_sheet_apply_complete",
       "day_sheet_discard_selection",
     ]);
-    expect(chips[0].label).toBe("Marcar como completado");
-    expect(chips[1].label).toBe("Descartar");
+    expect(chips[0].label).toBe("Marcar como completados");
+    expect(chips.map((c) => c.id)).toContain("day_sheet_discard_selection");
+
+    const selected = buildDaySheetPendingActionChips({
+      locale: "es",
+      selectedIds: ["n2"],
+      openTitle: "Horizon blog title 2",
+    });
+    expect(selected.map((c) => c.id)).toEqual([
+      "day_sheet_apply_complete",
+      "day_sheet_reschedule",
+      "open_n2",
+      "day_sheet_discard_selection",
+    ]);
+    expect(selected.find((c) => c.id === "day_sheet_reschedule")?.text).toBe("GinaDaySheetReschedule:n2");
+    expect(selected.find((c) => c.id === "open_n2")?.text).toBe("GinaOpenDocument:n2");
+
+    const afterAck = buildDaySheetBatchCompleteChips({
+      locale: "es",
+      documentId: "n2",
+      title: "Horizon blog title 2",
+      talkRequestNotify: true,
+    });
+    expect(afterAck[0].id).toBe("open_n2");
+    expect(afterAck[0].label).toMatch(/^Abrir Horizon blog title 2$/);
+    expect(afterAck[0].text).toBe("GinaOpenDocument:n2");
   });
 
   it("matches title within sheet", () => {

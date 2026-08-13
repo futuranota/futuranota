@@ -44,8 +44,8 @@ export function buildTalkRequestPopoverCopy(locale = "es") {
     titleMuted: en
       ? "next task is ready on the agenda."
       : "siguiente tarea ya está lista en la agenda.",
-    accept: en ? "accept" : "accept",
-    decline: en ? "Decline" : "Decline",
+    accept: en ? "verify" : "verificar",
+    decline: en ? "skip" : "omitir",
   };
 }
 
@@ -109,14 +109,46 @@ export function buildTalkRequestNotifyText(opts = {}) {
   const en = opts.locale === "en";
   if (en) {
     return [
-      "Are you almost ready?",
-      "It’s time for the document you scheduled — your block starts now.",
+      "Ready to start?",
+      "It’s time for your next scheduled block.",
     ].join("\n\n");
   }
   return [
-    "¿Estás casi listo?",
-    "Ya es hora del documento que agendaste — tu bloque comienza ahora.",
+    "¿Estás listo para comenzar?",
+    "Es hora de tu siguiente bloque agendado.",
   ].join("\n\n");
+}
+
+/**
+ * Duration between start and finish — e.g. "2 horas" / "30 minutos".
+ * @param {object | null} doc
+ * @param {string} [locale]
+ */
+export function formatTalkRequestAssignedTime(doc, locale = "es") {
+  const start = doc?.anchorAt ? new Date(doc.anchorAt) : null;
+  const finishRaw = doc?.anchorFinishAt || doc?.dueAt || null;
+  const finish = finishRaw ? new Date(finishRaw) : null;
+  if (!start || !finish || Number.isNaN(start.getTime()) || Number.isNaN(finish.getTime())) {
+    return "—";
+  }
+  const minutes = Math.round((finish.getTime() - start.getTime()) / 60000);
+  if (minutes <= 0) return "—";
+  const en = locale === "en";
+  const h = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (h <= 0) {
+    return en
+      ? `${rem} minute${rem === 1 ? "" : "s"}`
+      : `${rem} minuto${rem === 1 ? "" : "s"}`;
+  }
+  if (rem <= 0) {
+    return en
+      ? `${h} hour${h === 1 ? "" : "s"}`
+      : `${h} hora${h === 1 ? "" : "s"}`;
+  }
+  return en
+    ? `${h} hour${h === 1 ? "" : "s"} ${rem} minute${rem === 1 ? "" : "s"}`
+    : `${h} hora${h === 1 ? "" : "s"} ${rem} minuto${rem === 1 ? "" : "s"}`;
 }
 
 /**
@@ -133,11 +165,13 @@ export function buildTalkRequestNotifyStartDocLines(doc, locale = "es") {
         { label: "Department", value: "—" },
         { label: "Document", value: "—" },
         { label: "Schedule", value: "—" },
+        { label: "Assigned time", value: "—" },
       ]
       : [
         { label: "Departamento", value: "—" },
         { label: "Documento", value: "—" },
         { label: "horario", value: "—" },
+        { label: "tiempo asignado", value: "—" },
       ];
   }
   const title = String(doc.title || doc.name || "").trim()
@@ -153,17 +187,140 @@ export function buildTalkRequestNotifyStartDocLines(doc, locale = "es") {
     : categoryRaw;
   const departmentValue = category ? `${department} (${category})` : department;
   const schedule = talkRequestTimeLabel(doc, en ? "en" : "es") || "—";
+  const assigned = formatTalkRequestAssignedTime(doc, en ? "en" : "es");
   return en
     ? [
       { label: "Department", value: departmentValue },
       { label: "Document", value: title },
       { label: "Schedule", value: schedule },
+      { label: "Assigned time", value: assigned },
     ]
     : [
       { label: "Departamento", value: departmentValue },
       { label: "Documento", value: title },
       { label: "horario", value: schedule },
+      { label: "tiempo asignado", value: assigned },
     ];
+}
+
+/** Fixed mock to-dos for the notify turn (not live corpus). */
+export const GINA_TALK_REQUEST_TODO_MOCK_ES = {
+  done: 0,
+  total: 3,
+  title: "Pendientes en este documento (0/3):",
+  items: [
+    "Redactar introducción y gancho principal",
+    "Añadir enlaces de referencia y afiliados",
+    "Revisar formato y subtítulos H2",
+  ],
+};
+
+export const GINA_TALK_REQUEST_TODO_MOCK_EN = {
+  done: 0,
+  total: 3,
+  title: "Pending in this document (0/3):",
+  items: [
+    "Draft the introduction and main hook",
+    "Add reference and affiliate links",
+    "Review formatting and H2 subheads",
+  ],
+};
+
+/**
+ * @param {string} [locale]
+ */
+export function getTalkRequestTodoMock(locale = "es") {
+  return locale === "en" ? GINA_TALK_REQUEST_TODO_MOCK_EN : GINA_TALK_REQUEST_TODO_MOCK_ES;
+}
+
+/**
+ * @param {string[]} names
+ * @param {string} [locale]
+ */
+export function joinTalkRequestNames(names, locale = "es") {
+  const list = (names || []).map((n) => String(n || "").trim()).filter(Boolean);
+  if (!list.length) return "";
+  if (list.length === 1) return list[0];
+  const conj = locale === "en" ? " and " : " y ";
+  if (list.length === 2) return `${list[0]}${conj}${list[1]}`;
+  return `${list.slice(0, -1).join(", ")}${conj}${list[list.length - 1]}`;
+}
+
+function isClosedNotifyStatus(doc) {
+  const status = String(doc?.status || "").trim();
+  return status === "completed"
+    || status === "submitted"
+    || doc?.completed === true;
+}
+
+/**
+ * Today's docs that start before the notified block and are still open.
+ * @param {object[]} docs
+ * @param {object | null} current
+ * @returns {object[]}
+ */
+export function listUnfinishedPriorBlocks(docs, current) {
+  const list = Array.isArray(docs) ? docs : [];
+  const currentId = current?.id != null ? String(current.id) : "";
+  const currentStart = current?.anchorAt ? Date.parse(current.anchorAt) : NaN;
+  if (!Number.isFinite(currentStart)) return [];
+  return list
+    .filter((d) => {
+      if (!d) return false;
+      if (currentId && String(d.id) === currentId) return false;
+      if (isClosedNotifyStatus(d)) return false;
+      const start = d.anchorAt ? Date.parse(d.anchorAt) : NaN;
+      return Number.isFinite(start) && start < currentStart;
+    })
+    .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")));
+}
+
+/**
+ * @param {{
+ *   locale?: string,
+ *   currentTitle?: string,
+ *   priorTitles?: string[],
+ * }} [opts]
+ */
+export function buildTalkRequestConditionText(opts = {}) {
+  const en = opts.locale === "en";
+  const current = String(opts.currentTitle || "").trim()
+    || (en ? "this document" : "este documento");
+  const priors = (Array.isArray(opts.priorTitles) ? opts.priorTitles : [])
+    .map((t) => String(t || "").trim())
+    .filter(Boolean);
+  if (!priors.length) {
+    return en
+      ? "You're all caught up!\nReady to put your full attention on this document?"
+      : "¡Todo al día!\n¿Estás listo para enfocar toda tu atención en este documento?";
+  }
+  const joined = joinTalkRequestNames(priors.map((t) => `[ ${t} ]`), en ? "en" : "es");
+  if (en) {
+    return [
+      "How's the previous block going?",
+      `We noticed that ${joined} still isn't marked as completed.`,
+      `Want to close it so you can start [ ${current} ]?`,
+    ].join("\n");
+  }
+  return [
+    "¿Cómo vas con el bloque anterior?",
+    `Notamos que ${joined} aún no está marcado como completado.`,
+    `¿Deseas darlo por concluido para arrancar con [ ${current} ]?`,
+  ].join("\n");
+}
+
+/**
+ * @param {string} text
+ * @returns {{ match: boolean, docIds: string[] }}
+ */
+export function parseDaySheetRescheduleIntent(text) {
+  const q = String(text || "").trim();
+  if (!q.startsWith("GinaDaySheetReschedule:")) {
+    return { match: false, docIds: [] };
+  }
+  const raw = q.slice("GinaDaySheetReschedule:".length);
+  const docIds = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return { match: true, docIds };
 }
 
 /**

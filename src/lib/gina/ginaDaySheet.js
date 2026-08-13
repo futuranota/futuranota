@@ -228,19 +228,19 @@ export function buildDaySheetBatchCompleteAck(opts = {}) {
   const nextTitle = String(opts.nextTitle || "").trim();
   const noun = en
     ? (n === 1 ? "document" : "documents")
-    : (n === 1 ? "Documento" : "Documentos");
+    : (n === 1 ? "documento" : "documentos");
   const line1 = en
     ? `Done! We checked off **${n}** ${noun}.`
     : `¡Listo! Tachamos **${n}** ${noun}.`;
+  const line2 = en
+    ? "What do you want to do now?"
+    : "¿Qué deseas hacer ahora?";
   if (!nextTitle) {
     const empty = en
       ? "Nothing left pending on today’s schedule."
       : "No queda nada pendiente en el horario del día.";
     return `${line1}\n${empty}`;
   }
-  const line2 = en
-    ? `You still have **${nextTitle}** pending. Want to keep going, or leave it for later?`
-    : `Aún tienes pendiente **${nextTitle}**. ¿Quieres seguir avanzando o lo dejamos para más tarde?`;
   return `${line1}\n${line2}`;
 }
 
@@ -250,17 +250,71 @@ export function buildDaySheetBatchCompleteAck(opts = {}) {
  */
 export function buildDaySheetPendingActionChips(opts = {}) {
   const en = opts.locale === "en";
-  return [
+  const selectedIds = (Array.isArray(opts.selectedIds) ? opts.selectedIds : [])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  const talkRequestDocId = String(opts.talkRequestDocId || "").trim();
+  const openId = selectedIds.length === 1
+    ? selectedIds[0]
+    : (talkRequestDocId && selectedIds.includes(talkRequestDocId)
+      ? talkRequestDocId
+      : (selectedIds[0] || talkRequestDocId || ""));
+  const openTitle = String(opts.openTitle || "").trim();
+  /** @type {{ id: string, label: string, text: string, primary?: boolean }[]} */
+  const chips = [
     {
       id: "day_sheet_apply_complete",
-      label: en ? "Mark as completed" : "Marcar como completado",
+      label: en ? "Mark as completed" : "Marcar como completados",
       text: "GinaDaySheetApplyComplete",
       primary: true,
     },
+  ];
+  if (selectedIds.length) {
+    chips.push({
+      id: "day_sheet_reschedule",
+      label: en ? "Reschedule" : "Reagendar",
+      text: `GinaDaySheetReschedule:${selectedIds.join(",")}`,
+    });
+  }
+  if (openId) {
+    chips.push({
+      id: `open_${openId}`,
+      label: en
+        ? (openTitle ? `Open ${openTitle}` : "Open")
+        : (openTitle ? `Abrir ${openTitle}` : "Abrir"),
+      text: `GinaOpenDocument:${openId}`,
+    });
+  }
+  chips.push({
+    id: "day_sheet_discard_selection",
+    label: en ? "Discard" : "Descartar",
+    text: "GinaDaySheetDiscardSelection",
+  });
+  return chips;
+}
+
+/**
+ * After batch complete — Open first when the turn started from a notify.
+ * @param {{
+ *   locale?: string,
+ *   documentId?: string | null,
+ *   title?: string | null,
+ *   talkRequestNotify?: boolean,
+ * }} [opts]
+ */
+export function buildDaySheetBatchCompleteChips(opts = {}) {
+  const en = opts.locale === "en";
+  const id = String(opts.documentId || "").trim();
+  const title = String(opts.title || "").trim();
+  if (!id) return [];
+  return [
     {
-      id: "day_sheet_discard_selection",
-      label: en ? "Discard" : "Descartar",
-      text: "GinaDaySheetDiscardSelection",
+      id: `open_${id}`,
+      label: en
+        ? (title ? `Open ${title}` : "Open")
+        : (title ? `Abrir ${title}` : "Abrir"),
+      text: `GinaOpenDocument:${id}`,
+      primary: true,
     },
   ];
 }

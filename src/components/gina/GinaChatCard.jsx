@@ -12,13 +12,16 @@ import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaReplyChips.js";
+import { buildTalkRequestNotifyChips } from "../../lib/gina/ginaTalkRequest.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
   applyDaySheetCompletionBatch,
   buildDaySheetBatchCompleteAck,
+  buildDaySheetBatchCompleteChips,
   buildDaySheetPendingActionChips,
   clearPendingDaySheetSelection,
   flattenDaySheetDocs,
+  isDocCompleted,
   pickNextDaySheetDoc,
   togglePendingDaySheetSelection,
 } from "../../lib/gina/ginaDaySheet.js";
@@ -1375,6 +1378,7 @@ export function GinaChatCard({
         let textAfterLead = null;
         let textAfterRest = null;
         let startDocLines = null;
+        let notifyTodoMock = null;
         let textPitch = null;
         let visualization = null;
         let learnProposal = null;
@@ -1393,6 +1397,9 @@ export function GinaChatCard({
           textAfterRest = reply.textAfterRest != null ? String(reply.textAfterRest).trim() : null;
           if (textAfterRest === "") textAfterRest = null;
           startDocLines = Array.isArray(reply.startDocLines) ? reply.startDocLines : null;
+          notifyTodoMock = reply.notifyTodoMock && typeof reply.notifyTodoMock === "object"
+            ? reply.notifyTodoMock
+            : null;
           textPitch = reply.textPitch != null ? String(reply.textPitch).trim() : null;
           if (textPitch === "") textPitch = null;
           visualization = reply.visualization || null;
@@ -1452,6 +1459,7 @@ export function GinaChatCard({
                     id: makeMsgId(),
                     sender: "ai",
                     ...reveal,
+                    notifyTodoMock,
                     learnProposal,
                     chips: ensureNavBackChip(prev, chips, chipLocale),
                   },
@@ -1500,6 +1508,7 @@ export function GinaChatCard({
               id: makeMsgId(),
               sender: "ai",
               ...reveal,
+              notifyTodoMock,
               learnProposal,
               chips: ensureNavBackChip(prev, chips, chipLocale),
             },
@@ -1552,9 +1561,9 @@ export function GinaChatCard({
     return -1;
   }, [messages]);
 
-  /** In-doc day sheet: checkbox = pending selection only (confirm chips apply status). */
+  /** Day sheet: checkbox = pending selection only (confirm chips apply status). */
   const handleToggleDaySheetDoc = (docId, nextSelected) => {
-    if (!documentId || !docId) return;
+    if (!docId) return;
     setMessages((prev) => prev.map((m) => {
       if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
       const visualization = togglePendingDaySheetSelection(
@@ -1563,27 +1572,41 @@ export function GinaChatCard({
         nextSelected,
       );
       const pending = visualization?.data?.pendingSelectedIds || [];
+      const docs = flattenDaySheetDocs(visualization);
+      const openId = pending.length === 1 ? pending[0] : (visualization?.data?.talkRequestDocId || pending[0]);
+      const openDoc = docs.find((d) => String(d?.id) === String(openId));
       const chips = pending.length
-        ? buildDaySheetPendingActionChips({ locale: chipLocale })
-        : null;
+        ? buildDaySheetPendingActionChips({
+          locale: chipLocale,
+          selectedIds: pending,
+          talkRequestDocId: visualization?.data?.talkRequestDocId || null,
+          openTitle: openDoc?.title || "",
+        })
+        : (m.visualization?.data?.talkRequestNotify
+          ? buildTalkRequestNotifyChips({ locale: chipLocale })
+          : null);
       return { ...m, visualization, chips };
     }));
   };
 
   const handleDaySheetDiscardSelection = () => {
-    if (!documentId) return;
+    if (!documentId && !messagesRef.current.some((m) => m.visualization?.data?.talkRequestNotify)) return;
     setMessages((prev) => prev.map((m) => {
       if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
       return {
         ...m,
         visualization: clearPendingDaySheetSelection(m.visualization),
-        chips: null,
+        chips: m.visualization?.data?.talkRequestNotify
+          ? buildTalkRequestNotifyChips({ locale: chipLocale })
+          : null,
       };
     }));
   };
 
   const handleDaySheetApplyComplete = () => {
-    if (!documentId) return;
+    const canApply = Boolean(documentId)
+      || messagesRef.current.some((m) => m.visualization?.data?.talkRequestNotify);
+    if (!canApply) return;
     const sheetMsg = [...messagesRef.current].reverse().find((m) => (
       m.sender === "ai" && m.visualization?.data?.isDaySheet
     ));
@@ -1603,11 +1626,22 @@ export function GinaChatCard({
 
     const visualization = applyDaySheetCompletionBatch(sheetMsg.visualization, pending);
     const docs = flattenDaySheetDocs(visualization);
-    const nextDoc = pickNextDaySheetDoc(docs);
+    const talkRequestDocId = sheetMsg.visualization?.data?.talkRequestDocId || null;
+    const talkNotify = Boolean(sheetMsg.visualization?.data?.talkRequestNotify);
+    const notifiedStillOpen = talkRequestDocId
+      ? docs.find((d) => String(d?.id) === String(talkRequestDocId) && !isDocCompleted(d))
+      : null;
+    const nextDoc = notifiedStillOpen || pickNextDaySheetDoc(docs);
     const ackText = buildDaySheetBatchCompleteAck({
       count: pending.length,
       nextTitle: nextDoc?.title || "",
       locale: chipLocale,
+    });
+    const ackChips = buildDaySheetBatchCompleteChips({
+      locale: chipLocale,
+      documentId: nextDoc?.id || null,
+      title: nextDoc?.title || "",
+      talkRequestNotify: talkNotify,
     });
 
     setMessages((prev) => {
@@ -1622,7 +1656,7 @@ export function GinaChatCard({
           sender: "ai",
           text: ackText,
           visualization: null,
-          chips: null,
+          chips: ackChips.length ? ackChips : null,
         },
       ];
     });
@@ -1941,12 +1975,13 @@ export function GinaChatCard({
                                       recoveryCopyFirst: true,
                                     };
                                   }
-                                  // Talk-notify: intro done → show day sheet; highlights wait for sheet paint.
+                                  // Talk-notify: intro → highlights → todos/condition → day sheet.
                                   if (talkNotify) {
                                     return {
                                       ...m,
-                                      vizRevealed: true,
-                                      sheetTableRevealed: false,
+                                      vizRevealed: false,
+                                      recoveryCopyFirst: true,
+                                      sheetTableRevealed: true,
                                       startDocRevealed: !m.startDocLines?.length,
                                       afterRevealed: false,
                                       pitchRevealed: !m.textPitch,
@@ -2027,7 +2062,8 @@ export function GinaChatCard({
                       }}
                       compact={Boolean(documentId)}
                       onToggleDaySheetDoc={
-                        documentId && msg.visualization?.data?.isDaySheet
+                        msg.visualization?.data?.isDaySheet
+                        && (documentId || msg.visualization?.data?.talkRequestNotify)
                           ? handleToggleDaySheetDoc
                           : undefined
                       }
@@ -2204,22 +2240,48 @@ export function GinaChatCard({
                             if (msg.refineRevealed) return;
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
+                            const hasFollowUp = Boolean(
+                              msg.textAfterRest || msg.textAfter || msg.notifyTodoMock
+                            );
                             setMessages((prev) => prev.map((m, idx) => (
                               idx === i
                                 ? {
                                   ...m,
                                   startDocRevealed: true,
-                                  afterRevealed: !(m.textAfterRest || (
-                                    !m.startDocLines?.length && m.textAfter
-                                  )),
+                                  afterRevealed: !hasFollowUp,
+                                  vizRevealed: m.visualization?.data?.talkRequestNotify
+                                    ? !hasFollowUp
+                                    : m.vizRevealed,
+                                  recoveryCopyFirst: m.visualization?.data?.talkRequestNotify
+                                    ? hasFollowUp
+                                    : m.recoveryCopyFirst,
                                 }
                                 : m
                             )));
-                            if (!msg.textAfterRest && !(msg.textAfter && !msg.startDocLines?.length)) {
-                              if (!msg.textPitch) handleAiAnimComplete();
-                            }
+                            if (!hasFollowUp && !msg.textPitch) handleAiAnimComplete();
                           }}
                         />
+                      ) : null}
+                      {(!msg.textAfterLead || msg.leadRevealed === true)
+                        && (
+                          (!msg.startDocLines?.length)
+                          || msg.startDocRevealed === true
+                        )
+                        && msg.notifyTodoMock
+                        && Array.isArray(msg.notifyTodoMock.items)
+                        && msg.notifyTodoMock.items.length ? (
+                        <div className="gina-chat-card__notify-todos">
+                          <p className="gina-chat-card__notify-todos-title">
+                            {`☑️ ${msg.notifyTodoMock.title || "Pendientes en este documento (0/3):"}`}
+                          </p>
+                          <ul className="gina-chat-card__notify-todos-list">
+                            {msg.notifyTodoMock.items.map((item) => (
+                              <li key={item} className="gina-chat-card__notify-todos-item">
+                                {`[ ] ${item}`}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       ) : null}
                       {(
                         (!msg.textAfterLead || msg.leadRevealed === true)
@@ -2227,7 +2289,7 @@ export function GinaChatCard({
                           (!msg.startDocLines?.length)
                           || msg.startDocRevealed === true
                         )
-                      ) && (msg.textAfterRest || (!msg.startDocLines?.length && !msg.textAfterLead && msg.textAfter)) ? (
+                      ) && (msg.textAfterRest || msg.textAfter) ? (
                         <GinaAiMessageText
                           text={msg.textAfterRest || msg.textAfter}
                           plainBody

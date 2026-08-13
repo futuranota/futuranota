@@ -2098,7 +2098,10 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
                     "gina-viz__checklist-row"
                     + (completed ? " gina-viz__checklist-row--done" : "")
                     + (pending ? " gina-viz__checklist-row--pending" : "")
-                    + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__checklist-row--next" : "")
+                    + (doc.id && (
+                      doc.id === data.nextDocumentId
+                      || doc.id === data.talkRequestDocId
+                    ) ? " gina-viz__checklist-row--next" : "")
                   }
                 >
                   <label className="gina-viz__checklist-check">
@@ -3018,7 +3021,10 @@ function TableVisualization({ data, onSelectAction }) {
       case "folder": return "Folder";
       case "path": return en ? "Path" : "Ruta";
       case "status": return en ? "Status" : "Estado";
-      case "time": return en ? "Date and time" : "Fecha y Hora";
+      case "time":
+        return weekDisplayMode === "overdue" || data.timeDayOnly
+          ? (en ? "Day" : "Día")
+          : (en ? "Date and time" : "Fecha y Hora");
       case "weekday": return en ? "Day" : "Día";
       default: return key;
     }
