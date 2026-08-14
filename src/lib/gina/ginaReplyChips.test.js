@@ -48,7 +48,7 @@ describe("ginaReplyChips", () => {
     expect(chips.find((c) => c.id === "review_pending_today")?.hint).toMatch(/tareas activas/i);
     expect(chips.find((c) => c.id === "review_hours_today")?.label).toBe("Horarios del día");
     expect(chips.find((c) => c.id === "review_hours_today")?.icon).toBe("/uploads/calendar.svg");
-    expect(chips.find((c) => c.id === "review_hours_today")?.text).toMatch(/horarios de hoy/i);
+    expect(chips.find((c) => c.id === "review_hours_today")?.text).toMatch(/horario del d[ií]a/i);
     expect(chips.some((c) => c.id === "agenda_today")).toBe(false);
   });
 
@@ -619,6 +619,28 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toContain("open_n1");
     expect(chips.map((c) => c.id)).not.toContain("open_day_sheet");
     expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
+  });
+
+  it("day schedule reopen omits follow-up question chips", () => {
+    const chips = buildGinaReplyChips({
+      family: "day_sheet",
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          omitFollowUpChips: true,
+          folderBars: [{ name: "Horizon", docs: 1, color: "#008AF5" }],
+          documents: [{ id: "n1", title: "Call 1" }],
+          quickSheet: {
+            isCleanDay: true,
+            firstPendingId: "n1",
+            pending: [{ id: "n1" }],
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips).toEqual([]);
   });
 
   it("allowOpenWithoutSave still waits for notification decision before Comenzar", () => {

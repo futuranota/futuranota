@@ -1190,6 +1190,24 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       };
     }
     const highlightId = ctx.nextDocument?.id || null;
+    if (ctx.talkRequestNotify) {
+      return {
+        type: "schedule_sheet",
+        data: {
+          date: dateKey,
+          dateLabel: formatGinaDayLabel(dateKey, locale),
+          groups: groupDocsForScheduleSheet(docs, now),
+          documents: docs
+            .slice()
+            .map((d) => mapDocRow(d, now, locale)),
+          isDaySheet: true,
+          justSaved: false,
+          nextDocumentId: highlightId,
+          progress,
+          talkRequestNotify: true,
+        },
+      };
+    }
     if (ctx.justSaved) {
       return {
         type: "day_sheet_saved",
@@ -1207,22 +1225,15 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         },
       };
     }
-    return {
-      type: "schedule_sheet",
-      data: {
-        date: dateKey,
-        dateLabel: formatGinaDayLabel(dateKey, locale),
-        groups: groupDocsForScheduleSheet(docs, now),
-        documents: docs
-          .slice()
-          .map((d) => mapDocRow(d, now, locale)),
-        isDaySheet: true,
-        justSaved: false,
-        nextDocumentId: highlightId,
-        progress,
-        ...(ctx.talkRequestNotify ? { talkRequestNotify: true } : null),
-      },
-    };
+    // Easy-link / reopen: same infographic + live table as agenda hoy (not the old checklist).
+    return buildGinaVisualization("today", {
+      ...ctx,
+      date: dateKey,
+      documents: docs,
+      filters: {},
+      omitFollowUpChips: true,
+      reopenDaySchedule: true,
+    }, opts);
   }
 
   if (family === "today" || (family === "default_overview" && ctx.today)) {
@@ -1473,6 +1484,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       conflictRails: quickSheet.conflictRails,
       topConflict: quickSheet.topConflict,
       locale,
+      omitFollowUpChips: Boolean(today.omitFollowUpChips || today.reopenDaySchedule),
     }, today, now);
     const hasPassedUrgency = Array.isArray(quickSheet.urgency) && quickSheet.urgency.length > 0;
     return {

@@ -159,6 +159,30 @@ describe("buildGinaVisualization", () => {
     expect(viz?.data.groups[0].department).toBe("Marketing");
   });
 
+  it("day_sheet reopen uses today overview (folder bars, no follow-up chips)", () => {
+    const viz = buildGinaVisualization("day_sheet", {
+      date: "2026-08-01",
+      documents: [
+        {
+          id: "n1",
+          title: "Blog Post",
+          status: "in_progress",
+          parentFolderName: "Horizon",
+          departmentName: "Marketing",
+          category: "Blogs",
+          anchorAt: "2026-08-01T08:00:00",
+          anchorFinishAt: "2026-08-01T09:00:00",
+        },
+      ],
+      isDaySheet: true,
+      reopenDaySchedule: true,
+    }, { userText: "Horario del día", now: new Date("2026-08-01T07:00:00") });
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz?.data.todayOverview).toBe(true);
+    expect(viz?.data.omitFollowUpChips).toBe(true);
+    expect(viz?.data.folderBars?.map((f) => f.name)).toEqual(["Horizon"]);
+  });
+
   it("builds dept_summary when department filter is set", () => {
     const viz = buildGinaVisualization("today", {
       date: "2026-08-01",

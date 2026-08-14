@@ -1013,7 +1013,7 @@ export function NodeQueryModal({
       const textMid = visualization?.data?.todayOverview
         ? buildTodayOverviewIntroText(localeKey)
         : null;
-      const postTable = visualization?.data?.todayOverview
+      const postTable = visualization?.data?.todayOverview && !visualization?.data?.omitFollowUpChips
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
           documents: visualization.data.documents || [],

@@ -136,7 +136,7 @@ export function buildGinaOpeningChips(opts = {}) {
     hint: en
       ? "Look at how your blocks are distributed across the day."
       : "Analiza la distribución horaria de tus bloques.",
-    text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+    text: en ? "Day schedule" : "Horario del día",
     primary: mode === "progress",
     selectable: true,
   };
@@ -1132,6 +1132,9 @@ export function buildScheduleSheetChips(opts = {}) {
   });
   /** @type {GinaReplyChip[]} */
   const chips = [];
+  if (opts.omitFollowUpChips) {
+    return chips;
+  }
   if (errorsFirst && phase === "brief") {
     chips.push(...buildScheduleRecoveryChips({
       locale: opts.locale,
@@ -2827,6 +2830,7 @@ export function buildGinaReplyChips(opts = {}) {
       missingAnchor: Boolean(data.missingAnchor),
       hasDaySheet: Boolean(opts.hasDaySheet),
       allowOpenWithoutSave: Boolean(opts.allowOpenWithoutSave),
+      omitFollowUpChips: Boolean(opts.omitFollowUpChips || data.omitFollowUpChips),
       todayOverview: Boolean(data.todayOverview),
       offerDayReady: Boolean(data.offerDayReady || data.offerSaveDaySheet),
       overviewByDepartment: data.overviewByDepartment,

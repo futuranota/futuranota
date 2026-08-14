@@ -366,10 +366,11 @@ describe("day sheet visualization + family", () => {
     }, { locale: "es", now, userText: "Sheet del día" });
 
     expect(viz?.type).toBe("schedule_sheet");
-    expect(viz?.data?.isDaySheet).toBe(true);
-    const rows = viz.data.documents;
-    expect(rows.find((r) => r.id === "1")?.struck).toBe(true);
-    expect(rows.find((r) => r.id === "2")?.struck).toBeFalsy();
+    expect(viz?.data?.todayOverview).toBe(true);
+    expect(viz?.data?.omitFollowUpChips).toBe(true);
+    expect(viz?.data?.documents?.map((r) => r.id)).toEqual(["2"]);
+    expect(viz?.data?.quickSheet?.completed?.find((r) => r.id === "1")?.struck).toBe(true);
+    expect(viz?.data?.folderBars?.some((f) => f.name === "Blogs")).toBe(true);
   });
 
   it("routes reopen when anchored", () => {
@@ -407,7 +408,7 @@ describe("day sheet visualization + family", () => {
     expect(routed.toolContext?.documents?.some((d) => d.id === "n1")).toBe(true);
   });
 
-  it("routes missing anchor", () => {
+  it("reopens live today even without a saved sheet", () => {
     const routed = runGinaQueryFamily("Sheet del día", {
       userId: uid,
       now,
@@ -416,6 +417,7 @@ describe("day sheet visualization + family", () => {
       departments: [],
     });
     expect(routed.family).toBe("day_sheet");
-    expect(routed.toolContext?.missingAnchor).toBe(true);
+    expect(routed.toolContext?.omitFollowUpChips).toBe(true);
+    expect(routed.toolContext?.missingAnchor).not.toBe(true);
   });
 });

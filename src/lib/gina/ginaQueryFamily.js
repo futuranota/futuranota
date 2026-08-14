@@ -3450,31 +3450,19 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
     if (isDaySheetReopenIntent(text)) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
-      const { sheet, documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
-      if (!sheet) {
-        return {
-          family: "day_sheet",
-          toolsCalled,
-          toolContext: {
-            documents: [],
-            empty: true,
-            isDaySheet: true,
-            missingAnchor: true,
-            hint: "No day sheet anchored yet — offer horarios de hoy first",
-          },
-          workspaceInventory: inventory,
-        };
-      }
+      const live = Array.isArray(today.documents) ? today.documents : [];
       return {
         family: "day_sheet",
         toolsCalled,
         toolContext: {
           ...today,
-          documents,
-          totalDocumentsToday: documents.length,
+          documents: live,
+          totalDocumentsToday: live.length,
           isDaySheet: true,
-          progress: summarizeDaySheetProgress(documents),
-          hint: "Reopen anchored day reference sheet with live status",
+          omitFollowUpChips: true,
+          reopenDaySchedule: true,
+          progress: summarizeDaySheetProgress(live),
+          hint: "Reopen live day schedule (folder bars + updated table)",
         },
         workspaceInventory: inventory,
       };

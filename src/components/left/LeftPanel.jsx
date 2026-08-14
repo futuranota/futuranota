@@ -4553,6 +4553,14 @@ export function LeftPanel({
         now: ctx.now,
         userText: text,
       });
+      if (visualization?.data?.todayOverview) {
+        return {
+          message: buildGinaFunnelHeadline(visualization, { locale: localeKey }) || "",
+          textMid: buildTodayOverviewIntroText(localeKey),
+          visualization,
+          chips: null,
+        };
+      }
       const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
         || (localeKey === "en" ? "Here’s your day sheet." : "Aquí tienes tu sheet del día.");
       const next = routed.toolContext?.nextDocument || null;
@@ -5105,7 +5113,7 @@ export function LeftPanel({
         }
       }
       const talkNotifsDecided = hasTalkNotificationsDecision(ginaUserId, ctx.now);
-      const postTable = !meetingOn && visualization?.data?.todayOverview
+      const postTable = !meetingOn && visualization?.data?.todayOverview && !visualization?.data?.omitFollowUpChips
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
           documents: visualization.data.documents || [],
