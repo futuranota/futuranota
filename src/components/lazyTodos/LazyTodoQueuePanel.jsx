@@ -4,9 +4,11 @@ import { useConfirmStore } from "../../stores/confirmStore.js";
 import {
   filterLazyTodos,
   lazyTodoDisplayTitle,
+  liveDocumentTitleForTodo,
   sortLazyTodosNewestFirst,
 } from "../../lib/lazyTodos.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 
 /**
  * @param {Object} props
@@ -23,6 +25,7 @@ export function LazyTodoQueuePanel({
 }) {
   const { t } = useI18n();
   const items = useLazyTodosStore((s) => s.items);
+  const nodesById = useNodesStore((s) => s.nodes);
   const removeItem = useLazyTodosStore((s) => s.removeItem);
   const requeueOrphanedActives = useLazyTodosStore((s) => s.requeueOrphanedActives);
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -39,8 +42,8 @@ export function LazyTodoQueuePanel({
       item.status === "queued"
       && (objectId ? item.objectId === objectId : !item.objectId)
     ));
-    return sortLazyTodosNewestFirst(filterLazyTodos(scoped, query));
-  }, [items, objectId, query]);
+    return sortLazyTodosNewestFirst(filterLazyTodos(scoped, query, { nodesById }));
+  }, [items, objectId, query, nodesById]);
 
   const exitBulkSelectMode = useCallback(() => {
     setBulkSelectMode(false);
@@ -222,7 +225,9 @@ export function LazyTodoQueuePanel({
                             />
                             <span className="lazy-todo-queue-panel__card-body">
                               <span className="lazy-todo-queue-panel__card-title">
-                                {lazyTodoDisplayTitle(item)}
+                                {lazyTodoDisplayTitle(item, {
+                                  liveDocTitle: liveDocumentTitleForTodo(item, nodesById),
+                                })}
                               </span>
                             </span>
                           </button>
@@ -240,7 +245,9 @@ export function LazyTodoQueuePanel({
                             />
                             <span className="lazy-todo-queue-panel__card-body">
                               <span className="lazy-todo-queue-panel__card-title">
-                                {lazyTodoDisplayTitle(item)}
+                                {lazyTodoDisplayTitle(item, {
+                                  liveDocTitle: liveDocumentTitleForTodo(item, nodesById),
+                                })}
                               </span>
                             </span>
                             <span className="lazy-todo-queue-panel__card-chevron" aria-hidden>

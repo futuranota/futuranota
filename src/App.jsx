@@ -1428,6 +1428,13 @@ useEffect(() => {
     if (documentId) {
       const existing = useLazyTodosStore.getState().findItemByDocumentId(documentId);
       if (existing?.id) {
+        const nextTitle = listTitle && listTitle !== String(existing.listTitle || "").trim()
+          ? listTitle
+          : null;
+        if (nextTitle) {
+          updateLazyTodo(existing.id, { listTitle: nextTitle });
+        }
+        const opened = nextTitle ? { ...existing, listTitle: nextTitle } : existing;
         setActiveLazyTodo((current) => {
           if (current) {
             if (lazyTodoHasContent(current)) {
@@ -1437,7 +1444,7 @@ useEffect(() => {
             }
           }
           activateLazyTodo(existing.id);
-          return cloneLazyTodo({ ...existing, status: 'active' });
+          return cloneLazyTodo({ ...opened, status: 'active' });
         });
         return;
       }
@@ -1456,7 +1463,7 @@ useEffect(() => {
         listTitle,
       });
     });
-  }, [activateLazyTodo, createDraftLazyTodo, parkLazyTodo, removeLazyTodo]);
+  }, [activateLazyTodo, createDraftLazyTodo, parkLazyTodo, removeLazyTodo, updateLazyTodo]);
 
   const lazyTodoCreateRequest = useUIStateStore((s) => s.lazyTodoCreateRequest);
   useEffect(() => {

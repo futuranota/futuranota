@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createTodoItem } from "../../lib/docBlocks.js";
 import { handleLazyTodoItemKeyDown } from "../../lib/lazyTodoItemKeyDown.js";
-import { lazyTodoProgress } from "../../lib/lazyTodos.js";
+import {
+  liveDocumentTitleForTodo,
+  resolveLazyTodoListTitle,
+  lazyTodoProgress,
+} from "../../lib/lazyTodos.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -40,6 +45,11 @@ export function LazyTodoCard({
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
+  const liveDocTitle = useNodesStore((s) => liveDocumentTitleForTodo(item, s.nodes));
+  const listHeading = resolveLazyTodoListTitle(item, {
+    liveDocTitle,
+    fallback: t("lazyTodos.todoLabel"),
+  });
   const [focusItemId, setFocusItemId] = useState(null);
   const { done, total } = lazyTodoProgress(item);
   const isDashboard = variant === "dashboard";
@@ -86,6 +96,11 @@ export function LazyTodoCard({
     void handleCompletedClick();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react when checklist completion flips
   }, [item.items]);
+
+  useEffect(() => {
+    if (!liveDocTitle || liveDocTitle === String(item.listTitle || "").trim()) return;
+    onChange?.({ listTitle: liveDocTitle });
+  }, [liveDocTitle, item.listTitle, onChange]);
 
   const completedButton = (
     <button
@@ -153,7 +168,7 @@ export function LazyTodoCard({
           <span className="lazy-todo-card__field-label">{t("lazyTodos.todoLabel")}</span>
           <div className="lazy-todo-card__todo-block scroll-match-bg">
             <DocTodoPlanBlockView
-              listTitle={t("lazyTodos.todoLabel")}
+              listTitle={listHeading}
               listTitleEditable={false}
               linksEnabled={false}
               showDragHandle={false}
