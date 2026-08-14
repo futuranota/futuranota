@@ -78,9 +78,10 @@ describe("ginaOccupiedHoursStore", () => {
     });
     expect(viz?.type).toBe("daily_report");
     expect(viz?.data?.occupiedHours?.length).toBeGreaterThan(0);
+    expect(viz?.data?.strikeExample).toBe(true);
   });
 
-  it("activate intent unlocks without requiring a list viz", () => {
+  it("activate intent still shows the strikethrough example", () => {
     const routed = runGinaQueryFamily("activar horas tomadas", {
       now,
       userId: uid,
@@ -90,10 +91,13 @@ describe("ginaOccupiedHoursStore", () => {
     });
     expect(routed.family).toBe("activate_occupied_hours");
     expect(isOccupiedStrikethroughActive(uid, now)).toBe(true);
-    expect(buildGinaVisualization("activate_occupied_hours", routed.toolContext, {
+    const viz = buildGinaVisualization("activate_occupied_hours", routed.toolContext, {
       locale: "es",
       now,
-    })).toBe(null);
+    });
+    expect(viz?.type).toBe("daily_report");
+    expect(viz?.data?.strikeExample).toBe(true);
+    expect(viz?.data?.occupiedHours).toEqual([]);
   });
 
   it("day ritual reset clears occupied strikethrough", () => {

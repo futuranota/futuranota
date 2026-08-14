@@ -2089,6 +2089,12 @@ export function GinaChatCard({
                         text={msg.text}
                         plainBody={msg.visualization?.type === "recovery_preview"}
                         instant={Boolean(msg.refineRevealed)}
+                        headlineIcon={
+                          /Aún no tienes ningún documento seleccionado|You don’t have any document selected yet/i
+                            .test(String(msg.text || ""))
+                            ? "search"
+                            : null
+                        }
                         onComplete={i === lastAiMessageIndex ? (() => {
                           if (msg.refineRevealed) {
                             handleAiAnimComplete();

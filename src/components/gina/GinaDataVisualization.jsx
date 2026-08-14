@@ -1334,13 +1334,44 @@ function DailyReportVisualization({ data }) {
   const pending = Array.isArray(data.pendingBrief) ? data.pendingBrief : [];
   const folders = Array.isArray(data.folderProgress) ? data.folderProgress : [];
   const hasConflicts = Boolean(data.hasConflicts);
+  const occupiedOnly = Boolean(data.occupiedHoursOnly);
+  const showOccupiedBlock = rows.length > 0;
+  if (!showOccupiedBlock && folders.length === 0 && pending.length === 0) {
+    return null;
+  }
+  if (occupiedOnly) {
+    const en = data.locale === "en";
+    return (
+      <div className="gina-viz gina-viz--occupied-hours">
+        <h3 className="gina-viz__occupied-heading">
+          {en ? "Occupied Hours:" : "Occupied Hours:"}
+        </h3>
+        <ul className="gina-viz__occupied-list" role="list">
+          {rows.map((row) => (
+            <li
+              key={row.id || `${row.time}-${row.title}`}
+              className="gina-viz__occupied-row"
+            >
+              {row.struck ? (
+                <s className="gina-viz__occupied-time">{row.time || "—"}</s>
+              ) : (
+                <span className="gina-viz__occupied-time">{row.time || "—"}</span>
+              )}
+              <span className="gina-viz__occupied-sep">·</span>
+              <span className="gina-viz__occupied-title">{row.title}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return (
     <div className="gina-viz gina-viz--daily-report">
+      {showOccupiedBlock ? (
+      <>
       <header className="gina-viz__head">
         <span className="gina-viz__eyebrow gina-viz__eyebrow--gold">
-          {data.occupiedHoursOnly
-            ? (data.locale === "en" ? "Taken hours" : "Horas tomadas")
-            : "Occupied hours"}
+          Occupied hours
         </span>
         <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
       </header>
@@ -1371,6 +1402,8 @@ function DailyReportVisualization({ data }) {
             </li>
           ))}
         </ul>
+      ) : null}
+      </>
       ) : null}
       {folders.length > 0 ? (
         <section className="gina-viz__daily-section">

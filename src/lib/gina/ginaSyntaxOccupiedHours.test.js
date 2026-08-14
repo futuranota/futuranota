@@ -37,6 +37,7 @@ describe("ginaSyntaxOccupiedHours", () => {
       occupied: [],
       locale: "es",
     });
+    expect(msg).toMatch(/^Aún no tienes ningún documento seleccionado:/);
     expect(msg).toMatch(/resto del día/i);
     expect(msg).toMatch(/tachar las horas/i);
     expect(buildOccupiedHoursActivationTail("en")).toMatch(/strike through/i);
@@ -52,8 +53,8 @@ describe("ginaSyntaxOccupiedHours", () => {
       locale: "es",
     });
     expect(msg).toMatch(/listado de las horas tomadas/i);
-    expect(msg).toContain("Doc A");
-    expect(msg).toContain("Doc B");
+    expect(msg).not.toContain("Doc A");
+    expect(msg).toMatch(/tachar las horas/i);
   });
 
   it("activate mode is short", () => {
