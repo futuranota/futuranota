@@ -102,6 +102,7 @@ import {
 } from "../../lib/gina/ginaTalkRequest.js";
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
+import { resolveGinaDayWeatherIntro } from "../../lib/gina/ginaDayWeatherIntro.js";
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
 import {
@@ -4554,8 +4555,12 @@ export function LeftPanel({
         userText: text,
       });
       if (visualization?.data?.todayOverview) {
+        const weatherIntro = await resolveGinaDayWeatherIntro({
+          locale: localeKey,
+          now: ctx.now,
+        });
         return {
-          message: buildGinaFunnelHeadline(visualization, { locale: localeKey }) || "",
+          message: weatherIntro,
           textMid: buildTodayOverviewIntroText(localeKey),
           visualization,
           chips: null,
@@ -4900,14 +4905,18 @@ export function LeftPanel({
           now: ctx.now,
           userText: text,
         });
-        const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
-          || (localeKey === "en"
-            ? (routed.toolContext?.filters?.department
-              ? `Today in ${routed.toolContext.filters.department} there are zero scheduled documents.`
-              : "Nothing scheduled for today.")
-            : (routed.toolContext?.filters?.department
-              ? `Hoy en ${routed.toolContext.filters.department} hay cero documentos programados.`
-              : "Hoy no hay trabajo programado."));
+        const weatherIntro = await resolveGinaDayWeatherIntro({
+          locale: localeKey,
+          now: ctx.now,
+        });
+        const emptyLine = localeKey === "en"
+          ? (routed.toolContext?.filters?.department
+            ? `Today in ${routed.toolContext.filters.department} there are zero scheduled documents.`
+            : "Nothing scheduled for today.")
+          : (routed.toolContext?.filters?.department
+            ? `Hoy en ${routed.toolContext.filters.department} hay cero documentos programados.`
+            : "Hoy no hay trabajo programado.");
+        const message = `${weatherIntro}\n\n${emptyLine}`;
         return {
           message,
           visualization,
@@ -5088,6 +5097,9 @@ export function LeftPanel({
       const funnelHeadline = !meetingOn
         ? buildGinaFunnelHeadline(visualization, { locale: localeKey })
         : null;
+      const weatherIntro = !meetingOn && visualization?.data?.todayOverview
+        ? await resolveGinaDayWeatherIntro({ locale: localeKey, now: ctx.now })
+        : null;
       const textMid = !meetingOn && visualization?.data?.todayOverview
         ? buildTodayOverviewIntroText(localeKey)
         : null;
@@ -5151,7 +5163,7 @@ export function LeftPanel({
       return {
         // Today overview: allow empty pre-sheet message (summary is post-sheet).
         message: visualization?.data?.todayOverview
-          ? (funnelHeadline || "")
+          ? (weatherIntro || funnelHeadline || "")
           : (funnelHeadline || displayText),
         textMid,
         textAfter: postTable.textAfter,

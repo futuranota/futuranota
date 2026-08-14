@@ -72,6 +72,7 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { resolveGinaDayWeatherIntro } from "../../lib/gina/ginaDayWeatherIntro.js";
 import { markTodayAgendaCheckedFromFamily } from "../../lib/gina/ginaTodayAgendaCheckStore.js";
 import {
   buildTalkRequestNotifyChips,
@@ -1008,6 +1009,9 @@ export function NodeQueryModal({
           : "Couldn't reply. Try again.");
       const localeKey = locale === "es" ? "es" : "en";
       const funnelHeadline = buildGinaFunnelHeadline(visualization, { locale: localeKey });
+      const weatherIntro = visualization?.data?.todayOverview
+        ? await resolveGinaDayWeatherIntro({ locale: localeKey, now })
+        : null;
       const ginaUserId = authUser?.id || "anon";
       const daySheetAnchored = hasDaySheet(ginaUserId);
       const textMid = visualization?.data?.todayOverview
@@ -1039,7 +1043,7 @@ export function NodeQueryModal({
       });
       return {
         message: visualization?.data?.todayOverview
-          ? (funnelHeadline || "")
+          ? (weatherIntro || funnelHeadline || "")
           : (funnelHeadline || message),
         textMid,
         textAfter: postTable.textAfter,
