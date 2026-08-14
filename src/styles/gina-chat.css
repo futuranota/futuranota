@@ -1527,6 +1527,12 @@
   text-align: left;
 }
 
+.gina-chat-card__chip-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .gina-chat-card__chip-icon {
   width: 14px;
   height: 14px;

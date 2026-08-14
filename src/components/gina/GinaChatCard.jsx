@@ -273,10 +273,12 @@ function GinaHomeOpeningChips({ chips, locale = "es", disabled, onSubmit }) {
       disabled={disabled}
       onClick={() => send(chip)}
     >
-      {chip.icon ? (
-        <img className="gina-chat-card__chip-icon" src={chip.icon} alt="" aria-hidden />
-      ) : null}
-      <span className="gina-chat-card__chip-label">{chip.label}</span>
+      <span className="gina-chat-card__chip-head">
+        {chip.icon ? (
+          <img className="gina-chat-card__chip-icon" src={chip.icon} alt="" aria-hidden />
+        ) : null}
+        <span className="gina-chat-card__chip-label">{chip.label}</span>
+      </span>
       {chip.hint ? (
         <span className="gina-chat-card__chip-hint">{chip.hint}</span>
       ) : null}

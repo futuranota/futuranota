@@ -128,7 +128,8 @@ export function buildGinaOpeningChips(opts = {}) {
     id: "review_pending_today",
     kind: "home_schedule",
     group: "opening_home",
-    label: en ? "Review today’s pending items" : "Revisar los pendientes del día",
+    label: en ? "Today’s pending" : "Pendientes del día",
+    icon: "/uploads/to-do.svg",
     hint: en
       ? "Check active tasks and the current status of your documents."
       : "Consulta las tareas activas y el estado actual de tus documentos.",
@@ -140,7 +141,8 @@ export function buildGinaOpeningChips(opts = {}) {
     id: "review_hours_today",
     kind: "home_schedule",
     group: "opening_home",
-    label: en ? "Review today’s schedule" : "Revisar horarios del día",
+    label: en ? "Today’s schedule" : "Horarios del día",
+    icon: "/uploads/calendar.svg",
     hint: en
       ? "Look at how your blocks are distributed across the day."
       : "Analiza la distribución horaria de tus bloques.",
@@ -180,8 +182,8 @@ export function buildGinaOpeningChips(opts = {}) {
           : "¿Qué te gustaría consultar ahora?",
         selectable: false,
       },
-      pendingChip,
       hoursChip,
+      pendingChip,
       weekLine,
       weekChip,
     ];

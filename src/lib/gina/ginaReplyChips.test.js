@@ -36,14 +36,18 @@ describe("ginaReplyChips", () => {
     const chips = buildGinaOpeningChips({ locale: "es", mode: "return" });
     expect(chips.map((c) => c.id)).toEqual([
       "home_intro",
-      "review_pending_today",
       "review_hours_today",
+      "review_pending_today",
       "home_week_line",
       "review_week",
     ]);
     expect(chips.find((c) => c.id === "home_intro")?.label).toMatch(/consultar ahora/i);
     expect(chips.find((c) => c.id === "review_pending_today")?.primary).toBe(true);
+    expect(chips.find((c) => c.id === "review_pending_today")?.label).toBe("Pendientes del día");
+    expect(chips.find((c) => c.id === "review_pending_today")?.icon).toBe("/uploads/to-do.svg");
     expect(chips.find((c) => c.id === "review_pending_today")?.hint).toMatch(/tareas activas/i);
+    expect(chips.find((c) => c.id === "review_hours_today")?.label).toBe("Horarios del día");
+    expect(chips.find((c) => c.id === "review_hours_today")?.icon).toBe("/uploads/calendar.svg");
     expect(chips.find((c) => c.id === "review_hours_today")?.text).toMatch(/horarios de hoy/i);
     expect(chips.some((c) => c.id === "agenda_today")).toBe(false);
   });

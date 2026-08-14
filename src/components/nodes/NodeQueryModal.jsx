@@ -1418,7 +1418,7 @@ export function NodeQueryModal({
                 >
                   <img
                     className="node-query-modal__doc-action-icon"
-                    src="/uploads/sticky-note-02.svg"
+                    src="/uploads/to-do.svg"
                     alt=""
                     aria-hidden
                     draggable={false}
@@ -1492,7 +1492,7 @@ export function NodeQueryModal({
               >
                 <img
                   className="node-query-modal__doc-action-icon"
-                  src="/uploads/sticky-note-02.svg"
+                  src="/uploads/to-do.svg"
                   alt=""
                   aria-hidden
                   draggable={false}
