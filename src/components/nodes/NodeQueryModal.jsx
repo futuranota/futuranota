@@ -48,12 +48,13 @@ import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
-import { resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
+import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
   DOC_WORK_STATUS,
   docWorkStatusLabel,
   resolveDocWorkStatus,
+  syncDocWorkStatusFields,
 } from "../../lib/docWorkStatus.js";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
@@ -63,6 +64,7 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
+  buildGinaOpeningChips,
   buildTodayOverviewPostTableCopy,
   buildTodayOverviewIntroText,
 } from "../../lib/gina/ginaReplyChips.js";
@@ -101,6 +103,17 @@ import {
 import { buildGinaTableColumnRefineMessage } from "../../lib/gina/ginaTableColumnRefine.js";
 import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization, getGinaLastTurn } from "../../lib/gina/ginaLastTurn.js";
 import { inferConfirmContinueAction } from "../../lib/gina/ginaConfirmContinue.js";
+import {
+  parseGinaSilentSetDocStatus,
+  applyRescheduleBatchFromToolContext,
+  buildRescheduleAppliedText,
+  buildRescheduleCancelCloseText,
+  buildRescheduleCancelCloseChips,
+  buildReschedulePickerText,
+  isGinaCloseChatIntent,
+} from "../../lib/gina/ginaScheduleRecovery.js";
+import { clearPendingGinaOffer, setPendingGinaOffer } from "../../lib/gina/ginaPendingOffer.js";
+import { playTrashBoxSound } from "../../lib/trashBoxSound.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -422,6 +435,20 @@ export function NodeQueryModal({
       : null;
     const ginaUserId = authUser?.id || "anon";
     const now = new Date();
+
+    if (isGinaCloseChatIntent(text)) {
+      return "";
+    }
+
+    const silentRowStatus = parseGinaSilentSetDocStatus(text);
+    if (silentRowStatus?.docId && silentRowStatus.status) {
+      useNodesStore.getState().updateNode(
+        silentRowStatus.docId,
+        syncDocWorkStatusFields({ status: silentRowStatus.status }),
+      );
+      return "";
+    }
+
     const lastTurnSnap = getGinaLastTurn();
     const ctx = {
       docs: docsMap,
@@ -448,6 +475,90 @@ export function NodeQueryModal({
     try {
       markTodayAgendaCheckedFromFamily(ginaUserId, routed.family, now);
     } catch { /* ignore */ }
+
+    if (routed.family === "gina_chat_restart") {
+      return {
+        message: pickGinaOpening({
+          locale: localeKey,
+          userName: resolveGinaUserDisplayName(authUser),
+          now,
+          mode: "return",
+        }),
+        visualization: null,
+        chips: buildGinaOpeningChips({
+          locale: localeKey,
+          surface: "document",
+          mode: "return",
+        }),
+        resetChat: true,
+      };
+    }
+
+    if (routed.family === "schedule_recovery_reschedule_cancel") {
+      try { clearPendingGinaOffer(); } catch { /* ignore */ }
+      return {
+        message: buildRescheduleCancelCloseText(localeKey),
+        visualization: null,
+        chips: buildRescheduleCancelCloseChips(localeKey),
+      };
+    }
+
+    if (routed.family === "schedule_recovery_reschedule_apply") {
+      const applied = applyRescheduleBatchFromToolContext(routed.toolContext, {
+        updateNode: useNodesStore.getState().updateNode,
+        deleteNodeAndDocBlocks: useNodesStore.getState().deleteNodeAndDocBlocks,
+      });
+      if (applied.deleteCount) {
+        try { playTrashBoxSound(); } catch { /* ignore */ }
+      }
+      try { clearPendingGinaOffer(); } catch { /* ignore */ }
+      return {
+        message: buildRescheduleAppliedText({
+          locale: localeKey,
+          count: applied.appliedCount || 1,
+        }),
+        visualization: null,
+        chips: null,
+      };
+    }
+
+    if (
+      routed.family === "schedule_recovery_reschedule_pick"
+      || routed.family === "schedule_recovery_reschedule_fork"
+    ) {
+      const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+        ...routed.toolContext,
+        nodes: nodesMap,
+        docs: docsMap,
+        objectId: companyObjectId || null,
+        rescheduleMode: routed.family === "schedule_recovery_reschedule_fork"
+          ? "cascade"
+          : (routed.toolContext?.rescheduleMode || "cascade"),
+      }, {
+        locale: localeKey,
+        now,
+        userText: text,
+      });
+      try {
+        setPendingGinaOffer({
+          type: "reschedule_session",
+          sessionMoveDocIds: visualization?.data?.sessionMoveDocIds || [],
+          assignedDocIds: visualization?.data?.assignedDocIds || [],
+          rescheduleMode: visualization?.data?.rescheduleMode || "cascade",
+        });
+      } catch { /* ignore */ }
+      return {
+        message: buildReschedulePickerText({
+          locale: localeKey,
+          mode: visualization?.data?.rescheduleMode === "gaps" ? "gaps" : "cascade",
+          hasFreeSlot: Boolean(visualization?.data?.hasFreeSlot) && !visualization?.data?.noCupo,
+          noCupo: Boolean(visualization?.data?.noCupo),
+          activeTitle: visualization?.data?.activeTitle || null,
+        }),
+        visualization,
+        chips: null,
+      };
+    }
 
     if (routed.family === "wall_clock") {
       const clockNow = routed.toolContext?.nowIso
@@ -602,7 +713,7 @@ export function NodeQueryModal({
       const visualization = buildGinaVisualization(
         routed.family === "day_sheet_next" ? "day_sheet_next" : "day_sheet",
         routed.toolContext,
-        { locale: localeKey, now, userText: text },
+        { locale: localeKey, now, userText: text, compact: true, surface: "document" },
       );
       if (routed.family === "day_sheet_next") {
         const next = routed.toolContext?.nextDocument || null;

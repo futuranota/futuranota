@@ -1163,6 +1163,102 @@ export function buildRescheduleAppliedText(opts = {}) {
 }
 
 /**
+ * Persist cascade/gaps picker commits (times + optional deletes).
+ * @param {object} toolContext
+ * @param {{ updateNode: Function, deleteNodeAndDocBlocks?: Function }} stores
+ * @returns {{ appliedCount: number, deleteCount: number }}
+ */
+export function applyRescheduleBatchFromToolContext(toolContext, stores = {}) {
+  const updateNode = typeof stores.updateNode === "function" ? stores.updateNode : null;
+  const deleteBlocks = typeof stores.deleteNodeAndDocBlocks === "function"
+    ? stores.deleteNodeAndDocBlocks
+    : null;
+  const batchApplies = Array.isArray(toolContext?.batchApplies)
+    ? toolContext.batchApplies.filter((a) => a?.id && a?.startIso && a?.finishIso)
+    : [];
+  const deleteDocIds = (Array.isArray(toolContext?.deleteDocIds)
+    ? toolContext.deleteDocIds
+    : [])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  let appliedCount = 0;
+  if (updateNode) {
+    const singleId = toolContext?.applyDocId || batchApplies[0]?.id || null;
+    const startIso = toolContext?.applyStartIso || batchApplies[0]?.startIso;
+    const finishIso = toolContext?.applyFinishIso || batchApplies[0]?.finishIso;
+    const rows = batchApplies.length
+      ? batchApplies
+      : (singleId && startIso && finishIso
+        ? [{ id: singleId, startIso, finishIso }]
+        : []);
+    for (const row of rows) {
+      const startMs = new Date(row.startIso).getTime();
+      const finishMs = new Date(row.finishIso).getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(finishMs) || finishMs <= startMs) continue;
+      updateNode(row.id, {
+        anchorAt: new Date(startMs).toISOString(),
+        anchorFinishAt: new Date(finishMs).toISOString(),
+      });
+      appliedCount += 1;
+    }
+  }
+  let deleteCount = 0;
+  if (deleteBlocks) {
+    for (const id of deleteDocIds) {
+      deleteBlocks(id);
+      deleteCount += 1;
+    }
+  }
+  return { appliedCount, deleteCount };
+}
+
+export function buildRescheduleCancelCloseText(locale = "es") {
+  return locale === "en"
+    ? "All set — that closes this out. If you need anything else, we’re here."
+    : "Listo, con esto concluimos todo. Si necesitas algo más aquí estamos.";
+}
+
+export function buildRescheduleCancelCloseChips(locale = "es") {
+  const en = locale === "en";
+  return [
+    {
+      id: "gina_close",
+      kind: "close_chat",
+      label: en ? "close" : "cerrar",
+      text: "GinaCloseChat",
+      primary: true,
+    },
+  ];
+}
+
+export function isGinaChatRestartIntent(text) {
+  const q = String(text || "").trim();
+  if (!q) return false;
+  return /^GinaChatRestart$/i.test(q)
+    || /^(volver al inicio|back to start)$/i.test(q);
+}
+
+export function isGinaCloseChatIntent(text) {
+  return /^GinaCloseChat$/i.test(String(text || "").trim());
+}
+
+export function isReschedulePickerCancelIntent(text, pendingOffer = null) {
+  const q = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+  if (!q) return false;
+  if (/\bcancelar\s+reagendar(\s+horarios)?\b/.test(q) || /\bcancel\s+reschedule\b/.test(q)) {
+    return true;
+  }
+  if (pendingOffer?.type === "reschedule_session" && /^(cancelar|cancel)$/.test(q)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * After a user-confirmed reschedule apply, never re-open conflict_resolve
  * in the same turn — next beat is the day sheet with the new times.
  * @param {{ forceDayReady?: boolean, hasOverlap?: boolean }} [opts]

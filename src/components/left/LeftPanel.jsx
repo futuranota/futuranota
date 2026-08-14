@@ -65,6 +65,10 @@ import {
   parseGinaSilentSetDocStatus,
   resolvePostMutationRecoveryFollowUp,
   isGinaWarmGoodbye,
+  applyRescheduleBatchFromToolContext,
+  buildRescheduleCancelCloseText,
+  buildRescheduleCancelCloseChips,
+  isGinaCloseChatIntent,
 } from "../../lib/gina/ginaScheduleRecovery.js";
 import { buildGinaDocumentOpenPlan } from "../../lib/gina/ginaOpenDocument.js";
 import { partitionTodayByClock, lastOccupiedFinishMs, findFirstFreeSlot } from "../../lib/gina/ginaTodayTimeTriage.js";
@@ -3223,6 +3227,10 @@ export function LeftPanel({
       if (plan) return "";
     }
 
+    if (!meetingOn && isGinaCloseChatIntent(text)) {
+      return "";
+    }
+
     // Silent per-row status from schedule / reschedule tables.
     const silentRowStatus = parseGinaSilentSetDocStatus(text);
     if (!meetingOn && silentRowStatus?.docId && silentRowStatus.status) {
@@ -3519,6 +3527,39 @@ export function LeftPanel({
           visualization,
           locale: localeKey,
         }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "gina_chat_restart") {
+      const mode = resolveGinaDashboardOpeningMode({
+        userId: ginaUserId,
+        now: ctx.now,
+        ctx,
+      });
+      return {
+        message: pickGinaOpening({
+          locale: localeKey,
+          userName: resolveGinaUserDisplayName(authUser),
+          now: ctx.now,
+          mode,
+        }),
+        visualization: null,
+        chips: buildGinaOpeningChips({
+          locale: localeKey,
+          surface: "dashboard",
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          mode,
+        }),
+        resetChat: true,
+      };
+    }
+
+    if (!meetingOn && routed.family === "schedule_recovery_reschedule_cancel") {
+      try { clearPendingGinaOffer(); } catch { /* ignore */ }
+      return {
+        message: buildRescheduleCancelCloseText(localeKey),
+        visualization: null,
+        chips: buildRescheduleCancelCloseChips(localeKey),
       };
     }
 
@@ -4029,29 +4070,10 @@ export function LeftPanel({
       const triageBefore = partitionTodayByClock(docsBefore, now);
       const expiredBefore = triageBefore.fullyExpired.filter((d) => d.status !== "past_due");
       const mode = routed.toolContext?.mode || "slot";
-      const batchApplies = Array.isArray(routed.toolContext?.batchApplies)
-        ? routed.toolContext.batchApplies.filter((a) => a?.id && a?.startIso && a?.finishIso)
-        : [];
-      const deleteDocIds = (Array.isArray(routed.toolContext?.deleteDocIds)
-        ? routed.toolContext.deleteDocIds
-        : [])
-        .map((id) => String(id || "").trim())
-        .filter(Boolean);
       const applyDocId = routed.toolContext?.applyDocId
-        || batchApplies[0]?.id
+        || routed.toolContext?.batchApplies?.[0]?.id
         || expiredBefore[0]?.id
         || null;
-      const pendingSession = getPendingGinaOffer();
-      const sessionMoveDocIds = (
-        Array.isArray(routed.toolContext?.sessionMoveDocIds)
-          && routed.toolContext.sessionMoveDocIds.length
-          ? routed.toolContext.sessionMoveDocIds
-          : (pendingSession?.type === "reschedule_session"
-            && Array.isArray(pendingSession.sessionMoveDocIds)
-            && pendingSession.sessionMoveDocIds.length
-            ? pendingSession.sessionMoveDocIds
-            : expiredBefore.map((d) => d.id).filter(Boolean))
-      ).map((id) => String(id));
 
       const targetDoc = (applyDocId
         ? docsBefore.find((d) => String(d.id) === String(applyDocId))
@@ -4062,7 +4084,6 @@ export function LeftPanel({
 
       let timeLabel = "";
       let dayLabel = "";
-      let appliedTitle = targetDoc?.title || "";
       let appliedCountLocal = 0;
 
       if (mode === "tomorrow" && targets.length) {
@@ -4082,139 +4103,46 @@ export function LeftPanel({
         applySequentialAnchors(targets, startMs, updateNode);
         timeLabel = formatClock12h(new Date(startMs));
         appliedCountLocal = targets.length;
-      } else if (batchApplies.length > 0) {
-        const labels = [];
-        for (const row of batchApplies) {
-          const startMs = new Date(row.startIso).getTime();
-          const finishMs = new Date(row.finishIso).getTime();
-          if (!Number.isFinite(startMs) || !Number.isFinite(finishMs) || finishMs <= startMs) continue;
-          updateNode(row.id, {
-            anchorAt: new Date(startMs).toISOString(),
-            anchorFinishAt: new Date(finishMs).toISOString(),
-          });
-          appliedCountLocal += 1;
-          const doc = docsBefore.find((d) => String(d.id) === String(row.id));
-          if (doc?.title) appliedTitle = doc.title;
-          labels.push(formatClockRange12h(
-            new Date(startMs).toISOString(),
-            new Date(finishMs).toISOString(),
-            { sep: " – " },
-          ));
+      } else {
+        const applied = applyRescheduleBatchFromToolContext(routed.toolContext, {
+          updateNode,
+          deleteNodeAndDocBlocks: useNodesStore.getState().deleteNodeAndDocBlocks,
+        });
+        appliedCountLocal = applied.appliedCount;
+        if (applied.deleteCount) {
+          try { playTrashBoxSound(); } catch { /* ignore */ }
         }
-        timeLabel = labels.filter(Boolean).join(", ");
-      } else if (targets.length) {
-        const startIso = routed.toolContext?.applyStartIso;
-        const finishIso = routed.toolContext?.applyFinishIso;
-        const startMs = startIso ? new Date(startIso).getTime() : NaN;
-        const finishMs = finishIso ? new Date(finishIso).getTime() : NaN;
-        if (Number.isFinite(startMs) && Number.isFinite(finishMs) && finishMs > startMs) {
-          updateNode(targets[0].id, {
-            anchorAt: new Date(startMs).toISOString(),
-            anchorFinishAt: new Date(finishMs).toISOString(),
-          });
-          timeLabel = formatClockRange12h(
-            new Date(startMs).toISOString(),
-            new Date(finishMs).toISOString(),
-            { sep: " – " },
-          );
-          appliedCountLocal = 1;
-        } else if (Number.isFinite(startMs)) {
-          applySequentialAnchors(targets, startMs, updateNode);
-          const dur = recoveryDocDurationMs(targets[0]);
-          timeLabel = formatClockRange12h(
-            new Date(startMs).toISOString(),
-            new Date(startMs + dur).toISOString(),
-            { sep: " – " },
-          );
-          appliedCountLocal = 1;
-        }
+        const labels = (Array.isArray(routed.toolContext?.batchApplies)
+          ? routed.toolContext.batchApplies
+          : [])
+          .map((row) => {
+            if (!row?.startIso || !row?.finishIso) return "";
+            return formatClockRange12h(row.startIso, row.finishIso, { sep: " – " });
+          })
+          .filter(Boolean);
+        timeLabel = labels.join(", ");
       }
 
-      if (deleteDocIds.length) {
-        const deleteBlocks = useNodesStore.getState().deleteNodeAndDocBlocks;
-        try { playTrashBoxSound(); } catch { /* ignore */ }
-        for (const id of deleteDocIds) {
-          deleteBlocks(id);
-        }
-      }
-
-      const freshNodes = useNodesStore.getState().nodes || {};
-      const freshDocs = useDocsStore.getState().docs || {};
-      const todayScope = get_today_scope({
-        ...ctx,
-        nodes: freshNodes,
-        docs: freshDocs,
-        now,
-      }, { includeCompleted: false });
-      const triageAfter = partitionTodayByClock(todayScope.documents || [], now);
-      const actionableAfter = new Set(
-        triageAfter.actionable.map((d) => String(d.id || "")).filter(Boolean),
-      );
-      const remainingIds = sessionMoveDocIds.filter((id) => actionableAfter.has(id));
-      const assignedDocIds = sessionMoveDocIds.filter((id) => !actionableAfter.has(id));
-      const assignedCount = assignedDocIds.length || appliedCountLocal;
-      const movedIds = assignedDocIds.length
-        ? assignedDocIds
-        : (batchApplies.map((row) => String(row.id || "")).filter(Boolean));
+      const movedIds = (Array.isArray(routed.toolContext?.batchApplies)
+        ? routed.toolContext.batchApplies
+        : [])
+        .map((row) => String(row?.id || ""))
+        .filter(Boolean);
       if (movedIds.length) {
         try { clearTalkRequestNotifiedDocIds(ginaUserId, movedIds, now); } catch { /* ignore */ }
       }
 
-      if (remainingIds.length > 0) {
-        const nextId = remainingIds[0];
-        const nextDoc = (todayScope.documents || []).find((d) => String(d.id) === nextId);
-        const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
-          ...todayScope,
-          nodes: freshNodes,
-          docs: freshDocs,
-          objectId: ctx.objectId,
-          sessionMoveDocIds,
-          assignedDocIds,
-          activeDocId: nextId,
-        }, {
-          locale: localeKey,
-          now,
-          userText: text,
-        });
-        try {
-          setPendingGinaOffer({
-            type: "reschedule_session",
-            sessionMoveDocIds,
-            assignedDocIds,
-          });
-        } catch { /* ignore */ }
-        return {
-          message: buildRescheduleProgressText({
-            locale: localeKey,
-            title: appliedTitle,
-            timeLabel,
-            nextTitle: nextDoc?.title || visualization?.data?.activeTitle || null,
-            remaining: remainingIds.length,
-          }),
-          visualization,
-          chips: buildGinaReplyChips({
-            family: "schedule_recovery_reschedule_pick",
-            visualization,
-            locale: localeKey,
-          }),
-        };
-      }
-
       try { clearPendingGinaOffer(); } catch { /* ignore */ }
-      const overlapAfterApply = summarizeTodayOverlaps(todayScope.documents || [], now);
-      return finishRecoveryAfterMutation(
-        "postpone_schedule",
-        assignedCount || 1,
-        buildRescheduleAppliedText({
+      return {
+        message: buildRescheduleAppliedText({
           locale: localeKey,
           timeLabel,
           dayLabel,
-          count: assignedCount || appliedCountLocal || 1,
-          withoutOverlaps: !overlapAfterApply.hasOverlap,
+          count: appliedCountLocal || 1,
         }),
-        // Never bounce back into the same conflict wizard after the user just applied slots.
-        { forceDayReady: true },
-      );
+        visualization: null,
+        chips: null,
+      };
     }
 
     if (!meetingOn && (

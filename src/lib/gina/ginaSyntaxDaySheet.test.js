@@ -38,6 +38,8 @@ describe("isDaySheetReopenIntent", () => {
     expect(isDaySheetReopenIntent("Sheet del día")).toBe(true);
     expect(isDaySheetReopenIntent("abre el sheet del dia")).toBe(true);
     expect(isDaySheetReopenIntent("Day schedule")).toBe(true);
+    expect(isDaySheetReopenIntent("Horario de hoy")).toBe(true);
+    expect(isDaySheetReopenIntent("Today’s hours")).toBe(true);
   });
 
   it("does not steal week schedule visualize phrasing", () => {

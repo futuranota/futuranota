@@ -56,6 +56,9 @@ const NO_STAMP_FAMILIES = new Set([
   "name_ambiguity",
   "word_scope",
   "gina_day_ritual_reset",
+  "gina_chat_restart",
+  "schedule_recovery_reschedule_cancel",
+  "schedule_recovery_reschedule_apply",
   "table_category_ask",
 ]);
 

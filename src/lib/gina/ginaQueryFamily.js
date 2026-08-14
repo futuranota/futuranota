@@ -12,7 +12,12 @@ import {
   searchDocumentsByHints,
 } from "./ginaFindDocument.js";
 import { partitionTodayByClock } from "./ginaTodayTimeTriage.js";
-import { parseRescheduleApplyProtocol, parseRecoverySnoozeProtocol } from "./ginaScheduleRecovery.js";
+import {
+  parseRescheduleApplyProtocol,
+  parseRecoverySnoozeProtocol,
+  isGinaChatRestartIntent,
+  isReschedulePickerCancelIntent,
+} from "./ginaScheduleRecovery.js";
 import {
   filterDocumentsByDepartmentAndCategory,
   findFolderIdByName,
@@ -1929,6 +1934,52 @@ export function runGinaQueryFamily(text, ctx = {}) {
   // Always attach inventory for grounding (caller may also inject)
   const inventory = call("get_workspace_inventory", () => get_workspace_inventory(ctx));
 
+  // Reschedule apply/cancel before unclear/social so picker buttons never hit Groq.
+  {
+    const parsedApply = parseRescheduleApplyProtocol(text);
+    if (parsedApply.match) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_apply",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          applyDocId: parsedApply.applyDocId,
+          applyStartIso: parsedApply.applyStartIso,
+          applyFinishIso: parsedApply.applyFinishIso,
+          batchApplies: parsedApply.batchApplies,
+          sessionMoveDocIds: parsedApply.sessionMoveDocIds,
+          deleteDocIds: parsedApply.deleteDocIds || [],
+          mode: "slot",
+          hint: parsedApply.batchApplies.length > 1
+            ? "Apply chosen free slots to recovery docs"
+            : "Apply chosen free slot to one recovery doc",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (isGinaChatRestartIntent(text)) {
+      return {
+        family: "gina_chat_restart",
+        toolsCalled,
+        toolContext: { chatRestart: true },
+        workspaceInventory: inventory,
+      };
+    }
+    const pendingOffer = getPendingGinaOffer() || ctx.pendingGinaOffer || null;
+    if (isReschedulePickerCancelIntent(text, pendingOffer)) {
+      return {
+        family: "schedule_recovery_reschedule_cancel",
+        toolsCalled,
+        toolContext: { skipRecovery: true, cancelPicker: true },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
   if (isGinaUnclearUtterance(text)) {
     return {
       family: "unclear",
@@ -2975,8 +3026,6 @@ export function runGinaQueryFamily(text, ctx = {}) {
   {
     const wantsSkip = /\bsaltarlo\b/.test(q)
       || /\bomitir(\s+recuperaci[oó]n(\s+de\s+horario)?)?\b/.test(q)
-      || /\bcancelar\s+reagendar(\s+horarios)?\b/.test(q)
-      || /\bcancel\s+reschedule\b/.test(q)
       || /\bskip\s+schedule\s+recovery\b/.test(q);
     const wantsConfirmMark = /\bconfirmar\s+marcar\s+vencid/.test(q)
       || /\bconfirm\s+mark\s+passed\s+slots\s+as\s+past\s+due\b/.test(q);
@@ -3172,31 +3221,6 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   // Apply chosen slot(s) / tomorrow / force end.
   {
-    const parsedApply = parseRescheduleApplyProtocol(text);
-    if (parsedApply.match) {
-      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
-      return {
-        family: "schedule_recovery_reschedule_apply",
-        toolsCalled,
-        toolContext: {
-          ...today,
-          nodes: ctx.nodes,
-          docs: ctx.docs,
-          objectId: ctx.objectId,
-          applyDocId: parsedApply.applyDocId,
-          applyStartIso: parsedApply.applyStartIso,
-          applyFinishIso: parsedApply.applyFinishIso,
-          batchApplies: parsedApply.batchApplies,
-          sessionMoveDocIds: parsedApply.sessionMoveDocIds,
-          deleteDocIds: parsedApply.deleteDocIds || [],
-          mode: "slot",
-          hint: parsedApply.batchApplies.length > 1
-            ? "Apply chosen free slots to recovery docs"
-            : "Apply chosen free slot to one recovery doc",
-        },
-        workspaceInventory: inventory,
-      };
-    }
     const tomorrowDoc = q.match(
       /\b(?:mover\s+documento\s+de\s+recuperacion|move\s+recovery\s+document)\s+(\S+)\s+(?:a\s+manana|to\s+tomorrow)/,
     );

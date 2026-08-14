@@ -13,6 +13,8 @@ export function isDaySheetReopenIntent(text) {
   const q = foldGinaText(text);
   if (!q) return false;
   if (/\bhorario\s+del\s+d[ií]a\b/.test(q)) return true;
+  if (/\bhorario\s+de\s+hoy\b/.test(q)) return true;
+  if (/\btodays?\s+hours\b/.test(q.replace(/['’]/g, ""))) return true;
   if (/\bsheet\s+del\s+d[ií]a\b/.test(q)) return true;
   if (/\btabla\s+de\s+referencia(\s+del\s+d[ií]a)?\b/.test(q)) return true;
   if (/\babrir\s+(el\s+)?(horario|sheet)(\s+del\s+d[ií]a)?\b/.test(q)) return true;

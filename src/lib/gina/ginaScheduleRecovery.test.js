@@ -25,6 +25,11 @@ import {
   buildSheetRowStatusMenuOptions,
   parseGinaSilentSetDocStatus,
   isGinaWarmGoodbye,
+  applyRescheduleBatchFromToolContext,
+  buildRescheduleCancelCloseText,
+  buildRescheduleCancelCloseChips,
+  isReschedulePickerCancelIntent,
+  isGinaChatRestartIntent,
   isMarkablePassedSlot,
   isPassedSlot,
   resolveRecoveryCurrentStep,
@@ -867,5 +872,40 @@ describe("ginaScheduleRecovery", () => {
     const free = findFirstFreeSlot(occupied, 60 * 60 * 1000, from, dayEnd);
     expect(free).toBeTruthy();
     expect(new Date(free.startMs).getHours()).toBe(20);
+  });
+
+  it("applies batch reschedule updates and cancel close copy", () => {
+    const updated = [];
+    const deleted = [];
+    const result = applyRescheduleBatchFromToolContext({
+      batchApplies: [
+        {
+          id: "n1",
+          startIso: "2026-08-14T11:30:00.000Z",
+          finishIso: "2026-08-14T16:00:00.000Z",
+        },
+      ],
+      deleteDocIds: ["gone"],
+    }, {
+      updateNode: (id, patch) => updated.push({ id, patch }),
+      deleteNodeAndDocBlocks: (id) => deleted.push(id),
+    });
+    expect(result).toEqual({ appliedCount: 1, deleteCount: 1 });
+    expect(updated[0].id).toBe("n1");
+    expect(updated[0].patch.anchorAt).toBe("2026-08-14T11:30:00.000Z");
+    expect(deleted).toEqual(["gone"]);
+
+    expect(runGinaQueryFamily(
+      "Aplicar cambios reagendados n1|2026-08-14T11:30:00.000Z|2026-08-14T16:00:00.000Z",
+      ctx,
+    ).family).toBe("schedule_recovery_reschedule_apply");
+    expect(runGinaQueryFamily("Cancelar reagendar horarios", ctx).family)
+      .toBe("schedule_recovery_reschedule_cancel");
+    expect(isReschedulePickerCancelIntent("Cancelar", { type: "reschedule_session" })).toBe(true);
+    expect(isGinaChatRestartIntent("GinaChatRestart")).toBe(true);
+    expect(buildRescheduleCancelCloseText("es")).toMatch(/concluimos todo/i);
+    expect(buildRescheduleCancelCloseChips("es").map((c) => c.id)).toEqual([
+      "gina_close",
+    ]);
   });
 });

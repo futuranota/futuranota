@@ -1208,6 +1208,24 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         },
       };
     }
+    if (opts.compact || ctx.compact || opts.surface === "document") {
+      return {
+        type: "schedule_sheet",
+        data: {
+          date: dateKey,
+          dateLabel: formatGinaDayLabel(dateKey, locale),
+          groups: groupDocsForScheduleSheet(docs, now),
+          documents: docs
+            .slice()
+            .map((d) => mapDocRow(d, now, locale)),
+          isDaySheet: true,
+          compact: true,
+          justSaved: false,
+          nextDocumentId: highlightId,
+          progress,
+        },
+      };
+    }
     if (ctx.justSaved) {
       return {
         type: "day_sheet_saved",

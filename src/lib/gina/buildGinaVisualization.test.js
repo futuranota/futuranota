@@ -183,6 +183,35 @@ describe("buildGinaVisualization", () => {
     expect(viz?.data.folderBars?.map((f) => f.name)).toEqual(["Horizon"]);
   });
 
+  it("in-document compact day_sheet keeps progress checklist (not today overview)", () => {
+    const viz = buildGinaVisualization("day_sheet", {
+      date: "2026-08-01",
+      documents: [
+        {
+          id: "n1",
+          title: "Blog Post",
+          status: "completed",
+          parentFolderName: "Horizon",
+          departmentName: "Marketing",
+          category: "Blogs",
+          anchorAt: "2026-08-01T08:00:00",
+          anchorFinishAt: "2026-08-01T09:00:00",
+        },
+      ],
+      isDaySheet: true,
+    }, {
+      userText: "Horario de hoy",
+      compact: true,
+      surface: "document",
+      now: new Date("2026-08-01T07:00:00"),
+    });
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz?.data.todayOverview).toBeFalsy();
+    expect(viz?.data.isDaySheet).toBe(true);
+    expect(viz?.data.compact).toBe(true);
+    expect(viz?.data.documents?.map((d) => d.id)).toEqual(["n1"]);
+  });
+
   it("builds dept_summary when department filter is set", () => {
     const viz = buildGinaVisualization("today", {
       date: "2026-08-01",

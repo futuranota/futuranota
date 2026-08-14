@@ -356,7 +356,7 @@ function stashMessageChips(message) {
  * @param {string} [locale]
  */
 function ensureNavBackChip(messages, chips, locale = "es", opts = {}) {
-  if (opts.skipNavBack) {
+  if (opts.skipNavBack || (Array.isArray(chips) && chips.some((c) => c?.kind === "close_chat"))) {
     return Array.isArray(chips) && chips.length ? chips : null;
   }
   const canGoBack = Array.isArray(messages) && messages.some((m) => (
@@ -1377,9 +1377,13 @@ export function GinaChatCard({
     if (!trimmed) return;
     const displayText = opts.displayText != null ? String(opts.displayText).trim() : "";
     const bubbleText = displayText || trimmed;
-    const isSilentProtocol = /^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(trimmed);
+    const isSilentProtocol = /^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:|GinaCloseChat$)/i.test(trimmed);
 
     if (isSilentProtocol) {
+      if (/^GinaCloseChat$/i.test(trimmed)) {
+        onClose?.();
+        return;
+      }
       // Side-effect only — no user/AI bubbles, keep Easy Links on screen.
       if (typeof onSendMessage === "function") {
         try {
@@ -1545,7 +1549,8 @@ export function GinaChatCard({
                     notifyTodoMock,
                     learnProposal,
                     chips: ensureNavBackChip(prev, chips, chipLocale, {
-                      skipNavBack: visualization?.type === "schedule_slot_picker",
+                      skipNavBack: visualization?.type === "schedule_slot_picker"
+                        || (Array.isArray(chips) && chips.some((c) => c?.kind === "close_chat")),
                     }),
                   },
                 ]);
@@ -1596,7 +1601,8 @@ export function GinaChatCard({
               notifyTodoMock,
               learnProposal,
               chips: ensureNavBackChip(prev, chips, chipLocale, {
-                skipNavBack: visualization?.type === "schedule_slot_picker",
+                skipNavBack: visualization?.type === "schedule_slot_picker"
+                  || (Array.isArray(chips) && chips.some((c) => c?.kind === "close_chat")),
               }),
             },
           ]);
@@ -2045,6 +2051,10 @@ export function GinaChatCard({
                         });
                         return;
                       }
+                      if (/^GinaCloseChat$/i.test(String(actionText))) {
+                        onClose?.();
+                        return;
+                      }
                       setMessages((prev) => prev.map((m, idx) => (
                         idx === i ? stashMessageChips(m) : m
                       )));
@@ -2236,6 +2246,10 @@ export function GinaChatCard({
                           void deliverUserMessage(actionText, {
                             displayText: displayText || null,
                           });
+                          return;
+                        }
+                        if (/^GinaCloseChat$/i.test(String(actionText))) {
+                          onClose?.();
                           return;
                         }
                         setMessages((prev) => prev.map((m, idx) => (
@@ -2618,6 +2632,10 @@ export function GinaChatCard({
                           }
                           if (chip.id === "day_sheet_reschedule") {
                             handleDaySheetReschedule(chip.text || chip.label, i);
+                            return;
+                          }
+                          if (chip.kind === "close_chat" || chip.id === "gina_close") {
+                            onClose?.();
                             return;
                           }
                           if (chip.kind === "nav_back") {

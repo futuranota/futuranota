@@ -4000,23 +4000,24 @@
 
 .gina-viz__cascade-delete {
   margin-left: auto;
-  width: 28px;
-  height: 28px;
-  padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: transparent;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border: 1px solid rgba(220, 120, 120, 0.45);
+  border-radius: 10px;
+  background: rgba(180, 60, 60, 0.22);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 40px;
 }
 
 .gina-viz__cascade-delete img {
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
-  opacity: 0.75;
+  opacity: 1;
 }
 
 .gina-viz__cascade-delete:hover {
@@ -4173,6 +4174,7 @@
 .gina-viz__row-status-picker {
   position: relative;
   flex: 0 0 auto;
+  width: max-content;
   justify-self: end;
   z-index: 3;
 }
@@ -4180,7 +4182,9 @@
 .gina-viz__row-status-trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  width: max-content;
   margin: 0;
   padding: 0;
   border: none;
@@ -4201,16 +4205,22 @@
 }
 
 .gina-viz__row-status-popover {
-  right: 0;
-  left: auto;
-  min-width: 168px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  min-width: 0;
+  width: max-content;
+  max-width: none;
+  padding: 4px;
 }
 
 .gina-viz__row-status-popover .gina-viz__snooze-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
+  width: auto;
+  padding: 4px 6px;
+  white-space: nowrap;
 }
 
 .gina-viz__snooze-option--active {

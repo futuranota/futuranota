@@ -71,17 +71,20 @@ describe("ginaReplyChips", () => {
       surface: "document",
       hasDaySheet: false,
     });
-    expect(bare.map((c) => c.id)).toEqual(["check_free_hours_doc"]);
-    expect(bare[0].label).toBe("Ver horas libres del día");
-    expect(bare[0].icon).toBe("/uploads/ClockCountdown.svg");
-    expect(bare[0].primary).toBe(true);
+    expect(bare.map((c) => c.id)).toEqual(["doc_today_schedule", "check_free_hours_doc"]);
+    expect(bare[0].label).toBe("Horario de hoy");
+    expect(bare[0].icon).toBe("/uploads/accounting.svg");
+    expect(bare[0].text).toBe("Horario de hoy");
+    expect(bare[1].label).toBe("Ver horas libres del día");
+    expect(bare[1].icon).toBe("/uploads/ClockCountdown.svg");
+    expect(bare[1].primary).toBe(true);
 
     const chips = buildGinaOpeningChips({
       locale: "es",
       surface: "document",
       hasDaySheet: true,
     });
-    expect(chips.map((c) => c.id)).toEqual(["check_free_hours_doc"]);
+    expect(chips.map((c) => c.id)).toEqual(["doc_today_schedule", "check_free_hours_doc"]);
     expect(chips.some((c) => c.id === "today")).toBe(false);
     expect(chips.some((c) => c.id === "schedule")).toBe(false);
     expect(chips.some((c) => String(c.id).startsWith("test_"))).toBe(false);
@@ -93,7 +96,8 @@ describe("ginaReplyChips", () => {
       surface: "document",
       hasDaySheet: false,
     });
-    expect(chips[0].text).toBe("See free hours for today");
+    expect(chips[0].text).toBe("Today's hours");
+    expect(chips[1].text).toBe("See free hours for today");
   });
 
   it("in-doc day sheet headline omits counts and “puedes decir” prose", () => {

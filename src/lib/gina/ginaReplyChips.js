@@ -104,6 +104,12 @@ export function buildGinaOpeningChips(opts = {}) {
     /** @type {GinaReplyChip[]} */
     const docChips = [
       {
+        id: "doc_today_schedule",
+        label: en ? "Today’s hours" : "Horario de hoy",
+        icon: "/uploads/accounting.svg",
+        text: en ? "Today's hours" : "Horario de hoy",
+      },
+      {
         id: "check_free_hours_doc",
         label: en ? "See free hours for today" : "Ver horas libres del día",
         icon: "/uploads/ClockCountdown.svg",
