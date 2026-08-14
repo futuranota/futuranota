@@ -629,6 +629,45 @@ export function buildCountDocumentsChips(opts = {}) {
                 primary: chip.mode === "folder_pct",
               });
             }
+          } else if (weekMode === "folder_focus") {
+            const focus = opts.folderFocus && typeof opts.folderFocus === "object"
+              ? opts.folderFocus
+              : null;
+            chips.push({
+              id: "week_back_schedule",
+              kind: "week_view",
+              group: "week_view",
+              label: en ? "Back" : "atrás",
+              text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+              value: "schedule",
+              selectable: true,
+              primary: true,
+            });
+            if (focus?.folderId) {
+              chips.push({
+                id: "week_folder_open",
+                kind: "open",
+                group: "week_view",
+                label: en ? `Open "${focus.folder}"` : `Abrir "${focus.folder}"`,
+                text: `GinaOpenDocument:${focus.folderId}`,
+                icon: "/uploads/File.svg",
+                selectable: true,
+              });
+            }
+            const overdueIds = Array.isArray(focus?.overdueIds)
+              ? focus.overdueIds.map((id) => String(id || "").trim()).filter(Boolean)
+              : [];
+            if (overdueIds.length) {
+              chips.push({
+                id: "week_folder_reschedule",
+                kind: "action",
+                group: "week_view",
+                label: en ? "Adjust schedule" : "Ajustar horarios",
+                icon: "/uploads/ClockCountdown.svg",
+                text: `GinaDaySheetReschedule:${overdueIds.join(",")}`,
+                selectable: true,
+              });
+            }
           } else {
             chips.push({
               id: "week_back_schedule",
@@ -2253,6 +2292,27 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         });
       }
       if (data.railMode === "weekday" || data.groupBy === "weekday") {
+        if (data.weekDisplayMode === "folder_focus") {
+          const focus = data.folderFocus || {};
+          const name = focus.folder || data.title || (en ? "this folder" : "este folder");
+          const overdue = Number(focus.overdue) || 0;
+          const done = Number(focus.completed) || 0;
+          const total = Number(focus.total) || n;
+          const pct = Number(focus.percent) || 0;
+          if (!total) {
+            return en
+              ? `No timed documents this week in **${name}**.`
+              : `No hay documentos con horario esta semana en **${name}**.`;
+          }
+          const overdueBit = overdue
+            ? (en
+              ? ` ${overdue} overdue still open.`
+              : ` ${overdue} vencido${overdue === 1 ? "" : "s"} que aún viven.`)
+            : "";
+          return en
+            ? `**${name}** this week: **${done}** of **${total}** completed (${pct}%).${overdueBit}`
+            : `**${name}** esta semana: **${done}** de **${total}** completados (${pct}%).${overdueBit}`;
+        }
         if (data.weekDisplayMode === "folder_pct") {
           const folders = Array.isArray(data.folderProgress) ? data.folderProgress.length : 0;
           return en
@@ -2635,6 +2695,7 @@ export function buildGinaReplyChips(opts = {}) {
         ...(data.view || {}),
         weekDisplayMode: data.weekDisplayMode || data.view?.weekDisplayMode,
       },
+      folderFocus: data.folderFocus || null,
       availableCategories: data.availableCategories,
       fromCountDocuments: true,
       departmentRail: data.departmentRail,
@@ -2654,6 +2715,7 @@ export function buildGinaReplyChips(opts = {}) {
       salt,
       browseMode: data.browseMode,
       view: data.view,
+      folderFocus: data.folderFocus || null,
       availableCategories: data.availableCategories,
       fromCountDocuments: Boolean(data.fromCountDocuments),
       departmentRail: data.departmentRail,

@@ -515,11 +515,19 @@ export function buildDailyReportAppliedText(opts = {}) {
 export function buildDailyReportPopoverCopy(locale = "es", opts = {}) {
   const en = locale === "en";
   if (opts.kind === "celebrate") {
-    return en
-      ? "When you have a moment, open the chat — you wrapped today’s schedule. I’d love to congratulate you."
-      : "Cuando tengas un chance abre el chat — cerraste los schedules de hoy. Quiero felicitarte.";
+    return {
+      title: en
+        ? "You wrapped today’s schedule. I’d love to congratulate you."
+        : "Cerraste los schedules de hoy. Quiero felicitarte.",
+      accept: en ? "Open chat" : "Abrir chat",
+      decline: en ? "Check later" : "Verificar de luego",
+    };
   }
-  return en
-    ? "When you have a moment, open the chat — I found something in your schedule documents to show you."
-    : "Cuando tengas un chance abre el chat, tengo algo que enseñarte en los documentos de horarios que identifiqué.";
+  return {
+    title: en
+      ? "I found something in today’s schedules to show you."
+      : "Tengo algo que enseñarte en los horarios de hoy.",
+    accept: en ? "Open chat" : "Abrir chat",
+    decline: en ? "Check later" : "Verificar de luego",
+  };
 }

@@ -87,12 +87,12 @@ describe("resolveGinaTableView", () => {
     expect(v.railMode).toBe("department");
   });
 
-  it("week layout: Doc|Cat|Time|Status + weekday rail (no weekday column)", () => {
+  it("week layout: Doc|Folder|Time|Status + weekday rail (no weekday column)", () => {
     const v = resolveGinaTableView({
       layout: "schedules_week",
       scheduleScope: "week",
     });
-    expect(v.columns).toEqual(["document", "category", "time", "status"]);
+    expect(v.columns).toEqual(["document", "folder", "time", "status"]);
     expect(v.columns).not.toContain("weekday");
     expect(v.columns.length).toBeLessThanOrEqual(4);
     expect(v.railMode).toBe("weekday");

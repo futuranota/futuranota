@@ -8,27 +8,24 @@ import { resolveRecoveryOfferMode } from "./ginaTodayTimeTriage.js";
 export { resolveRecoveryOfferMode, formatLateStartDelay } from "./ginaTodayTimeTriage.js";
 
 /**
- * True when the document's timed block has already ended (or start passed with no finish).
- * @param {object} doc
- * @param {Date} now
+ * True when the timed window has ended (`finish < now`).
+ * In-window (start passed, finish still ahead) is not overdue.
  */
-export function isPassedSlot(doc, now = new Date()) {
+export function isScheduleWindowOver(doc, now = new Date()) {
   if (!doc) return false;
   const status = doc.status;
   if (status === DOC_WORK_STATUS.COMPLETED || doc.completed) return false;
-
   const finishRaw = doc.anchorFinishAt || doc.dueAt || null;
-  const startRaw = doc.anchorAt || doc.startedAt || null;
   const finish = finishRaw ? new Date(finishRaw) : null;
-  const start = startRaw ? new Date(startRaw) : null;
+  if (!finish || Number.isNaN(finish.getTime())) return false;
+  return finish.getTime() < now.getTime();
+}
 
-  if (finish && !Number.isNaN(finish.getTime())) {
-    return finish.getTime() < now.getTime();
-  }
-  if (start && !Number.isNaN(start.getTime())) {
-    return start.getTime() < now.getTime();
-  }
-  return false;
+/**
+ * True when the document's timed block has already ended.
+ */
+export function isPassedSlot(doc, now = new Date()) {
+  return isScheduleWindowOver(doc, now);
 }
 
 /**

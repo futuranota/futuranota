@@ -1,8 +1,11 @@
 import { createPortal } from "react-dom";
 import { buildDailyReportPopoverCopy } from "../../lib/gina/ginaDailyReport.js";
+import { ShimmeringText } from "./ShimmeringText.jsx";
+
+const GINA_AVATAR_SRC = "/uploads/Assistance-visuals/Gina-Assistance.png";
 
 /**
- * Static nudge popover for pending Daily Report (conflict or celebrate).
+ * Daily Report nudge — same card family as talk-request (avatar, shimmer, green/gray).
  * @param {{
  *   open: boolean,
  *   locale?: string,
@@ -19,30 +22,51 @@ export function GinaDailyReportPopover({
   onDefer,
 }) {
   if (!open || typeof document === "undefined") return null;
-  const en = locale === "en";
-  const copy = buildDailyReportPopoverCopy(en ? "en" : "es", { kind });
+  const copy = buildDailyReportPopoverCopy(locale === "en" ? "en" : "es", { kind });
 
   return createPortal(
     <div
-      className={`gina-daily-report-popover${kind === "celebrate" ? " is-celebrate" : ""}`}
+      className={
+        "gina-talk-request-popover"
+        + (kind === "celebrate" ? " is-celebrate" : "")
+      }
       role="dialog"
-      aria-label="Gina daily report"
+      aria-label={copy.title}
     >
-      <p className="gina-daily-report-popover__text">{copy}</p>
-      <div className="gina-daily-report-popover__actions">
+      <div className="gina-talk-request-popover__row">
+        <img
+          className="gina-talk-request-popover__avatar"
+          src={GINA_AVATAR_SRC}
+          alt=""
+          width={56}
+          height={56}
+        />
+        <p className="gina-talk-request-popover__title">
+          <ShimmeringText
+            text={copy.title}
+            startOnView={false}
+            color="#a1a0a0"
+            shimmerColor="#ffffff"
+            duration={2.2}
+            spread={1.8}
+            className="gina-talk-request-popover__shimmer"
+          />
+        </p>
+      </div>
+      <div className="gina-talk-request-popover__actions">
         <button
           type="button"
-          className="gina-daily-report-popover__btn is-primary"
+          className="gina-talk-request-popover__btn is-accept"
           onClick={onOpenChat}
         >
-          {en ? "Open chat" : "Abrir chat"}
+          {copy.accept}
         </button>
         <button
           type="button"
-          className="gina-daily-report-popover__btn"
+          className="gina-talk-request-popover__btn is-decline"
           onClick={onDefer}
         >
-          {en ? "Check later" : "Verificar de luego"}
+          {copy.decline}
         </button>
       </div>
     </div>,

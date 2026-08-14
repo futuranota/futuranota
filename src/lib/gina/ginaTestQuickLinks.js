@@ -17,6 +17,12 @@ export const GINA_TEST_QUICK_LINKS = [
     text: GINA_RESET_DAY_RITUAL_PROTOCOL,
     primary: false,
   },
+  {
+    id: "test_week_folder_focus",
+    label: "Folder en horario (click pie)",
+    text: "visualizar todos los horarios de la semana",
+    primary: false,
+  },
 ];
 
 /**
@@ -31,6 +37,11 @@ export function getGinaTestQuickLinks(opts = {}) {
         ...link,
         label: en ? "Reset today’s ritual" : "Reset ritual de hoy",
       }
-      : link
+      : link.id === "test_week_folder_focus"
+        ? {
+          ...link,
+          label: en ? "Folders on week table (click pie)" : "Folder en horario (click pie)",
+        }
+        : link
   ));
 }

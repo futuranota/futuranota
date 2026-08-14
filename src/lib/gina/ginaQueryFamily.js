@@ -5,7 +5,7 @@
 
 import { parseGinaTimeScope, foldGinaText } from "./ginaTimeScope.js";
 import { buildGinaDailyReport } from "./ginaDailyReport.js";
-import { getPendingDailyReport, markDailyReportOpened } from "./ginaDailyReportStore.js";
+import { getPendingDailyReport, markDailyReportOpened, GINA_DAILY_REPORT_POPOVER_ENABLED } from "./ginaDailyReportStore.js";
 import {
   isFindDocumentIntent,
   parseFindHints,
@@ -69,6 +69,7 @@ import {
 import {
   parseGinaScheduleScope,
   parseGinaWeekViewMode,
+  parseGinaWeekFolderFocus,
   wantsGinaScheduleScopeList,
   filterDocsByScheduleScope,
 } from "./ginaSyntaxScheduleScope.js";
@@ -944,6 +945,7 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
       nodes: ctx.nodes || {},
       docs: ctx.docs || {},
       weekDisplayMode: opts.weekDisplayMode || view.weekDisplayMode || "schedule",
+      focusFolderId: opts.focusFolderId || view.focusFolderId || null,
       hint: isList
         ? (isHighlightList
           ? `Filtered document list with deferred category highlight (${mode})`
@@ -2129,6 +2131,28 @@ export function runGinaQueryFamily(text, ctx = {}) {
     // Week secondary views + week schedule scope must win over last-table
     // “filas con horario” refine (horario cue would otherwise steal the week list).
     {
+      const focusFolderId = parseGinaWeekFolderFocus(text);
+      if (focusFolderId) {
+        clearPendingGinaOffer();
+        return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+          mode: "list_all",
+          weekDisplayMode: "folder_focus",
+          focusFolderId,
+          view: {
+            showSchedule: true,
+            showStatus: true,
+            categories: [],
+            highlightCategories: [],
+            scheduleScope: "week",
+            layout: "schedules_week",
+            timedOnly: true,
+            railMode: "weekday",
+            weekDisplayMode: "folder_focus",
+            focusFolderId,
+          },
+          text,
+        });
+      }
       const weekMode = parseGinaWeekViewMode(text);
       if (weekMode) {
         clearPendingGinaOffer();
@@ -2804,11 +2828,13 @@ export function runGinaQueryFamily(text, ctx = {}) {
   }
 
   // Daily report (occupied hours + conflicts) — before social so deferred nudge recovers on "hola".
-  {
+  // Off until Daily Report visual is redesigned (GINA_DAILY_REPORT_POPOVER_ENABLED).
+  if (GINA_DAILY_REPORT_POPOVER_ENABLED) {
     const reportNow = ctx.now instanceof Date ? ctx.now : new Date();
     const uid = ctx.userId || ctx.authUserId || "anon";
     const pending = getPendingDailyReport(uid, reportNow);
-    const pendingRecoverable = pending
+    const pendingRecoverable = GINA_DAILY_REPORT_POPOVER_ENABLED
+      && pending
       && (pending.status === "deferred" || pending.status === "ready" || pending.status === "queued");
     const wantsDailyReport = isGinaDailyReportUtterance(text)
       || (pendingRecoverable && /^(hola|hey|hi|hello|holi|buenas|saludos)([!?.\s]*)$/.test(

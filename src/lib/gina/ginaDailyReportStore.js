@@ -6,6 +6,8 @@ export const GINA_DAILY_REPORT_CHANGED = "fn-gina-daily-report-changed";
 export const GINA_DAILY_REPORT_STORAGE_KEY = "fn-gina-daily-report-v1";
 /** Active-session wait before showing the popover. */
 export const GINA_DAILY_REPORT_DELAY_MS = 30 * 60 * 1000;
+/** Off until Daily Report visual is redesigned (end of current Gina polish). */
+export const GINA_DAILY_REPORT_POPOVER_ENABLED = false;
 
 function dayKey(d = new Date()) {
   const x = d instanceof Date ? d : new Date(d);
@@ -184,6 +186,7 @@ export function markDailyReportOpened(userId, now = new Date()) {
  * @param {{ now?: Date, sessionEntry?: boolean }} [opts]
  */
 export function shouldShowDailyReportPopover(userId, opts = {}) {
+  if (!GINA_DAILY_REPORT_POPOVER_ENABLED) return false;
   const now = opts.now instanceof Date ? opts.now : new Date();
   const cur = getPendingDailyReport(userId, now);
   if (!cur) return false;

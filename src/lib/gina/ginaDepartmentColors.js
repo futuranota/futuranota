@@ -100,6 +100,44 @@ export function buildGinaCategoryRail(docs = []) {
 }
 
 /**
+ * Unique folders in row order (first seen). Color matches folder dots in the week table.
+ * @param {object[]} docs
+ * @returns {{ folderId: string, name: string, count: number, color: string, department?: string, category?: string }[]}
+ */
+export function buildGinaFolderLegend(docs = []) {
+  /** @type {{ folderId: string, name: string, count: number, department: string, category: string }[]} */
+  const ordered = [];
+  /** @type {Map<string, number>} */
+  const indexByKey = new Map();
+
+  for (const doc of docs) {
+    const folderId = String(
+      doc?.parentDocId || doc?.parentFolderId || doc?.folderId || "",
+    ).trim();
+    const name = String(doc?.folder || doc?.hierarchy?.folder || "").trim() || "Folder";
+    const key = folderId || `name:${name.toLowerCase()}`;
+    if (indexByKey.has(key)) {
+      ordered[indexByKey.get(key)].count += 1;
+    } else {
+      indexByKey.set(key, ordered.length);
+      ordered.push({
+        folderId,
+        name,
+        count: 1,
+        department: String(doc?.department || doc?.hierarchy?.department || "").trim(),
+        category: String(doc?.category || doc?.hierarchy?.category || "").trim(),
+      });
+    }
+  }
+
+  const total = ordered.length;
+  return ordered.map((seg, i) => ({
+    ...seg,
+    color: ginaDepartmentRailColor(i, total),
+  }));
+}
+
+/**
  * Contiguous runs in row order — merge only adjacent same-department rows.
  * Use for chronologically sorted tables (today overview) so rail colors
  * align with each row when departments interleave.

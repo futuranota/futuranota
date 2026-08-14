@@ -2860,7 +2860,19 @@ function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
                   stroke="none"
                 >
                   {chart.map((entry) => (
-                    <Cell key={entry.key || entry.name} fill={entry.fill} stroke="none" />
+                    <Cell
+                      key={entry.key || entry.name}
+                      fill={entry.fill}
+                      stroke="none"
+                      style={entry.folderId && onSelectAction ? { cursor: "pointer" } : undefined}
+                      onClick={() => {
+                        if (!entry.folderId || !onSelectAction) return;
+                        onSelectAction(
+                          `GinaWeekFolderFocus:${entry.folderId}`,
+                          entry.name,
+                        );
+                      }}
+                    />
                   ))}
                   <LabelList
                     dataKey="percent"
@@ -2890,10 +2902,13 @@ function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
                   <button
                     type="button"
                     className="gina-viz__week-folder-open"
-                    onClick={() => onSelectAction(
-                      `GinaOpenDocument:${folderId}`,
-                      name,
-                    )}
+                    onClick={() => {
+                      const action = {
+                        text: `GinaWeekFolderFocus:${folderId}`,
+                        displayText: name,
+                      };
+                      onSelectAction(action.text, action.displayText);
+                    }}
                   >
                     <span className="gina-viz__day-folder-foot-name">{name}</span>
                     <span className="gina-viz__day-folder-foot-meta">{meta}</span>
@@ -2917,6 +2932,118 @@ function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
             : `${week.total} documento${week.total === 1 ? "" : "s"} con horario · ${week.percent ?? 0}%`}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function WeekFolderFocusPie({ data, locale = "es" }) {
+  const focus = data?.folderFocus && typeof data.folderFocus === "object"
+    ? data.folderFocus
+    : null;
+  const en = locale === "en";
+  if (!focus || !focus.folderId) {
+    return (
+      <p className="gina-viz__empty">
+        {en ? "That folder has no timed documents this week." : "Ese folder no tiene horarios esta semana."}
+      </p>
+    );
+  }
+  const completed = Number(focus.completed) || 0;
+  const pending = Number(focus.pending) || 0;
+  const overdue = Number(focus.overdue) || 0;
+  const total = Number(focus.total) || (completed + pending + overdue);
+  const pct = Number(focus.percent) || 0;
+  const chart = [
+    completed > 0 ? {
+      key: "done",
+      name: en ? "Completed" : "Completados",
+      minutes: completed,
+      count: completed,
+      fill: "#57BC6C",
+    } : null,
+    pending > 0 ? {
+      key: "pending",
+      name: en ? "Remaining" : "Pendientes",
+      minutes: pending,
+      count: pending,
+      fill: "#008AF5",
+    } : null,
+    overdue > 0 ? {
+      key: "overdue",
+      name: en ? "Overdue" : "Vencidos",
+      minutes: overdue,
+      count: overdue,
+      fill: "#8a8a8a",
+    } : null,
+  ].filter(Boolean);
+  if (!chart.length) {
+    return (
+      <p className="gina-viz__empty">
+        {en ? "No timed documents this week in this folder." : "Sin horarios esta semana en este folder."}
+      </p>
+    );
+  }
+  return (
+    <div className="gina-viz__folder-focus">
+      <div className="gina-viz__hours-pie gina-viz__hours-pie--side">
+        <div className="gina-viz__hours-pie-chart">
+          <ResponsiveContainer width="100%" height={180}>
+            <PieChart>
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = payload[0]?.payload || {};
+                  return (
+                    <div className="gina-viz__hours-pie-tooltip">
+                      <span className="gina-viz__hours-pie-tooltip-name">{row.name}</span>
+                      <span className="gina-viz__hours-pie-tooltip-val">
+                        {`${row.count ?? 0}`}
+                      </span>
+                    </div>
+                  );
+                }}
+              />
+              <Pie
+                data={chart}
+                dataKey="minutes"
+                nameKey="name"
+                innerRadius={26}
+                outerRadius={68}
+                paddingAngle={3}
+                cornerRadius={6}
+                stroke="none"
+              >
+                {chart.map((entry) => (
+                  <Cell key={entry.key} fill={entry.fill} stroke="none" />
+                ))}
+                <LabelList
+                  dataKey="count"
+                  stroke="none"
+                  fontSize={11}
+                  fontWeight={600}
+                  fill="#f0f0f0"
+                />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <p className="gina-viz__folder-focus-meta">
+        {en
+          ? `${completed}/${total} · ${pct}%`
+          : `${completed}/${total} · ${pct}%`}
+      </p>
+      <ul className="gina-viz__folder-focus-legend">
+        {chart.map((row) => (
+          <li key={row.key}>
+            <span
+              className="gina-viz__folder-focus-dot"
+              style={{ background: row.fill }}
+            />
+            {`${row.name} · ${row.count}`}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2963,7 +3090,8 @@ function TableVisualization({ data, onSelectAction }) {
     : "department";
   const weekStartsOn = getGinaPrefs().weekStartsOn === 0 ? 0 : 1;
   // Rail must match visible rows so segment height lines up with tbody
-  const tableRail = fromCount && railMode !== "none" && weekDisplayMode !== "folder_pct"
+  const tableRail = fromCount && railMode !== "none"
+    && weekDisplayMode !== "folder_pct"
     ? (railMode === "status"
       ? buildGinaStatusRail(shown, locale)
       : (railMode === "category"
@@ -3048,8 +3176,31 @@ function TableVisualization({ data, onSelectAction }) {
         return doc.department || h.department || "—";
       case "category":
         return doc.category || h.category || "—";
-      case "folder":
-        return doc.folder || h.folder || "—";
+      case "folder": {
+        const name = doc.folder || h.folder || "—";
+        const dept = doc.department || h.department || "";
+        const cat = doc.category || h.category || "";
+        const color = doc.folderColor || "";
+        return (
+          <span className="gina-viz__folder-cell">
+            <span className="gina-viz__folder-cell-head">
+              {color ? (
+                <span
+                  className="gina-viz__folder-cell-dot"
+                  style={{ background: color }}
+                  aria-hidden
+                />
+              ) : null}
+              <span className="gina-viz__folder-cell-name">{name}</span>
+            </span>
+            {(dept || cat) ? (
+              <span className="gina-viz__folder-cell-path">
+                {[dept, cat].filter(Boolean).join(" / ")}
+              </span>
+            ) : null}
+          </span>
+        );
+      }
       case "path":
         return [h.department, h.category, h.folder].filter(Boolean).join(" / ") || "—";
       case "status":
@@ -3071,12 +3222,19 @@ function TableVisualization({ data, onSelectAction }) {
         label: c.label,
         text: c.text,
       }))
-      : [{
-        id: "week_back_schedule",
-        mode: "schedule",
-        label: en ? "Back" : "atrás",
-        text: en ? "back to this week's schedules" : "volver a horarios de la semana",
-      }])
+      : weekDisplayMode === "folder_focus"
+        ? [{
+          id: "week_back_schedule",
+          mode: "schedule",
+          label: en ? "Back" : "atrás",
+          text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+        }]
+        : [{
+          id: "week_back_schedule",
+          mode: "schedule",
+          label: en ? "Back" : "atrás",
+          text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+        }])
     : [];
 
   const emptyCopy = weekDisplayMode === "overdue"
@@ -3091,7 +3249,16 @@ function TableVisualization({ data, onSelectAction }) {
 
   return (
     <div className={"gina-viz gina-viz--table" + (showTableRail ? " gina-viz--table-rail" : "")}>
-      {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
+      {data.title ? (
+        <h3 className="gina-viz__title">{data.title}</h3>
+      ) : null}
+      {weekDisplayMode === "folder_focus" && data.folderFocus ? (
+        <GinaHierarchyPath
+          department={data.folderFocus.department}
+          category={data.folderFocus.category}
+          className="gina-viz__folder-focus-path"
+        />
+      ) : null}
       {weekDisplayMode === "folder_pct" ? (
         <WeekFolderPctPie
           data={data}
@@ -3185,6 +3352,49 @@ function TableVisualization({ data, onSelectAction }) {
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {Array.isArray(data.folderLegend) && data.folderLegend.length
+                && weekDisplayMode !== "folder_pct" ? (
+                <ul className="gina-viz__folder-legend" aria-label={en ? "Folders" : "Folders"}>
+                  {data.folderLegend.map((seg) => {
+                    const folderId = String(seg.folderId || "").trim();
+                    const label = `${seg.name}${seg.count != null ? ` · ${seg.count}` : ""}`;
+                    if (folderId && onSelectAction && weekDisplayMode === "schedule") {
+                      return (
+                        <li key={folderId || seg.name}>
+                          <button
+                            type="button"
+                            className="gina-viz__folder-legend-btn"
+                            onClick={() => onSelectAction(
+                              `GinaWeekFolderFocus:${folderId}`,
+                              seg.name,
+                            )}
+                          >
+                            <span
+                              className="gina-viz__dept-legend-dot"
+                              style={{ background: seg.color }}
+                              aria-hidden
+                            />
+                            <span className="gina-viz__folder-legend-name">{label}</span>
+                          </button>
+                        </li>
+                      );
+                    }
+                    return (
+                      <li key={folderId || seg.name} className="gina-viz__dept-legend-item">
+                        <span
+                          className="gina-viz__dept-legend-dot"
+                          style={{ background: seg.color }}
+                          aria-hidden
+                        />
+                        <span className="gina-viz__dept-legend-name">{label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              {weekDisplayMode === "folder_focus" ? (
+                <WeekFolderFocusPie data={data} locale={locale} />
               ) : null}
             </>
           ) : null}

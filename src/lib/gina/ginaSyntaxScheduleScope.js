@@ -6,6 +6,7 @@
  */
 
 import { foldGinaText, dayKey, toDate, ginaWeekBounds } from "./ginaTimeScope.js";
+import { isScheduleWindowOver } from "./ginaScheduleRecovery.js";
 
 /** Stable chip / command labels (ES). */
 export const GINA_SCHEDULE_SCOPE_CHIPS_ES = [
@@ -100,7 +101,7 @@ export function getGinaWeekViewChips(locale = "es") {
 /**
  * Secondary week display: folder % pie | overdue filter | back to schedule table.
  * @param {string} text
- * @returns {"folder_pct" | "overdue" | "schedule" | null}
+ * @returns {"folder_pct" | "overdue" | "schedule" | "folder_focus" | null}
  */
 export function parseGinaWeekViewMode(text) {
   const q = foldGinaText(text);
@@ -194,10 +195,21 @@ export function wantsGinaScheduleScopeList(text) {
 export { ginaWeekBounds };
 
 /**
- * Open protocol for a week folder-% row (folder id → Documents).
+ * Click a week folder-% row → recorte of that folder (does not open Documents).
  * @param {{ folderId?: string|null, folder?: string|null }} row
  * @returns {{ text: string, displayText: string } | null}
  */
+export function buildGinaWeekFolderFocusAction(row = {}) {
+  const folderId = String(row?.folderId || "").trim();
+  if (!folderId) return null;
+  const name = String(row?.folder || "").trim() || folderId;
+  return {
+    text: `GinaWeekFolderFocus:${folderId}`,
+    displayText: name,
+  };
+}
+
+/** @deprecated use buildGinaWeekFolderFocusAction — kept for Abrir chip */
 export function buildGinaWeekFolderOpenAction(row = {}) {
   const folderId = String(row?.folderId || "").trim();
   if (!folderId) return null;
@@ -205,6 +217,70 @@ export function buildGinaWeekFolderOpenAction(row = {}) {
   return {
     text: `GinaOpenDocument:${folderId}`,
     displayText: name,
+  };
+}
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function parseGinaWeekFolderFocus(text) {
+  const m = String(text || "").trim().match(/^GinaWeekFolderFocus:(.+)$/i);
+  if (!m) return null;
+  const id = String(m[1] || "").trim();
+  return id || null;
+}
+
+function folderIdOfWeekDoc(doc) {
+  return String(
+    doc?.parentDocId || doc?.parentFolderId || doc?.folderId || "",
+  ).trim();
+}
+
+/**
+ * Week recorte: one folder, all timed docs this week (any day) + overdue still live.
+ * @param {object[]} docs
+ * @param {string} folderId
+ * @param {Date} [now]
+ * @param {Record<string, object>} [docsById]
+ */
+export function buildWeekFolderFocusSnapshot(docs = [], folderId, now = new Date(), docsById = {}) {
+  const id = String(folderId || "").trim();
+  const rows = (Array.isArray(docs) ? docs : []).filter((d) => folderIdOfWeekDoc(d) === id);
+  let completed = 0;
+  let overdue = 0;
+  let pending = 0;
+  const overdueIds = [];
+  for (const d of rows) {
+    if (d?.status === "completed" || d?.completed === true) completed += 1;
+    else if (isScheduleWindowOver(d, now)) {
+      overdue += 1;
+      if (d?.id) overdueIds.push(String(d.id));
+    }
+    else pending += 1;
+  }
+  const total = rows.length;
+  const folderDoc = docsById[id];
+  const folder = String(
+    folderDoc?.title || folderDoc?.name || rows[0]?.folder || "",
+  ).trim() || "Folder";
+  const first = rows[0] || {};
+  return {
+    folderId: id,
+    folder,
+    department: String(
+      first.department || first.hierarchy?.department || folderDoc?.departmentName || "",
+    ).trim(),
+    category: String(
+      first.category || first.hierarchy?.category || folderDoc?.category || "",
+    ).trim(),
+    completed,
+    overdue,
+    overdueIds,
+    pending,
+    total,
+    percent: total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0,
+    documents: rows,
   };
 }
 

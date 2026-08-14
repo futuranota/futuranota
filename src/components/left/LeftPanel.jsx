@@ -78,7 +78,7 @@ import { listOccupiedIntervalsByDate } from "../../lib/docScheduleOccupancy.js";
 import { calendarDateInputValue } from "../../lib/docDates.js";
 import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
-import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
+import { markDailyReportOpened, GINA_DAILY_REPORT_POPOVER_ENABLED } from "../../lib/gina/ginaDailyReportStore.js";
 import { anchorDaySheetFromTodayDocs, hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import { markTodayAgendaCheckedFromFamily } from "../../lib/gina/ginaTodayAgendaCheckStore.js";
 import {
@@ -6210,7 +6210,12 @@ export function LeftPanel({
         onDecline={declineGinaTalkRequestPopover}
       />
       <GinaDailyReportPopover
-        open={ginaDailyReportPopoverOpen && !ginaDashboardOpen && !ginaTalkNotifySession}
+        open={
+          GINA_DAILY_REPORT_POPOVER_ENABLED
+          && ginaDailyReportPopoverOpen
+          && !ginaDashboardOpen
+          && !ginaTalkNotifySession
+        }
         locale={locale === "es" ? "es" : "en"}
         kind={ginaDailyReportPopoverKind}
         onOpenChat={openGinaFromDailyReportPopover}

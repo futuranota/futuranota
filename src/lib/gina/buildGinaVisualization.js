@@ -21,6 +21,7 @@ import {
   buildGinaCategoryRail,
   buildGinaWeekdayRail,
   sortDocsByWeekdayThenTime,
+  buildGinaFolderLegend,
   GINA_DEPT_RAIL_COLORS,
   GINA_DEPT_RAIL_UNASSIGNED,
   ginaDepartmentRailColor,
@@ -38,6 +39,7 @@ import {
   summarizeTodayOverlaps,
 } from "./ginaTodayQuickSheet.js";
 import { buildFolderProgressForDocuments } from "./ginaDailyReport.js";
+import { buildWeekFolderFocusSnapshot } from "./ginaSyntaxScheduleScope.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -133,6 +135,8 @@ function mapDocRow(d, now = null, locale = "es") {
     daysOverdue: d.daysOverdue,
     daysUntilDue: d.daysUntilDue,
     passedSlot: Boolean(d.passedSlot) || isPassedSlot(d, clock),
+    anchorAt: d.anchorAt || d.startedAt || null,
+    anchorFinishAt: d.anchorFinishAt || d.dueAt || null,
     hierarchy: {
       department: d.department || d.departmentName || null,
       category: d.category || null,
@@ -797,6 +801,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       let docs = documents.map((d) => ({
         ...mapDocRow(d, now, locale),
         anchorAt: d.anchorAt || d.startedAt || null,
+        anchorFinishAt: d.anchorFinishAt || d.dueAt || null,
         parentDocId: d.parentDocId || d.parentFolderId || null,
       }));
       const resolved = resolveGinaTableView({
@@ -901,7 +906,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           ? (locale === "en" ? "Overdue schedules this week" : "Horarios vencidos de la semana")
           : (weekDisplayMode === "folder_pct"
             ? (locale === "en" ? "This week’s progress by folder" : "Avance de esta semana por folder")
-            : (locale === "en" ? "This week" : "Esta semana")))
+            : (weekDisplayMode === "folder_focus"
+              ? (locale === "en" ? "This folder this week" : "Este folder esta semana")
+              : (locale === "en" ? "This week" : "Esta semana"))))
         : (resolved.layout === "schedules_all" || resolved.layout === "schedules_today"
           ? (locale === "en" ? "Schedules" : "Horarios")
           : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos")));
@@ -909,10 +916,10 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       let folderProgress = [];
       let weekProgress = null;
       let folderPctChart = [];
+      let folderFocus = null;
       if (resolved.layout === "schedules_week") {
         const nodesById = ctx.nodes || {};
         const docsById = ctx.docs || {};
-        // % view follows vigentes only (same set as the main week table).
         const sourceForProgress = weekVigentes;
         folderProgress = buildFolderProgressForDocuments(sourceForProgress, nodesById, docsById);
         const timedCompleted = sourceForProgress.filter(
@@ -929,6 +936,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         };
         folderPctChart = folderProgress.map((f, i) => ({
           key: f.folderId || f.folder,
+          folderId: f.folderId,
           name: f.folder,
           percent: f.percent,
           done: f.done,
@@ -937,24 +945,48 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           minutes: Math.max(1, Number(f.percent) || 0),
           fill: ginaDepartmentRailColor(i, Math.max(7, folderProgress.length)),
         }));
+        const focusId = String(ctx.focusFolderId || view.focusFolderId || "").trim();
+        if (weekDisplayMode === "folder_focus" && focusId) {
+          folderFocus = buildWeekFolderFocusSnapshot(allWeekDocs, focusId, now, docsById);
+        }
       }
       const markableWeek = weekOverdueMarkable;
+      const tableDocs = weekDisplayMode === "folder_focus"
+        ? (folderFocus?.documents || [])
+        : (weekDisplayMode === "folder_pct" ? weekVigentes : docs);
+      const folderLegend = resolved.layout === "schedules_week"
+        && weekDisplayMode !== "folder_pct"
+        ? buildGinaFolderLegend(tableDocs)
+        : [];
+      const colorByFolder = new Map(
+        folderLegend.map((s) => [s.folderId || s.name, s.color]),
+      );
+      const documentsOut = tableDocs.map((d) => {
+        const fid = String(d.parentDocId || d.parentFolderId || d.folderId || "").trim();
+        const color = colorByFolder.get(fid)
+          || colorByFolder.get(String(d.folder || d.hierarchy?.folder || "").trim());
+        return color ? { ...d, folderColor: color } : d;
+      });
 
       return {
         type: "table",
         data: {
-          title: mode === "list_by_department" && department
-            ? department
-            : (mode === "list_by_category" && category
-              ? category
-              : (view.highlightCategories.length
-                ? view.highlightCategories.join(", ")
-                : defaultTitle)),
+          title: weekDisplayMode === "folder_focus" && folderFocus?.folder
+            ? folderFocus.folder
+            : (mode === "list_by_department" && department
+          ? department
+          : (mode === "list_by_category" && category
+            ? category
+            : (view.highlightCategories.length
+              ? view.highlightCategories.join(", ")
+              : defaultTitle))),
           corpusName,
           department,
           category,
-          count: docs.length,
-          documents: weekDisplayMode === "folder_pct" ? weekVigentes : docs,
+          count: weekDisplayMode === "folder_focus"
+            ? (folderFocus?.total || 0)
+            : documentsOut.length,
+          documents: documentsOut,
           view: {
             ...view,
             secondaryColumn: resolved.secondaryColumn,
@@ -965,6 +997,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             railMode,
             columns,
             weekDisplayMode: weekDisplayMode || undefined,
+            focusFolderId: folderFocus?.folderId || undefined,
           },
           columns,
           rail,
@@ -977,9 +1010,11 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             ? ctx.availableCategories
             : [],
           empty: Boolean(ctx.empty) || (
-            weekDisplayMode === "folder_pct"
-              ? weekVigentes.length === 0
-              : docs.length === 0
+            weekDisplayMode === "folder_focus"
+              ? !(folderFocus?.total)
+              : (weekDisplayMode === "folder_pct"
+                ? weekVigentes.length === 0
+                : docs.length === 0)
           ),
           deferredCategoryHighlight: deferred,
           highlightDelayMs,
@@ -995,6 +1030,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           folderProgress,
           weekProgress,
           folderPctChart,
+          folderFocus,
+          folderLegend,
           markableWeekCount: markableWeek.length,
         },
       };
@@ -1646,13 +1683,15 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       .slice()
       .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
       .map((d) => String(d.id));
+    const requestedCascade = (Array.isArray(ctx.cascadeMoveDocIds) ? ctx.cascadeMoveDocIds : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean);
     const nodesById = ctx.nodes || Object.fromEntries(allDocs.map((d) => [d.id, d]));
     const docsById = ctx.docs || {};
     const rescheduleMode = ctx.rescheduleMode === "cascade" ? "cascade" : "gaps";
 
-    // Gaps: only fully expired (may reuse session / moveDocIds). Cascade: always full non-completed set.
     const sessionIds = rescheduleMode === "cascade"
-      ? cascadeIds
+      ? (requestedCascade.length ? requestedCascade : cascadeIds)
       : (() => {
         const requestedIds = (Array.isArray(ctx.sessionMoveDocIds) && ctx.sessionMoveDocIds.length
           ? ctx.sessionMoveDocIds

@@ -5,7 +5,7 @@
  * Layouts (product):
  * - all_docs: Doc | Cat | Status | Fecha y Hora + dept rail (includes Flexible)
  * - schedules_all: Doc | Cat | Fecha y Hora | Status + dept rail (timed only)
- * - schedules_week: Doc | Cat | Fecha y Hora | Status + weekday rail (timed, this week)
+ * - schedules_week: Doc | Folder | Fecha y Hora | Status + weekday rail (timed, this week)
  */
 
 import { getGinaPrefs } from "./ginaPrefs.js";
@@ -143,14 +143,15 @@ export function resolveGinaTableView(opts = {}) {
   }
 
   if (layout === "schedules_week") {
-    // Documento | Categoría | Fecha y Hora | Estado + weekday sidebar (not a 5th column)
-    const columns = uniqueKeys(["document", secondary, "time", "status"])
+    // Documento | Folder | Fecha y Hora | Estado + weekday rail (folder connects docs to boxes)
+    const weekSecondary = "folder";
+    const columns = uniqueKeys(["document", weekSecondary, "time", "status"])
       .slice(0, GINA_TABLE_MAX_COLUMNS);
     return {
       subject,
       columns,
       railMode: normalizeRail(opts.railPrefer || "weekday"),
-      secondaryColumn: secondary,
+      secondaryColumn: weekSecondary,
       layout,
       timedOnly: true,
       showSchedule: true,

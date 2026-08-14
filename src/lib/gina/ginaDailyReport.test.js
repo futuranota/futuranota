@@ -12,6 +12,7 @@ import {
   promoteDailyReportOnSessionEntry,
   queueDailyReportNudge,
   shouldShowDailyReportPopover,
+  GINA_DAILY_REPORT_POPOVER_ENABLED,
 } from "./ginaDailyReportStore.js";
 import { buildGinaVisualization } from "./buildGinaVisualization.js";
 import { isGinaDailyReportUtterance, runGinaQueryFamily } from "./ginaQueryFamily.js";
@@ -239,7 +240,9 @@ describe("ginaDailyReportStore", () => {
 
     const later = new Date(t0.getTime() + 31 * 60 * 1000);
     promoteDailyReportOnSessionEntry("u1", later);
-    expect(shouldShowDailyReportPopover("u1", { now: later, sessionEntry: true })).toBe(true);
+    expect(shouldShowDailyReportPopover("u1", { now: later, sessionEntry: true })).toBe(
+      GINA_DAILY_REPORT_POPOVER_ENABLED,
+    );
 
     markDailyReportOpened("u1", later);
     expect(getPendingDailyReport("u1", later)?.status).toBe("done");
@@ -257,7 +260,9 @@ describe("ginaDailyReportStore", () => {
     });
     const pending = getPendingDailyReport("u1", t0);
     expect(pending?.kind).toBe("celebrate");
-    expect(shouldShowDailyReportPopover("u1", { now: t0 })).toBe(true);
+    expect(shouldShowDailyReportPopover("u1", { now: t0 })).toBe(
+      GINA_DAILY_REPORT_POPOVER_ENABLED,
+    );
   });
 
   it("defer keeps recoverable status and hides popover", () => {
@@ -276,23 +281,24 @@ describe("daily report routing + viz", () => {
     clearDailyReport("u1");
   });
 
-  it("routes reporte del día and pending phrases", () => {
+  it("does not route daily report while popover/visual is disabled", () => {
+    expect(GINA_DAILY_REPORT_POPOVER_ENABLED).toBe(false);
+
     const a = runGinaQueryFamily("reporte del día", baseCtx);
-    expect(a.family).toBe("daily_report");
-    expect(a.toolContext?.dailyReport?.occupiedCount).toBe(3);
+    expect(a.family).not.toBe("daily_report");
 
     clearDailyReport("u1");
     deferDailyReport("u1", now);
     const b = runGinaQueryFamily("qué querías decirme", baseCtx);
-    expect(b.family).toBe("daily_report");
+    expect(b.family).not.toBe("daily_report");
 
     clearDailyReport("u1");
     deferDailyReport("u1", now);
     const c = runGinaQueryFamily("hola", baseCtx);
-    expect(c.family).toBe("daily_report");
+    expect(c.family).toBe("social");
   });
 
-  it("matches broad daily-report triggers", () => {
+  it("matches broad daily-report triggers (detector stays live for later)", () => {
     const samples = [
       "reporte",
       "Gina dame el reporte",
@@ -307,17 +313,15 @@ describe("daily report routing + viz", () => {
     ];
     for (const sample of samples) {
       expect(isGinaDailyReportUtterance(sample), sample).toBe(true);
-      expect(runGinaQueryFamily(sample, baseCtx).family, sample).toBe("daily_report");
+      expect(runGinaQueryFamily(sample, baseCtx).family, sample).not.toBe("daily_report");
     }
   });
 
-  it("routes move preview and confirm families", () => {
-    const move = runGinaQueryFamily("Mover horarios en conflicto de hoy", baseCtx);
-    expect(move.family).toBe("daily_report_move");
-    expect(move.toolContext?.proposals?.length).toBeGreaterThanOrEqual(1);
-
-    const confirm = runGinaQueryFamily("Confirmar mover horarios en conflicto", baseCtx);
-    expect(confirm.family).toBe("daily_report_move_confirm");
+  it("does not route move preview/confirm while daily report is disabled", () => {
+    expect(runGinaQueryFamily("Mover horarios en conflicto de hoy", baseCtx).family)
+      .not.toBe("daily_report_move");
+    expect(runGinaQueryFamily("Confirmar mover horarios en conflicto", baseCtx).family)
+      .not.toBe("daily_report_move_confirm");
   });
 
   it("viz includes conflict highlight flags and pending/progress", () => {

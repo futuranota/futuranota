@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GINA_DAILY_REPORT_CHANGED,
   GINA_DAILY_REPORT_DELAY_MS,
+  GINA_DAILY_REPORT_POPOVER_ENABLED,
   deferDailyReport,
   getPendingDailyReport,
   markDailyReportOpened,
@@ -56,6 +57,10 @@ export function useGinaDailyReportNudge({ userId, buildCtx }) {
   }, [uid]);
 
   const refreshPopoverVisibility = useCallback((sessionEntry = false) => {
+    if (!GINA_DAILY_REPORT_POPOVER_ENABLED) {
+      setPopoverOpen(false);
+      return;
+    }
     if (sessionEntry) {
       promoteDailyReportOnSessionEntry(uid, new Date());
     }
@@ -72,6 +77,10 @@ export function useGinaDailyReportNudge({ userId, buildCtx }) {
 
   const armTimerFromStore = useCallback(() => {
     clearTimer();
+    if (!GINA_DAILY_REPORT_POPOVER_ENABLED) {
+      setPopoverOpen(false);
+      return;
+    }
     const pending = getPendingDailyReport(uid, new Date());
     if (!pending || pending.status === "done" || pending.status === "deferred") return;
     syncKindFromStore();
@@ -98,6 +107,7 @@ export function useGinaDailyReportNudge({ userId, buildCtx }) {
   }, [uid, clearTimer, syncKindFromStore]);
 
   const evaluateReportNudge = useCallback(() => {
+    if (!GINA_DAILY_REPORT_POPOVER_ENABLED) return;
     try {
       const ctx = typeof buildCtx === "function" ? buildCtx() : {};
       const report = buildGinaDailyReport(ctx);

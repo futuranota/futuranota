@@ -5,6 +5,9 @@ import {
   parseGinaWeekViewMode,
   wantsGinaScheduleScopeList,
   buildGinaWeekFolderOpenAction,
+  buildGinaWeekFolderFocusAction,
+  parseGinaWeekFolderFocus,
+  buildWeekFolderFocusSnapshot,
   GINA_SCHEDULE_SCOPE_CHIPS_ES,
 } from "./ginaSyntaxScheduleScope.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
@@ -228,7 +231,7 @@ describe("schedule scope routing → list_all table", () => {
     expect(viz?.type).toBe("table");
     expect(viz.data.railMode).toBe("weekday");
     expect(viz.data.groupBy).toBe("weekday");
-    expect(viz.data.columns).toEqual(["document", "category", "time", "status"]);
+    expect(viz.data.columns).toEqual(["document", "folder", "time", "status"]);
     expect(viz.data.columns).not.toContain("weekday");
     expect(Array.isArray(viz.data.rail)).toBe(true);
     expect(viz.data.weekdayRail).toEqual(viz.data.rail);
@@ -276,9 +279,9 @@ describe("schedule scope routing → list_all table", () => {
     expect(viz.data.folderProgress.length).toBeGreaterThan(0);
     expect(Array.isArray(viz.data.folderPctChart)).toBe(true);
     for (const row of viz.data.folderProgress) {
-      const action = buildGinaWeekFolderOpenAction(row);
+      const action = buildGinaWeekFolderFocusAction(row);
       expect(action).toBeTruthy();
-      expect(action.text).toBe(`GinaOpenDocument:${row.folderId}`);
+      expect(action.text).toBe(`GinaWeekFolderFocus:${row.folderId}`);
       expect(action.displayText).toBeTruthy();
     }
     const chips = buildGinaReplyChips({
@@ -298,6 +301,86 @@ describe("schedule scope routing → list_all table", () => {
       text: "GinaOpenDocument:f1",
       displayText: "Trends",
     });
+  });
+
+  it("week folder focus recorte is one folder across days + overdue gray", () => {
+    expect(parseGinaWeekFolderFocus("GinaWeekFolderFocus:f1")).toBe("f1");
+    expect(parseGinaWeekFolderFocus("visualizar por % completado")).toBeNull();
+    const routed = runGinaQueryFamily("GinaWeekFolderFocus:f1", ctx);
+    expect(routed.toolContext.weekDisplayMode).toBe("folder_focus");
+    expect(routed.toolContext.focusFolderId).toBe("f1");
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz.data.weekDisplayMode).toBe("folder_focus");
+    expect(viz.data.title).toBe("Trends");
+    expect(viz.data.folderFocus.folderId).toBe("f1");
+    expect(viz.data.folderFocus.completed).toBe(1);
+    expect(viz.data.folderFocus.overdue).toBeGreaterThan(0);
+    expect(viz.data.folderFocus.total).toBe(
+      viz.data.folderFocus.completed
+      + viz.data.folderFocus.pending
+      + viz.data.folderFocus.overdue,
+    );
+    const titles = (viz.data.documents || []).map((d) => d.title);
+    expect(titles).toContain("Blog hoy");
+    expect(titles).toContain("Blog semana");
+    expect(titles).toContain("Blog ayer");
+    expect(titles).not.toContain("Sales hoy sin cat");
+    expect(titles).not.toContain("Viejo");
+    const chips = buildGinaReplyChips({
+      family: "count_documents",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.find((c) => c.id === "week_back_schedule")?.text).toMatch(/horarios de la semana/i);
+    expect(chips.find((c) => c.id === "week_folder_open")?.text).toBe("GinaOpenDocument:f1");
+    expect(chips.find((c) => c.id === "week_folder_reschedule")?.label).toBe("Ajustar horarios");
+    expect(chips.find((c) => c.id === "week_folder_reschedule")?.text).toMatch(/^GinaDaySheetReschedule:/);
+    expect(chips.find((c) => c.id === "week_folder_reschedule")?.icon).toBe("/uploads/ClockCountdown.svg");
+    expect(chips.some((c) => c.id === "week_back_pct")).toBe(false);
+    expect(chips.some((c) => c.id === "week_overdue")).toBe(false);
+    expect(viz.data.columns).toContain("folder");
+    expect(Array.isArray(viz.data.folderLegend)).toBe(true);
+  });
+
+  it("folder pie overdue is after finish, not after start", () => {
+    const rows = [
+      {
+        id: "live",
+        parentDocId: "f1",
+        folder: "Trends",
+        status: "not_started",
+        anchorAt: "2026-08-13T23:00:00",
+        anchorFinishAt: "2026-08-13T23:45:00",
+      },
+      {
+        id: "done-win",
+        parentDocId: "f1",
+        folder: "Trends",
+        status: "not_started",
+        anchorAt: "2026-08-13T22:00:00",
+        anchorFinishAt: "2026-08-13T22:30:00",
+      },
+    ];
+    const inWindow = buildWeekFolderFocusSnapshot(
+      rows,
+      "f1",
+      new Date("2026-08-13T23:03:00"),
+      { f1: { title: "Trends" } },
+    );
+    expect(inWindow.overdue).toBe(1);
+    expect(inWindow.pending).toBe(1);
+    expect(inWindow.overdueIds).toEqual(["done-win"]);
+    const afterFinish = buildWeekFolderFocusSnapshot(
+      rows,
+      "f1",
+      new Date("2026-08-13T23:46:00"),
+      { f1: { title: "Trends" } },
+    );
+    expect(afterFinish.overdue).toBe(2);
+    expect(afterFinish.pending).toBe(0);
   });
 
   it("week overdue mode keeps only markable passed slots", () => {
