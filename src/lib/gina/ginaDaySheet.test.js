@@ -19,6 +19,7 @@ import {
   buildDaySheetBatchCompleteAck,
   buildDaySheetBatchCompleteChips,
   buildDaySheetPendingActionChips,
+  buildInDocDaySheetIdleChips,
 } from "./ginaDaySheet.js";
 import {
   isDaySheetReopenIntent,
@@ -228,9 +229,12 @@ describe("ginaDaySheet helpers", () => {
     const empty = buildDaySheetBatchCompleteAck({ count: 2, nextTitle: "", locale: "es" });
     expect(empty).toMatch(/No queda nada pendiente/);
 
-    const chips = buildDaySheetPendingActionChips({ locale: "es" });
+    const chips = buildDaySheetPendingActionChips({
+      locale: "es",
+    });
     expect(chips.map((c) => c.id)).toEqual([
       "day_sheet_apply_complete",
+      "enable_day_notifications",
       "day_sheet_discard_selection",
     ]);
     expect(chips[0].label).toBe("Marcar como completados");
@@ -244,12 +248,14 @@ describe("ginaDaySheet helpers", () => {
     expect(selected.map((c) => c.id)).toEqual([
       "day_sheet_apply_complete",
       "day_sheet_reschedule",
+      "enable_day_notifications",
       "open_n2",
       "day_sheet_discard_selection",
     ]);
     expect(selected[0].primary).toBe(true);
     expect(selected.find((c) => c.id === "day_sheet_reschedule")?.text).toBe("GinaDaySheetReschedule:n2");
     expect(selected.find((c) => c.id === "open_n2")?.text).toBe("GinaOpenDocument:n2");
+    expect(selected.find((c) => c.id === "enable_day_notifications")?.label).toBe("activar notificaciones");
 
     const notified = buildDaySheetPendingActionChips({
       locale: "es",
@@ -260,11 +266,16 @@ describe("ginaDaySheet helpers", () => {
     expect(notified.map((c) => c.id)).toEqual([
       "open_n2",
       "day_sheet_reschedule",
+      "enable_day_notifications",
       "day_sheet_apply_complete",
       "day_sheet_discard_selection",
     ]);
     expect(notified[0].primary).toBe(true);
     expect(notified[0].label).toMatch(/^Abrir Horizon blog title 2$/);
+
+    expect(buildInDocDaySheetIdleChips({ locale: "es" }).map((c) => c.id)).toEqual([
+      "enable_day_notifications",
+    ]);
 
     const afterAck = buildDaySheetBatchCompleteChips({
       locale: "es",

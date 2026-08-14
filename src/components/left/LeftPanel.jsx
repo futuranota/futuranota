@@ -4487,11 +4487,43 @@ export function LeftPanel({
           locale: localeKey,
           now: ctx.now,
         });
+        const talkNotifsDecided = hasTalkNotificationsDecision(ginaUserId, ctx.now);
+        const recoverySnoozed = isRecoveryNotifySnoozed(ginaUserId, ctx.now);
+        const postTable = buildTodayOverviewPostTableCopy({
+          quickSheet: visualization.data.quickSheet || null,
+          documents: visualization.data.documents || [],
+          overviewByDepartment: visualization.data.overviewByDepartment || [],
+          totalMinutes: visualization.data.totalMinutes,
+          totalHoursLabel: visualization.data.totalHoursLabel,
+          dayProgress: visualization.data.dayProgress || null,
+          folderProgress: visualization.data.folderProgress || [],
+          locale: localeKey,
+          userId: ginaUserId,
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          hasRecoveryOffer: Boolean(visualization.data.hasRecoveryOffer),
+          urgencyCount: visualization.data.urgencyCount,
+          lateStartCount: visualization.data.lateStartCount,
+          hasOverlap: Boolean(visualization.data.hasOverlap),
+          recoverySnoozed,
+          talkNotificationsDecided: talkNotifsDecided,
+        });
+        const chips = buildGinaReplyChips({
+          family: "day_sheet",
+          visualization,
+          locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          talkNotificationsDecided: talkNotifsDecided,
+          recoverySnoozed,
+        });
         return {
           message: weatherIntro,
           textMid: buildTodayOverviewIntroText(localeKey),
+          textAfter: postTable.textAfter,
+          textAfterLead: postTable.textAfterLead,
+          textAfterRest: postTable.textAfterRest,
+          startDocLines: postTable.startDocLines,
           visualization,
-          chips: null,
+          chips: chips.length ? chips : null,
         };
       }
       const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })

@@ -15,13 +15,14 @@ import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaR
 import { buildGinaDocumentSyncOpening } from "../../lib/gina/ginaOpenings.js";
 import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
 import { GINA_RESET_DAY_RITUAL_PROTOCOL } from "../../lib/gina/ginaDayRitualReset.js";
-import { buildTalkRequestNotifyChips } from "../../lib/gina/ginaTalkRequest.js";
+import { buildTalkRequestNotifyChips, isEnableTalkNotificationsIntent } from "../../lib/gina/ginaTalkRequest.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
   applyDaySheetCompletionBatch,
   buildDaySheetBatchCompleteAck,
   buildDaySheetBatchCompleteChips,
   buildDaySheetPendingActionChips,
+  buildInDocDaySheetIdleChips,
   clearPendingDaySheetSelection,
   flattenDaySheetDocs,
   isDocCompleted,
@@ -63,14 +64,35 @@ function messageHasLeaveScheduleVoice(message) {
   return message?.voiceSequence === "leave_schedule";
 }
 
+function chipsAreTalkNotifyOffer(chips) {
+  return Array.isArray(chips)
+    && chips.some((c) => c?.id === "enable_day_notifications");
+}
+
+function talkNotifyOfferVisible(message) {
+  if (!chipsAreTalkNotifyOffer(message?.chips)) return false;
+  if (message.deferVisualization) {
+    if (!message.vizRevealed) return false;
+    if (message.midRevealed === false) return false;
+    if (message.sheetTableRevealed === false) return false;
+  }
+  return true;
+}
+
 function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
   if (!message || message.sender !== "ai") return false;
   if (!Array.isArray(message.chips) || !message.chips.length) return false;
-  if (isTyping || isAiAnimating) return false;
+  if (isTyping) return false;
+  if (isAiAnimating && !talkNotifyOfferVisible(message)) return false;
   if (message.visualization?.type === "day_sheet_saved" && !message.savedAckRevealed) return false;
   if (messageHasLeaveScheduleVoice(message) && message.textAfter && !message.afterRevealed) return false;
   if (message.deferVisualization) {
     if (!message.vizRevealed) return false;
+    if (chipsAreTalkNotifyOffer(message.chips)) {
+      if (message.midRevealed === false) return false;
+      if (message.sheetTableRevealed === false) return false;
+      return true;
+    }
     if (message.textMid && message.midReady === false) return false;
     if (message.midRevealed === false) return false;
     if (message.sheetTableRevealed === false) return false;
@@ -1480,6 +1502,13 @@ export function GinaChatCard({
           chips = Array.isArray(reply.chips) ? reply.chips : null;
           voiceSequence = reply.voiceSequence != null ? String(reply.voiceSequence).trim() : null;
           if (voiceSequence === "") voiceSequence = null;
+          if (reply.closeChat) {
+            deliveringRef.current = false;
+            isTypingRef.current = false;
+            setIsTyping(false);
+            onClose?.();
+            return;
+          }
           if (reply.resetChat) {
             setMessages([
               {
@@ -1685,8 +1714,8 @@ export function GinaChatCard({
             documentId: talkRequestDocId,
             title: notifyDoc?.title || "",
           })
-          : null);
-      return { ...m, visualization, chips };
+          : buildInDocDaySheetIdleChips({ locale: chipLocale }));
+      return { ...m, visualization, chips: Array.isArray(chips) && chips.length ? chips : null };
     }));
   };
 
@@ -1710,7 +1739,7 @@ export function GinaChatCard({
               title: notifyDoc?.title || "",
             });
           })()
-          : null,
+          : buildInDocDaySheetIdleChips({ locale: chipLocale }),
       };
     }));
   };
@@ -2044,7 +2073,8 @@ export function GinaChatCard({
                       enqueueOrDeliver(focusText);
                     }}
                     onSelectAction={(actionText, displayText) => {
-                      if (!actionText || isTyping || isAiAnimating) return;
+                      if (!actionText || isTyping) return;
+                      if (isAiAnimating && !isEnableTalkNotificationsIntent(actionText)) return;
                       if (/^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(String(actionText))) {
                         void deliverUserMessage(actionText, {
                           displayText: displayText || null,
@@ -2241,7 +2271,8 @@ export function GinaChatCard({
                         enqueueOrDeliver(focusText);
                       }}
                       onSelectAction={(actionText, displayText) => {
-                        if (!actionText || isTyping || isAiAnimating) return;
+                        if (!actionText || isTyping) return;
+                        if (isAiAnimating && !isEnableTalkNotificationsIntent(actionText)) return;
                         if (/^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(String(actionText))) {
                           void deliverUserMessage(actionText, {
                             displayText: displayText || null,
@@ -2533,7 +2564,8 @@ export function GinaChatCard({
                   ) : null}
                 </>
               )}
-              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
+              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping
+                && (!isAiAnimating || talkNotifyOfferVisible(msg))
                 && (msg.visualization?.type !== "day_sheet_saved" || msg.savedAckRevealed)
                 && (!messageHasNotifyGate(msg) || msg.notifyGateRevealed)
                 && (!messageHasLeaveScheduleVoice(msg) || !msg.textAfter || msg.afterRevealed)
@@ -2541,9 +2573,14 @@ export function GinaChatCard({
                   msg.vizRevealed
                   && msg.midRevealed !== false
                   && msg.sheetTableRevealed !== false
-                  && (!msg.startDocLines?.length || msg.startDocRevealed)
-                  && (!(msg.textAfter || msg.textAfterRest) || msg.afterRevealed)
-                  && (!msg.textPitch || msg.pitchRevealed)
+                  && (
+                    chipsAreTalkNotifyOffer(msg.chips)
+                    || (
+                      (!msg.startDocLines?.length || msg.startDocRevealed)
+                      && (!(msg.textAfter || msg.textAfterRest) || msg.afterRevealed)
+                      && (!msg.textPitch || msg.pitchRevealed)
+                    )
+                  )
                 )) ? (
                 chipsAreHomeOpening(msg.chips) ? (
                   <GinaHomeOpeningChips
@@ -2603,7 +2640,8 @@ export function GinaChatCard({
                         disabled={comingSoon && !chip.text}
                         title={comingSoon ? (chipLocale === "en" ? "Coming soon" : "Próximamente") : undefined}
                         onClick={() => {
-                          if (isTyping || isAiAnimating) return;
+                          if (isTyping) return;
+                          if (isAiAnimating && !chipsAreTalkNotifyOffer(msg.chips)) return;
                           if (comingSoon) {
                             // Deferred actions — show soft ack, no mutation path.
                             setMessages((prev) => [

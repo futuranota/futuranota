@@ -4,6 +4,7 @@ import {
   clearArmedTalkRequestSoft,
   clearTalkRequest,
   declineTalkRequest,
+  armTalkRequestNow,
   enableTalkNotifications,
   evaluateTalkRequestDue,
   getTalkRequestState,
@@ -62,6 +63,14 @@ describe("ginaTalkRequestStore", () => {
 
   afterEach(() => {
     memory.clear();
+  });
+
+  it("armTalkRequestNow enables and shows the call popover immediately", () => {
+    expect(isTalkNotificationsEnabled(uid, now)).toBe(false);
+    armTalkRequestNow(uid, { id: "open-doc", title: "Whatever" }, now);
+    expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
+    expect(getTalkRequestState(uid, now)?.activeDocId).toBe("open-doc");
   });
 
   it("does not arm starts older than catch-up (no flood of past blocks)", () => {
@@ -505,7 +514,8 @@ describe("ginaTalkRequest copy + router", () => {
     });
     expect(routed.family).toBe("schedule_recovery_reschedule_pick");
     expect(routed.toolContext.rescheduleMode).toBe("cascade");
-    expect(routed.toolContext.cascadeMoveDocIds).toEqual(["n1", "n2"]);
+    expect(routed.toolContext.activeDocId).toBe("n1");
+    expect(routed.toolContext.cascadeMoveDocIds).toBeUndefined();
   });
 
   it("initial notify chips put Open first", () => {

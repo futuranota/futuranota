@@ -859,8 +859,6 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
   const occupied = Array.isArray(data.occupied) ? data.occupied : [];
   const seededInitial = seedDraftsFromData(data);
   const [drafts, setDrafts] = useState(seededInitial);
-  const [pendingDeletes, setPendingDeletes] = useState(() => new Set());
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const seedKeyRef = useRef("");
 
   useEffect(() => {
@@ -868,14 +866,12 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
     if (seedKey === seedKeyRef.current) return;
     seedKeyRef.current = seedKey;
     setDrafts(seedDraftsFromData(data));
-    setPendingDeletes(new Set());
-    setConfirmDeleteId(null);
   }, [data.moveDocIds?.join("|"), Object.keys(data.initialDrafts || {}).join("|")]);
 
-  const visibleDocs = moveDocs.filter((d) => !pendingDeletes.has(String(d.id || "")));
-  const draftCount = Object.keys(drafts).filter((id) => !pendingDeletes.has(id)).length;
+  const visibleDocs = moveDocs;
+  const draftCount = Object.keys(drafts).length;
   const totalCount = visibleDocs.length;
-  const canCommit = draftCount > 0 || pendingDeletes.size > 0;
+  const canCommit = draftCount > 0;
 
   const patchCascadeDraft = (docId, patch) => {
     const id = String(docId || "");
@@ -905,7 +901,6 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
   const commitDrafts = () => {
     if (!canCommit || !onSelectAction) return;
     const applies = Object.entries(drafts)
-      .filter(([id]) => !pendingDeletes.has(id))
       .map(([id, draft]) => ({
         id,
         startIso: draft.startIso,
@@ -914,11 +909,7 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
     const session = (Array.isArray(data.sessionMoveDocIds) && data.sessionMoveDocIds.length
       ? data.sessionMoveDocIds
       : data.moveDocIds) || [];
-    const protocol = buildRescheduleBatchApplyProtocol(
-      applies,
-      session,
-      [...pendingDeletes],
-    );
+    const protocol = buildRescheduleBatchApplyProtocol(applies, session);
     if (!protocol) return;
     onSelectAction(
       protocol,
@@ -954,7 +945,6 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
                 ? anchorFieldsFromIso(draft.finishIso)
                 : { anchorTime: "" };
               const rowDate = draft?.date || startFields.anchorDate || dateKey;
-              const confirming = confirmDeleteId === id;
               return (
                 <li key={doc.id || doc.title} className="gina-viz__cascade-row">
                   <BlockAnchorFields
@@ -981,44 +971,6 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
                       locale={en ? "en" : "es"}
                       onSelectAction={onSelectAction}
                     />
-                  ) : null}
-                  {id ? (
-                    confirming ? (
-                      <div className="gina-viz__cascade-delete-confirm" role="alertdialog">
-                        <p className="gina-viz__cascade-delete-confirm-copy">
-                          {en
-                            ? `Delete “${doc.title || "this document"}”? This can’t be undone.`
-                            : `¿Eliminar “${doc.title || "este documento"}”? Esto no se puede deshacer.`}
-                        </p>
-                        <button
-                          type="button"
-                          className="gina-viz__cascade-delete-confirm-yes"
-                          onClick={() => {
-                            setPendingDeletes((prev) => new Set([...prev, id]));
-                            setConfirmDeleteId(null);
-                          }}
-                        >
-                          {en ? "Delete" : "Eliminar"}
-                        </button>
-                        <button
-                          type="button"
-                          className="gina-viz__cascade-delete-confirm-no"
-                          onClick={() => setConfirmDeleteId(null)}
-                        >
-                          {en ? "Cancel" : "Cancelar"}
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="gina-viz__cascade-delete"
-                        onClick={() => setConfirmDeleteId(id)}
-                        aria-label={en ? "Delete document" : "Eliminar documento"}
-                        title={en ? "Delete document" : "Eliminar documento"}
-                      >
-                        <img src="/uploads/delete.svg" alt="" aria-hidden />
-                      </button>
-                    )
                   ) : null}
                 </li>
               );

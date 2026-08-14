@@ -712,6 +712,41 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toContain("day_sheet_next");
   });
 
+  it("day sheet horario offers activate notifications when not decided", () => {
+    const chips = buildGinaReplyChips({
+      family: "day_sheet",
+      hasDaySheet: true,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          isDaySheet: true,
+          documents: [{ id: "n1", title: "Call 1" }],
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).toContain("enable_day_notifications");
+    expect(chips.map((c) => c.id)).toContain("skip_day_notifications");
+    expect(chips.find((c) => c.id === "enable_day_notifications")?.primary).toBe(true);
+  });
+
+  it("day sheet horario hides activate notifications after a decision", () => {
+    const chips = buildGinaReplyChips({
+      family: "day_sheet",
+      hasDaySheet: true,
+      talkNotificationsDecided: true,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          isDaySheet: true,
+          documents: [{ id: "n1", title: "Call 1" }],
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).not.toContain("enable_day_notifications");
+  });
+
   it("clean-day today overview keeps pre-sheet headline empty (summary is post-sheet)", () => {
     const headline = buildGinaFunnelHeadline({
       type: "schedule_sheet",

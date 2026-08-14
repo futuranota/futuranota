@@ -72,11 +72,17 @@ import {
   buildGinaSearchSequence,
   shouldUseGinaSearchSequence,
 } from "../../lib/gina/ginaSearchSequence.js";
-import { get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
-import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { get_workspace_inventory, matchDepartmentInText, get_today_scope } from "../../lib/gina/ginaTools.js";
+import { hasDaySheet, anchorDaySheetFromTodayDocs } from "../../lib/gina/ginaDaySheetStore.js";
+import {
+  isTalkNotificationsEnabled,
+  armTalkRequestNow,
+} from "../../lib/gina/ginaTalkRequestStore.js";
+import { pickNextDaySheetDoc, buildInDocDaySheetIdleChips } from "../../lib/gina/ginaDaySheet.js";
 import { resolveGinaDayWeatherIntro } from "../../lib/gina/ginaDayWeatherIntro.js";
 import { markTodayAgendaCheckedFromFamily } from "../../lib/gina/ginaTodayAgendaCheckStore.js";
 import {
+  buildTalkNotificationsSkippedAck,
   buildTalkRequestNotifyChips,
   buildTalkRequestNotifyStartDocLines,
   buildTalkRequestNotifyText,
@@ -476,6 +482,41 @@ export function NodeQueryModal({
       markTodayAgendaCheckedFromFamily(ginaUserId, routed.family, now);
     } catch { /* ignore */ }
 
+    if (
+      routed.family === "gina_talk_notifications_enable"
+      || routed.family === "gina_talk_notifications_skip"
+    ) {
+      if (routed.family === "gina_talk_notifications_skip") {
+        return {
+          message: buildTalkNotificationsSkippedAck(localeKey),
+          visualization: null,
+          chips: null,
+        };
+      }
+      const today = get_today_scope({
+        docs: docsMap,
+        nodes: nodesMap,
+        departments,
+        objectId: companyObjectId || null,
+        now,
+        userId: ginaUserId,
+      }, { includeCompleted: true });
+      const docs = Array.isArray(today.documents) ? today.documents : [];
+      try {
+        anchorDaySheetFromTodayDocs(ginaUserId, docs, {
+          now,
+          source: "document_today_hours",
+        });
+      } catch { /* ignore */ }
+      const preferred = docs.find((d) => String(d.id) === String(entityNodeId))
+        || pickNextDaySheetDoc(docs)
+        || docs.find((d) => d?.id && !d.completed && d.status !== "completed")
+        || docs[0]
+        || null;
+      armTalkRequestNow(ginaUserId, preferred, now);
+      return { closeChat: true };
+    }
+
     if (routed.family === "gina_chat_restart") {
       return {
         message: pickGinaOpening({
@@ -746,6 +787,14 @@ export function NodeQueryModal({
             ? "You don’t have today’s schedule saved yet. Ask for today’s schedule from Assistance and save it."
             : "Aún no tienes el horario del día guardado. Pídelo en Assistance y guárdalo.")
           : "");
+      const notifsOn = isTalkNotificationsEnabled(ginaUserId, now);
+      try {
+        anchorDaySheetFromTodayDocs(ginaUserId, visualization?.data?.documents || [], {
+          now,
+          source: "document_today_hours",
+        });
+      } catch { /* ignore */ }
+      const idleNotify = buildInDocDaySheetIdleChips({ locale: localeKey });
       return {
         message,
         visualization: visualization
@@ -756,10 +805,11 @@ export function NodeQueryModal({
               compact: true,
               locale: localeKey,
               pendingSelectedIds: [],
+              talkNotificationsEnabled: notifsOn,
             },
           }
           : null,
-        chips: null,
+        chips: idleNotify.length ? idleNotify : null,
       };
     }
 

@@ -123,6 +123,29 @@ export function enableTalkNotifications(userId, now = new Date()) {
 }
 
 /**
+ * Arm the talk/call popover now (in-doc “activar notificaciones”).
+ * @param {string} userId
+ * @param {{ id?: string, title?: string, name?: string } | null} doc
+ * @param {Date} [now]
+ */
+export function armTalkRequestNow(userId, doc, now = new Date()) {
+  const state = enableTalkNotifications(userId, now);
+  const id = String(doc?.id || "").trim();
+  if (!id) return state;
+  if (state.activeDocId && String(state.activeDocId) === id) return state;
+  const next = {
+    ...state,
+    enabled: true,
+    decided: true,
+    activeDocId: id,
+    activeTitle: String(doc?.title || doc?.name || "").trim() || null,
+    armedAt: now.toISOString(),
+  };
+  writeTalkRequestState(userId, next);
+  return next;
+}
+
+/**
  * User declined live notifications for today (still unlocks Comenzar / Re-agendar).
  * @param {string} userId
  * @param {Date} [now]

@@ -1154,8 +1154,14 @@ export function buildScheduleSheetChips(opts = {}) {
       topConflict,
       invadedLabels: opts.invadedLabels,
     }));
+    if (!opts.talkNotificationsDecided) {
+      chips.push(...buildTalkNotificationsEnableChips({ locale: opts.locale }));
+    }
   } else if (errorsFirst) {
     chips.push(...buildScheduleRecoveryGateChips({ locale: opts.locale }));
+    if (!opts.talkNotificationsDecided) {
+      chips.push(...buildTalkNotificationsEnableChips({ locale: opts.locale }));
+    }
   } else if (opts.missingAnchor) {
     chips.push({
       id: "today_schedule",
@@ -1164,6 +1170,9 @@ export function buildScheduleSheetChips(opts = {}) {
       primary: true,
     });
   } else if (opts.isDaySheet) {
+    if (!opts.talkNotificationsEnabled && !opts.justSaved) {
+      chips.push(...buildTalkNotificationsEnableChips({ locale: opts.locale }));
+    }
     const startId = opts.nextDocumentId
       || opts.openDocId
       || qs?.firstPendingId

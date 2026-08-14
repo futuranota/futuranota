@@ -3141,9 +3141,8 @@ export function runGinaQueryFamily(text, ctx = {}) {
           docs: ctx.docs,
           objectId: ctx.objectId,
           rescheduleMode: "cascade",
-          cascadeMoveDocIds: parsedSheetReschedule.docIds,
-          sessionMoveDocIds: parsedSheetReschedule.docIds,
-          hint: "Day-sheet row reschedule — cascade picker for selected docs",
+          activeDocId: parsedSheetReschedule.docIds[0] || null,
+          hint: "Day-sheet reschedule — cascade all today blocks so they don’t overlap; user edits then applies",
         },
         workspaceInventory: inventory,
       };

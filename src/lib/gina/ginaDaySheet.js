@@ -277,9 +277,20 @@ export function buildDaySheetBatchCompleteAck(opts = {}) {
   return `${line1}\n${line2}`;
 }
 
+function daySheetNotifyEnableChip(opts = {}) {
+  const en = opts.locale === "en";
+  return {
+    id: "enable_day_notifications",
+    label: en ? "activate notifications" : "activar notificaciones",
+    text: en
+      ? "Enable notifications for today while I work"
+      : "Actívame las notificaciones para hoy mientras trabajo",
+  };
+}
+
 /**
  * Action chips while pending selection is non-empty (in-doc only).
- * @param {{ locale?: string }} [opts]
+ * @param {{ locale?: string, talkNotificationsEnabled?: boolean }} [opts]
  */
 export function buildDaySheetPendingActionChips(opts = {}) {
   const en = opts.locale === "en";
@@ -294,6 +305,7 @@ export function buildDaySheetPendingActionChips(opts = {}) {
       : (selectedIds[0] || talkRequestDocId || ""));
   const openTitle = String(opts.openTitle || "").trim();
   const openFirst = Boolean(talkRequestDocId && selectedIds.includes(talkRequestDocId));
+  const notifyChip = daySheetNotifyEnableChip(opts);
   const markChip = {
     id: "day_sheet_apply_complete",
     label: en ? "Mark as completed" : "Marcar como completados",
@@ -324,9 +336,18 @@ export function buildDaySheetPendingActionChips(opts = {}) {
   };
   /** @type {{ id: string, label: string, text: string, primary?: boolean }[]} */
   if (openFirst && openChip) {
-    return [openChip, rescheduleChip, markChip, discardChip].filter(Boolean);
+    return [openChip, rescheduleChip, notifyChip, markChip, discardChip].filter(Boolean);
   }
-  return [markChip, rescheduleChip, openChip, discardChip].filter(Boolean);
+  return [markChip, rescheduleChip, notifyChip, openChip, discardChip].filter(Boolean);
+}
+
+/**
+ * In-doc horario with nothing selected — still offer live notifications.
+ * @param {{ locale?: string, talkNotificationsEnabled?: boolean }} [opts]
+ */
+export function buildInDocDaySheetIdleChips(opts = {}) {
+  const notifyChip = daySheetNotifyEnableChip(opts);
+  return notifyChip ? [notifyChip] : [];
 }
 
 /**
