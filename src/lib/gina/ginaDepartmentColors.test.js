@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildGinaDepartmentRail,
   buildGinaDepartmentRailRuns,
+  buildGinaFolderRailRuns,
   ginaDepartmentRailColor,
   GINA_DEPT_RAIL_UNASSIGNED,
 } from "./ginaDepartmentColors.js";
@@ -63,6 +64,25 @@ describe("ginaDepartmentColors", () => {
     ]);
     expect(runs).toEqual([
       { name: "Sales", count: 2, color: "#ff0000" },
+    ]);
+  });
+
+  it("folder rail runs use shared folder colors", () => {
+    const colorByKey = {
+      "name:Horizon": "#008AF5",
+      "name:Assistance": "#EAA65D",
+    };
+    const runs = buildGinaFolderRailRuns(
+      [
+        { folder: "Horizon", title: "a" },
+        { folder: "Assistance", title: "b" },
+        { folder: "Assistance", title: "c" },
+      ],
+      colorByKey,
+    );
+    expect(runs).toEqual([
+      { id: "name:Horizon", name: "Horizon", count: 1, color: "#008AF5" },
+      { id: "name:Assistance", name: "Assistance", count: 2, color: "#EAA65D" },
     ]);
   });
 });

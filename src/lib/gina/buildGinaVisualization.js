@@ -25,6 +25,7 @@ import {
   GINA_DEPT_RAIL_COLORS,
   GINA_DEPT_RAIL_UNASSIGNED,
   ginaDepartmentRailColor,
+  ginaTodayFolderKey,
 } from "./ginaDepartmentColors.js";
 import {
   buildGinaStatusRail,
@@ -348,6 +349,42 @@ export function buildTodayHoursChart(overviewByDepartment) {
         fill: d.color || colorForDepartment(d.name, i),
       };
     });
+}
+
+/**
+ * Informal first-section bars: folders on today's schedule, ordered by earliest slot.
+ * Y = timed docs in that folder today (not folder-wide %).
+ * @param {object[]} docs
+ */
+export function buildTodayFolderBars(docs) {
+  const list = asDocs(docs);
+  /** @type {Map<string, { key: string, folderId: string, name: string, docs: number, earliestAt: string }>} */
+  const byFolder = new Map();
+  for (const d of list) {
+    const { key, folderId, name } = ginaTodayFolderKey(d);
+    const at = String(d.anchorAt || "");
+    const cur = byFolder.get(key);
+    if (!cur) {
+      byFolder.set(key, {
+        key,
+        folderId,
+        name,
+        docs: 1,
+        earliestAt: at,
+      });
+      continue;
+    }
+    cur.docs += 1;
+    if (at && (!cur.earliestAt || at < cur.earliestAt)) cur.earliestAt = at;
+  }
+  const sorted = [...byFolder.values()].sort((a, b) => (
+    String(a.earliestAt || "").localeCompare(String(b.earliestAt || ""))
+    || a.name.localeCompare(b.name)
+  ));
+  return sorted.map((row, i, arr) => ({
+    ...row,
+    color: ginaDepartmentRailColor(i, arr.length),
+  }));
 }
 
 function buildDeptSummaryData(today, locale, now) {
@@ -1393,6 +1430,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const nodesById = today.nodes || ctx.nodes || {};
     const docsById = today.docs || ctx.docs || {};
     const folderProgress = buildFolderProgressForDocuments(allToday, nodesById, docsById);
+    const folderBars = buildTodayFolderBars(allToday);
     const timedCompleted = allToday.filter(
       (d) => d.status === "completed" || d.completed === true,
     ).length;
@@ -1418,6 +1456,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       totalMinutes,
       totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
       hoursChart,
+      folderBars,
       folderProgress,
       dayProgress: {
         completed: timedCompleted,

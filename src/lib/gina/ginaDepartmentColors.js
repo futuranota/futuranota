@@ -33,6 +33,58 @@ export function ginaDepartmentRailColor(index, total = GINA_DEPT_RAIL_COLORS.len
 }
 
 /**
+ * Stable key for a doc’s parent folder (id if present, else name).
+ * @param {object} [doc]
+ * @returns {{ key: string, folderId: string, name: string }}
+ */
+export function ginaTodayFolderKey(doc) {
+  const folderId = String(
+    doc?.parentFolderId || doc?.folderId || doc?.parentDocId || "",
+  ).trim();
+  const name = String(
+    doc?.parentFolderName || doc?.folder || doc?.hierarchy?.folder || "",
+  ).trim() || "Folder";
+  return {
+    key: folderId || `name:${name}`,
+    folderId,
+    name,
+  };
+}
+
+/**
+ * Contiguous folder runs in row order — same color as today’s folder bars.
+ * @param {object[]} docs
+ * @param {Record<string, string>} [colorByKey]
+ */
+export function buildGinaFolderRailRuns(docs = [], colorByKey = {}) {
+  /** @type {{ id: string, name: string, count: number, color: string }[]} */
+  const runs = [];
+  /** @type {Map<string, number>} */
+  const firstIndex = new Map();
+  const colors = colorByKey && typeof colorByKey === "object" ? colorByKey : {};
+
+  for (const doc of docs) {
+    const { key, name } = ginaTodayFolderKey(doc);
+    if (!firstIndex.has(key)) firstIndex.set(key, firstIndex.size);
+    const color = String(colors[key] || "").trim()
+      || ginaDepartmentRailColor(firstIndex.get(key), Math.max(1, firstIndex.size));
+    const last = runs[runs.length - 1];
+    if (last && last.id === key) {
+      last.count += 1;
+    } else {
+      runs.push({
+        id: key,
+        name,
+        count: 1,
+        color,
+      });
+    }
+  }
+
+  return runs;
+}
+
+/**
  * Build ordered rail segments from mapped document rows (already dept-sorted).
  * Collapses all rows of the same department into one segment (first-seen order).
  * Use for corpus listados where rows are sorted by department.

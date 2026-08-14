@@ -108,7 +108,7 @@ function revealAiTurnFully(message) {
   };
 }
 
-/** Build AI turn fields: datos → pie+TABLA DE HOY → intro → horario cronológico → post text → chips. */
+/** Build AI turn fields: datos → pie+folder bars → intro → horario cronológico → post text → chips. */
 function buildAiTurnRevealState({
   aiText,
   textMid,
@@ -145,10 +145,7 @@ function buildAiTurnRevealState({
     )
     && (hasLeadText || mid || hasAfterBlock || pitch),
   );
-  // Side TABLA DE HOY beside the pie (always on for today overview).
-  const vizData = visualization?.data && isTodayOverview
-    ? { ...visualization.data, overviewShowTable: true }
-    : visualization?.data;
+  const vizData = visualization?.data;
   const viz = visualization && vizData
     ? { ...visualization, data: vizData }
     : visualization;
@@ -222,6 +219,7 @@ function GinaTodayChronoSheet({ data, locale, onReady }) {
         groups: data?.groups || [],
         locale: data?.locale || locale,
         folderProgress: data?.folderProgress || null,
+        folderBars: data?.folderBars || null,
         dayProgress: data?.dayProgress || null,
         highlightPassedSlots: Boolean(
           Array.isArray(data?.quickSheet?.urgency) && data.quickSheet.urgency.length,
@@ -2158,21 +2156,11 @@ export function GinaChatCard({
                                   return {
                                     ...m,
                                     vizRevealed: true,
-                                    // Side TABLA DE HOY ships with the overview viz.
                                     // Chrono sheet still waits for intro (mid) to finish.
                                     sheetTableRevealed: !m.textMid || !m.visualization?.data?.todayOverview,
                                     midRevealed: !m.textMid,
                                     afterRevealed: !m.textMid && !hasAfter,
                                     pitchRevealed: !m.textMid && !hasAfter && !m.textPitch,
-                                    visualization: m.visualization?.data?.todayOverview
-                                      ? {
-                                        ...m.visualization,
-                                        data: {
-                                          ...m.visualization.data,
-                                          overviewShowTable: true,
-                                        },
-                                      }
-                                      : m.visualization,
                                   };
                                 })()
                                 : m
@@ -2211,9 +2199,6 @@ export function GinaChatCard({
                       type={msg.visualization.type}
                       data={{
                         ...msg.visualization.data,
-                        ...(msg.visualization.data?.todayOverview
-                          ? { overviewShowTable: true }
-                          : null),
                         ...(documentId && msg.visualization.data?.isDaySheet
                           ? { compact: true }
                           : null),

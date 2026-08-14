@@ -10,9 +10,9 @@ import {
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
 import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildSheetRowStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
 import { formatClockRange12h } from "../../lib/clockFormat.js";
-import { buildGinaDepartmentRail, buildGinaCategoryRail, buildGinaWeekdayRail } from "../../lib/gina/ginaDepartmentColors.js";
+import { buildGinaDepartmentRail, buildGinaCategoryRail, buildGinaWeekdayRail, buildGinaFolderRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
 import { getGinaWeekViewChips } from "../../lib/gina/ginaSyntaxScheduleScope.js";
-import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
+import { buildGinaStatusRail } from "../../lib/gina/ginaStatusColors.js";
 import { getGinaPrefs } from "../../lib/gina/ginaPrefs.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
 import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
@@ -1489,6 +1489,90 @@ function DeptHoursLegend({ items, locale = "es" }) {
   );
 }
 
+function folderBarShortLabel(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "·";
+  if (raw.length <= 10) return raw;
+  return `${raw.slice(0, 9)}…`;
+}
+
+function TodayFolderBars({ bars, locale = "es" }) {
+  const rows = Array.isArray(bars) ? bars : [];
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const en = locale === "en";
+  if (!rows.length) return null;
+  const maxDocs = Math.max(...rows.map((r) => Number(r.docs) || 0), 1);
+  const n = rows.length;
+  const hovered = hoveredIndex != null ? rows[hoveredIndex] : null;
+
+  return (
+    <div
+      className="gina-viz__folder-bars"
+      onMouseLeave={() => setHoveredIndex(null)}
+    >
+      <div className="gina-viz__folder-bars-head">
+        <span className="gina-viz__folder-bars-kicker">
+          {en ? "Folders today" : "Folders hoy"}
+        </span>
+        <span className="gina-viz__folder-bars-hover">
+          {hovered
+            ? (en
+              ? `${hovered.docs} doc${hovered.docs === 1 ? "" : "s"}`
+              : `${hovered.docs} doc${hovered.docs === 1 ? "" : "s"}`)
+            : (en
+              ? `${n} folder${n === 1 ? "" : "s"}`
+              : `${n} folder${n === 1 ? "" : "s"}`)}
+        </span>
+      </div>
+      <div className="gina-viz__folder-bars-row">
+        {rows.map((item, index) => {
+          const value = Number(item.docs) || 0;
+          const heightPx = Math.max(8, (value / maxDocs) * 96);
+          const isHovered = hoveredIndex === index;
+          const isAnyHovered = hoveredIndex !== null;
+          const isNeighbor = hoveredIndex !== null
+            && (index === hoveredIndex - 1 || index === hoveredIndex + 1);
+          const dimClass = isHovered
+            ? " is-hovered"
+            : isNeighbor
+              ? " is-neighbor"
+              : isAnyHovered
+                ? " is-dim"
+                : "";
+          return (
+            <div
+              key={item.folderId || `${item.name}-${index}`}
+              className={`gina-viz__folder-bar${dimClass}`}
+              onMouseEnter={() => setHoveredIndex(index)}
+            >
+              {isHovered ? (
+                <span className="gina-viz__folder-bar-tip">
+                  {item.name}
+                </span>
+              ) : null}
+              <span
+                className="gina-viz__folder-bar-fill"
+                style={{
+                  height: `${heightPx}px`,
+                  background: item.color || "rgba(240, 240, 240, 0.35)",
+                }}
+              />
+              <span className="gina-viz__folder-bar-label" title={item.name}>
+                {folderBarShortLabel(item.name)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="gina-viz__folder-bars-foot">
+        {en
+          ? `Covers ${n} folder${n === 1 ? "" : "s"}`
+          : `Cubre ${n} folder${n === 1 ? "" : "s"}`}
+      </p>
+    </div>
+  );
+}
+
 function TodayHoursPie({ data, locale = "es" }) {
   const chart = Array.isArray(data?.hoursChart) ? data.hoursChart : [];
   if (!chart.length) return null;
@@ -1805,6 +1889,7 @@ function TodayQuickSheet({
   title = null,
   eyebrow = null,
   folderProgress = null,
+  folderBars = null,
   dayProgress = null,
   highlightPassedSlots = false,
 }) {
@@ -1814,6 +1899,10 @@ function TodayQuickSheet({
     || (en ? "Today's schedule" : "Horario del día");
   const sheetEyebrow = eyebrow != null ? eyebrow : null;
   const folders = Array.isArray(folderProgress) ? folderProgress : [];
+  const bars = Array.isArray(folderBars) ? folderBars : [];
+  const colorByKey = Object.fromEntries(
+    bars.map((f) => [f.key || f.folderId || `name:${f.name}`, f.color]).filter(([, c]) => c),
+  );
   const day = dayProgress && typeof dayProgress === "object" ? dayProgress : null;
   if (!rows.length) {
     return (
@@ -1828,8 +1917,11 @@ function TodayQuickSheet({
       </div>
     );
   }
-  // Contiguous runs in chronological row order (same pattern as week status rail)
-  const statusRail = buildGinaStatusRailRuns(rows, locale);
+  // Contiguous runs by folder (status lives in the Status column).
+  const folderRail = buildGinaFolderRailRuns(rows, colorByKey);
+  const folderLegend = bars.length
+    ? bars
+    : folderRail.filter((seg, i, arr) => arr.findIndex((s) => s.id === seg.id) === i);
 
   return (
     <div className="gina-viz__quick-sheet gina-viz gina-viz--table gina-viz--table-rail">
@@ -1838,11 +1930,11 @@ function TodayQuickSheet({
         <h3 className="gina-viz__title">{sheetTitle}</h3>
       </header>
       <div className="gina-viz__table-layout">
-        {statusRail.length ? (
+        {folderRail.length ? (
           <div className="gina-viz__dept-rail" aria-hidden="true">
             <div className="gina-viz__dept-rail-head" />
             <div className="gina-viz__dept-rail-body">
-              {statusRail.map((seg) => (
+              {folderRail.map((seg) => (
                 <div
                   key={`${seg.id}-${seg.name}`}
                   className="gina-viz__dept-rail-seg"
@@ -1910,16 +2002,16 @@ function TodayQuickSheet({
           </table>
         </div>
       </div>
-      {statusRail.length ? (
-        <ul className="gina-viz__dept-legend" aria-label="Status">
-          {statusRail.map((seg) => (
-            <li key={seg.id || seg.name} className="gina-viz__dept-legend-item">
+      {folderLegend.length ? (
+        <ul className="gina-viz__dept-legend" aria-label="Folders">
+          {folderLegend.map((seg) => (
+            <li key={seg.key || seg.id || seg.name} className="gina-viz__dept-legend-item">
               <span
                 className="gina-viz__dept-legend-dot"
                 style={{ background: seg.color }}
                 aria-hidden
               />
-              <span className="gina-viz__dept-legend-name">{seg.name}</span>
+              <span className="gina-viz__dept-legend-name">{seg.name || seg.folder}</span>
             </li>
           ))}
         </ul>
@@ -1954,38 +2046,20 @@ function TodayQuickSheet({
 }
 
 /**
- * Today overview: dept narrative + pie + TABLA DE HOY (side-by-side).
- * @param {{ data: object, showTable?: boolean }} props
+ * Today overview: dept narrative + pie (hours) + folder bars (doc counts).
+ * Chronological table lives after this block in chat.
  */
-function TodayOverviewVisualization({ data, showTable = true }) {
+function TodayOverviewVisualization({ data }) {
   const overview = Array.isArray(data.overviewByDepartment) ? data.overviewByDepartment : [];
   const locale = data.locale === "en" ? "en" : "es";
-  const tableVisible = showTable !== false && data.overviewShowTable !== false;
+  const bars = Array.isArray(data.folderBars) ? data.folderBars : [];
 
   return (
     <div className="gina-viz gina-viz--today-overview">
       <TodayOverviewDeptNarrative overview={overview} locale={locale} />
-      <div className={
-        "gina-viz__today-overview-layout"
-        + (tableVisible ? "" : " gina-viz__today-overview-layout--infographic-only")
-      }
-      >
+      <div className="gina-viz__today-overview-layout">
         <TodayHoursPie data={data} />
-        {tableVisible ? (
-          <div className="gina-viz__today-overview-table">
-            <TodayQuickSheet
-              quickSheet={data.quickSheet}
-              documents={data.documents}
-              groups={data.groups}
-              locale={locale}
-              eyebrow={locale === "en" ? "Today’s table" : "Tabla de hoy"}
-              title={data.dateLabel || data.date || (locale === "en" ? "Today" : "Hoy")}
-              folderProgress={data.folderProgress}
-              dayProgress={data.dayProgress}
-              highlightPassedSlots={false}
-            />
-          </div>
-        ) : null}
+        <TodayFolderBars bars={bars} locale={locale} />
       </div>
     </div>
   );
@@ -2006,12 +2080,7 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
   const useCompactChecklist = Boolean(compact || data.compact) && isDaySheet && !showDual && !hideGroups;
 
   if (data.todayOverview) {
-    return (
-      <TodayOverviewVisualization
-        data={data}
-        showTable={data.overviewShowTable !== false}
-      />
-    );
+    return <TodayOverviewVisualization data={data} />;
   }
 
   if (data.offerDayReady || data.postRescheduleDaySheet) {
@@ -2025,6 +2094,7 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
         eyebrow={null}
         title={en ? "Today's schedule" : "Horario del día"}
         folderProgress={data.folderProgress}
+        folderBars={data.folderBars}
         dayProgress={data.dayProgress}
         highlightPassedSlots={Boolean(data.highlightPassedSlots)}
       />
@@ -2047,6 +2117,7 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
           eyebrow={en ? "Gina’s note" : "Aviso de Gina"}
           title={data.dateLabel || data.date || (en ? "Today’s schedule" : "Horario del día")}
           folderProgress={data.folderProgress}
+          folderBars={data.folderBars}
           dayProgress={data.dayProgress}
           highlightPassedSlots={Boolean(data.highlightPassedSlots)}
         />
@@ -3748,6 +3819,7 @@ export function GinaDataVisualization({
           groups={data.groups}
           locale={data.locale === "en" ? "en" : "es"}
           folderProgress={data.folderProgress}
+          folderBars={data.folderBars}
           dayProgress={data.dayProgress}
           highlightPassedSlots={Boolean(data.highlightPassedSlots)}
         />

@@ -2563,8 +2563,8 @@
 .gina-viz__today-overview-layout {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
 }
 
 .gina-viz__today-overview-layout--infographic-only {
@@ -2594,6 +2594,129 @@
   border-radius: 12px;
   background: #151515;
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gina-viz__folder-bars {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  padding: 8px 6px 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gina-viz__folder-bars-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.gina-viz__folder-bars-kicker {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 240, 240, 0.45);
+}
+
+.gina-viz__folder-bars-hover {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #f0f0f0;
+}
+
+.gina-viz__folder-bars-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  height: 118px;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+
+.gina-viz__folder-bar {
+  position: relative;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  cursor: default;
+}
+
+.gina-viz__folder-bar-fill {
+  width: 12px;
+  border-radius: 999px;
+  transform-origin: bottom center;
+  transition: opacity 0.25s ease, transform 0.25s ease, filter 0.25s ease;
+}
+
+.gina-viz__folder-bar.is-hovered .gina-viz__folder-bar-fill {
+  filter: brightness(1.12);
+  transform: scaleX(1.12) scaleY(1.02);
+}
+
+.gina-viz__folder-bar.is-neighbor .gina-viz__folder-bar-fill {
+  opacity: 0.55;
+}
+
+.gina-viz__folder-bar.is-dim .gina-viz__folder-bar-fill {
+  opacity: 0.22;
+}
+
+.gina-viz__folder-bar-label {
+  margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 550;
+  color: rgba(240, 240, 240, 0.45);
+}
+
+.gina-viz__folder-bar.is-hovered .gina-viz__folder-bar-label {
+  color: #f0f0f0;
+}
+
+.gina-viz__folder-bar-tip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 140px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #f0f0f0;
+  color: #151515;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.gina-viz__folder-bars-foot {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  color: rgba(240, 240, 240, 0.5);
 }
 
 .gina-viz--today-overview .gina-viz__hours-pie {

@@ -50,6 +50,10 @@ describe("buildGinaVisualization", () => {
     expect(viz?.data.totalHoursLabel).toMatch(/con 15/);
     expect(viz?.data.hoursChart?.length).toBe(2);
     expect(viz?.data.hoursChart.every((s) => s.minutes > 0 && s.fill)).toBe(true);
+    expect(viz?.data.folderBars?.map((f) => f.name)).toEqual(["Trends", "Plan"]);
+    expect(viz?.data.folderBars?.map((f) => f.docs)).toEqual([1, 1]);
+    expect(viz?.data.folderBars?.every((f) => f.color)).toBe(true);
+    expect(viz?.data.folderBars[0].color).not.toBe(viz?.data.folderBars[1].color);
     expect(viz?.data.overviewByDepartment?.map((d) => d.name)).toEqual([
       "Marketing",
       "Estrategias de negocios",
