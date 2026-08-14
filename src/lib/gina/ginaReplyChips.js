@@ -105,22 +105,12 @@ export function buildGinaOpeningChips(opts = {}) {
     const docChips = [
       {
         id: "check_free_hours_doc",
-        label: en
-          ? "Check available hours for this document"
-          : "Chequear horas libres para este documento",
-        text: en
-          ? "Check available hours for this document"
-          : "Chequear horas libres para este documento",
+        label: en ? "See free hours for today" : "Ver horas libres del día",
+        icon: "/uploads/ClockCountdown.svg",
+        text: en ? "See free hours for today" : "Ver horas libres del día",
         primary: true,
       },
     ];
-    if (opts.hasDaySheet) {
-      docChips.push({
-        id: "day_sheet",
-        label: en ? "Day schedule" : "Horario del día",
-        text: en ? "Day schedule" : "Horario del día",
-      });
-    }
     return docChips;
   }
 

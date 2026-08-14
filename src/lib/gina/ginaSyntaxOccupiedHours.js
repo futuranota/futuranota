@@ -26,6 +26,8 @@ export function parseOccupiedHoursIntent(text) {
   // Check free / available hours for this document (chip + natural variants)
   if (
     /\bchequear\s+horas\s+libres\b/.test(q)
+    || /\bver\s+horas\s+libres(\s+del\s+d[ií]a)?\b/.test(q)
+    || /\bsee\s+free\s+hours(\s+for\s+today)?\b/.test(q)
     || /\bcheck(?:ear)?\s+(?:available|free)\s+hours\b/.test(q)
     || /\bhoras\s+libres\s+para\s+(este\s+)?documento\b/.test(q)
     || /\b(available|free)\s+hours\s+for\s+this\s+document\b/.test(q)

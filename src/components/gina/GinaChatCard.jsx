@@ -12,6 +12,7 @@ import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaReplyChips.js";
+import { buildGinaDocumentSyncOpening } from "../../lib/gina/ginaOpenings.js";
 import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
 import { GINA_RESET_DAY_RITUAL_PROTOCOL } from "../../lib/gina/ginaDayRitualReset.js";
 import { buildTalkRequestNotifyChips } from "../../lib/gina/ginaTalkRequest.js";
@@ -1007,13 +1008,63 @@ export function GinaChatCard({
 
     const revealOpening = () => {
       if (cancelled) return;
+      if (documentId) {
+        const node = useNodesStore.getState().getNode?.(documentId)
+          || useNodesStore.getState().nodes?.[documentId]
+          || null;
+        const { searchingText, greeting } = buildGinaDocumentSyncOpening({
+          locale: chipLocale,
+          documentTitle: node?.title,
+        });
+        const chips = buildGinaOpeningChips({
+          locale: chipLocale,
+          surface: "document",
+          mode: "first",
+        });
+        setMessages((prev) => {
+          if (prev.some((m) => m.sender === "ai")) return prev;
+          return [
+            {
+              id: makeMsgId(),
+              sender: "ai",
+              text: searchingText,
+              searching: true,
+              refineRevealed: true,
+              visualization: null,
+              chips: null,
+            },
+          ];
+        });
+        isAiAnimatingRef.current = true;
+        setIsAiAnimating(true);
+        skipOpeningSpeakRef.current = true;
+        void playGinaFilesMovementSound().then(() => {
+          if (cancelled) return;
+          setMessages((prev) => {
+            const searchingIdx = prev.findIndex((m) => m.sender === "ai" && m.searching);
+            const greetingMsg = {
+              id: makeMsgId(),
+              sender: "ai",
+              text: greeting,
+              chips,
+            };
+            if (searchingIdx < 0) {
+              if (prev.some((m) => m.sender === "ai" && !m.searching)) return prev;
+              return [greetingMsg];
+            }
+            return prev.map((m, idx) => (idx === searchingIdx ? greetingMsg : m));
+          });
+          isAiAnimatingRef.current = true;
+          setIsAiAnimating(true);
+        });
+        return;
+      }
       const chips = buildGinaOpeningChips({
         locale: chipLocale,
-        surface: documentId ? "document" : "dashboard",
+        surface: "dashboard",
         hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
-        mode: documentId ? "first" : (openingMode || "first"),
+        mode: openingMode || "first",
       });
-      // In-doc: no greeting bubble — seed chips only when available.
       if (!openingText && chips.length === 0) {
         isAiAnimatingRef.current = false;
         setIsAiAnimating(false);
@@ -1031,7 +1082,6 @@ export function GinaChatCard({
         ];
       });
       if (!openingText) {
-        // Chips-only opening — no typewriter to wait on.
         isAiAnimatingRef.current = false;
         setIsAiAnimating(false);
       } else {

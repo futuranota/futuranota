@@ -42,6 +42,25 @@ export function resolveGinaDashboardOpeningMode(opts = {}) {
 }
 
 /**
+ * In-document Call Asistente: lupa wait line, then sync greeting.
+ * @param {{ locale?: string, documentTitle?: string | null }} [opts]
+ * @returns {{ searchingText: string, greeting: string }}
+ */
+export function buildGinaDocumentSyncOpening(opts = {}) {
+  const en = opts.locale === "en";
+  const title = String(opts.documentTitle || "").trim();
+  const named = title
+    ? (en ? `the document "${title}"` : `el documento "${title}"`)
+    : (en ? "this document" : "este documento");
+  return {
+    searchingText: en ? "one moment please..." : "un momento por favor ...",
+    greeting: en
+      ? `Hi, I’ve synced this chat with ${named} to help you. What do you need to do today?`
+      : `Hola, He sincronizado este chat con ${named} para ayudarte. ¿Qué necesitas hacer hoy?`,
+  };
+}
+
+/**
  * @param {{
  *   locale?: string,
  *   userName?: string | null,

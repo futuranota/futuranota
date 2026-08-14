@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
+  buildGinaDocumentSyncOpening,
   hasCompletedTodayDocs,
   pickGinaOpening,
   resolveGinaDashboardOpeningMode,
@@ -117,5 +118,15 @@ describe("resolveGinaDashboardOpeningMode", () => {
       now,
       ctx,
     })).toBe("first");
+  });
+
+  it("document sync opening names the live document", () => {
+    const es = buildGinaDocumentSyncOpening({
+      locale: "es",
+      documentTitle: "Campaña agosto",
+    });
+    expect(es.searchingText).toMatch(/un momento por favor/i);
+    expect(es.greeting).toMatch(/documento "Campaña agosto"/);
+    expect(es.greeting).toMatch(/Qué necesitas hacer hoy/i);
   });
 });

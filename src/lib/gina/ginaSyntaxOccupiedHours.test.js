@@ -16,7 +16,8 @@ describe("ginaSyntaxOccupiedHours", () => {
     expect(parseOccupiedHoursIntent("Check available hours for this document")).toBe("check");
     expect(parseOccupiedHoursIntent("mostrar horas tomadas")).toBe("check");
     expect(parseOccupiedHoursIntent("show occupied hours")).toBe("check");
-    expect(parseOccupiedHoursIntent("horas libres para este documento")).toBe("check");
+    expect(parseOccupiedHoursIntent("Ver horas libres del día")).toBe("check");
+    expect(parseOccupiedHoursIntent("See free hours for today")).toBe("check");
   });
 
   it("matches activate variants", () => {
