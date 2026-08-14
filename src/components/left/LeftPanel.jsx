@@ -1927,6 +1927,7 @@ export function LeftPanel({
   const [createDocumentParentDocId, setCreateDocumentParentDocId] = useState(null);
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
+  const setClickFolderViewStore = useUIStateStore((s) => s.setClickFolderView);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
   const [ginaAutoRunPrompt, setGinaAutoRunPrompt] = useState(/** @type {string | null} */ (null));
   /** Small-chat session from talk-request Accept (never dashboard size). */
@@ -2380,6 +2381,10 @@ export function LeftPanel({
     () => listKnowledgeDocs(docs),
     [docs],
   );
+
+  useEffect(() => {
+    setClickFolderViewStore(clickFolderView);
+  }, [clickFolderView, setClickFolderViewStore]);
 
   useEffect(() => {
     setClickFolderView(null);
@@ -4026,6 +4031,11 @@ export function LeftPanel({
       const batchApplies = Array.isArray(routed.toolContext?.batchApplies)
         ? routed.toolContext.batchApplies.filter((a) => a?.id && a?.startIso && a?.finishIso)
         : [];
+      const deleteDocIds = (Array.isArray(routed.toolContext?.deleteDocIds)
+        ? routed.toolContext.deleteDocIds
+        : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean);
       const applyDocId = routed.toolContext?.applyDocId
         || batchApplies[0]?.id
         || expiredBefore[0]?.id
@@ -4116,6 +4126,14 @@ export function LeftPanel({
             { sep: " – " },
           );
           appliedCountLocal = 1;
+        }
+      }
+
+      if (deleteDocIds.length) {
+        const deleteBlocks = useNodesStore.getState().deleteNodeAndDocBlocks;
+        try { playTrashBoxSound(); } catch { /* ignore */ }
+        for (const id of deleteDocIds) {
+          deleteBlocks(id);
         }
       }
 

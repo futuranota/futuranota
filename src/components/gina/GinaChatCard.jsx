@@ -220,6 +220,11 @@ function GinaTodayChronoSheet({ data, locale, onReady }) {
         documents: data?.documents || [],
         groups: data?.groups || [],
         locale: data?.locale || locale,
+        folderProgress: data?.folderProgress || null,
+        dayProgress: data?.dayProgress || null,
+        highlightPassedSlots: Boolean(
+          Array.isArray(data?.quickSheet?.urgency) && data.quickSheet.urgency.length,
+        ),
       }}
     />
   );
@@ -268,6 +273,9 @@ function GinaHomeOpeningChips({ chips, locale = "es", disabled, onSubmit }) {
       disabled={disabled}
       onClick={() => send(chip)}
     >
+      {chip.icon ? (
+        <img className="gina-chat-card__chip-icon" src={chip.icon} alt="" aria-hidden />
+      ) : null}
       <span className="gina-chat-card__chip-label">{chip.label}</span>
       {chip.hint ? (
         <span className="gina-chat-card__chip-hint">{chip.hint}</span>
@@ -346,7 +354,10 @@ function stashMessageChips(message) {
  * @param {object[] | null | undefined} chips
  * @param {string} [locale]
  */
-function ensureNavBackChip(messages, chips, locale = "es") {
+function ensureNavBackChip(messages, chips, locale = "es", opts = {}) {
+  if (opts.skipNavBack) {
+    return Array.isArray(chips) && chips.length ? chips : null;
+  }
   const canGoBack = Array.isArray(messages) && messages.some((m) => (
     m?.sender === "ai"
     && Array.isArray(m.chipsRestorable)
@@ -1483,7 +1494,9 @@ export function GinaChatCard({
                     ...reveal,
                     notifyTodoMock,
                     learnProposal,
-                    chips: ensureNavBackChip(prev, chips, chipLocale),
+                    chips: ensureNavBackChip(prev, chips, chipLocale, {
+                      skipNavBack: visualization?.type === "schedule_slot_picker",
+                    }),
                   },
                 ]);
               }
@@ -1532,7 +1545,9 @@ export function GinaChatCard({
               ...reveal,
               notifyTodoMock,
               learnProposal,
-              chips: ensureNavBackChip(prev, chips, chipLocale),
+              chips: ensureNavBackChip(prev, chips, chipLocale, {
+                skipNavBack: visualization?.type === "schedule_slot_picker",
+              }),
             },
           ]);
         }
@@ -2618,6 +2633,9 @@ export function GinaChatCard({
                               />
                             ))}
                           </span>
+                        ) : null}
+                        {chip.icon ? (
+                          <img className="gina-chat-card__chip-icon" src={chip.icon} alt="" aria-hidden />
                         ) : null}
                         <span className="gina-chat-card__chip-label">{chip.label}</span>
                       </button>

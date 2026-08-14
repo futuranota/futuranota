@@ -80,6 +80,8 @@ export const useUIStateStore = create(
       selectedObjectId: null,
       /** True while left panel is inside a company Documents workspace (not companies list). */
       objectWorkspaceActive: false,
+      /** Click-folder inside the company workspace: null = outer cards, "subgroups" = Documents. */
+      clickFolderView: null,
       /** Sidebar: filter nodes by parent document */
       filterDocId: null,
       /** Documents panel: Knowledge folder is open (disables canvas timeline Select). */
@@ -150,6 +152,9 @@ export const useUIStateStore = create(
       setFilterObjectId: (id) => set({ filterObjectId: id }),
       setSelectedObjectId: (id) => set({ selectedObjectId: id }),
       setObjectWorkspaceActive: (active) => set({ objectWorkspaceActive: Boolean(active) }),
+      setClickFolderView: (view) => set({
+        clickFolderView: view == null ? null : String(view),
+      }),
       setFilterDocId: (id) => set({ filterDocId: id }),
       setKnowledgeFolderActive: (active) => set({ knowledgeFolderActive: Boolean(active) }),
       setProductCategoryFilter: (query) => set({

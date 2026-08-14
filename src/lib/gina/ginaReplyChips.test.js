@@ -25,8 +25,10 @@ describe("ginaReplyChips", () => {
     ]);
     expect(chips[0].kind).toBe("prompt");
     expect(chips.find((c) => c.id === "agenda_today")?.label).toMatch(/agenda para hoy/i);
+    expect(chips.find((c) => c.id === "agenda_today")?.icon).toBeUndefined();
     expect(chips.find((c) => c.id === "all_schedules")?.text).toMatch(/todos los horarios/i);
-    expect(chips.find((c) => c.id === "see_all_docs")?.label).toMatch(/Ver todo/i);
+    expect(chips.find((c) => c.id === "see_all_docs")?.label).toMatch(/Ver todo el archivo/i);
+    expect(chips.find((c) => c.id === "review_week")?.label).toBe("Esta semana");
     expect(chips.some((c) => String(c.id).startsWith("test_") || String(c.id).startsWith("core_"))).toBe(false);
   });
 
@@ -551,9 +553,9 @@ describe("ginaReplyChips", () => {
       locale: "es",
     });
     expect(chips.map((c) => c.id)).toEqual(["open_1", "reschedule_times"]);
-    expect(chips.find((c) => c.id === "open_1")?.label).toBe("Comenzar con Doc 1");
+    expect(chips.find((c) => c.id === "open_1")?.label).toBe("Abrir \"Doc 1\"");
     expect(chips.find((c) => c.id === "open_1")?.primary).toBe(true);
-    expect(chips.find((c) => c.id === "reschedule_times")?.label).toBe("Reagendar calendario");
+    expect(chips.find((c) => c.id === "reschedule_times")?.label).toBe("Ajustar horarios");
   });
 
   it("clean-day today overview without decision only offers notifications", () => {

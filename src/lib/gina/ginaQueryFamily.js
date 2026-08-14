@@ -3162,6 +3162,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
           applyFinishIso: parsedApply.applyFinishIso,
           batchApplies: parsedApply.batchApplies,
           sessionMoveDocIds: parsedApply.sessionMoveDocIds,
+          deleteDocIds: parsedApply.deleteDocIds || [],
           mode: "slot",
           hint: parsedApply.batchApplies.length > 1
             ? "Apply chosen free slots to recovery docs"

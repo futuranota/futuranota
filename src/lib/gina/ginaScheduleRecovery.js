@@ -432,27 +432,9 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     statusColor: "#F2F2F2",
   };
 
-  const deleteOverdueRow = {
-    id: "delete_overdue_docs",
-    title: en ? "Delete files" : "Borrar archivos",
-    body: en
-      ? "Mark them done — this permanently deletes them and updates today’s pending work."
-      : "Dalos por terminados, esto se borrará permanentemente y actualiza tus pendientes de hoy.",
-    icon: "/uploads/pas-due.svg",
-    iconLabel: en ? "Delete" : "Borrar",
-    actionText: en
-      ? "Delete today's overdue files"
-      : "Borrar archivos vencidos de hoy",
-    ctaLabel: en ? "Delete files" : "Borrar archivos",
-    tier: "card",
-    control: "link",
-    statusKey: null,
-    statusColor: "#c9b896",
-  };
-
   const rescheduleStar = {
     id: "move_end_of_day",
-    title: en ? "Reschedule today" : "Reagendar horario",
+    title: en ? "Adjust schedule" : "Ajustar horarios",
     body: en
       ? "Open today’s calendar options and push what’s pending from now, or fit it into free gaps."
       : "Abre las opciones del calendario de hoy y corre lo pendiente desde ahora, o acomódalo en los huecos libres.",
@@ -461,7 +443,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     actionText: en
       ? "Reschedule for today"
       : "Reagendar para hoy",
-    ctaLabel: en ? "Reschedule" : "Reagendar",
+    ctaLabel: en ? "Adjust schedule" : "Ajustar horarios",
     tier: "star",
     control: "link",
     statusKey: null,
@@ -480,7 +462,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     const rows = [
       {
         id: "move_end_of_day",
-        title: en ? "Reschedule today" : "Reagendar hoy",
+        title: en ? "Adjust schedule" : "Ajustar horarios",
         body: en
           ? "We push what’s pending from now, or fit it into your free gaps."
           : "Corremos lo pendiente desde este momento o lo acomodamos en tus espacios disponibles.",
@@ -489,7 +471,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
         actionText: en
           ? "Reschedule for today"
           : "Reagendar para hoy",
-        ctaLabel: en ? "Reschedule" : "Reagendar",
+        ctaLabel: en ? "Adjust schedule" : "Ajustar horarios",
         tier: "star",
         control: "link",
         statusKey: null,
@@ -536,11 +518,10 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
 
   if (mode === "none") return [];
 
-  // expired | mixed: Posponer(+vencido) then Borrar (last), both card-wrapped in UI.
+  // expired | mixed: Posponer(+vencido). Delete lives on the reschedule table.
   return [
     rescheduleStar,
     snoozeRowOverdue,
-    deleteOverdueRow,
   ];
 }
 
@@ -760,7 +741,8 @@ export function buildScheduleRecoveryGateChips(opts = {}) {
     },
     {
       id: "move_end_of_day",
-      label: en ? "Reschedule" : "Reagendar",
+      label: en ? "Adjust schedule" : "Ajustar horarios",
+      icon: "/uploads/ClockCountdown.svg",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
@@ -824,7 +806,8 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
     const openTitle = String(opts.openDocTitle || "").trim();
     chips.push({
       id: "move_end_of_day",
-      label: en ? "Reschedule" : "Reagendar",
+      label: en ? "Adjust schedule" : "Ajustar horarios",
+      icon: "/uploads/ClockCountdown.svg",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
@@ -846,18 +829,12 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
   chips.push(
     {
       id: "move_end_of_day",
-      label: en ? "Reschedule" : "Reagendar",
+      label: en ? "Adjust schedule" : "Ajustar horarios",
+      icon: "/uploads/ClockCountdown.svg",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
       primary: true,
-    },
-    {
-      id: "delete_overdue_docs",
-      label: en ? "Delete files" : "Borrar archivos",
-      text: en
-        ? "Delete today's overdue files"
-        : "Borrar archivos vencidos de hoy",
     },
   );
   return chips;
@@ -872,7 +849,8 @@ export function buildScheduleRecoveryConflictChips(opts = {}) {
   return [
     {
       id: "move_end_of_day",
-      label: en ? "Reschedule today" : "Reagendar horario",
+      label: en ? "Adjust schedule" : "Ajustar horarios",
+      icon: "/uploads/ClockCountdown.svg",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
@@ -1204,7 +1182,7 @@ export function resolvePostMutationRecoveryFollowUp(opts = {}) {
  * @param {string[]} [sessionMoveDocIds]
  * @returns {string}
  */
-export function buildRescheduleBatchApplyProtocol(applies, sessionMoveDocIds = []) {
+export function buildRescheduleBatchApplyProtocol(applies, sessionMoveDocIds = [], deleteDocIds = []) {
   const rows = (Array.isArray(applies) ? applies : [])
     .map((a) => {
       const id = String(a?.id || "").trim();
@@ -1214,13 +1192,19 @@ export function buildRescheduleBatchApplyProtocol(applies, sessionMoveDocIds = [
       return `${id}|${start}|${finish}`;
     })
     .filter(Boolean);
-  if (!rows.length) return "";
   const session = (Array.isArray(sessionMoveDocIds) ? sessionMoveDocIds : [])
     .map((id) => String(id || "").trim())
     .filter(Boolean)
     .join(",");
-  const body = session ? `${rows.join(";")}|${session}` : rows.join(";");
-  return `Aplicar cambios reagendados ${body}`;
+  const deletes = (Array.isArray(deleteDocIds) ? deleteDocIds : [])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean)
+    .join(",");
+  if (!rows.length && !deletes) return "";
+  let body = rows.join(";");
+  if (session) body = body ? `${body}|${session}` : `|${session}`;
+  if (deletes) body = `${body}||del:${deletes}`;
+  return `Aplicar cambios reagendados ${body}`.trim();
 }
 
 /**
@@ -1244,6 +1228,7 @@ export function parseRescheduleApplyProtocol(text) {
     applyStartIso: null,
     applyFinishIso: null,
     sessionMoveDocIds: null,
+    deleteDocIds: [],
   };
   if (!raw) return empty;
 
@@ -1253,6 +1238,12 @@ export function parseRescheduleApplyProtocol(text) {
   if (batchMatch) {
     let body = String(batchMatch[1] || "").trim();
     let sessionMoveDocIds = null;
+    let deleteDocIds = [];
+    const delSep = body.indexOf("||del:");
+    if (delSep >= 0) {
+      deleteDocIds = body.slice(delSep + 6).split(",").map((s) => s.trim()).filter(Boolean);
+      body = body.slice(0, delSep).trim();
+    }
     // Optional trailing |sessionIds (session ids have no "T" ISO marker).
     const sessionSep = body.lastIndexOf("|");
     if (sessionSep > 0) {
@@ -1271,14 +1262,15 @@ export function parseRescheduleApplyProtocol(text) {
         return { id: parts[0], startIso: parts[1], finishIso: parts[2] };
       })
       .filter(Boolean);
-    if (!batchApplies.length) return empty;
+    if (!batchApplies.length && !deleteDocIds.length) return empty;
     return {
       match: true,
       batchApplies,
-      applyDocId: batchApplies[0].id,
-      applyStartIso: batchApplies[0].startIso,
-      applyFinishIso: batchApplies[0].finishIso,
+      applyDocId: batchApplies[0]?.id || null,
+      applyStartIso: batchApplies[0]?.startIso || null,
+      applyFinishIso: batchApplies[0]?.finishIso || null,
       sessionMoveDocIds,
+      deleteDocIds,
     };
   }
 
@@ -1313,6 +1305,7 @@ export function parseRescheduleApplyProtocol(text) {
     applyStartIso,
     applyFinishIso,
     sessionMoveDocIds,
+    deleteDocIds: [],
   };
 }
 

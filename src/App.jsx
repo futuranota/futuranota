@@ -250,6 +250,7 @@ function Dashboard({ company, onBack }) {
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const objectWorkspaceActive = useUIStateStore((s) => s.objectWorkspaceActive);
+  const clickFolderView = useUIStateStore((s) => s.clickFolderView);
   const heldObjectId = useObjectTargetHoldStore((s) => s.heldObjectId);
   const holdObjectTarget = useObjectTargetHoldStore((s) => s.hold);
   const releaseObjectTarget = useObjectTargetHoldStore((s) => s.release);
@@ -1723,7 +1724,9 @@ useEffect(() => {
               useScheduledTasksStore.getState().setAutoRunEnabled(!scheduledAutoRunEnabled);
             }}
           />
-          {!ginaDashboardOpen ? (
+          {!ginaDashboardOpen
+          && objectWorkspaceActive
+          && clickFolderView === "subgroups" ? (
             <GinaCanvasFab
               onOpen={openGinaDashboardFromFab}
               label={t("gina.name")}

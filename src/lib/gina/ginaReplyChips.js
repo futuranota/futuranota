@@ -161,7 +161,8 @@ export function buildGinaOpeningChips(opts = {}) {
     id: "review_week",
     kind: "home_schedule",
     group: "opening_home",
-    label: en ? "Review the week" : "Revisar la semana",
+    label: en ? "This week" : "Esta semana",
+    icon: "/uploads/ClockCountdown.svg",
     text: en
       ? "view all schedules this week"
       : "visualizar todos los horarios de la semana",
@@ -228,7 +229,8 @@ export function buildGinaOpeningChips(opts = {}) {
       id: "review_week",
       kind: "home_schedule",
       group: "opening_home",
-      label: en ? "Review the week" : "Revisar la semana",
+      label: en ? "This week" : "Esta semana",
+      icon: "/uploads/ClockCountdown.svg",
       text: en
         ? "view all schedules this week"
         : "visualizar todos los horarios de la semana",
@@ -255,7 +257,8 @@ export function buildGinaOpeningChips(opts = {}) {
       id: "see_all_docs",
       kind: "home_all",
       group: "opening_home",
-      label: en ? "View all" : "Ver todo",
+      label: en ? "View the full archive" : "Ver todo el archivo",
+      icon: "/uploads/search.svg",
       text: en ? "full document list" : "entregame todos los documentos",
       selectable: true,
     },
@@ -1165,15 +1168,17 @@ export function buildScheduleSheetChips(opts = {}) {
         chips.push({
           id: `open_${startId}`,
           label: en
-            ? (title ? `Start with ${title}` : "Start first document")
-            : (title ? `Comenzar con ${title}` : "Comenzar primer documento"),
+            ? (title ? `Open "${title}"` : "Open document")
+            : (title ? `Abrir "${title}"` : "Abrir documento"),
+          icon: "/uploads/File.svg",
           text: `GinaOpenDocument:${startId}`,
           primary: true,
         });
       }
       chips.push({
         id: "reschedule_times",
-        label: en ? "Reschedule calendar" : "Reagendar calendario",
+        label: en ? "Adjust schedule" : "Ajustar horarios",
+        icon: "/uploads/ClockCountdown.svg",
         text: en ? "Reschedule for today" : "Reagendar para hoy",
       });
     }
@@ -2795,59 +2800,7 @@ export function buildGinaReplyChips(opts = {}) {
     });
   }
   if (type === "schedule_slot_picker") {
-    const en = locale === "en";
-    const chips = [];
-    const activeId = data.activeDocId || null;
-    if (data.rescheduleMode !== "cascade" && (data.noCupo || data.hasFreeSlot === false)) {
-      chips.push({
-        id: "reschedule_tomorrow",
-        label: en ? "Select Tomorrow" : "Seleccionar Mañana",
-        text: activeId
-          ? (en
-            ? `Move recovery document ${activeId} to tomorrow morning`
-            : `Mover documento de recuperación ${activeId} a mañana por la mañana`)
-          : (en
-            ? "Move recovery blocks to tomorrow morning"
-            : "Mover bloques de recuperación a mañana por la mañana"),
-        primary: true,
-      });
-      chips.push({
-        id: "compress_coming_soon",
-        label: en ? "Compress other blocks" : "Comprimir otros bloques",
-        text: en ? "Compress durations (coming soon)" : "Comprimir duraciones (próximamente)",
-        comingSoon: true,
-      });
-      chips.push({
-        id: "force_end_of_night",
-        label: en
-          ? `Insert at ${data.forceEndLabel || "end"} anyway`
-          : `Insertar a las ${data.forceEndLabel || "final"} de todos modos`,
-        text: activeId
-          ? (en
-            ? `Force insert document ${activeId} at end of night`
-            : `Forzar inserción documento ${activeId} al final de la noche`)
-          : (en
-            ? "Force insert recovery blocks at end of night"
-            : "Forzar inserción de bloques al final de la noche"),
-      });
-    }
-    if (data.rescheduleMode === "cascade") {
-      chips.push({
-        id: "reschedule_gaps",
-        label: en ? "Fit into free gaps" : "Encajar en huecos libres",
-        text: en
-          ? "Reschedule expired blocks show free slots"
-          : "Reagendar bloques vencidos mostrar cupos libres",
-      });
-    }
-    chips.push({
-      id: "recovery_next",
-      label: en ? "Continue" : "Seguir",
-      text: en
-        ? "Continue to next schedule recovery step"
-        : "Seguir al siguiente paso de recuperación",
-    });
-    return chips;
+    return [];
   }
   if (type === "recovery_preview") {
     if (data.applied) {

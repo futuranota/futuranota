@@ -178,7 +178,7 @@ describe("ginaScheduleRecovery", () => {
     expect(viz.data.todayOverview).toBe(true);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.map((c) => c.id)).toEqual(["recovery_notify", "move_end_of_day", "skip_recovery"]);
-    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Reagendar");
+    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Ajustar horarios");
     expect(buildScheduleRecoveryGateChips({ locale: "es" })[0].label).toBe(
       "Gina quiere informarte algo",
     );
@@ -204,13 +204,12 @@ describe("ginaScheduleRecovery", () => {
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.map((c) => c.id)).toEqual([
       "move_end_of_day",
-      "delete_overdue_docs",
     ]);
-    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Reagendar");
+    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Ajustar horarios");
     expect(viz.data.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3", "n5"]);
     expect(viz.data.fullDayTable).toBe(true);
     expect(viz.data.quickSheet).toBeTruthy();
-    expect(chips.find((c) => c.id === "delete_overdue_docs")?.comingSoon).toBeFalsy();
+    expect(chips.find((c) => c.id === "delete_overdue_docs")).toBeUndefined();
     expect(chips.find((c) => c.id === "move_end_of_day")?.comingSoon).toBeFalsy();
     expect(chips.find((c) => c.id === "move_end_of_day")?.primary).toBe(true);
   });
@@ -291,7 +290,7 @@ describe("ginaScheduleRecovery", () => {
       locale: "es",
       urgencyCount: 2,
       currentStep: "overdue_check",
-    }).some((c) => c.id === "delete_overdue_docs")).toBe(true);
+    }).some((c) => c.id === "move_end_of_day")).toBe(true);
     expect(buildScheduleRecoveryConfirmChips("postpone_schedule", { locale: "es" })[1].label).toBe("Omitir");
     expect(buildPassedSlotSignals(get_today_scope(ctx).documents, now).passedSlots).toHaveLength(2);
   });
@@ -352,14 +351,14 @@ describe("ginaScheduleRecovery", () => {
     expect(text).toContain("Vamos a resolverlos uno por uno");
   });
 
-  it("overdue step chips include delete / move (snooze is menu)", () => {
+  it("overdue step chips include reschedule (delete is on the table)", () => {
     const chips = buildScheduleRecoveryChips({
       locale: "es",
       urgencyCount: 1,
       hasOverlap: true,
       currentStep: "overdue_check",
     });
-    expect(chips.some((c) => c.id === "delete_overdue_docs")).toBe(true);
+    expect(chips.some((c) => c.id === "delete_overdue_docs")).toBe(false);
     expect(chips.some((c) => c.id === "mark_past_due")).toBe(false);
     expect(chips.some((c) => c.id === "mark_completed")).toBe(false);
     expect(chips.some((c) => c.id === "move_end_of_day" && !c.comingSoon)).toBe(true);
@@ -608,11 +607,10 @@ describe("ginaScheduleRecovery", () => {
     expect(expiredLegend.map((r) => r.id)).toEqual([
       "move_end_of_day",
       "recovery_snooze",
-      "delete_overdue_docs",
     ]);
     expect(expiredLegend[0].tier).toBe("star");
     expect(expiredLegend[0].control).toBe("link");
-    expect(expiredLegend[0].ctaLabel).toBe("Reagendar");
+    expect(expiredLegend[0].ctaLabel).toBe("Ajustar horarios");
     expect(expiredLegend.find((r) => r.id === "change_status")).toBeUndefined();
     expect(expiredLegend.find((r) => r.id === "mark_completed")).toBeUndefined();
     expect(expiredLegend.find((r) => r.id === "mark_past_due")).toBeUndefined();
@@ -621,12 +619,7 @@ describe("ginaScheduleRecovery", () => {
     expect(expiredLegend.find((r) => r.id === "recovery_snooze")?.bodyHighlight).toBe("vencido");
     expect(expiredLegend.find((r) => r.id === "recovery_snooze")?.title).toMatch(/Posponer Recordatorio/i);
     expect(expiredLegend.find((r) => r.id === "recovery_snooze")?.title).not.toMatch(/45/);
-    const deleteRow = expiredLegend.find((r) => r.id === "delete_overdue_docs");
-    expect(deleteRow?.tier).toBe("card");
-    expect(deleteRow?.body).toMatch(/permanentemente/i);
-    expect(deleteRow?.ctaLabel).toBe("Borrar archivos");
-    expect(expiredLegend.map((r) => r.id).indexOf("delete_overdue_docs"))
-      .toBeGreaterThan(expiredLegend.map((r) => r.id).indexOf("recovery_snooze"));
+    expect(expiredLegend.find((r) => r.id === "delete_overdue_docs")).toBeUndefined();
     const rowOpts = buildSheetRowStatusMenuOptions({ locale: "es", docId: "doc-1" });
     expect(rowOpts.map((o) => o.status)).toEqual([
       "completed",
@@ -774,12 +767,7 @@ describe("ginaScheduleRecovery", () => {
     expect(viz.data.occupied.every((o) => o.id !== viz.data.activeDocId)).toBe(true);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.some((c) => c.id === "apply_suggested_slot")).toBe(false);
-    expect(chips.some((c) => c.id === "recovery_next")).toBe(true);
-    if (viz.data.noCupo) {
-      expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(true);
-      expect(chips.some((c) => c.id === "force_end_of_night")).toBe(true);
-      expect(chips.some((c) => c.id === "compress_coming_soon" && c.comingSoon)).toBe(true);
-    }
+    expect(chips.length).toBe(0);
     expect(buildReschedulePickerText({ locale: "es" })).toMatch(/Elige uno/i);
     expect(buildReschedulePickerText({ locale: "es", noCupo: true, activeTitle: "Blogs" }))
       .toMatch(/Sin cupo libre hoy para \*\*Blogs\*\*/i);
@@ -826,7 +814,7 @@ describe("ginaScheduleRecovery", () => {
       visualization: viz,
       locale: "es",
     });
-    expect(cascadeChips.some((c) => c.id === "reschedule_gaps")).toBe(true);
+    expect(cascadeChips.length).toBe(0);
     // Cascade session = all today non-completed (expired + future pending), not only fullyExpired
     expect(viz.data.moveDocIds.sort()).toEqual(["n1", "n3", "n5"]);
     const draftIds = Object.keys(viz.data.initialDrafts || {});

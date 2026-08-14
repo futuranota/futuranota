@@ -1377,6 +1377,9 @@
 }
 
 .gina-chat-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: #151515;
   color: #d8d8d8;
@@ -1388,6 +1391,15 @@
   padding: 7px 11px;
   cursor: pointer;
   text-align: left;
+}
+
+.gina-chat-card__chip-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.88;
 }
 
 .gina-chat-card__chip--with-hint {
@@ -3680,6 +3692,78 @@
   min-width: 0;
 }
 
+.gina-viz__cascade-delete {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gina-viz__cascade-delete img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  opacity: 0.75;
+}
+
+.gina-viz__cascade-delete:hover {
+  border-color: rgba(220, 120, 120, 0.45);
+  background: rgba(180, 60, 60, 0.12);
+}
+
+.gina-viz__cascade-delete:hover img {
+  opacity: 1;
+}
+
+.gina-viz__cascade-delete-confirm {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1a1a1a;
+  border: 1px solid rgba(220, 120, 120, 0.28);
+}
+
+.gina-viz__cascade-delete-confirm-copy {
+  margin: 0;
+  flex: 1 1 180px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #d8d8d8;
+}
+
+.gina-viz__cascade-delete-confirm-yes,
+.gina-viz__cascade-delete-confirm-no {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.gina-viz__cascade-delete-confirm-yes {
+  border: 1px solid rgba(220, 120, 120, 0.4);
+  background: rgba(180, 60, 60, 0.2);
+  color: #f0d0d0;
+}
+
+.gina-viz__cascade-delete-confirm-no {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: #c8c8c8;
+}
+
 .gina-viz__cascade-anchor {
   display: flex;
   flex-wrap: wrap;
@@ -3837,20 +3921,19 @@
   height: 44px;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 0.2px solid rgba(127, 127, 127, 0.48);
   border-radius: 999px;
-  background: #151515;
-  color: #ececec;
+  background: rgba(35, 39, 47, 0.56);
+  color: #7F7F7F;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .gina-canvas-fab:hover {
-  background: #1c1c1c;
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(42, 46, 56, 0.72);
+  border-color: rgba(127, 127, 127, 0.48);
 }
 
 .gina-canvas-fab:focus-visible {
@@ -3858,10 +3941,9 @@
   outline-offset: 2px;
 }
 
-.gina-canvas-fab__label {
-  font-family: "Inter", var(--sans, system-ui, sans-serif);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1;
+.gina-canvas-fab__icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
 }

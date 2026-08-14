@@ -3,15 +3,21 @@
  */
 export function GinaCanvasFab({ onOpen, label, title }) {
   if (typeof onOpen !== "function") return null;
+  const a11y = title || label || "Gina";
   return (
     <button
       type="button"
       className="gina-canvas-fab"
       onClick={onOpen}
-      title={title || label}
-      aria-label={title || label}
+      title={a11y}
+      aria-label={a11y}
     >
-      <span className="gina-canvas-fab__label">{label}</span>
+      <img
+        className="gina-canvas-fab__icon"
+        src="/uploads/call center 1.svg"
+        alt=""
+        aria-hidden
+      />
     </button>
   );
 }
