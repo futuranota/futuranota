@@ -79,6 +79,11 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Canvas: insert no se ve + Focus/Organize deshabilitados (2026-08-14)** — Al insertar un nodo no aparece en pantalla; Focus y Organize se veían apagados.
+
+- Causa: canvas infinito (nodos en coords fuera del viewport; insert fijo en 320,190). Focus exigía wires; Organize exigía 2+ nodos.
+- Fix en curso: tablero finito, insertar en el centro de la vista, auto-encuadre, Focus/Organize con 1 nodo visible.
+
 **Próximo Gina:** Phase 1.5 viz + polish scope (live corpus / tiempo) — **hecho en código**. Canon: [`06_TIME_SCOPE_AND_LIVE_CORPUS.md`](public/Assistance-context/06_TIME_SCOPE_AND_LIVE_CORPUS.md). Google Calendar = después.
 
 **Gina awareness:** LEARN / SESSION / TOOLS / CURSOR — [`07_AWARENESS_LEARN_CURSOR_TOOLS.md`](public/Assistance-context/07_AWARENESS_LEARN_CURSOR_TOOLS.md). Gina declara si puede aprenderlo o si necesita Cursor.

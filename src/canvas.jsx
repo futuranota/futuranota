@@ -59,8 +59,16 @@ import {
   validateCanvasConnectionAttempt,
 } from './lib/timelineGraph.js';
 import { useTimelineStore } from './stores/index.js';
-import { organizeCanvasNodes } from './lib/canvasMath.js';
-import { computeSpotlightView, getWiredVisibleNodeIds } from './lib/canvasSpotlight.js';
+import { organizeCanvasNodes, resolveCanvasNodeSize } from './lib/canvasMath.js';
+import { computeFocusView } from './lib/canvasSpotlight.js';
+import {
+  clampGroupDelta,
+  clampNodePosition,
+  clampViewToBoard,
+  getCanvasBoardBounds,
+  isNodeVisibleInView,
+} from './lib/canvasBounds.js';
+import { worldCenterFromView } from './canvas-view.js';
 import {
   shouldShowCrossFamilyCenterPorts,
   normalizeCrossFamilyConnectionEndpoints,
@@ -74,7 +82,9 @@ import {
  *   - "Create Blueprint" groups selected nodes (logical folder + colored frame)
  *   - "Metric bridge" — a metric node connected to two date nodes auto-computes day-diff
  *   - "Clear canvas" removes all nodes and connections (data in folders stays intact)
- *   - "Organize" compacts visible nodes into a grid
+ *   - "Organize" packs visible nodes into a grid on the work board
+ *   - "Focus" pans/zooms to visible nodes (wired cluster when wires exist)
+ *   - Finite board: inserts stay on-stage; pan cannot wander into empty infinity
  */
 
 function Icon({ name, size = 14 }) {
@@ -902,6 +912,8 @@ function BlueprintCanvas({
   onConnectionCreated,
   scheduledAutoRunEnabled = true,
   onToggleScheduledAutoRun,
+  onViewportWorldChange = null,
+  revealToken = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -949,6 +961,10 @@ function BlueprintCanvas({
   const viewRef = useRef(view);
   viewRef.current = view;
   const viewAnimRef = useRef(0);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const seenNodeIdsRef = useRef(new Set());
+  const [stageSize, setStageSize] = useState({ width: 960, height: 640 });
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(null);
   const [importedImage, setImportedImage] = useState(null);
@@ -973,6 +989,24 @@ function BlueprintCanvas({
     };
   }, [view]);
 
+  const stageRectNow = useCallback(() => {
+    const r = stageRef.current?.getBoundingClientRect();
+    if (r?.width && r?.height) return r;
+    return stageSize;
+  }, [stageSize]);
+
+  const boardBounds = useMemo(
+    () => getCanvasBoardBounds(nodes, stageSize),
+    [nodes, stageSize],
+  );
+
+  const commitView = useCallback((updater) => {
+    setView((v) => {
+      const next = typeof updater === "function" ? updater(v) : updater;
+      return clampViewToBoard(next, getCanvasBoardBounds(nodesRef.current, stageRectNow()), stageRectNow());
+    });
+  }, [stageRectNow]);
+
   const handleCanvasDragOver = useCallback((e) => {
     if (!onCanvasDrop || !hasCanvasDrag(e.dataTransfer)) return;
     e.preventDefault();
@@ -992,7 +1026,7 @@ function BlueprintCanvas({
     const r = stageRef.current?.getBoundingClientRect();
     if (!r) return;
     const factor = delta > 0 ? 0.9 : 1.1;
-    setView((v) => {
+    commitView((v) => {
       const nextScale = clampScale(v.scale * factor);
       const wx = (clientX - r.left - v.panX) / v.scale;
       const wy = (clientY - r.top - v.panY) / v.scale;
@@ -1002,20 +1036,25 @@ function BlueprintCanvas({
         panY: clientY - r.top - wy * nextScale,
       };
     });
-  }, []);
+  }, [commitView]);
 
   const animateViewTo = useCallback((targetView, duration = 280) => {
     if (!targetView) return;
     if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current);
+    const clampedTarget = clampViewToBoard(
+      targetView,
+      getCanvasBoardBounds(nodesRef.current, stageRectNow()),
+      stageRectNow(),
+    );
     const start = { ...viewRef.current };
     const startTime = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - startTime) / duration);
       const ease = 1 - (1 - t) ** 3;
-      setView({
-        scale: start.scale + (targetView.scale - start.scale) * ease,
-        panX: start.panX + (targetView.panX - start.panX) * ease,
-        panY: start.panY + (targetView.panY - start.panY) * ease,
+      commitView({
+        scale: start.scale + (clampedTarget.scale - start.scale) * ease,
+        panX: start.panX + (clampedTarget.panX - start.panX) * ease,
+        panY: start.panY + (clampedTarget.panY - start.panY) * ease,
       });
       if (t < 1) {
         viewAnimRef.current = requestAnimationFrame(tick);
@@ -1024,7 +1063,23 @@ function BlueprintCanvas({
       }
     };
     viewAnimRef.current = requestAnimationFrame(tick);
-  }, []);
+  }, [commitView, stageRectNow]);
+
+  const fitNodesInView = useCallback((targetNodes, targetSelection = []) => {
+    const list = (targetNodes || []).filter((n) => n && !n.hidden);
+    if (!list.length) return;
+    const stageRect = stageRectNow();
+    const nextView = computeFocusView({
+      nodes: list,
+      connections,
+      selection: targetSelection,
+      stageRect,
+      minScale: MIN_SCALE,
+      maxScale: MAX_SCALE,
+    });
+    if (!nextView) return;
+    animateViewTo(clampViewToBoard(nextView, getCanvasBoardBounds(list, stageRect), stageRect));
+  }, [animateViewTo, connections, stageRectNow]);
 
   // map node.id → blueprint color
   const blueprintByNodeId = useMemo(() => {
@@ -1049,6 +1104,11 @@ function BlueprintCanvas({
     c.style.height = rect.height + "px";
     const ctx = c.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setStageSize((prev) => (
+      Math.abs(prev.width - rect.width) < 0.5 && Math.abs(prev.height - rect.height) < 0.5
+        ? prev
+        : { width: rect.width, height: rect.height }
+    ));
     redraw();
   }, []);
 
@@ -1170,6 +1230,42 @@ function BlueprintCanvas({
     if (wrapRef.current) ro.observe(wrapRef.current);
     return () => ro.disconnect();
   }, [resize]);
+
+  useEffect(() => {
+    const r = stageRectNow();
+    const center = worldCenterFromView(r, view);
+    onViewportWorldChange?.({
+      x: center.x,
+      y: center.y,
+      stage: { width: r.width, height: r.height },
+    });
+  }, [view, onViewportWorldChange, stageRectNow]);
+
+  useEffect(() => {
+    commitView((v) => v);
+  }, [stageSize, commitView]);
+
+  useEffect(() => {
+    const visible = nodes.filter((n) => !n.hidden);
+    const seen = seenNodeIdsRef.current;
+    const added = visible.filter((n) => !seen.has(n.id));
+    visible.forEach((n) => seen.add(n.id));
+    for (const id of [...seen]) {
+      if (!nodes.some((n) => n.id === id)) seen.delete(id);
+    }
+    if (!added.length) return;
+    const stageRect = stageRectNow();
+    const offscreen = added.some((n) => !isNodeVisibleInView(n, viewRef.current, stageRect));
+    if (!offscreen) return;
+    fitNodesInView(added);
+  }, [nodes, fitNodesInView, stageRectNow]);
+
+  useEffect(() => {
+    const id = revealToken?.nodeId;
+    if (!id) return;
+    const node = nodesRef.current.find((n) => n.id === id && !n.hidden);
+    if (node) fitNodesInView([node]);
+  }, [revealToken, fitNodesInView]);
 
   /* keyboard */
   useEffect(() => {
@@ -1360,11 +1456,11 @@ function BlueprintCanvas({
         panDrag.current = { ...d, moved: true };
       }
       const drag = panDrag.current;
-      setView((v) => ({
-        ...v,
+      commitView({
+        ...viewRef.current,
         panX: drag.panX + (e.clientX - drag.x),
         panY: drag.panY + (e.clientY - drag.y),
-      }));
+      });
     }
   };
 
@@ -1527,16 +1623,22 @@ function BlueprintCanvas({
     onOpenNote(node.noteId, node);
   };
   const handleMove = (id, x, y) => {
-    setNodes((all) => all.map((n) => (n.id === id ? { ...n, x, y } : n)));
+    const node = nodes.find((n) => n.id === id);
+    const size = resolveCanvasNodeSize(node || {});
+    const pos = clampNodePosition(x, y, size, boardBounds);
+    setNodes((all) => all.map((n) => (n.id === id ? { ...n, x: pos.x, y: pos.y } : n)));
   };
 
   const handleMoveBlueprint = (bpId, dx, dy) => {
     const bp = blueprints.find((b) => b.id === bpId);
     if (!bp || !bp.nodeIds?.length) return;
     const idSet = new Set(bp.nodeIds);
+    const group = nodes.filter((n) => idSet.has(n.id) && !n.hidden);
+    const clamped = clampGroupDelta(group, dx, dy, boardBounds);
+    if (!clamped.dx && !clamped.dy) return;
     setNodes((all) => all.map((n) => (
       idSet.has(n.id) && !n.hidden
-        ? { ...n, x: n.x + dx, y: n.y + dy }
+        ? { ...n, x: n.x + clamped.dx, y: n.y + clamped.dy }
         : n
     )));
   };
@@ -1918,30 +2020,19 @@ function BlueprintCanvas({
   };
 
   const handleOrganize = () => {
-    const visibleCount = nodes.filter((n) => !n.hidden).length;
-    if (visibleCount < 2) return;
-    setNodes((all) => organizeCanvasNodes(all));
+    const visible = nodes.filter((n) => !n.hidden);
+    if (visible.length < 1) return;
+    const next = organizeCanvasNodes(nodes);
+    setNodes(next);
     setSelection([]);
     setSelectedBlueprintId(null);
+    fitNodesInView(next.filter((n) => !n.hidden));
   };
 
-  const wiredNodeCount = useMemo(
-    () => getWiredVisibleNodeIds(nodes, connections).size,
-    [nodes, connections],
-  );
-
   const handleSpotlightConnected = () => {
-    const stageRect = stageRef.current?.getBoundingClientRect();
-    if (!stageRect || wiredNodeCount < 1) return;
-    const nextView = computeSpotlightView({
-      nodes,
-      connections,
-      selection,
-      stageRect,
-      minScale: MIN_SCALE,
-      maxScale: MAX_SCALE,
-    });
-    animateViewTo(nextView);
+    const visible = nodes.filter((n) => !n.hidden);
+    if (!visible.length) return;
+    fitNodesInView(nodes, selection);
   };
 
   const handleShowAll = () => {
@@ -2213,7 +2304,7 @@ function BlueprintCanvas({
           type="button"
           className="btn xs"
           onClick={handleSpotlightConnected}
-          disabled={wiredNodeCount < 1}
+          disabled={visibleNodes.length < 1}
           title={t("canvas.spotlightTitle")}
         >
           <Icon name="focus" size={11} /> {t("canvas.spotlight")}
@@ -2222,7 +2313,7 @@ function BlueprintCanvas({
           type="button"
           className="btn xs"
           onClick={handleOrganize}
-          disabled={visibleNodes.length < 2}
+          disabled={visibleNodes.length < 1}
           title={t("canvas.organizeTitle")}
         >
           <Icon name="grid" size={11} /> {t("canvas.organize")}
@@ -2243,7 +2334,7 @@ function BlueprintCanvas({
           const r = stageRef.current?.getBoundingClientRect();
           if (r) zoomAt(r.left + r.width / 2, r.top + r.height / 2, -1);
         }}>+</button>
-        <button className="btn xs ghost" title="Reset view" onClick={() => setView({ scale: 1, panX: 0, panY: 0 })}>100%</button>
+        <button className="btn xs ghost" title="Reset view" onClick={() => commitView({ scale: 1, panX: 0, panY: 0 })}>100%</button>
       </div>
 
       <div
@@ -2268,6 +2359,16 @@ function BlueprintCanvas({
             transformOrigin: "0 0",
           }}
         >
+        <div
+          className="canvas-board"
+          style={{
+            left: boardBounds.minX,
+            top: boardBounds.minY,
+            width: boardBounds.width,
+            height: boardBounds.height,
+          }}
+          aria-hidden
+        />
         <canvas ref={canvasRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

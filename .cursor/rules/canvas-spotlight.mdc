@@ -1,6 +1,6 @@
 ---
 description: Canvas spotlight (Focus/Enfocar) — zoom to wired nodes without reorganizing layout
-globs: src/canvas.jsx,src/lib/canvasSpotlight.js,src/lib/canvasMath.js,src/canvas-view.js
+globs: src/canvas.jsx,src/lib/canvasSpotlight.js,src/lib/canvasMath.js,src/lib/canvasBounds.js,src/canvas-view.js
 alwaysApply: false
 ---
 
@@ -11,27 +11,30 @@ Feature distinct from **Organize**: spotlight only pans/zooms the viewport — i
 ## UX
 
 - Toolbar button: **Focus** (EN) / **Enfocar** (ES), magnifying-glass icon (`Icon name="focus"`).
-- Disabled when there are no visible wired nodes.
+- Disabled when there are no visible nodes.
+- If wires exist → spotlight that connected cluster (selection's cluster first, else largest).
+- Otherwise → frame all visible nodes (or the current selection).
 - Animated view transition (~280ms ease-out) via `animateViewTo` in `src/canvas.jsx`.
 
 ## Behavior
 
-1. Collect visible nodes that participate in at least one connection (`getWiredVisibleNodeIds`).
-2. If the user has a selection that includes wired nodes → spotlight that **connected cluster**.
-3. Otherwise → spotlight the **largest wired connected component**.
-4. Compute padded bounding box → fit inside stage with `computeViewToFitBounds`.
+1. Prefer visible nodes that participate in at least one connection (`getWiredVisibleNodeIds`).
+2. If none are wired → use every visible node so Focus still works after a single insert.
+3. Compute padded bounding box → fit inside stage with `computeViewToFitBounds`.
+4. View is clamped to the finite canvas board (`src/lib/canvasBounds.js`).
 
 ## API (`src/lib/canvasSpotlight.js`)
 
 ```js
 import {
+  computeFocusView,
   computeSpotlightView,
   getSpotlightBounds,
   getWiredVisibleNodeIds,
   resolveSpotlightNodeIds,
 } from "./lib/canvasSpotlight.js";
 
-const view = computeSpotlightView({
+const view = computeFocusView({
   nodes,
   connections,
   selection,       // optional string[]

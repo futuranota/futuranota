@@ -194,3 +194,42 @@ export function computeSpotlightView(params) {
     maxScale: params.maxScale,
   });
 }
+
+function boundsForVisibleNodes(nodes, selection = [], padding) {
+  const visible = normalizeNodeList(nodes).filter((n) => !n.hidden);
+  if (!visible.length) return null;
+  const selected = (selection || []).length
+    ? visible.filter((n) => selection.includes(n.id))
+    : [];
+  const targets = selected.length ? selected : visible;
+  const bounds = getNodesBounds(targets);
+  if (!bounds.width && !bounds.height) {
+    const node = targets[0];
+    if (!node) return null;
+    const { w, h } = resolveCanvasNodeSize(node);
+    return padBounds({
+      minX: node.x,
+      minY: node.y,
+      maxX: node.x + w,
+      maxY: node.y + h,
+      width: w,
+      height: h,
+    }, padding);
+  }
+  return padBounds(bounds, padding);
+}
+
+/**
+ * Pan/zoom to something the user can actually see:
+ * wired cluster when wires exist, otherwise visible nodes (selection first).
+ */
+export function computeFocusView(params) {
+  const wired = computeSpotlightView(params);
+  if (wired) return wired;
+  const bounds = boundsForVisibleNodes(params.nodes, params.selection, params.padding);
+  if (!bounds) return null;
+  return computeViewToFitBounds(bounds, params.stageRect, {
+    minScale: params.minScale,
+    maxScale: params.maxScale,
+  });
+}

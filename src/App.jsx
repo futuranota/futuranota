@@ -105,6 +105,7 @@ import {
 import { canSetCampaignTimelineSource } from './lib/campaignDocSource.js';
 import { isFolderScheduleReserved } from './lib/folderScheduleReservation.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
+import { clampNodePosition, getCanvasBoardBounds } from './lib/canvasBounds.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { resolveCanvasNodeObjectId } from './lib/objectColors.js';
 import { isTimelineDateCanvasNode } from './lib/campaignTimelineRail.js';
@@ -203,6 +204,8 @@ function Dashboard({ company, onBack }) {
   const dismissedTimelineReminderKey = useRef(null);
   const [reminderTick, setReminderTick] = useState(0);
   const reminderEmptyHintShown = useRef(false);
+  const canvasViewRef = useRef({ x: 320, y: 190, stage: { width: 960, height: 640 } });
+  const [canvasRevealToken, setCanvasRevealToken] = useState(null);
   const [intel, setIntel]             = useState([]);
   const [hasScannedBlogs, setBlogs]   = useState(false);
   const [scanState, setScanState]     = useState("idle");
@@ -675,6 +678,8 @@ useEffect(() => {
   };
 
   const nextCanvasPosition = (preferredX, preferredY, extraOccupied = []) => {
+    const board = getCanvasBoardBounds(canvasNodes, canvasViewRef.current.stage);
+    let pos;
     if (preferredX != null && preferredY != null) {
       const occupied = [
         ...canvasNodes.filter((n) => !n.hidden).map((n) => ({ x: n.x, y: n.y })),
@@ -685,24 +690,36 @@ useEffect(() => {
       let guard = 0;
       while (occupied.some((p) => Math.abs(p.x - x) < 60 && Math.abs(p.y - y) < 60) && guard < 80) {
         x += 40;
-        if (x > 600) { x = 30; y += 110; }
+        if (x > board.maxX - 200) { x = board.minX + 30; y += 110; }
         guard += 1;
       }
-      return { x, y };
+      pos = { x, y };
+    } else {
+      pos = nextCompactPosition(canvasNodes, extraOccupied);
     }
-    return nextCompactPosition(canvasNodes, extraOccupied);
+    return clampNodePosition(pos.x, pos.y, { w: 180, h: 72 }, board);
+  };
+
+  const viewportInsertOrigin = () => {
+    const center = canvasViewRef.current;
+    return {
+      x: (Number(center.x) || 320) - 90,
+      y: (Number(center.y) || 190) - 36,
+    };
   };
 
   /* ── INSERT ZUSTAND NODE → canvas ─ */
   const insertNodeToCanvas = (zustandNode, options = null) => {
     if (!zustandNode?.id) return;
-    const alreadyOnCanvas = canvasNodes.some((n) => n.noteId === zustandNode.id);
-    if (alreadyOnCanvas) {
+    const already = canvasNodes.find((n) => n.noteId === zustandNode.id);
+    if (already) {
+      setCanvasRevealToken({ nodeId: already.id, nonce: Date.now() });
       setToast({ message: `Already on canvas · "${zustandNode.title || "node"}"`, kind: "ok" });
       return;
     }
-    const preferredX = options?.center ? 320 : options?.x;
-    const preferredY = options?.center ? 190 : options?.y;
+    const origin = viewportInsertOrigin();
+    const preferredX = options?.x != null ? options.x : origin.x;
+    const preferredY = options?.y != null ? options.y : origin.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
 
     // Campaign document → spawn Launch date type beside it and wire the connection.
@@ -910,8 +927,9 @@ useEffect(() => {
 
   const insertAgentToCanvas = (agentId, options = null) => {
     if (!agentId) return;
-    const preferredX = options?.center ? 320 : options?.x;
-    const preferredY = options?.center ? 190 : options?.y;
+    const origin = viewportInsertOrigin();
+    const preferredX = options?.x != null ? options.x : origin.x;
+    const preferredY = options?.y != null ? options.y : origin.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
     const newNode = {
       id: shortId("CN"),
@@ -958,11 +976,12 @@ useEffect(() => {
       useDocsStore.getState().docs[doc.id] || doc,
     );
 
-    const alreadyOnCanvas = canvasNodes.some(
+    const alreadyOnCanvas = canvasNodes.find(
       (n) => n.canvasKind === "document"
         && (n.docId === normalizedDoc.id || n.noteId === normalizedDoc.id),
     );
     if (alreadyOnCanvas) {
+      setCanvasRevealToken({ nodeId: alreadyOnCanvas.id, nonce: Date.now() });
       setToast({
         message: `Already on canvas · "${normalizedDoc.title || "folder"}"`,
         kind: "ok",
@@ -1730,6 +1749,11 @@ useEffect(() => {
             onToggleScheduledAutoRun={() => {
               useScheduledTasksStore.getState().setAutoRunEnabled(!scheduledAutoRunEnabled);
             }}
+            onViewportWorldChange={(world) => {
+              if (!world) return;
+              canvasViewRef.current = world;
+            }}
+            revealToken={canvasRevealToken}
           />
           {!ginaDashboardOpen
           && objectWorkspaceActive
