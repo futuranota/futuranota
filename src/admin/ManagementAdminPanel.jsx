@@ -670,13 +670,27 @@ function formatTimeLeftDays(q) {
   if (q.daysRemaining != null && Number.isFinite(Number(q.daysRemaining))) {
     return String(q.daysRemaining);
   }
-  return "0";
+  return "—";
 }
 
-/** Next reset calendar date UTC, e.g. 09/18. */
-function formatNextResetDate(q) {
+/** Date (Reset) as MM/DD — next month same day as current Date (Start). */
+function formatDateReset(q) {
   if (!q?.resets || !q.resetAtYmd) return "—";
   const parts = String(q.resetAtYmd).slice(0, 10).split("-");
+  if (parts.length !== 3) return "—";
+  const [, month, day] = parts;
+  return `${month}/${day}`;
+}
+
+/**
+ * Date (Start) = current cycle start (rolls on reset day).
+ * Only show when Date (Reset) also exists — never Start alone.
+ */
+function formatDateStart(q) {
+  if (!q?.resets || !q?.resetAtYmd) return "—";
+  const ymd = q?.dateStartYmd || null;
+  if (!ymd) return "—";
+  const parts = String(ymd).slice(0, 10).split("-");
   if (parts.length !== 3) return "—";
   const [, month, day] = parts;
   return `${month}/${day}`;
@@ -689,7 +703,7 @@ const EMPTY_QUOTA_FORM = {
   type: "free",
   resets: true,
   everyN: "1",
-  everyUnit: "day",
+  everyUnit: "month",
   overageUsd: "",
   anchorAt: "",
 };
@@ -817,7 +831,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
       everyN: row.everyN != null ? String(row.everyN) : "1",
       everyUnit: row.everyUnit === "month" ? "month" : "day",
       overageUsd: row.overageUsd != null ? String(row.overageUsd) : "",
-      anchorAt: row.anchorAt || "",
+      anchorAt: row.anchorAt || row.dateStartYmd || "",
     });
   }
 
@@ -910,6 +924,44 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
     <div className="mgmt-quotas">
       <AccountStorageSpendTable storageSpend={storageSpend} />
 
+      <div className="mgmt-provider-kpis" style={{ marginTop: 20 }}>
+        <h3 className="mgmt-section-title" style={{ marginBottom: 8 }}>
+          API usage (log)
+        </h3>
+        {(quotas?.providerKpis || [
+          { provider: "groq", today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 },
+          { provider: "openweather", today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 },
+          { provider: "serper", today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 },
+        ]).map((kpi) => (
+          <div key={kpi.provider} style={{ marginBottom: 12 }}>
+            <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
+              <code className="mgmt-code">{kpi.provider}</code>
+            </p>
+            <section className="mgmt-kpi-row admin-card">
+              <div className="mgmt-kpi">
+                <span className="mgmt-kpi__label">Calls today</span>
+                <strong className="mgmt-kpi__value">{kpi.today}</strong>
+              </div>
+              <div className="mgmt-kpi">
+                <span className="mgmt-kpi__label">Calls this month</span>
+                <strong className="mgmt-kpi__value">{kpi.month}</strong>
+              </div>
+              <div className="mgmt-kpi">
+                <span className="mgmt-kpi__label">All-time calls</span>
+                <strong className="mgmt-kpi__value">{kpi.allTime}</strong>
+              </div>
+              <div className="mgmt-kpi">
+                <span className="mgmt-kpi__label">Est. cost (all-time)</span>
+                <strong className="mgmt-kpi__value">{formatUsd(kpi.estimatedCostUsd)}</strong>
+              </div>
+            </section>
+          </div>
+        ))}
+        <p className="muted" style={{ margin: "0 0 16px", fontSize: 12 }}>
+          From Recent Calls log (1 row per action, not provider HTTP credits).
+        </p>
+      </div>
+
       <div className="mgmt-quota-toolbar" style={{ marginTop: 20 }}>
         <label className="mgmt-filter-field">
           <span className="muted">Date picked (UTC)</span>
@@ -940,8 +992,9 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
               <th>Included</th>
               <th>Meter</th>
               <th>Reset?</th>
-              <th title="Days until reset (UTC)">Time left</th>
-              <th title="Next reset date (UTC)">Next reset</th>
+              <th title="Start of current month cycle (rolls on Date Reset)">Date (Start)</th>
+              <th title="Days until Date (Reset)">Time left</th>
+              <th title="When used resets; then Date (Start) becomes this day">Date (Reset)</th>
               <th title="Used / included in current window">Used</th>
               <th>Over</th>
               <th>Cost Overdue</th>
@@ -952,7 +1005,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
+                <td colSpan={12} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
               </tr>
             ) : (
               items.map((q) => (
@@ -972,9 +1025,12 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
                   </td>
                   <td className="muted">{q.unit || "—"}</td>
                   <td>{q.resets ? "yes" : "no"}</td>
+                  <td className="muted" title={q.resetAtYmd ? (q.dateStartYmd || "") : ""}>
+                    {formatDateStart(q)}
+                  </td>
                   <td>{formatTimeLeftDays(q)}</td>
                   <td title={q.resets ? (q.resetAtYmd || "") : "No reset"}>
-                    {formatNextResetDate(q)}
+                    {formatDateReset(q)}
                   </td>
                   <td>
                     <strong>{formatQuotaNumber(q.used, q.unit)}</strong>
@@ -1166,7 +1222,7 @@ function QuotaMeterFields({ form, setForm, providers }) {
         </div>
       </label>
       <label className="mgmt-filter-field">
-        <span className="muted">Anchor (YYYY-MM-DD)</span>
+        <span className="muted">Date (Start) seed</span>
         <input
           type="date"
           value={form.anchorAt}

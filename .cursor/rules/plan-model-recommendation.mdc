@@ -1,0 +1,35 @@
+---
+description: Al activar un plan o brief detallado, recomendar modelo Cursor (Grok 50% vs Auto)
+alwaysApply: true
+---
+
+# Recomendación de modelo al activar un plan
+
+Cuando el usuario **active un plan**, pida **Build**, o describa en detalle lo que quiere construir (brief / dificultad clara), **siempre** terminar con (o incluir al inicio del build) una recomendación de modelo de Cursor con **exactamente dos opciones**:
+
+1. **Grok (50%)** — Grok 4.5 / 4.6 en Cursor mientras haya promo ~50% off / pool first-party. Mejor para trabajo agentic largo, multi-archivo, diagnóstico difícil.
+2. **Auto** — selector Auto de Cursor. Mejor para tareas simples/medias, menos gasto del pool.
+
+## Cómo elegir según dificultad
+
+| Dificultad | Recomienda primero | Por qué |
+|---|---|---|
+| Baja (rename, copy, 1–2 archivos) | **Auto** | Suficiente; ahorra pool Grok |
+| Media (feature acotada, UI + API chica) | **Auto** (ok) o **Grok 50%** si quiere más rigor | Mencionar ambos; sesgo a Auto |
+| Alta (arquitectura, sync, multi-sistema, bugs oscuros) | **Grok 50%** | Mejor seguimiento de plan largo |
+
+Formato fijo (corto, en español si el user habla español):
+
+```
+Modelo sugerido para este plan:
+- Recomendado: Grok (50%) | Auto   ← el que toque según dificultad
+- Alternativa: el otro
+- Motivo: una línea
+```
+
+## Notas
+
+- **Grok** = modelo de Cursor (SpaceXAI), no Groq de Futura Nota.
+- El 50% es promo temporal de lanzamiento; si ya no aplica, decir “Grok (precio de lista)” y seguir ofreciendo las dos opciones.
+- No recomendar otros modelos salvo que el user lo pida.
+- No omitir este bloque al crear/confirmar un plan o al empezar el Build de un plan aprobado.

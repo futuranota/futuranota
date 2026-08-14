@@ -149,7 +149,11 @@ async function loadUsageStats(service, opts = {}) {
   /** @type {Record<string, number>} */
   const callsTodayByProvider = {};
   /** @type {Record<string, number>} */
+  const callsMonthByProvider = {};
+  /** @type {Record<string, number>} */
   const callsTotalByProvider = {};
+  /** @type {Record<string, number>} */
+  const costAllTimeByProvider = {};
   /** @type {Record<string, {
    *   endpoint: string,
    *   calls: number,
@@ -176,13 +180,17 @@ async function loadUsageStats(service, opts = {}) {
     estimatedCostTotal += cost;
     if (inMonth) estimatedCostUsdMonth += cost;
     if (inToday) estimatedCostUsdToday += cost;
-    const provider = ev.provider || "unknown";
+    const provider = (ev.provider || "unknown").toString().trim().toLowerCase() || "unknown";
     const endpoint = ev.endpoint || "unknown";
     byProvider[provider] = (byProvider[provider] || 0) + 1;
     byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
     callsTotalByProvider[provider] = (callsTotalByProvider[provider] || 0) + 1;
+    costAllTimeByProvider[provider] = (costAllTimeByProvider[provider] || 0) + cost;
     if (inToday) {
       callsTodayByProvider[provider] = (callsTodayByProvider[provider] || 0) + 1;
+    }
+    if (inMonth) {
+      callsMonthByProvider[provider] = (callsMonthByProvider[provider] || 0) + 1;
     }
 
     if (!endpointAgg[endpoint]) {
@@ -243,8 +251,35 @@ async function loadUsageStats(service, opts = {}) {
     byEndpoint: toPie(byEndpoint),
     endpointMatrix,
     callsTodayByProvider,
+    callsMonthByProvider,
     callsTotalByProvider,
+    costAllTimeByProvider,
   };
+}
+
+/** Call APIs shown as KPI strips in Storage & Quotas (v1). */
+const QUOTA_PROVIDER_KPI_IDS = ["groq", "openweather", "serper"];
+
+/**
+ * @param {{
+ *   callsTodayByProvider?: Record<string, number>,
+ *   callsMonthByProvider?: Record<string, number>,
+ *   callsTotalByProvider?: Record<string, number>,
+ *   costAllTimeByProvider?: Record<string, number>,
+ * }} stats
+ */
+function buildQuotaProviderKpis(stats) {
+  const todayMap = stats?.callsTodayByProvider || {};
+  const monthMap = stats?.callsMonthByProvider || {};
+  const allMap = stats?.callsTotalByProvider || {};
+  const costMap = stats?.costAllTimeByProvider || {};
+  return QUOTA_PROVIDER_KPI_IDS.map((provider) => ({
+    provider,
+    today: Number(todayMap[provider]) || 0,
+    month: Number(monthMap[provider]) || 0,
+    allTime: Number(allMap[provider]) || 0,
+    estimatedCostUsd: Math.round((Number(costMap[provider]) || 0) * 1e6) / 1e6,
+  }));
 }
 
 /** List price for Pro monthly (marketing); not live Stripe MRR. */
@@ -755,6 +790,10 @@ async function loadQuotasDashboard(service, opts = {}) {
         : "—",
       overageUsd: meter.overageUsd,
       anchorAt: meter.anchorAt,
+      /** Paired with resetAtYmd only — never Start without Reset. */
+      dateStartYmd: w.resets && w.resetAtYmd
+        ? (w.dateStartYmd || w.windowStartYmd || null)
+        : null,
       notes: meter.notes,
       asOfYmd,
       windowStartYmd: w.windowStartYmd,
@@ -1489,7 +1528,9 @@ export async function processManagementOverviewRequest(reqLike) {
     byEndpoint: [],
     endpointMatrix: [],
     callsTodayByProvider: {},
+    callsMonthByProvider: {},
     callsTotalByProvider: {},
+    costAllTimeByProvider: {},
   };
   let recentEvents = [];
   let users = [];
@@ -1641,6 +1682,7 @@ export async function processManagementOverviewRequest(reqLike) {
     asOfYmd,
     storageMaps,
   });
+  quotas.providerKpis = buildQuotaProviderKpis(stats || {});
 
   return {
     status: 200,
