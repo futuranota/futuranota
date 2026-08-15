@@ -11,10 +11,24 @@ import {
 
 const SHREDDER_OFF_SRC = "/uploads/trituradora-de-files-off.svg";
 const SHREDDER_HOVER_SRC = "/uploads/trituradora-de-files-hover.svg";
+const FILE_STICKER_SRC = "/uploads/file-sticker.svg";
+
+/** Cached drag ghost — setDragImage needs a loaded element. */
+let fileStickerDragImg = null;
+function getFileStickerDragImage() {
+  if (typeof Image === "undefined") return null;
+  if (!fileStickerDragImg) {
+    fileStickerDragImg = new Image();
+    fileStickerDragImg.src = FILE_STICKER_SRC;
+  }
+  return fileStickerDragImg;
+}
+if (typeof Image !== "undefined") getFileStickerDragImage();
 
 /**
- * Notion-style grab handle to the left of a folder document title.
- * Dragging it shreds the whole document (title + description + body).
+ * Grab handle to the left of a folder document title.
+ * Hover shows file-sticker; drag ghost is the same sticker.
+ * Dragging shreds the whole document (title + description + body).
  */
 export function FolderFileShredHandle({ nodeId }) {
   const { t } = useI18n();
@@ -37,22 +51,27 @@ export function FolderFileShredHandle({ nodeId }) {
         writeFolderFileDragData(event.dataTransfer, id);
         beginFolderFileDrag(id);
         setDragging(true);
+        const sticker = getFileStickerDragImage();
+        if (sticker?.complete && sticker.naturalWidth > 0) {
+          try {
+            event.dataTransfer.setDragImage(sticker, 16, 16);
+          } catch {
+            /* some browsers reject custom drag images */
+          }
+        }
       }}
       onDragEnd={() => {
         setDragging(false);
         endFolderFileDrag();
       }}
     >
-      <span className="folder-file-shred-handle__icon" aria-hidden>
-        <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
-          <circle cx="2" cy="2" r="1.15" fill="currentColor" />
-          <circle cx="6" cy="2" r="1.15" fill="currentColor" />
-          <circle cx="2" cy="6" r="1.15" fill="currentColor" />
-          <circle cx="6" cy="6" r="1.15" fill="currentColor" />
-          <circle cx="2" cy="10" r="1.15" fill="currentColor" />
-          <circle cx="6" cy="10" r="1.15" fill="currentColor" />
-        </svg>
-      </span>
+      <img
+        className="folder-file-shred-handle__sticker"
+        src={FILE_STICKER_SRC}
+        alt=""
+        aria-hidden
+        draggable={false}
+      />
     </span>
   );
 }

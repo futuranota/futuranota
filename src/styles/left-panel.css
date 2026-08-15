@@ -6879,7 +6879,7 @@ body.doc-content-resizing * {
 }
 
 .doc-h1-block__header--multiline .folder-file-shred-handle {
-  margin-top: calc(2px + (17px * 1.15 - 22px) / 2);
+  margin-top: calc(2px + (17px * 1.15 - 28px) / 2);
 }
 
 .doc-h1-block__header--no-handle.doc-h1-block__header--multiline {
@@ -8800,7 +8800,7 @@ body.doc-content-resizing * {
   align-items: center;
   justify-content: center;
   width: 0;
-  height: 22px;
+  height: 28px;
   margin: 0;
   padding: 0;
   border: none;
@@ -8810,32 +8810,26 @@ body.doc-content-resizing * {
   overflow: hidden;
   pointer-events: none;
   cursor: grab;
-  color: #8a8d91;
   transition:
     width 120ms ease,
     margin 120ms ease,
-    opacity 120ms ease,
-    background 120ms ease,
-    color 120ms ease;
+    opacity 120ms ease;
 }
 
 .doc-h1-block__header:hover .folder-file-shred-handle,
 .doc-todo-plan__header:hover .folder-file-shred-handle,
 .folder-file-shred-handle.is-dragging,
 .folder-file-shred-handle:focus-visible {
-  width: 22px;
-  margin: 0 2px 0 0;
+  width: 28px;
+  margin: 0 4px 0 0;
   opacity: 1;
   pointer-events: auto;
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .folder-file-shred-handle:hover,
 .folder-file-shred-handle.is-dragging,
 .folder-file-shred-handle:focus-visible {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
-  color: #a4a7ab;
   outline: none;
 }
 
@@ -8844,18 +8838,28 @@ body.doc-content-resizing * {
   cursor: grabbing;
 }
 
-.folder-file-shred-handle__icon {
-  display: flex;
-  width: 8px;
-  height: 12px;
-  flex-shrink: 0;
+.folder-file-shred-handle__sticker {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.folder-file-shred-handle__icon svg {
-  display: block;
-  width: 8px;
-  height: 12px;
+/* Gray mesh on title while hovering / dragging the file handle. */
+.doc-h1-block__header:has(.folder-file-shred-handle:hover) .doc-h1-block__input,
+.doc-h1-block__header:has(.folder-file-shred-handle.is-dragging) .doc-h1-block__input,
+.doc-todo-plan__header:has(.folder-file-shred-handle:hover) .doc-todo-plan__title-input,
+.doc-todo-plan__header:has(.folder-file-shred-handle.is-dragging) .doc-todo-plan__title-input {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+  background-size: 6px 6px;
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 /* Description excerpt: gray mesh across the full text on hover (visual only). */
