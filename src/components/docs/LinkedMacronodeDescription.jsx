@@ -75,10 +75,6 @@ export function LinkedMacronodeDescription({
 
   return (
     <div className="doc-linked-macro-desc">
-      <span className="folder-doc-row__desc-label">
-        {t("sidebar.docDescriptionLabel")}
-      </span>
-      {" "}
       <span className="folder-doc-row__desc-excerpt">{excerpt}</span>
       {" "}
       <button

@@ -116,10 +116,6 @@ export function FolderDocumentRow({
           </span>
           {hasExcerpt ? (
             <span className="folder-doc-row__desc">
-              <span className="folder-doc-row__desc-label">
-                {t("sidebar.docDescriptionLabel")}
-              </span>
-              {" "}
               <span className="folder-doc-row__desc-excerpt">{excerpt}</span>
               {" "}
               <span

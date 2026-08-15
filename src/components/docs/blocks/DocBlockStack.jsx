@@ -1697,12 +1697,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           if (!isLinkedDoc) return null;
         }
 
+        const isFolderDocRow = folderIndexMode
+          && (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+          && isDocBlockLinkedToNode(block);
+
         return (
         <Fragment key={block.id}>
         <div
           className={
             "doc-block-stack__item"
             + (itemHidden ? " doc-block-stack__item--content-collapsed" : "")
+            + (isFolderDocRow ? " doc-block-stack__item--folder-doc" : "")
           }
           data-block-id={block.id}
           hidden={itemHidden}

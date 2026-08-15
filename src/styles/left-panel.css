@@ -4106,7 +4106,8 @@
   width: 16px;
   height: 16px;
   object-fit: contain;
-  filter: brightness(0) invert(0.72);
+  /* Match create-folder / shredder gray #64686A */
+  filter: brightness(0) invert(39.5%);
 }
 
 .lp-folder-custom-icon {
@@ -6327,7 +6328,7 @@
 }
 
 .doc-new-content-box:has(.folder-file-shredder) .doc-new-content-scroll {
-  padding-bottom: 54px;
+  padding-bottom: 72px;
 }
 
 /* Click-to-write empty-folder layer: covers placeholder until first interaction. */
@@ -6879,7 +6880,7 @@ body.doc-content-resizing * {
 }
 
 .doc-h1-block__header--multiline .folder-file-shred-handle {
-  margin-top: calc(2px + (17px * 1.15 - 28px) / 2);
+  margin-top: calc(2px + (17px * 1.15 - 20px) / 2);
 }
 
 .doc-h1-block__header--no-handle.doc-h1-block__header--multiline {
@@ -8773,6 +8774,19 @@ body.doc-content-resizing * {
   word-break: break-word;
 }
 
+/* Folder index queue: 2 free description-line cells before the next file. */
+.doc-block-stack__item--folder-doc {
+  margin-bottom: calc(2 * var(--font-doc-size) * var(--font-doc-line-height));
+}
+
+.doc-block-stack__item--folder-doc + .doc-block-stack__item--folder-doc {
+  margin-top: 0;
+}
+
+.doc-block-stack__item--folder-doc:last-child {
+  margin-bottom: 0;
+}
+
 .doc-linked-macro-desc .folder-doc-row__desc-label {
   font-family: var(--font-doc);
   font-size: var(--font-doc-size);
@@ -8793,43 +8807,28 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
-/* Idle: no layout width so title keeps its index. Hover/drag: expand + push. */
+/* Static file sticker beside title — always visible; hover = gray mesh on title. */
 .folder-file-shred-handle {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0;
-  height: 28px;
-  margin: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0 4px 0 0;
   padding: 0;
   border: none;
   border-radius: 4px;
   background: transparent;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-  cursor: grab;
-  transition:
-    width 120ms ease,
-    margin 120ms ease,
-    opacity 120ms ease;
-}
-
-.doc-h1-block__header:hover .folder-file-shred-handle,
-.doc-todo-plan__header:hover .folder-file-shred-handle,
-.folder-file-shred-handle.is-dragging,
-.folder-file-shred-handle:focus-visible {
-  width: 28px;
-  margin: 0 4px 0 0;
   opacity: 1;
+  overflow: visible;
   pointer-events: auto;
+  cursor: grab;
 }
 
 .folder-file-shred-handle:hover,
 .folder-file-shred-handle.is-dragging,
 .folder-file-shred-handle:focus-visible {
-  opacity: 1;
   outline: none;
 }
 
@@ -8840,15 +8839,15 @@ body.doc-content-resizing * {
 
 .folder-file-shred-handle__sticker {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-/* Gray mesh on title while hovering / dragging the file handle. */
+/* Gray mesh on title while hovering / dragging the file sticker. */
 .doc-h1-block__header:has(.folder-file-shred-handle:hover) .doc-h1-block__input,
 .doc-h1-block__header:has(.folder-file-shred-handle.is-dragging) .doc-h1-block__input,
 .doc-todo-plan__header:has(.folder-file-shred-handle:hover) .doc-todo-plan__title-input,
@@ -9816,8 +9815,10 @@ body.doc-content-resizing * {
   left: 12px;
   bottom: 12px;
   z-index: 24;
-  width: 64px;
-  height: 46px;
+  /* ~60px wide; tall enough for hover papers (90×70) so off/hover share one footprint */
+  width: 60px;
+  height: 47px;
+  box-sizing: border-box;
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
@@ -9828,11 +9829,15 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+/* Idle: lift machine so it matches hover body; hover stays flush (papers only grow up). */
+.folder-file-shredder:not(.is-hot) {
+  padding-bottom: 8px;
+}
+
 .folder-file-shredder__img {
   display: block;
-  width: 64px;
-  height: auto;
-  max-height: 46px;
+  width: 60px;
+  height: 100%;
   object-fit: contain;
   object-position: left bottom;
   pointer-events: none;
@@ -9944,8 +9949,7 @@ body.doc-content-resizing * {
   display: block;
   width: 28px;
   height: 28px;
-  /* Darker gray than department label (0.55) */
-  background-color: rgba(255, 255, 255, 0.38);
+  background-color: #64686A;
   -webkit-mask-size: contain;
   mask-size: contain;
   -webkit-mask-repeat: no-repeat;

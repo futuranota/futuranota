@@ -26,9 +26,8 @@ function getFileStickerDragImage() {
 if (typeof Image !== "undefined") getFileStickerDragImage();
 
 /**
- * Grab handle to the left of a folder document title.
- * Hover shows file-sticker; drag ghost is the same sticker.
- * Dragging shreds the whole document (title + description + body).
+ * Static file sticker beside a folder document title.
+ * Always visible; hover paints gray mesh on the title. Drag shreds the doc.
  */
 export function FolderFileShredHandle({ nodeId }) {
   const { t } = useI18n();
@@ -54,7 +53,7 @@ export function FolderFileShredHandle({ nodeId }) {
         const sticker = getFileStickerDragImage();
         if (sticker?.complete && sticker.naturalWidth > 0) {
           try {
-            event.dataTransfer.setDragImage(sticker, 16, 16);
+            event.dataTransfer.setDragImage(sticker, 10, 10);
           } catch {
             /* some browsers reject custom drag images */
           }
