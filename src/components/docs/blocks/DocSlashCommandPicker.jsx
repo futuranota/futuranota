@@ -40,7 +40,7 @@ export function DocSlashCommandPicker({
   nodeLinkColorLabel = "Nodes colors",
   createDocumentMode = false,
   onCreateDocument = null,
-  createDocumentIconSrc = "/uploads/create-a-file.svg",
+  createDocumentIconSrc = "/uploads/add-folder.svg",
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -86,13 +86,12 @@ export function DocSlashCommandPicker({
             onCreateDocument?.();
           }}
         >
-          <span
+          <img
             className="doc-slash-command-picker__file-icon"
-            style={{
-              WebkitMaskImage: `url("${createDocumentIconSrc}")`,
-              maskImage: `url("${createDocumentIconSrc}")`,
-            }}
+            src={createDocumentIconSrc}
+            alt=""
             aria-hidden
+            draggable={false}
           />
         </button>
       </div>

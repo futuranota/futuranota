@@ -9,8 +9,8 @@ import {
   writeFolderFileDragData,
 } from "../../lib/folderFileShred.js";
 
-const SHREDDER_OFF_SRC = "/uploads/trituradora-de-files-off.svg";
-const SHREDDER_HOVER_SRC = "/uploads/trituradora-de-files-hover.svg";
+const SHREDDER_OFF_SRC = "/uploads/trituradora-de-files-off.svg?v=white";
+const SHREDDER_HOVER_SRC = "/uploads/trituradora-de-files-hover.svg?v=white";
 const FILE_STICKER_SRC = "/uploads/file-sticker.svg";
 
 /** Cached drag ghost — setDragImage needs a loaded element. */

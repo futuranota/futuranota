@@ -9810,6 +9810,10 @@ body.doc-content-resizing * {
   z-index: 24;
 }
 
+.doc-slash-command-picker--floating.doc-slash-command-picker--create-file {
+  right: 22px; /* +10px padding from the edge vs default floating */
+}
+
 .folder-file-shredder {
   position: absolute;
   left: 12px;
@@ -9936,8 +9940,8 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-command-picker__btn--create-file {
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -9947,18 +9951,28 @@ body.doc-content-resizing * {
 
 .doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon {
   display: block;
-  width: 28px;
-  height: 28px;
-  background-color: #64686A;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  background: transparent;
+  opacity: 1;
   transition:
-    background-color 0.15s ease,
-    transform 0.15s ease;
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+
+/* Expanded content focus: keep create-doc icon at 36px */
+.doc-new-inner--content-focus .doc-slash-command-picker__btn--create-file,
+.node-query-modal--content-focus .doc-slash-command-picker__btn--create-file {
+  width: 36px;
+  height: 36px;
+}
+
+.doc-new-inner--content-focus .doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon,
+.node-query-modal--content-focus .doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon {
+  width: 36px;
+  height: 36px;
 }
 
 .doc-slash-command-picker__btn--create-file:hover,
@@ -9978,8 +9992,6 @@ body.doc-content-resizing * {
 
 .doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon,
 .doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon {
-  /* Descriptive / Not started pink */
-  background-color: #D6B4A7;
   filter: none;
   opacity: 1;
   transform: scale(1.08);
