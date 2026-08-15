@@ -12,6 +12,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { Modal } from "../shared/Modal.jsx";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useConfirmStore } from "../../stores/confirmStore.js";
+import { playTrashBoxSound } from "../../lib/trashBoxSound.js";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -308,6 +309,7 @@ export function DocExpandedView({
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateNode = useNodesStore((s) => s.updateNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
+  const deleteNodeAndDocBlocks = useNodesStore((s) => s.deleteNodeAndDocBlocks);
 
   const [selectionModal, setSelectionModal] = useState(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -365,6 +367,24 @@ export function DocExpandedView({
   const handleCreateDocumentInFolder = useCallback(() => {
     setShowCreateDocument(true);
   }, []);
+
+  const handleShredFolderNode = useCallback(async (nodeId) => {
+    if (!nodeId) return;
+    const node = useNodesStore.getState().nodes[nodeId];
+    if (!node) return;
+    const label = String(node.title || node.sourceQuery || t("sidebar.newDocument")).trim()
+      || t("sidebar.newDocument");
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteNodeTitle"),
+      message: t("sidebar.deleteNodeConfirm", { name: label }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    try { playTrashBoxSound(); } catch { /* ignore */ }
+    deleteNodeAndDocBlocks(nodeId);
+    setDraftBlocks((prev) => removeLinkedOwnerBundleFromBlocks(prev, nodeId).blocks);
+  }, [askConfirm, deleteNodeAndDocBlocks, t]);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
   const departments = useDepartmentsStore((s) => s.departments);
@@ -2474,6 +2494,9 @@ export function DocExpandedView({
           } : undefined}
           onCreateDocumentInFolder={
             isContentMode ? handleCreateDocumentInFolder : undefined
+          }
+          onShredFolderNode={
+            isContentMode ? handleShredFolderNode : undefined
           }
         />
         ) : null}

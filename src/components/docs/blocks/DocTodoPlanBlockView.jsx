@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
 import { DocQueryHandleButton } from "./DocQueryHandleRow.jsx";
+import { FolderFileShredHandle } from "../FolderFileShredder.jsx";
 import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 import {
   itemStatusFromChecked,
@@ -47,7 +48,11 @@ export function DocTodoPlanBlockView({
   showDragHandle = true,
   listTitleEditable = true,
   titleAddon = null,
+  readOnly = false,
+  shredNodeId = null,
 }) {
+  const titleEditable = listTitleEditable && !readOnly;
+  const showMoveHandle = showDragHandle && !readOnly;
   const inputRefs = useRef({});
   const [expanded, setExpanded] = useState(true);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -55,9 +60,9 @@ export function DocTodoPlanBlockView({
   const doneCount = items.filter((item) => item.checked).length;
 
   useEffect(() => {
-    if (!focusItemId) return;
+    if (readOnly || !focusItemId) return;
     inputRefs.current[focusItemId]?.focus();
-  }, [focusItemId, items.length]);
+  }, [focusItemId, items.length, readOnly]);
 
   const updateItem = (index, patch) => {
     onItemsChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
@@ -93,6 +98,7 @@ export function DocTodoPlanBlockView({
   return (
     <div className="doc-todo-plan">
       <div className="doc-todo-plan__header">
+        {shredNodeId ? <FolderFileShredHandle nodeId={shredNodeId} /> : null}
         {linksEnabled ? (
           <DocQueryHandleButton
             queryEnabled={queryEnabled}
@@ -104,7 +110,7 @@ export function DocTodoPlanBlockView({
             }}
           />
         ) : null}
-        {showDragHandle ? (
+        {showMoveHandle ? (
           <button
             type="button"
             className="doc-block-drag-handle"
@@ -116,7 +122,7 @@ export function DocTodoPlanBlockView({
             <img src={DOC_TODO_HEADER_ICON} alt="" aria-hidden />
           </button>
         ) : null}
-        {listTitleEditable ? (
+        {titleEditable ? (
           <input
             type="text"
             className="doc-todo-plan__title-input"
@@ -136,9 +142,11 @@ export function DocTodoPlanBlockView({
           </span>
         )}
         {titleAddon}
-        <button type="button" className="doc-todo-plan__new-btn" onClick={onAddItem}>
-          + item
-        </button>
+        {readOnly ? null : (
+          <button type="button" className="doc-todo-plan__new-btn" onClick={onAddItem}>
+            + item
+          </button>
+        )}
       </div>
 
       <div className="doc-todo-plan__card">
@@ -179,29 +187,43 @@ export function DocTodoPlanBlockView({
                       type="button"
                       className="doc-todo-plan__status-btn"
                       aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
-                      onClick={() => toggleItemChecked(index)}
+                      onClick={() => {
+                        if (readOnly) return;
+                        toggleItemChecked(index);
+                      }}
                     >
                       <TodoStatusIcon
                         status={itemStatusFromChecked(item.checked)}
                         size="sm"
                       />
                     </button>
-                    <input
-                      ref={(el) => {
-                        if (el) inputRefs.current[item.id] = el;
-                        else delete inputRefs.current[item.id];
-                      }}
-                      type="text"
-                      className={
-                        "doc-todo-plan__item-input"
-                        + (item.checked ? " doc-todo-plan__item-input--done" : "")
-                      }
-                      data-todo-item-id={item.id}
-                      value={item.text}
-                      placeholder="List item"
-                      onChange={(e) => updateItem(index, { text: e.target.value })}
-                      onKeyDown={(e) => onItemKeyDown?.(index, e)}
-                    />
+                    {readOnly ? (
+                      <span
+                        className={
+                          "doc-todo-plan__item-input"
+                          + (item.checked ? " doc-todo-plan__item-input--done" : "")
+                        }
+                      >
+                        {item.text}
+                      </span>
+                    ) : (
+                      <input
+                        ref={(el) => {
+                          if (el) inputRefs.current[item.id] = el;
+                          else delete inputRefs.current[item.id];
+                        }}
+                        type="text"
+                        className={
+                          "doc-todo-plan__item-input"
+                          + (item.checked ? " doc-todo-plan__item-input--done" : "")
+                        }
+                        data-todo-item-id={item.id}
+                        value={item.text}
+                        placeholder="List item"
+                        onChange={(e) => updateItem(index, { text: e.target.value })}
+                        onKeyDown={(e) => onItemKeyDown?.(index, e)}
+                      />
+                    )}
                   </motion.li>
                 ))}
               </ul>

@@ -3,7 +3,6 @@ import { DOC_FILE_TXT_ICON } from "../../lib/docMediumAssets.js";
 import {
   createDocBlock,
   DOC_BLOCK_TYPES,
-  docBlocksHaveContent,
   docBlocksToBody,
   hasProductCardBlock,
   normalizeDocBlocks,
@@ -35,6 +34,7 @@ import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
 import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
+import { FolderFileShredder } from "./FolderFileShredder.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
@@ -132,6 +132,7 @@ export function DocDocumentBox({
   folderViewMode = null,
   onFolderViewModeChange = null,
   onCreateDocumentInFolder = null,
+  onShredFolderNode = null,
 }) {
   const { t } = useI18n();
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
@@ -212,7 +213,6 @@ export function DocDocumentBox({
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
-  const [folderEmptyRoomDismissed, setFolderEmptyRoomDismissed] = useState(false);
   const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
   const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -242,7 +242,6 @@ export function DocDocumentBox({
 
   useEffect(() => {
     setContentFocusMode(false);
-    setFolderEmptyRoomDismissed(false);
     setIsSaving(false);
     setHasManualBoxHeight(false);
     contentBoxManualHeightRef.current = null;
@@ -287,27 +286,18 @@ export function DocDocumentBox({
     () => normalizedBlocks.map((b) => `${b.id}:${b.type}`).join("|"),
     [normalizedBlocks],
   );
-  /** Empty folder canvas: no typed body, no authored blocks, no created docs. */
+  /** Empty folder canvas: no created docs. Body is not a writing surface. */
   const showFolderEmptyRoom = useMemo(() => {
     if (!isFolderSlashSurface) return false;
-    if (folderEmptyRoomDismissed) return false;
     if (folderTaskTotal > 0 || linkedNodeCount > 0) return false;
-    if (String(body || "").trim()) return false;
-    if (docBlocksHaveContent(normalizedBlocks)) return false;
-    const hasStructure = normalizedBlocks.some(
-      (block) => block.type !== DOC_BLOCK_TYPES.TEXT || Boolean(block?.embedded?.kind),
-    );
-    if (hasStructure) return false;
     if (normalizedBlocks.some((block) => Boolean(block?.nodeId) || Boolean(block?.macronodeHeading))) {
       return false;
     }
     return true;
   }, [
     isFolderSlashSurface,
-    folderEmptyRoomDismissed,
     folderTaskTotal,
     linkedNodeCount,
-    body,
     normalizedBlocks,
   ]);
   const knowledgeNotesFilled = knowledgeNotesHasContent(
@@ -394,11 +384,6 @@ export function DocDocumentBox({
     }
     scroll.focus({ preventScroll: true });
   }, []);
-
-  const revealEmptyFolderEditor = useCallback(() => {
-    setFolderEmptyRoomDismissed(true);
-    requestAnimationFrame(focusContentArea);
-  }, [focusContentArea]);
 
   const syncBodyHeightUncapped = useCallback(() => {
     const el = bodyRef.current;
@@ -524,12 +509,12 @@ export function DocDocumentBox({
   }, [contentFocusMode, exitContentFocusMode, clearManualBoxHeight]);
 
   useEffect(() => {
-    if (!contentFocusMode) return undefined;
+    if (!contentFocusMode || isFolderSlashSurface) return undefined;
     const t = requestAnimationFrame(() => {
       requestAnimationFrame(focusContentArea);
     });
     return () => cancelAnimationFrame(t);
-  }, [contentFocusMode, focusContentArea]);
+  }, [contentFocusMode, focusContentArea, isFolderSlashSurface]);
 
   useEffect(() => {
     if (!contentFocusMode) return undefined;
@@ -927,28 +912,22 @@ export function DocDocumentBox({
             </div>
           ) : null}
           {showFolderEmptyRoom ? (
-            <button
-              type="button"
-              className="doc-folder-empty-room"
-              onClick={revealEmptyFolderEditor}
-              aria-label="Start writing in this folder"
-            >
+            <div className="doc-folder-empty-room" aria-hidden>
               <img
                 className="doc-folder-empty-room__image"
                 src={FOLDER_EMPTY_ROOM_SRC}
                 alt=""
-                aria-hidden
                 draggable={false}
               />
-            </button>
+            </div>
           ) : null}
-          {hasBlocks ? (
+          {hasBlocks && !showFolderEmptyRoom ? (
             <DocBlockStack
               ref={blockStackRef}
               blocks={normalizedBlocks}
               onBlocksChange={onBlocksChange}
-              focusBlockId={focusBlockId}
-              onFocusBlock={setFocusBlockId}
+              focusBlockId={isFolderSlashSurface ? null : focusBlockId}
+              onFocusBlock={isFolderSlashSurface ? undefined : setFocusBlockId}
               bodyPlaceholder={bodyPlaceholder}
               continuationPlaceholder={t("canvas.linkedContinuationPlaceholder")}
               onBodyKeyDown={onBodyKeyDown}
@@ -969,8 +948,10 @@ export function DocDocumentBox({
               slashCommands={slashCommands}
               slashGhostHints={slashGhostHints}
               folderViewMode={folderViewMode}
+              folderIndexMode={isFolderSlashSurface}
+              allowShredDrag={isFolderSlashSurface && contentFocusMode}
             />
-          ) : (
+          ) : !isFolderSlashSurface ? (
             <div
               className={
                 "doc-body-field-wrap"
@@ -995,7 +976,7 @@ export function DocDocumentBox({
                 ghostHints={slashGhostHints}
               />
             </div>
-          )}
+          ) : null}
         </div>
         {!contentFocusMode ? (
           <button
@@ -1024,6 +1005,11 @@ export function DocDocumentBox({
           createDocumentMode={isFolderSlashSurface && typeof onCreateDocumentInFolder === "function"}
           onCreateDocument={onCreateDocumentInFolder}
         />
+        {isFolderSlashSurface
+          && contentFocusMode
+          && typeof onCreateDocumentInFolder === "function" ? (
+          <FolderFileShredder onShred={onShredFolderNode} />
+        ) : null}
       </div>
 
       <div className="doc-new-actions">

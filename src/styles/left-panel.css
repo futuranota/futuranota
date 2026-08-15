@@ -6326,6 +6326,10 @@
   scrollbar-color: rgb(22, 26, 29) rgb(22, 26, 29);
 }
 
+.doc-new-content-box:has(.folder-file-shredder) .doc-new-content-scroll {
+  padding-bottom: 54px;
+}
+
 /* Click-to-write empty-folder layer: covers placeholder until first interaction. */
 .doc-folder-empty-room {
   position: absolute;
@@ -6339,8 +6343,9 @@
   padding: 0;
   border: 0;
   background: var(--doc-body-track, #151515);
-  cursor: text;
+  cursor: default;
   appearance: none;
+  pointer-events: none;
 }
 
 .doc-folder-empty-room:focus-visible {
@@ -6871,6 +6876,10 @@ body.doc-content-resizing * {
 
 .doc-h1-block__header--multiline .doc-query-handle {
   margin-top: calc(2px + (17px * 1.15 - 12px) / 2);
+}
+
+.doc-h1-block__header--multiline .folder-file-shred-handle {
+  margin-top: calc(2px + (17px * 1.15 - 22px) / 2);
 }
 
 .doc-h1-block__header--no-handle.doc-h1-block__header--multiline {
@@ -8784,6 +8793,85 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
+/* Idle: no layout width so title keeps its index. Hover/drag: expand + push. */
+.folder-file-shred-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  cursor: grab;
+  color: #8a8d91;
+  transition:
+    width 120ms ease,
+    margin 120ms ease,
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.doc-h1-block__header:hover .folder-file-shred-handle,
+.doc-todo-plan__header:hover .folder-file-shred-handle,
+.folder-file-shred-handle.is-dragging,
+.folder-file-shred-handle:focus-visible {
+  width: 22px;
+  margin: 0 2px 0 0;
+  opacity: 1;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.folder-file-shred-handle:hover,
+.folder-file-shred-handle.is-dragging,
+.folder-file-shred-handle:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  color: #a4a7ab;
+  outline: none;
+}
+
+.folder-file-shred-handle:active,
+.folder-file-shred-handle.is-dragging {
+  cursor: grabbing;
+}
+
+.folder-file-shred-handle__icon {
+  display: flex;
+  width: 8px;
+  height: 12px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.folder-file-shred-handle__icon svg {
+  display: block;
+  width: 8px;
+  height: 12px;
+}
+
+/* Description excerpt: gray mesh across the full text on hover (visual only). */
+.doc-linked-macro-desc .folder-doc-row__desc-excerpt {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.doc-linked-macro-desc .folder-doc-row__desc-excerpt:hover {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+  background-size: 6px 6px;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
 .doc-linked-macro-desc .folder-doc-row__continue {
   font-size: 9px;
   font-weight: 700;
@@ -8835,6 +8923,12 @@ body.doc-content-resizing * {
   min-height: 22px;
   padding: 2px 0;
   margin: 0;
+}
+
+.doc-h1-block__input--readonly {
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
 }
 
 .doc-h1-block__slash-wrap {
@@ -9711,6 +9805,35 @@ body.doc-content-resizing * {
   right: 12px;
   bottom: 12px;
   z-index: 24;
+}
+
+.folder-file-shredder {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 24;
+  width: 64px;
+  height: 46px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.folder-file-shredder__img {
+  display: block;
+  width: 64px;
+  height: auto;
+  max-height: 46px;
+  object-fit: contain;
+  object-position: left bottom;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .doc-slash-command-picker--pad {

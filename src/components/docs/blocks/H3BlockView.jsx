@@ -12,6 +12,7 @@ export function H3BlockView({
   onFocus,
   placeholder = "Heading 3",
   ghostHints,
+  readOnly = false,
 }) {
   return (
     <div className="doc-h3-block">
@@ -29,6 +30,7 @@ export function H3BlockView({
         ariaLabel="Heading 3"
         multiline
         ghostHints={ghostHints}
+        readOnly={readOnly}
       />
     </div>
   );

@@ -12,6 +12,7 @@ export function H2BlockView({
   onFocus,
   placeholder = "Heading 2",
   ghostHints,
+  readOnly = false,
 }) {
   return (
     <div className="doc-h2-block">
@@ -29,6 +30,7 @@ export function H2BlockView({
         ariaLabel="Heading 2"
         multiline
         ghostHints={ghostHints}
+        readOnly={readOnly}
       />
     </div>
   );

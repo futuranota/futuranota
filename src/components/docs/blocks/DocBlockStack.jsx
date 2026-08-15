@@ -194,6 +194,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   slashCommands = DOCUMENT_SLASH_COMMANDS,
   slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
   folderViewMode = null,
+  folderIndexMode = false,
+  allowShredDrag = false,
 }, ref) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -1681,8 +1683,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           }
         }
 
-        if (block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByLinkedMacroNode(blocks, index)) {
+        if (block.type === DOC_BLOCK_TYPES.TEXT && (
+          folderIndexMode || isTextHiddenByLinkedMacroNode(blocks, index)
+        )) {
           return null;
+        }
+
+        if (folderIndexMode) {
+          const isLinkedDoc = (
+            (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+            && isDocBlockLinkedToNode(block)
+          );
+          if (!isLinkedDoc) return null;
         }
 
         return (
@@ -1720,15 +1732,19 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   && blockLinksEnabled(block)
                   && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
-                ghostHints={slashGhostHints}
+                ghostHints={folderIndexMode ? undefined : slashGhostHints}
                 titleAddon={
                   isDocBlockLinkedToNode(block)
                   && linkedBlockUsesStoryPresentation(block, folderViewMode) ? (
                     <LinkedMacronodeStatusBadge nodeId={block.nodeId} />
                   ) : null
                 }
+                readOnly={folderIndexMode}
+                shredNodeId={
+                  allowShredDrag && isDocBlockLinkedToNode(block) ? block.nodeId : null
+                }
                 onFocus={() => {
-                  if (collapsedPadWriteByOwnerId[block.id]) return;
+                  if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
                 }}
                 onQueryHandleClick={() => handleQueryHandleClick(index)}
@@ -1750,10 +1766,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.title || ""}
               placeholder="Heading 2"
               linksEnabled={false}
-              ghostHints={slashGhostHints}
+              ghostHints={folderIndexMode ? undefined : slashGhostHints}
+              readOnly={folderIndexMode}
               onChange={(title) => updateAt(index, { title })}
               onFocus={() => {
-                if (collapsedPadWriteByOwnerId[block.id]) return;
+                if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);
               }}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
@@ -1765,10 +1782,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.title || ""}
               placeholder="Heading 3"
               linksEnabled={false}
-              ghostHints={slashGhostHints}
+              ghostHints={folderIndexMode ? undefined : slashGhostHints}
+              readOnly={folderIndexMode}
               onChange={(title) => updateAt(index, { title })}
               onFocus={() => {
-                if (collapsedPadWriteByOwnerId[block.id]) return;
+                if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);
               }}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
@@ -2261,11 +2279,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   ) : null
                 }
                 onFocus={() => {
-                  if (collapsedPadWriteByOwnerId[block.id]) return;
+                  if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
                 }}
                 items={block.items || []}
-                focusItemId={todoFocusItemId}
+                focusItemId={folderIndexMode ? null : todoFocusItemId}
                 onItemsChange={(items) => updateAt(index, { items })}
                 onItemKeyDown={(itemIndex, e) => handleTodoItemKeyDown(index, itemIndex, e)}
                 onAddItem={() => {
@@ -2276,8 +2294,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onDragHandlePointerDown={handleDragPointerDown}
                 onQueryHandleClick={() => handleQueryHandleClick(index)}
                 onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+                readOnly={folderIndexMode}
+                shredNodeId={
+                  allowShredDrag && isDocBlockLinkedToNode(block) ? block.nodeId : null
+                }
                 onDetachFromNode={
-                  isDocBlockLinkedToNode(block) && onDetachFromNode
+                  !folderIndexMode && isDocBlockLinkedToNode(block) && onDetachFromNode
                     ? () => onDetachFromNode(index)
                     : null
                 }

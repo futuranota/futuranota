@@ -503,6 +503,8 @@ export const messages = {
       deleteNodeTitle: "Delete document",
       deleteNodeConfirm:
         "Delete \"{name}\"? This cannot be undone.",
+      fileShredderLabel: "Drop a document to delete",
+      fileShredderGrab: "Drag to the shredder",
       deleteCategoryTitle: "Delete category",
       productName: "Product's name",
       documentTitle: "Document title",
@@ -1197,6 +1199,8 @@ export const messages = {
       docStatusPastDue: "Vencido",
       /* Department UI copy stays English (product labels); keep EN for overlay + cards. */
       clickFolderDocuments: "Documents",
+      fileShredderLabel: "Suelta un documento para eliminarlo",
+      fileShredderGrab: "Arrastra a la trituradora",
       departments: "Departments",
       departmentsTitle: "Departments",
       departmentsDashboard: "Department fields",

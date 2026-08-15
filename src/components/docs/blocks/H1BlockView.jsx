@@ -13,6 +13,8 @@ export function H1BlockView({
   placeholder = "Create a title",
   ghostHints,
   titleAddon = null,
+  readOnly = false,
+  shredNodeId = null,
 }) {
   return (
     <div className="doc-h1-block">
@@ -31,6 +33,8 @@ export function H1BlockView({
         multiline
         ghostHints={ghostHints}
         titleAddon={titleAddon}
+        readOnly={readOnly}
+        shredNodeId={shredNodeId}
       />
     </div>
   );
