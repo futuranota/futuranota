@@ -1733,7 +1733,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 queryEnabled={Boolean(block.queryEnabled)}
                 nodeLinkColor={blockLinkColor(block)}
                 linksEnabled={
-                  Boolean(block.macronodeHeading)
+                  !folderIndexMode
+                  && Boolean(block.macronodeHeading)
                   && blockLinksEnabled(block)
                   && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
@@ -1746,8 +1747,14 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 }
                 readOnly={folderIndexMode}
                 shredNodeId={
-                  allowShredDrag && isDocBlockLinkedToNode(block) ? block.nodeId : null
+                  folderIndexMode && isDocBlockLinkedToNode(block) ? block.nodeId : null
                 }
+                onOpenFile={
+                  folderIndexMode && isDocBlockLinkedToNode(block)
+                    ? () => handleQueryHandleClick(index)
+                    : null
+                }
+                shredDragEnabled={allowShredDrag}
                 onFocus={() => {
                   if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
@@ -2274,7 +2281,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 queryEnabled={Boolean(block.queryEnabled)}
                 nodeLinkColor={blockLinkColor(block)}
                 linksEnabled={
-                  blockLinksEnabled(block)
+                  !folderIndexMode
+                  && blockLinksEnabled(block)
                   && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
                 titleAddon={
@@ -2301,8 +2309,14 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
                 readOnly={folderIndexMode}
                 shredNodeId={
-                  allowShredDrag && isDocBlockLinkedToNode(block) ? block.nodeId : null
+                  folderIndexMode && isDocBlockLinkedToNode(block) ? block.nodeId : null
                 }
+                onOpenFile={
+                  folderIndexMode && isDocBlockLinkedToNode(block)
+                    ? () => handleQueryHandleClick(index)
+                    : null
+                }
+                shredDragEnabled={allowShredDrag}
                 onDetachFromNode={
                   !folderIndexMode && isDocBlockLinkedToNode(block) && onDetachFromNode
                     ? () => onDetachFromNode(index)

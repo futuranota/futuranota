@@ -50,6 +50,8 @@ export function DocTodoPlanBlockView({
   titleAddon = null,
   readOnly = false,
   shredNodeId = null,
+  onOpenFile = null,
+  shredDragEnabled = true,
 }) {
   const titleEditable = listTitleEditable && !readOnly;
   const showMoveHandle = showDragHandle && !readOnly;
@@ -98,7 +100,13 @@ export function DocTodoPlanBlockView({
   return (
     <div className="doc-todo-plan">
       <div className="doc-todo-plan__header">
-        {shredNodeId ? <FolderFileShredHandle nodeId={shredNodeId} /> : null}
+        {shredNodeId ? (
+          <FolderFileShredHandle
+            nodeId={shredNodeId}
+            onOpen={onOpenFile}
+            dragEnabled={shredDragEnabled}
+          />
+        ) : null}
         {linksEnabled ? (
           <DocQueryHandleButton
             queryEnabled={queryEnabled}

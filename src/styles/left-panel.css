@@ -8776,7 +8776,7 @@ body.doc-content-resizing * {
 
 /* Folder index queue: 2 free description-line cells before the next file. */
 .doc-block-stack__item--folder-doc {
-  margin-bottom: calc(2 * var(--font-doc-size) * var(--font-doc-line-height));
+  margin-bottom: calc(1 * var(--font-doc-size) * var(--font-doc-line-height));
 }
 
 .doc-block-stack__item--folder-doc + .doc-block-stack__item--folder-doc {
@@ -8823,7 +8823,7 @@ body.doc-content-resizing * {
   opacity: 1;
   overflow: visible;
   pointer-events: auto;
-  cursor: grab;
+  cursor: pointer;
 }
 
 .folder-file-shred-handle:hover,

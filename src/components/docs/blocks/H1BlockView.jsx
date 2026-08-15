@@ -15,6 +15,8 @@ export function H1BlockView({
   titleAddon = null,
   readOnly = false,
   shredNodeId = null,
+  onOpenFile = null,
+  shredDragEnabled = true,
 }) {
   return (
     <div className="doc-h1-block">
@@ -35,6 +37,8 @@ export function H1BlockView({
         titleAddon={titleAddon}
         readOnly={readOnly}
         shredNodeId={shredNodeId}
+        onOpenFile={onOpenFile}
+        shredDragEnabled={shredDragEnabled}
       />
     </div>
   );

@@ -61,6 +61,8 @@ export function DocQueryHandleRow({
   titleAddon = null,
   readOnly = false,
   shredNodeId = null,
+  onOpenFile = null,
+  shredDragEnabled = true,
 }) {
   const inputRef = useRef(null);
 
@@ -108,7 +110,13 @@ export function DocQueryHandleRow({
 
   return (
     <div className={headerClass} onMouseDown={handleHeaderPointerDown}>
-      {shredNodeId ? <FolderFileShredHandle nodeId={shredNodeId} /> : null}
+      {shredNodeId ? (
+        <FolderFileShredHandle
+          nodeId={shredNodeId}
+          onOpen={onOpenFile}
+          dragEnabled={shredDragEnabled}
+        />
+      ) : null}
       {showQueryHandle ? (
         <DocQueryHandleButton
           queryEnabled={queryEnabled}

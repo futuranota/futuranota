@@ -35,7 +35,7 @@ Do not expose two open actions on the color-link model. Folder `viewMode` (`stor
 2. **Remove layers inside the open folder** (detach / empty-title delete) → strip the linked owner bundle from folder blocks, but **keep** the document under the folder in the left panel (`parentDocId` retained).
 
 ## Data
-- Excerpt from `node.content` **body** via `getNodeWritingExcerpt` / `getNodeWritingBodyPlainText` (max 260)
+- Excerpt from `node.content` **body** via `getNodeWritingExcerpt` / `getNodeWritingBodyPlainText` (max 120)
 - `continue reading` opens descriptive documents only
 - `mergeMissingLinkedOwnerBundles` + draft purge when node deleted from panel
 

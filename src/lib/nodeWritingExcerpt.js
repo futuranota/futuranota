@@ -3,7 +3,7 @@ import {
   parseNodeWritingBody,
 } from "./nodeInlineContent.js";
 
-export const NODE_WRITING_EXCERPT_MAX = 260;
+export const NODE_WRITING_EXCERPT_MAX = 120;
 
 /**
  * Collect plain readable text from writing blocks (skip vaults/images/media).

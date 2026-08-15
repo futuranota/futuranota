@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   beginFolderFileDrag,
@@ -27,26 +27,60 @@ if (typeof Image !== "undefined") getFileStickerDragImage();
 
 /**
  * Static file sticker beside a folder document title.
- * Always visible; hover paints gray mesh on the title. Drag shreds the doc.
+ * Click opens the document; drag (when enabled) shreds via the demoledor.
+ * Hover paints gray mesh on the title.
  */
-export function FolderFileShredHandle({ nodeId }) {
+export function FolderFileShredHandle({
+  nodeId,
+  onOpen = null,
+  dragEnabled = true,
+}) {
   const { t } = useI18n();
   const [dragging, setDragging] = useState(false);
+  const didDragRef = useRef(false);
   const id = String(nodeId || "").trim();
   if (!id) return null;
-  const label = t("sidebar.fileShredderGrab");
+
+  const canOpen = typeof onOpen === "function";
+  const canDrag = Boolean(dragEnabled);
+  const label = canOpen && canDrag
+    ? t("sidebar.fileShredderOpenOrDrag")
+    : canOpen
+      ? t("sidebar.fileShredderOpen")
+      : t("sidebar.fileShredderGrab");
 
   return (
     <span
       className={"folder-file-shred-handle" + (dragging ? " is-dragging" : "")}
-      draggable
+      draggable={canDrag}
       role="button"
       tabIndex={0}
       aria-label={label}
       title={label}
       onMouseDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (!canOpen) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        onOpen();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (didDragRef.current) {
+          didDragRef.current = false;
+          return;
+        }
+        if (canOpen) onOpen();
+      }}
       onDragStart={(event) => {
         event.stopPropagation();
+        if (!canDrag) {
+          event.preventDefault();
+          return;
+        }
+        didDragRef.current = true;
         writeFolderFileDragData(event.dataTransfer, id);
         beginFolderFileDrag(id);
         setDragging(true);
@@ -62,6 +96,10 @@ export function FolderFileShredHandle({ nodeId }) {
       onDragEnd={() => {
         setDragging(false);
         endFolderFileDrag();
+        // Keep didDragRef true until click is suppressed, then clear on next tick
+        window.setTimeout(() => {
+          didDragRef.current = false;
+        }, 0);
       }}
     >
       <img
