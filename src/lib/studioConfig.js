@@ -1,4 +1,6 @@
-/** Studio — aspect ratios, wizard phases, Vimeo CTA, session draft. */
+/** Studio — aspect ratios, wizard phases, mockups, Vimeo CTA, session draft. */
+
+import { normalizeWallColor } from "./folderLibraryNormalize.js";
 
 export const STUDIO_ASPECT_RATIOS = /** @type {const} */ ([
   "2:3",
@@ -10,15 +12,49 @@ export const STUDIO_ASPECT_RATIOS = /** @type {const} */ ([
 
 export const STUDIO_DEFAULT_ASPECT = "16:9";
 
-/** Wizard: link → ratio → wall → visualize */
+/** Wizard: link → ratio → mockup → wall → visualize */
 export const STUDIO_PHASES = /** @type {const} */ ([
   "embed",
   "aspect",
+  "mockup",
   "wall",
   "view",
 ]);
 
 export const STUDIO_DEFAULT_PHASE = "embed";
+
+export const STUDIO_MOCKUP_IDS = /** @type {const} */ (["none", "x", "x-zoom"]);
+
+export const STUDIO_DEFAULT_MOCKUP = "none";
+
+export const STUDIO_MOCKUPS = /** @type {const} */ ([
+  {
+    id: "none",
+    labelKey: "mockupNone",
+    defaultWall: "#151515",
+    defaultStroke: null,
+    defaultText: "#E7E9EA",
+    usesIdentity: false,
+  },
+  {
+    id: "x",
+    labelKey: "mockupX",
+    defaultWall: "#000000",
+    defaultStroke: "#191A1C",
+    defaultText: "#E7E9EA",
+    usesIdentity: true,
+  },
+  {
+    id: "x-zoom",
+    labelKey: "mockupXZoom",
+    defaultWall: "#000000",
+    defaultStroke: "#191A1C",
+    defaultText: "#E7E9EA",
+    usesIdentity: true,
+  },
+]);
+
+export const STUDIO_DEFAULT_TEXT_COLOR = "#E7E9EA";
 
 /** Official Vimeo signup for users without an account. */
 export const VIMEO_JOIN_URL = "https://vimeo.com/join";
@@ -39,7 +75,7 @@ export function normalizeStudioAspectRatio(value) {
 
 /**
  * @param {unknown} value
- * @returns {"embed"|"aspect"|"wall"|"view"}
+ * @returns {"embed"|"aspect"|"mockup"|"wall"|"view"}
  */
 export function normalizeStudioPhase(value) {
   const raw = String(value || "").trim();
@@ -47,6 +83,112 @@ export function normalizeStudioPhase(value) {
     return /** @type {typeof STUDIO_PHASES[number]} */ (raw);
   }
   return STUDIO_DEFAULT_PHASE;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {"none"|"x"|"x-zoom"}
+ */
+export function normalizeStudioMockupId(value) {
+  const raw = String(value || "").trim();
+  if (STUDIO_MOCKUP_IDS.includes(/** @type {typeof STUDIO_MOCKUP_IDS[number]} */ (raw))) {
+    return /** @type {typeof STUDIO_MOCKUP_IDS[number]} */ (raw);
+  }
+  return STUDIO_DEFAULT_MOCKUP;
+}
+
+/**
+ * @param {string} mockupId
+ */
+export function studioMockupUsesChrome(mockupId) {
+  const id = normalizeStudioMockupId(mockupId);
+  return id === "x" || id === "x-zoom";
+}
+
+/**
+ * Zoom post layout with temporary logo / name / description slots.
+ * @param {string} mockupId
+ */
+export function studioMockupUsesIdentity(mockupId) {
+  return getStudioMockup(mockupId).usesIdentity === true;
+}
+
+/**
+ * Max logo data-URL size for session draft (~400 KB).
+ */
+export const STUDIO_LOGO_MAX_BYTES = 400 * 1024;
+
+/**
+ * @param {string} mockupId
+ * @returns {(typeof STUDIO_MOCKUPS)[number]}
+ */
+export function getStudioMockup(mockupId) {
+  const id = normalizeStudioMockupId(mockupId);
+  return STUDIO_MOCKUPS.find((m) => m.id === id) || STUDIO_MOCKUPS[0];
+}
+
+/**
+ * Defaults applied when the user picks a mockup (wall + video frame stroke).
+ * @param {string} mockupId
+ */
+export function studioMockupColorDefaults(mockupId) {
+  const m = getStudioMockup(mockupId);
+  return {
+    mockupId: m.id,
+    wallColor: m.defaultWall,
+    frameStroke: m.defaultStroke,
+    draftTextColor: m.defaultText || STUDIO_DEFAULT_TEXT_COLOR,
+  };
+}
+
+/**
+ * Portrait ratios → X zoom "zoom" (video only). Landscape / 1:1 → "post".
+ * @param {string} aspectRatio
+ * @returns {boolean}
+ */
+export function studioAspectIsPortrait(aspectRatio) {
+  const id = normalizeStudioAspectRatio(aspectRatio);
+  return id === "9:16" || id === "2:3";
+}
+
+/**
+ * @param {string} aspectRatio
+ * @returns {"zoom"|"post"}
+ */
+export function studioXZoomLayoutMode(aspectRatio) {
+  return studioAspectIsPortrait(aspectRatio) ? "zoom" : "post";
+}
+
+/**
+ * @param {string|null|undefined} textColor
+ * @param {string} mockupId
+ * @returns {string}
+ */
+export function resolveStudioTextColor(textColor, mockupId) {
+  const normalized = normalizeWallColor(textColor);
+  if (normalized) return normalized;
+  return getStudioMockup(mockupId).defaultText || STUDIO_DEFAULT_TEXT_COLOR;
+}
+
+/**
+ * Normalize stroke hex (same rules as wall) or null.
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function normalizeStudioFrameStroke(value) {
+  return normalizeWallColor(value);
+}
+
+/**
+ * Resolve stroke for the video hole; fallback to mockup default when set.
+ * @param {string|null|undefined} frameStroke
+ * @param {string} mockupId
+ * @returns {string|null}
+ */
+export function resolveStudioFrameStroke(frameStroke, mockupId) {
+  const normalized = normalizeStudioFrameStroke(frameStroke);
+  if (normalized) return normalized;
+  return getStudioMockup(mockupId).defaultStroke;
 }
 
 /**
@@ -95,8 +237,14 @@ export function studioAspectLabelKey(aspectRatio) {
  *   embedSrc: string,
  *   videoId: string,
  *   wallColor: string | null,
+ *   frameStroke: string | null,
+ *   mockupId: typeof STUDIO_MOCKUP_IDS[number],
  *   aspectRatio: typeof STUDIO_ASPECT_RATIOS[number],
  *   phase: typeof STUDIO_PHASES[number],
+ *   draftDisplayName: string,
+ *   draftDescription: string,
+ *   draftLogoDataUrl: string | null,
+ *   draftTextColor: string | null,
  * }} StudioSessionDraft
  */
 
@@ -107,8 +255,14 @@ export function emptyStudioSessionDraft() {
     embedSrc: "",
     videoId: "",
     wallColor: null,
+    frameStroke: null,
+    mockupId: STUDIO_DEFAULT_MOCKUP,
     aspectRatio: STUDIO_DEFAULT_ASPECT,
     phase: STUDIO_DEFAULT_PHASE,
+    draftDisplayName: "",
+    draftDescription: "",
+    draftLogoDataUrl: null,
+    draftTextColor: null,
   };
 }
 
@@ -122,15 +276,34 @@ export function normalizeStudioSessionDraft(raw) {
   const o = /** @type {Record<string, unknown>} */ (raw);
   const embedSrc = typeof o.embedSrc === "string" ? o.embedSrc : "";
   let phase = normalizeStudioPhase(o.phase);
-  // If we have an embed but phase was never set, stay on embed unless saved as view.
   if (!embedSrc && phase !== "embed") phase = "embed";
+  const mockupId = normalizeStudioMockupId(o.mockupId);
+  const logo = typeof o.draftLogoDataUrl === "string" && o.draftLogoDataUrl.startsWith("data:")
+    ? o.draftLogoDataUrl
+    : null;
   return {
     rawInput: typeof o.rawInput === "string" ? o.rawInput : "",
     embedSrc,
     videoId: typeof o.videoId === "string" ? o.videoId : "",
-    wallColor: typeof o.wallColor === "string" && o.wallColor ? o.wallColor : null,
+    wallColor: typeof o.wallColor === "string" && o.wallColor
+      ? normalizeWallColor(o.wallColor)
+      : null,
+    frameStroke: typeof o.frameStroke === "string" && o.frameStroke
+      ? normalizeStudioFrameStroke(o.frameStroke)
+      : null,
+    mockupId,
     aspectRatio: normalizeStudioAspectRatio(o.aspectRatio),
     phase,
+    draftDisplayName: typeof o.draftDisplayName === "string"
+      ? o.draftDisplayName.slice(0, 80)
+      : "",
+    draftDescription: typeof o.draftDescription === "string"
+      ? o.draftDescription.slice(0, 280)
+      : "",
+    draftLogoDataUrl: logo,
+    draftTextColor: typeof o.draftTextColor === "string" && o.draftTextColor
+      ? normalizeWallColor(o.draftTextColor)
+      : null,
   };
 }
 

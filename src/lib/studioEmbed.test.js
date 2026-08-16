@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { parseStudioVimeoInput } from "./studioEmbed.js";
 import {
   normalizeStudioAspectRatio,
+  normalizeStudioMockupId,
   normalizeStudioPhase,
   studioAspectCss,
+  studioAspectIsPortrait,
+  studioMockupColorDefaults,
+  studioXZoomLayoutMode,
 } from "./studioConfig.js";
 
 describe("parseStudioVimeoInput", () => {
@@ -47,7 +51,55 @@ describe("studioPhase", () => {
     expect(normalizeStudioPhase("nope")).toBe("embed");
   });
 
-  it("keeps view", () => {
+  it("keeps mockup and view", () => {
+    expect(normalizeStudioPhase("mockup")).toBe("mockup");
     expect(normalizeStudioPhase("view")).toBe("view");
+  });
+});
+
+describe("studioMockup", () => {
+  it("defaults unknown to none", () => {
+    expect(normalizeStudioMockupId("ig")).toBe("none");
+  });
+
+  it("applies X color defaults", () => {
+    expect(studioMockupColorDefaults("x")).toEqual({
+      mockupId: "x",
+      wallColor: "#000000",
+      frameStroke: "#191A1C",
+      draftTextColor: "#E7E9EA",
+    });
+  });
+
+  it("applies X zoom color defaults", () => {
+    expect(studioMockupColorDefaults("x-zoom")).toEqual({
+      mockupId: "x-zoom",
+      wallColor: "#000000",
+      frameStroke: "#191A1C",
+      draftTextColor: "#E7E9EA",
+    });
+  });
+
+  it("applies Plano color defaults", () => {
+    expect(studioMockupColorDefaults("none")).toEqual({
+      mockupId: "none",
+      wallColor: "#151515",
+      frameStroke: null,
+      draftTextColor: "#E7E9EA",
+    });
+  });
+});
+
+describe("studioXZoomLayoutMode", () => {
+  it("uses zoom for portrait", () => {
+    expect(studioAspectIsPortrait("9:16")).toBe(true);
+    expect(studioXZoomLayoutMode("9:16")).toBe("zoom");
+    expect(studioXZoomLayoutMode("2:3")).toBe("zoom");
+  });
+
+  it("uses post for landscape and square", () => {
+    expect(studioXZoomLayoutMode("16:9")).toBe("post");
+    expect(studioXZoomLayoutMode("3:2")).toBe("post");
+    expect(studioXZoomLayoutMode("1:1")).toBe("post");
   });
 });

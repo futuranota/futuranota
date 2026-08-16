@@ -1,5 +1,5 @@
 ---
-description: Studio — Vimeo brand video stage (visualize, wall, aspect). Not YouTube notes.
+description: Studio — Vimeo brand video stage (visualize, wall, aspect, mockups). Not YouTube notes.
 globs:
   - src/components/studio/**
   - src/lib/studio*.js
@@ -13,19 +13,27 @@ Canonical brief: `.cursor/saved/studio/BRIEF.md`.
 
 ## Product
 
-- **Studio** = visualize brand video on a wall (Vimeo embed). **Not** note-taking.
+- **Studio** = visualize brand video on a wall (Vimeo embed) + optional low-fi mockup chrome. **Not** note-taking.
 - **YouTube** (Intel) = embed + notes until that panel is retired.
 - Folder-library video **uploads** are transitional; Studio is the long-term host path.
 
 ## v1
 
-- Intel tab **Studio** → overlay wizard: **embed → aspect → wall → view**.
-- Vimeo URL only; ratios `2:3` | `3:2` | `1:1` | `9:16` | `16:9`; wall color; **Visualizar**.
+- Wizard: **embed → aspect → mockup → wall → view**.
+- Mockups: **Plano** | **X** (feed + identity) | **X zoom** (post + optional temp logo/name/desc).
+- Selector shows **layout thumbs only** (no name labels on cards).
+- Selecting a mockup applies default `wallColor` / `frameStroke` / `draftTextColor`.
+- **Wall:** inspector panel (compact wells + hex) — **no** mini wall color strip. Identity for X and X zoom = session only.
+- **X feed View:** logo + name + **Ad** on media (no tabs). Description + video. Stage never scrolls.
+- **X zoom View:** portrait ratios → video zoom (no chrome); landscape/1:1 → full post (logo + texts).
+- Ratio stays user-chosen (not forced by mockup).
 - CTA **Vimeo** → `https://vimeo.com/join`.
-- No credits, no NoteTaker. Session draft includes `phase`.
+- No credits, no NoteTaker. Session draft includes `phase`, `mockupId`, `frameStroke`, identity fields.
 
 ## Rules
 
-- Base surface `#151515`.
+- Base panel `#151515`.
 - Reuse wall helpers from folder library normalize.
+- Mockup chrome (nav/rail/actions): **shapes only**. Post identity may show session text.
+- **No scrolling in Visualize:** any mockup / frame must fit the stage (`overflow: hidden`). Never add chrome (tabs, extra bars) that forces scroll — the visual stays fully in view.
 - Do not invent embeds for Gina (LIVE CORPUS ONLY).
