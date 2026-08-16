@@ -1,14 +1,19 @@
 import { useDocsStore } from "../stores/docsStore.js";
 import {
   buildFolderLibraryItem,
+  inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryItems,
 } from "./folderLibraryNormalize.js";
 
 export {
   FOLDER_LIBRARY_CATEGORIES,
+  FOLDER_LIBRARY_FILTER_TABS,
   buildFolderLibraryItem,
+  folderLibraryItemMatchesFilter,
+  inferAttachmentKind,
   normalizeFolderLibraryCategory,
+  normalizeFolderLibraryFilterTab,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
 } from "./folderLibraryNormalize.js";
@@ -28,7 +33,7 @@ export function listFolderLibraryItems(folderId) {
 
 /**
  * @param {string} folderId
- * @param {{ tag?: string, description?: string, category?: string, mediaUrl?: string|null }} input
+ * @param {object} input
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
  */
 export function createFolderLibraryItem(folderId, input = {}) {
@@ -45,7 +50,7 @@ export function createFolderLibraryItem(folderId, input = {}) {
 /**
  * @param {string} folderId
  * @param {string} itemId
- * @param {{ tag?: string, description?: string, category?: string, mediaUrl?: string|null }} patch
+ * @param {object} patch
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
  */
 export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
@@ -61,11 +66,35 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
   const nextTag = patch.tag !== undefined ? String(patch.tag).trim() : current.tag;
   if (!nextTag) return null;
 
+  const category = patch.category !== undefined
+    ? normalizeFolderLibraryCategory(patch.category)
+    : current.category;
+
   const mediaUrl = patch.mediaUrl !== undefined
     ? (typeof patch.mediaUrl === "string" && patch.mediaUrl.trim()
       ? patch.mediaUrl.trim()
       : null)
     : current.mediaUrl;
+
+  const attachmentUrl = patch.attachmentUrl !== undefined
+    ? (typeof patch.attachmentUrl === "string" && patch.attachmentUrl.trim()
+      ? patch.attachmentUrl.trim()
+      : null)
+    : current.attachmentUrl;
+
+  const attachmentName = patch.attachmentName !== undefined
+    ? (typeof patch.attachmentName === "string" && patch.attachmentName.trim()
+      ? patch.attachmentName.trim()
+      : null)
+    : (attachmentUrl ? current.attachmentName : null);
+
+  const attachmentKind = attachmentUrl
+    ? (patch.attachmentKind !== undefined
+      ? (typeof patch.attachmentKind === "string" && patch.attachmentKind.trim()
+        ? patch.attachmentKind.trim().toLowerCase()
+        : inferAttachmentKind(attachmentName || "", ""))
+      : (current.attachmentKind || inferAttachmentKind(attachmentName || "", "")))
+    : null;
 
   const next = {
     ...current,
@@ -73,11 +102,14 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
     description: patch.description !== undefined
       ? String(patch.description).trim()
       : current.description,
-    category: patch.category !== undefined
-      ? normalizeFolderLibraryCategory(patch.category)
-      : current.category,
+    category,
     mediaUrl,
-    mediaKind: mediaUrl ? "image" : null,
+    mediaKind: mediaUrl
+      ? (category === "video" || current.mediaKind === "video" ? "video" : "image")
+      : null,
+    attachmentUrl,
+    attachmentName: attachmentUrl ? attachmentName : null,
+    attachmentKind,
     updatedAt: new Date().toISOString(),
   };
 

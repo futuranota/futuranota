@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
-import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
+import {
+  convertAndUploadDocImage,
+  uploadDocAttachmentFile,
+} from "../../lib/docImageStorage.js";
+import { generateId } from "../../lib/ids.js";
 import {
   FOLDER_LIBRARY_CATEGORIES,
   createFolderLibraryItem,
@@ -14,16 +18,18 @@ const CATEGORY_LABEL_KEYS = {
   image: "doc.library.categoryImage",
   pdf: "doc.library.categoryPdf",
   skill: "doc.library.categorySkill",
+  video: "doc.library.categoryVideo",
 };
 
 /**
- * New / edit library ficha modal — metadata-first; media optional.
+ * New / edit library ficha modal — image (WebP) or skill (attachment).
  */
 export function FolderLibraryElementModal({
   folderId,
   item = null,
-  /** When creating, seed category from the library type tab. */
   defaultCategory = "auto",
+  /** When true, category select is hidden (chosen via [+] menu). */
+  lockCategory = false,
   onClose,
   onSaved,
 }) {
@@ -37,10 +43,16 @@ export function FolderLibraryElementModal({
   const [description, setDescription] = useState(item?.description || "");
   const [category, setCategory] = useState(initialCategory);
   const [mediaUrl, setMediaUrl] = useState(item?.mediaUrl || null);
+  const [attachmentUrl, setAttachmentUrl] = useState(item?.attachmentUrl || null);
+  const [attachmentName, setAttachmentName] = useState(item?.attachmentName || null);
+  const [attachmentKind, setAttachmentKind] = useState(item?.attachmentKind || null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  const isSkillLike = category === "skill" || category === "pdf";
+  const isImageLike = category === "image" || (!isSkillLike && category !== "video");
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -55,6 +67,28 @@ export function FolderLibraryElementModal({
   const handleFiles = async (files) => {
     const file = files?.[0];
     if (!file) return;
+
+    if (isSkillLike) {
+      setUploading(true);
+      setError("");
+      try {
+        const uploaded = await uploadDocAttachmentFile(file, {
+          fileId: generateId("LIBATT"),
+          scopeId: folderId || "folder-lib",
+          fileName: file.name,
+        });
+        setAttachmentUrl(uploaded.url);
+        setAttachmentName(uploaded.name);
+        setAttachmentKind(uploaded.kind);
+      } catch (err) {
+        setError(err?.message || t("doc.library.uploadFailed"));
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     if (!file.type.startsWith("image/")) {
       setError(t("doc.library.invalidImage"));
       return;
@@ -94,8 +128,14 @@ export function FolderLibraryElementModal({
         tag: trimmed,
         description,
         category,
-        mediaUrl,
+        mediaUrl: isSkillLike ? null : mediaUrl,
+        attachmentUrl: isSkillLike ? attachmentUrl : (item?.attachmentUrl || null),
+        attachmentName: isSkillLike ? attachmentName : (item?.attachmentName || null),
+        attachmentKind: isSkillLike ? attachmentKind : (item?.attachmentKind || null),
       };
+      if (isSkillLike) {
+        payload.mediaUrl = null;
+      }
       const saved = editing
         ? updateFolderLibraryItem(folderId, item.id, payload)
         : createFolderLibraryItem(folderId, payload);
@@ -109,6 +149,20 @@ export function FolderLibraryElementModal({
       setSaving(false);
     }
   };
+
+  const descPlaceholder = isSkillLike
+    ? t("doc.library.skillDescriptionPlaceholder")
+    : t("doc.library.descriptionPlaceholder");
+
+  const uploadTitle = isSkillLike
+    ? (uploading ? t("doc.library.uploading") : t("doc.library.uploadAttachmentTitle"))
+    : (uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle"));
+
+  const uploadHint = isSkillLike
+    ? t("doc.library.uploadAttachmentHint")
+    : t("doc.library.uploadHint");
+
+  const hasUploadPreview = isSkillLike ? Boolean(attachmentUrl) : Boolean(mediaUrl);
 
   return createPortal(
     <div
@@ -126,7 +180,13 @@ export function FolderLibraryElementModal({
       <div className="folder-library-element-modal">
         <header className="folder-library-element-modal__head">
           <h2 className="folder-library-element-modal__title">
-            {editing ? t("doc.library.editTitle") : t("doc.library.newTitle")}
+            {editing
+              ? t("doc.library.editTitle")
+              : (isSkillLike
+                ? t("doc.library.newSkillTitle")
+                : category === "video"
+                  ? t("doc.library.newVideoTitle")
+                  : t("doc.library.newImageTitle"))}
           </h2>
           <button
             type="button"
@@ -153,30 +213,36 @@ export function FolderLibraryElementModal({
             </label>
 
             <label className="folder-library-element-modal__field">
-              <span className="folder-library-element-modal__label">{t("doc.library.descriptionLabel")}</span>
+              <span className="folder-library-element-modal__label">
+                {isSkillLike
+                  ? t("doc.library.skillDescriptionLabel")
+                  : t("doc.library.descriptionLabel")}
+              </span>
               <textarea
                 className="folder-library-element-modal__textarea"
                 value={description}
-                placeholder={t("doc.library.descriptionPlaceholder")}
+                placeholder={descPlaceholder}
                 rows={5}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </label>
 
-            <label className="folder-library-element-modal__field">
-              <span className="folder-library-element-modal__label">{t("doc.library.categoryLabel")}</span>
-              <select
-                className="folder-library-element-modal__select"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {FOLDER_LIBRARY_CATEGORIES.map((id) => (
-                  <option key={id} value={id}>
-                    {t(CATEGORY_LABEL_KEYS[id])}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!lockCategory ? (
+              <label className="folder-library-element-modal__field">
+                <span className="folder-library-element-modal__label">{t("doc.library.categoryLabel")}</span>
+                <select
+                  className="folder-library-element-modal__select"
+                  value={category}
+                  onChange={(e) => setCategory(normalizeFolderLibraryCategory(e.target.value))}
+                >
+                  {FOLDER_LIBRARY_CATEGORIES.map((id) => (
+                    <option key={id} value={id}>
+                      {t(CATEGORY_LABEL_KEYS[id] || CATEGORY_LABEL_KEYS.auto)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
 
           <div className="folder-library-element-modal__media">
@@ -185,10 +251,13 @@ export function FolderLibraryElementModal({
               className={
                 "folder-library-element-modal__drop"
                 + (dragOver ? " is-dragover" : "")
-                + (mediaUrl ? " has-media" : "")
+                + (hasUploadPreview ? " has-media" : "")
               }
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || category === "video"}
+              onClick={() => {
+                if (category === "video") return;
+                fileInputRef.current?.click();
+              }}
               onDragEnter={(e) => {
                 e.preventDefault();
                 setDragOver(true);
@@ -201,10 +270,20 @@ export function FolderLibraryElementModal({
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOver(false);
+                if (category === "video") return;
                 handleFiles(e.dataTransfer?.files);
               }}
             >
-              {mediaUrl ? (
+              {isSkillLike && attachmentUrl ? (
+                <span className="folder-library-element-modal__attachment">
+                  <span className="folder-library-element-modal__attachment-kind">
+                    {(attachmentKind || "FILE").toUpperCase()}
+                  </span>
+                  <span className="folder-library-element-modal__attachment-name">
+                    {attachmentName || t("doc.library.attachmentReady")}
+                  </span>
+                </span>
+              ) : mediaUrl && isImageLike ? (
                 <img
                   className="folder-library-element-modal__preview"
                   src={mediaUrl}
@@ -214,15 +293,28 @@ export function FolderLibraryElementModal({
                 <>
                   <span className="folder-library-element-modal__plus" aria-hidden>+</span>
                   <span className="folder-library-element-modal__upload-title">
-                    {uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle")}
+                    {category === "video" ? t("doc.library.videoUploadLater") : uploadTitle}
                   </span>
                   <span className="folder-library-element-modal__upload-hint">
-                    {t("doc.library.uploadHint")}
+                    {category === "video" ? t("doc.library.videoUploadLaterHint") : uploadHint}
                   </span>
                 </>
               )}
             </button>
-            {mediaUrl ? (
+            {isSkillLike && attachmentUrl ? (
+              <button
+                type="button"
+                className="folder-library-element-modal__remove-media"
+                onClick={() => {
+                  setAttachmentUrl(null);
+                  setAttachmentName(null);
+                  setAttachmentKind(null);
+                }}
+              >
+                {t("doc.library.removeAttachment")}
+              </button>
+            ) : null}
+            {!isSkillLike && mediaUrl ? (
               <button
                 type="button"
                 className="folder-library-element-modal__remove-media"
@@ -234,7 +326,7 @@ export function FolderLibraryElementModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={isSkillLike ? undefined : "image/*"}
               hidden
               onChange={(e) => handleFiles(e.target.files)}
             />

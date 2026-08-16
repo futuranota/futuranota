@@ -1,68 +1,63 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import {
-  normalizeFolderLibraryCategory,
+  folderLibraryItemMatchesFilter,
+  normalizeFolderLibraryFilterTab,
   normalizeFolderLibraryItems,
   removeFolderLibraryItem,
 } from "../../lib/folderLibrary.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
+import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
+import { FolderLibrarySkillDetail } from "./FolderLibrarySkillDetail.jsx";
 
-/** Primary tabs first; Auto last for uncategorized / legacy. */
-const TYPE_TABS = ["image", "pdf", "skill", "auto"];
+const FILTER_TABS = [
+  { id: "all", labelKey: "doc.library.tabAll" },
+  { id: "image", labelKey: "doc.library.tabImages" },
+  { id: "video", labelKey: "doc.library.tabVideos" },
+  { id: "skill", labelKey: "doc.library.tabSkills" },
+];
 
-const CATEGORY_LABEL_KEYS = {
-  auto: "doc.library.categoryAuto",
-  image: "doc.library.categoryImage",
-  pdf: "doc.library.categoryPdf",
-  skill: "doc.library.categorySkill",
-};
+const CREATE_TYPES = [
+  { id: "skill", labelKey: "doc.library.createSkill" },
+  { id: "image", labelKey: "doc.library.createImage" },
+  { id: "video", labelKey: "doc.library.createVideo" },
+];
 
 const FILTER_STORAGE_PREFIX = "fn-folder-library-filter:";
 
-/**
- * @param {string} folderId
- * @returns {import("../../lib/folderLibraryNormalize.js").FolderLibraryCategory}
- */
 function readStoredFilter(folderId) {
   try {
     const raw = sessionStorage.getItem(`${FILTER_STORAGE_PREFIX}${folderId}`);
-    if (!raw) return "image";
-    return normalizeFolderLibraryCategory(raw);
+    return normalizeFolderLibraryFilterTab(raw);
   } catch {
-    return "image";
+    return "all";
   }
 }
 
-/**
- * @param {string} folderId
- * @param {string} category
- */
-function writeStoredFilter(folderId, category) {
+function writeStoredFilter(folderId, tab) {
   try {
     sessionStorage.setItem(
       `${FILTER_STORAGE_PREFIX}${folderId}`,
-      normalizeFolderLibraryCategory(category),
+      normalizeFolderLibraryFilterTab(tab),
     );
   } catch {
     /* ignore */
   }
 }
 
-/**
- * Format badge label when there is no preview image.
- * @param {string} category
- */
-function formatBadge(category) {
-  if (category === "pdf") return "PDF";
-  if (category === "skill") return "SKILL";
-  if (category === "image") return "IMG";
+function formatBadge(item) {
+  if (item.attachmentKind) return String(item.attachmentKind).toUpperCase().slice(0, 6);
+  if (item.category === "pdf") return "PDF";
+  if (item.category === "skill") return "SKILL";
+  if (item.category === "image") return "IMG";
+  if (item.category === "video") return "VIDEO";
   return "FILE";
 }
 
 /**
- * Folder library table — [+] + type filter + thumb grid (one type at a time).
+ * Folder library table — [+] type menu + All/Images/Videos/AI skills + grid.
  */
 export function FolderLibraryOverlay({ folderId, onClose }) {
   const { t } = useI18n();
@@ -72,44 +67,82 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
     [libraryItems],
   );
 
-  const [filterType, setFilterType] = useState(() => readStoredFilter(folderId));
+  const [filterTab, setFilterTab] = useState(() => readStoredFilter(folderId));
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [createCategory, setCreateCategory] = useState("image");
+  const [lockCategory, setLockCategory] = useState(false);
+  const [detailItemId, setDetailItemId] = useState(null);
+  const [detailKind, setDetailKind] = useState(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createWrapRef = useRef(null);
 
   useEffect(() => {
-    setFilterType(readStoredFilter(folderId));
+    setFilterTab(readStoredFilter(folderId));
   }, [folderId]);
+
+  useEffect(() => {
+    if (!createMenuOpen) return undefined;
+    const onDoc = (event) => {
+      if (createWrapRef.current?.contains(event.target)) return;
+      setCreateMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [createMenuOpen]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
-      if (modalOpen) return;
+      if (modalOpen || detailItemId || createMenuOpen) {
+        if (createMenuOpen) setCreateMenuOpen(false);
+        return;
+      }
       event.preventDefault();
       onClose?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, modalOpen]);
+  }, [onClose, modalOpen, detailItemId, createMenuOpen]);
 
   const filteredItems = useMemo(
-    () => items.filter((item) => item.category === filterType),
-    [items, filterType],
+    () => items.filter((item) => folderLibraryItemMatchesFilter(item, filterTab)),
+    [items, filterTab],
   );
 
   const setFilter = (next) => {
-    const cat = normalizeFolderLibraryCategory(next);
-    setFilterType(cat);
-    writeStoredFilter(folderId, cat);
+    const tab = normalizeFolderLibraryFilterTab(next);
+    setFilterTab(tab);
+    writeStoredFilter(folderId, tab);
   };
 
-  const openNew = () => {
+  const openCreate = (category) => {
+    setCreateMenuOpen(false);
     setEditingItem(null);
+    setCreateCategory(category);
+    setLockCategory(true);
     setModalOpen(true);
   };
 
   const openEdit = (item) => {
     setEditingItem(item);
+    setCreateCategory(item.category || "auto");
+    setLockCategory(false);
     setModalOpen(true);
+  };
+
+  const openItem = (item) => {
+    if (item.category === "image") {
+      setDetailKind("image");
+      setDetailItemId(item.id);
+      return;
+    }
+    if (item.category === "skill" || item.category === "pdf") {
+      setDetailKind("skill");
+      setDetailItemId(item.id);
+      return;
+    }
+    openEdit(item);
   };
 
   const handleDelete = (item) => {
@@ -117,6 +150,10 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
       t("doc.library.deleteConfirm").replace("{tag}", item.tag || ""),
     );
     if (!ok) return;
+    if (detailItemId === item.id) {
+      setDetailItemId(null);
+      setDetailKind(null);
+    }
     removeFolderLibraryItem(folderId, item.id);
   };
 
@@ -138,14 +175,33 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
           <header className="folder-library-overlay__header">
             <h2 className="folder-library-overlay__title">{t("doc.library.title")}</h2>
             <div className="folder-library-overlay__header-actions">
-              <button
-                type="button"
-                className="folder-library-overlay__add"
-                onClick={openNew}
-                title={t("doc.library.add")}
-              >
-                +
-              </button>
+              <div className="folder-library-overlay__create" ref={createWrapRef}>
+                <button
+                  type="button"
+                  className="folder-library-overlay__add"
+                  onClick={() => setCreateMenuOpen((v) => !v)}
+                  title={t("doc.library.add")}
+                  aria-expanded={createMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  +
+                </button>
+                {createMenuOpen ? (
+                  <div className="folder-library-overlay__create-menu" role="menu">
+                    {CREATE_TYPES.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        role="menuitem"
+                        className="folder-library-overlay__create-item"
+                        onClick={() => openCreate(entry.id)}
+                      >
+                        {t(entry.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 className="folder-library-overlay__close"
@@ -162,35 +218,30 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
             role="tablist"
             aria-label={t("doc.library.filterAria")}
           >
-            {TYPE_TABS.map((type) => (
+            {FILTER_TABS.map((tab) => (
               <button
-                key={type}
+                key={tab.id}
                 type="button"
                 role="tab"
-                aria-selected={filterType === type}
+                aria-selected={filterTab === tab.id}
                 className={
                   "folder-library-overlay__tab"
-                  + (filterType === type ? " is-active" : "")
+                  + (filterTab === tab.id ? " is-active" : "")
                 }
-                onClick={() => setFilter(type)}
+                onClick={() => setFilter(tab.id)}
               >
-                {t(CATEGORY_LABEL_KEYS[type] || CATEGORY_LABEL_KEYS.auto)}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
 
           {filteredItems.length === 0 ? (
             <div className="folder-library-overlay__empty">
-              <p>
-                {t("doc.library.emptyByType").replace(
-                  "{type}",
-                  t(CATEGORY_LABEL_KEYS[filterType] || CATEGORY_LABEL_KEYS.auto),
-                )}
-              </p>
+              <p>{t("doc.library.emptyFiltered")}</p>
               <button
                 type="button"
                 className="folder-library-overlay__empty-add"
-                onClick={openNew}
+                onClick={() => setCreateMenuOpen(true)}
               >
                 {t("doc.library.add")}
               </button>
@@ -202,10 +253,10 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
                   <button
                     type="button"
                     className="folder-library-overlay__cell-main"
-                    onClick={() => openEdit(item)}
+                    onClick={() => openItem(item)}
                     title={item.tag}
                   >
-                    {item.mediaUrl ? (
+                    {item.mediaUrl && item.category === "image" ? (
                       <img
                         className="folder-library-overlay__cell-img"
                         src={item.mediaUrl}
@@ -221,7 +272,7 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
                       >
                         <span className="folder-library-overlay__cell-badge-lines" />
                         <span className="folder-library-overlay__cell-badge-fmt">
-                          {formatBadge(item.category)}
+                          {formatBadge(item)}
                         </span>
                       </span>
                     )}
@@ -229,6 +280,22 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
                       <span className="folder-library-overlay__cell-tag">{item.tag}</span>
                     </span>
                   </button>
+                  {(item.category === "image"
+                    || item.category === "skill"
+                    || item.category === "pdf") ? (
+                    <button
+                      type="button"
+                      className="folder-library-overlay__cell-edit"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEdit(item);
+                      }}
+                      aria-label={t("doc.library.edit")}
+                      title={t("doc.library.edit")}
+                    >
+                      {t("doc.library.edit")}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="folder-library-overlay__cell-delete"
@@ -245,18 +312,47 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
         </div>
       </div>
 
+      {detailItemId && detailKind === "image" ? (
+        <FolderLibraryImageDetail
+          folderId={folderId}
+          itemId={detailItemId}
+          escapeEnabled={!modalOpen}
+          onClose={() => {
+            setDetailItemId(null);
+            setDetailKind(null);
+          }}
+          onEdit={(item) => openEdit(item)}
+        />
+      ) : null}
+
+      {detailItemId && detailKind === "skill" ? (
+        <FolderLibrarySkillDetail
+          folderId={folderId}
+          itemId={detailItemId}
+          escapeEnabled={!modalOpen}
+          onClose={() => {
+            setDetailItemId(null);
+            setDetailKind(null);
+          }}
+          onEdit={(item) => openEdit(item)}
+        />
+      ) : null}
+
       {modalOpen ? (
         <FolderLibraryElementModal
           folderId={folderId}
           item={editingItem}
-          defaultCategory={editingItem ? undefined : filterType}
+          defaultCategory={editingItem ? undefined : createCategory}
+          lockCategory={lockCategory && !editingItem}
           onClose={() => {
             setModalOpen(false);
             setEditingItem(null);
+            setLockCategory(false);
           }}
           onSaved={() => {
             setModalOpen(false);
             setEditingItem(null);
+            setLockCategory(false);
           }}
         />
       ) : null}

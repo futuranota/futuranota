@@ -58,6 +58,19 @@ describe("folderLibrary normalize", () => {
     expect(doc.libraryItems).toHaveLength(1);
     expect(doc.libraryItems[0].tag).toBe("card");
   });
+  it("preserves skill attachment fields", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "s1",
+      tag: "writer_skill",
+      category: "skill",
+      description: "Drafts posts",
+      attachmentUrl: "https://example.com/a.zip",
+      attachmentName: "writer.zip",
+      attachmentKind: "zip",
+    });
+    expect(item?.attachmentUrl).toContain("a.zip");
+    expect(item?.attachmentKind).toBe("zip");
+  });
 });
 
 describe("folderLibrary CRUD", () => {

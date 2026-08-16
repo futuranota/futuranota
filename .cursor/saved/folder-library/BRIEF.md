@@ -1,6 +1,6 @@
 # Folder library — product memory
 
-Saved: 2026-08-15 (updated 2026-08-16: library table / grid + type filter). Scope: folder-level library (no workspace index yet).
+Saved: 2026-08-15 (updated 2026-08-16: [+] type menu + Skill attachment + section tabs). Scope: folder-level library.
 
 ## Problem Futura solves
 
@@ -19,135 +19,98 @@ Workspace (later: index view only)
         └── Document sub-library (later) — local to one doc + inherits folder fichas
 ```
 
-v1 = **folder only**. Workspace catalog and document-scope inheritance = later.
+v1 = **folder only**.
 
-## Ficha model (product — all optional except useful Save)
+## [+] create menu (segment types)
 
-Everything is optional in spirit; UX still needs a **name/tag** to Save today.
-
-| Field | Purpose |
-|---|---|
-| **tag / name** | Anchor for mention / find (e.g. `car_sheet`, skill name) |
-| **tips / description** | Reminds what it is for |
-| **attachment** | Downloadable file (PDF, zip, skill pack, md, …) |
-| **preview** | Trailer **video** *or* sample **image(s)** — visualization, not the main download |
-
-Upload UX by intent:
-
-- Preview image(s) → upload image  
-- Trailer → upload video  
-- Downloadable payload → attachment file  
-
-PDF / heavy docs: optional **trailer ≤ ~1 min** as teaser. User may only read tips, only download, or watch trailer — their choice.
-
-User should feel comfortable: tips + optional preview + optional downloadable file.
-
-## Library table / grid (home de fichas)
-
-This is where folder fichas **live** in the UI — not a dump of mixed files.
+`[+]` does **not** create a generic ficha into the current tab blindly. It opens a **type chooser**:
 
 ```
 [ + ]
-[ file type: img | pdf | … ]
-[thumb] [thumb] [thumb]
+  ├── Skills / PDF   → skill (or pdf) ficha — attachment downloadable
+  ├── Image          → image ficha — WebP preview
+  └── Video          → video ficha (later detail)
 ```
 
-### Folder vs document UI (agreed)
+Each type has its own create fields and open behavior (define per type; Image + Skill first).
 
-| Surface | UI |
+## Section tabs (filter the grid)
+
+```
+[ All | Images | Videos | AI skills ]
+```
+
+- **All** — every ficha (user requested; overrides earlier “no All in v1”).
+- **Images** — `category === image`
+- **Videos** — `category === video`
+- **AI skills** — `category === skill` (and `pdf` until PDF has its own tab)
+
+Remember last tab per folder (`sessionStorage`).
+
+## Ficha model
+
+| Field | Purpose |
 |---|---|
-| **Folder library** | Full **table**: `[+]` + type tabs + thumb grid (`FolderLibraryOverlay`) |
-| **Document** (later) | **Minimal / small** strip — FileCard-style compact thumbs (`FileCard.original.tsx`), not the full table |
+| **tag / name** | Invoke name (book / Gina) |
+| **description** | Tips / “qué hace?” / TXT-Placeholder for images |
+| **mediaUrl** | Image WebP (image type) or future video preview |
+| **mediaKind** | `image` \| `video` \| null |
+| **attachmentUrl** | Downloadable skill/pdf payload (not WebP-converted) |
+| **attachmentName** | Original filename for download |
+| **attachmentKind** | Format badge (zip, md, pdf, code, …) — FileCard labels |
 
-Document sub-library inherits folder fichas later; keep doc chrome tiny.
+### Image (live)
 
-### Segmentation (agreed)
+- Create: tag + description (TXT-Placeholder copy) + upload **image → WebP**
+- Open: detail — tag, TXT-Placeholder \| Image switch, copy, download WebP
+- Grid: real thumb or IMG badge
 
-- **Do not mix by default.** Tabs/chips by type: Image / PDF / Skill / Auto — one active type at a time.
-- **No “All” view in v1** (avoids chaos).
-- Empty for that type → short empty state + `[+]` (never pad with other types).
-- `[+]` creates a ficha in the **current filter type**; the name the user types = ficha `tag` / name.
-- Remember last filter type **per folder** (`sessionStorage`; Gina still reads full `libraryItems`).
+### Skill / AI skills (building)
 
-### UI ref (table only)
+- Create: **tag** + **description** (“¿qué hace este skill?”) + upload **attachment** (file, not image)
+- Open: show tag + description + easy **Download** of the attachment
+- Grid: FileCard-style format badge ([`FileCard.original.tsx`](FileCard.original.tsx); shared format-tag grid ref from user — CODE / JSON / ZIP / MD / PDF, etc.)
+- Bytes: same Storage pool `doc-images` with expanded MIME allow-list (or raw file path under user scope) — **no WebP conversion** for attachments
 
-- Pattern: Magic “Recent Generations” thumb grid (`grid-cols-4` aspect-square) + mode tabs → in FN = **file-type tabs**, not generation modes.
-- Saved strip: [`LibraryTable.gallery.original.tsx`](LibraryTable.gallery.original.tsx)
-- Also: [`FileCard.original.tsx`](FileCard.original.tsx) for format-badge thumbs when no real preview (and for future doc mini strip).
+### Video / PDF open UX
 
-### Explicitly omit from the Magic AI Multi-Modal demo
+Still to brief in detail. Video create type exists in `[+]`. PDF may share Skills/PDF entry or land as `pdf` category under AI skills tab for now.
 
-Do **not** port into Futura Nota:
+## Image card UX (live)
 
-- AI image/video/avatar generation  
-- Prompts / negative prompts / suggestions / Wand  
-- Models, resolution, style, lighting, pose, seed, steps  
-- Loading progress / generate CTA / download-from-gen  
-- Generation history search / “AI Multi-Modal Generation” chrome  
+- Edit on cell + detail header → `FolderLibraryElementModal`
+- Detail: tag, TXT-Placeholder \| Image, copy description, download WebP
+- Placeholders EN/ES for description: idea/concept of the image description
 
-Only the **table**: `[+]` + type toggle + thumb grid of real library fichas.
+## Atelier (later)
 
-## Atelier (ficha space / “subfolder” of preview)
+Wall color + social hex after core types feel solid. FN does not generate images.
 
-Opening or creating an image (or its preview/trailer) opens a **preview atelier** for that ficha:
+## Persistence
 
-- Change **wall / background color** (side wall where the asset lives).
-- Paste a **social network hex** (or presets) to see how image/video reads against that brand color.
-- Human iterates toward the “perfect” asset for that context (story / feed / cover). **Futura does not generate the image** — craft is the user’s.
-
-This is presentation preview on the same ficha, not a new Empresa→Folder hierarchy.
-
-```
-Library (type filter → grid)
-  └── open ficha
-        ├── tips / metadatos
-        ├── trailer / muestras
-        ├── download attachment
-        └── atelier: preview + wall color / social hex
-```
-
-## Persistence (agreed direction)
-
-- Metadatos: `campaigns.library_items` jsonb (wire upsert/hydrate — not only local).
-- Bytes: Supabase Storage bucket **`doc-images`** (project 100GB pool). Non-WebP video/files may need path conventions or sibling bucket later; prefer same project Storage.
-- No separate library table for v1 — fichas hang on the folder doc.
-- Same persisted fichas = what Gina can narrate / surface in chat.
+- Metadatos: `campaigns.library_items` jsonb
+- Bytes: `doc-images` (WebP for images; raw attachments for skills)
+- SQL ops: `supabase_campaign_library_items.sql`; expand bucket MIME for attachments when shipping skill upload
 
 ## Live today (code)
 
-- `libraryItems` on folder doc + CRUD: `src/lib/folderLibrary.js`, `folderLibraryNormalize.js`
-- UI: `FolderLibraryOverlay.jsx`, `FolderLibraryElementModal.jsx`, Library button on content folder head
-- Image upload via `convertAndUploadDocImage` → `doc-images`
-- **Persist:** `campaigns.library_items` jsonb — SQL `supabase_campaign_library_items.sql`; upsert/hydrate in `persistenceMiddleware.js`
-- **Ops:** run that SQL in Supabase SQL Editor before relying on cloud sync (upsert fails if column missing)
-- Still later: atelier / Gina library tools / document mini FileCard strip
-- **Live UI:** type-filter thumb grid on `FolderLibraryOverlay` (`+`, tabs Image/PDF/Skill/Auto, no All)
-
-## Out of scope until scheduled
-
-- Workspace-wide library UI  
-- Document-scoped sub-library + inheritance  
-- `@tag` bold rosa zapote (`#D6B4A7`) without link  
-- Insert-from-editor → library picker  
-- Type-filter thumb grid + FileCard thumbs + atelier wall / social hex  
-- Document mini library strip (FileCard)  
-- Gina tools that list/open library fichas in chat  
-- Adapt FileCard / gallery into FN CSS (no Tailwind/`cn` / lucide Magic stack) — gallery grid **done** on folder overlay; FileCard still pending for docs  
-- Any AI generation pipeline from Magic demos  
+- Grid + type filter (migrating tabs toward All / Images / Videos / AI skills)
+- Image detail + Edit + WebP upload
+- Persist library_items
+- Skill attachment fields + detail download + `[+]` chooser — in progress this session
 
 ## UI reference
 
-- Gallery / table strip: [`LibraryTable.gallery.original.tsx`](LibraryTable.gallery.original.tsx)  
-- FileCard format thumbs: [`FileCard.original.tsx`](FileCard.original.tsx)  
-- Adapt to Futura Nota: JSX + CSS, surface `#151515`.
+- Gallery strip: [`LibraryTable.gallery.original.tsx`](LibraryTable.gallery.original.tsx)
+- Format badges: [`FileCard.original.tsx`](FileCard.original.tsx) (TXT/DOC/PDF/CODE/IMG/VIDEO grid language)
+- Surface `#151515`
 
-## Build order (next)
+## Build order
 
-1. ~~Persist `library_items` column + persistenceMiddleware read/write~~  
-2. ~~Memory: library table / type filter / omit AI gen~~  
-3. ~~Folder overlay: type tabs + `[+]` + thumb grid~~  
-4. Expand ficha: attachment + preview image/video (all optional; trailer time cap)  
-5. Document mini FileCard strip (later)  
-6. Atelier: wall color + social hex presets  
-7. Gina: read fichas in day chat (remember / show)  
-8. Document scope + @tag highlight + insert picker  
+1. ~~Persist library_items~~
+2. ~~Folder grid + Image detail~~
+3. ~~Memory: [+] types + tabs All/Images/Videos/AI skills + Skill attachment~~
+4. **Build:** `[+]` chooser + Skill create (tag, description, attachment) + skill open/download + AI skills tab
+5. Video create/open brief + UI
+6. PDF-specific polish / FileCard thumbs polish
+7. Document mini strip · Atelier · Gina library tools · @tag

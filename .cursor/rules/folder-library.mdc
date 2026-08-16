@@ -1,41 +1,28 @@
 ---
-description: Folder library product memory — fichas, table grid, type filter, atelier, Gina
+description: Folder library — [+] types, tabs, Image detail, Skill attachment, Gina
 globs: src/lib/folderLibrary*.js,src/components/docs/FolderLibrary*.jsx,src/stores/middleware/persistenceMiddleware.js,supabase_storage_doc_images.sql,src/lib/gina/**
 alwaysApply: false
 ---
 
 # Folder library
 
-Canonical brief: [`.cursor/saved/folder-library/BRIEF.md`](../saved/folder-library/BRIEF.md)  
-Gallery/table ref (strip only): [`.cursor/saved/folder-library/LibraryTable.gallery.original.tsx`](../saved/folder-library/LibraryTable.gallery.original.tsx)  
-FileCard ref: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/folder-library/FileCard.original.tsx)
+Canonical: [`.cursor/saved/folder-library/BRIEF.md`](../saved/folder-library/BRIEF.md)  
+Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/folder-library/FileCard.original.tsx)
 
 ## Product
 
-- **Folder-scoped** library first (no workspace UI yet).
-- Goal: **fancy recall + visualization** (tips, trailer, download) — not dump storage.
-- Ficha = tag + tips + optional **attachment** + optional **preview** (images / trailer ≤~1 min). Almost everything optional.
-- **Library table (folder):** `[+]` + **type tabs** (Image / PDF / Skill / Auto) + thumb grid. **No “All” in v1** — one type at a time; `[+]` uses current type; name = ficha tag.
-- **Document (later):** minimal FileCard-style strip — not the full folder table.
-- **Atelier:** open image/trailer space → wall background color + **social hex**; human craft, FN does not generate images.
-- Bytes → Supabase **`doc-images`**. Metadatos → `campaigns.library_items` jsonb.
+- **`[+]` menu:** Skills/PDF · Image · Video (not blind create into current tab).
+- **Tabs:** All · Images · Videos · AI skills.
+- **Image:** tag + TXT-Placeholder description + WebP; detail switch + copy + download.
+- **Skill:** tag + “qué hace?” description + **attachment** upload; open → **Download** (no WebP convert).
+- Bytes → `doc-images`. Metadatos → `campaigns.library_items`.
 
 ## Gina
 
-Library data is **live corpus for Gina**. She should **remember and show** fichas in the **same chat during the day**. Do not build library-only silos Gina cannot read. LIVE CORPUS ONLY — never invent files.
-
-## Code today
-
-- CRUD: `src/lib/folderLibrary.js` + normalize
-- UI: `FolderLibraryOverlay` (type filter + grid) / `FolderLibraryElementModal`
-- Persist: `campaigns.library_items` via `supabase_campaign_library_items.sql` + `persistenceMiddleware` upsert/hydrate
-- Gap: atelier / doc mini strip / Gina library tools
+Live corpus — remember/show fichas in day chat. LIVE CORPUS ONLY.
 
 ## Do not
 
-- Invent a second hierarchy instead of hanging on folder docs
-- Drop Tailwind Magic into the app without adapting to FN CSS / `#151515`
-- Port AI Multi-Modal generation (prompts, models, loaders, history, generate CTA)
-- Assume AI image generation inside the atelier
-- Mix all file types in one grid by default
-- Put the full folder table inside open documents — docs get a small FileCard strip later
+- Convert skill attachments to WebP
+- Port AI Multi-Modal generation
+- Mix types without tabs; put full table inside documents
