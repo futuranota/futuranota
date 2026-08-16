@@ -23,7 +23,7 @@ export const STUDIO_PHASES = /** @type {const} */ ([
 
 export const STUDIO_DEFAULT_PHASE = "embed";
 
-export const STUDIO_MOCKUP_IDS = /** @type {const} */ (["none", "x", "x-zoom"]);
+export const STUDIO_MOCKUP_IDS = /** @type {const} */ (["none", "x"]);
 
 export const STUDIO_DEFAULT_MOCKUP = "none";
 
@@ -31,6 +31,7 @@ export const STUDIO_MOCKUPS = /** @type {const} */ ([
   {
     id: "none",
     labelKey: "mockupNone",
+    descKey: "mockupNoneDesc",
     defaultWall: "#151515",
     defaultStroke: null,
     defaultText: "#E7E9EA",
@@ -39,14 +40,7 @@ export const STUDIO_MOCKUPS = /** @type {const} */ ([
   {
     id: "x",
     labelKey: "mockupX",
-    defaultWall: "#000000",
-    defaultStroke: "#191A1C",
-    defaultText: "#E7E9EA",
-    usesIdentity: true,
-  },
-  {
-    id: "x-zoom",
-    labelKey: "mockupXZoom",
+    descKey: "mockupXDesc",
     defaultWall: "#000000",
     defaultStroke: "#191A1C",
     defaultText: "#E7E9EA",
@@ -87,10 +81,11 @@ export function normalizeStudioPhase(value) {
 
 /**
  * @param {unknown} value
- * @returns {"none"|"x"|"x-zoom"}
+ * @returns {"none"|"x"}
  */
 export function normalizeStudioMockupId(value) {
   const raw = String(value || "").trim();
+  if (raw === "x-zoom") return "x";
   if (STUDIO_MOCKUP_IDS.includes(/** @type {typeof STUDIO_MOCKUP_IDS[number]} */ (raw))) {
     return /** @type {typeof STUDIO_MOCKUP_IDS[number]} */ (raw);
   }
@@ -101,8 +96,7 @@ export function normalizeStudioMockupId(value) {
  * @param {string} mockupId
  */
 export function studioMockupUsesChrome(mockupId) {
-  const id = normalizeStudioMockupId(mockupId);
-  return id === "x" || id === "x-zoom";
+  return normalizeStudioMockupId(mockupId) === "x";
 }
 
 /**

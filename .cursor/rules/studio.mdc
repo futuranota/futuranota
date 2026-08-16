@@ -20,12 +20,11 @@ Canonical brief: `.cursor/saved/studio/BRIEF.md`.
 ## v1
 
 - Wizard: **embed → aspect → mockup → wall → view**.
-- Mockups: **Plano** | **X** (feed + identity) | **X zoom** (post + optional temp logo/name/desc).
-- Selector shows **layout thumbs only** (no name labels on cards).
+- Mockups (2 cards + description): **Cine / Pantalla completa** (`none`) | **Redes sociales / Multi-stage** (`x`, feed with sidebars).
+- Selector thumbs preview the real layout (not empty boxes). Legacy `x-zoom` maps to `x`.
 - Selecting a mockup applies default `wallColor` / `frameStroke` / `draftTextColor`.
-- **Wall:** inspector panel (compact wells + hex) — **no** mini wall color strip. Identity for X and X zoom = session only.
-- **X feed View:** logo + name + **Ad** on media (no tabs). Description + video. Stage never scrolls.
-- **X zoom View:** portrait ratios → video zoom (no chrome); landscape/1:1 → full post (logo + texts).
+- **Wall:** inspector panel (compact wells + hex) — **no** mini wall color strip. Identity for Redes = session only.
+- **Cine View:** video frame on wall. **Redes View:** logo + name + **Ad** on media + description + sidebars. No tabs.
 - Ratio stays user-chosen (not forced by mockup).
 - CTA **Vimeo** → `https://vimeo.com/join`.
 - No credits, no NoteTaker. Session draft includes `phase`, `mockupId`, `frameStroke`, identity fields.

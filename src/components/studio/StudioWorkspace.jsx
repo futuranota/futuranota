@@ -26,45 +26,52 @@ import {
   studioMockupColorDefaults,
   studioMockupUsesChrome,
   studioMockupUsesIdentity,
-  studioXZoomLayoutMode,
   STUDIO_DEFAULT_TEXT_COLOR,
 } from "../../lib/studioConfig.js";
 import { parseStudioVimeoInput } from "../../lib/studioEmbed.js";
 import { normalizeEmbedSrcForPlayback } from "../../lib/videoEmbed.js";
 import { StudioMockupX } from "./StudioMockupX.jsx";
-import { StudioMockupXZoom } from "./StudioMockupXZoom.jsx";
 
 const PHASE_ORDER = ["embed", "aspect", "mockup", "wall", "view"];
 
 function MockupThumb({ id }) {
   if (id === "none") {
-    return <span className="studio-workspace__mockup-thumb-plain" />;
-  }
-  if (id === "x-zoom") {
     return (
-      <span className="studio-workspace__mockup-thumb-xzoom">
-        <span className="studio-workspace__mockup-thumb-xzoom-head">
-          <span className="studio-workspace__mockup-thumb-xzoom-logo" />
-          <span className="studio-workspace__mockup-thumb-xzoom-lines">
-            <span />
-            <span />
-          </span>
+      <span className="studio-workspace__mockup-thumb-plain">
+        <span className="studio-workspace__mockup-thumb-plain-screen">
+          <span className="studio-workspace__mockup-thumb-plain-play" />
         </span>
-        <span className="studio-workspace__mockup-thumb-xzoom-media" />
-        <span className="studio-workspace__mockup-thumb-xzoom-actions">
-          <span />
-          <span />
-          <span />
-          <span />
-        </span>
+        <span className="studio-workspace__mockup-thumb-plain-glow" />
       </span>
     );
   }
   return (
     <span className="studio-workspace__mockup-thumb-x">
-      <span />
-      <span />
-      <span />
+      <span className="studio-workspace__mockup-thumb-x-nav" aria-hidden>
+        <span />
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="studio-workspace__mockup-thumb-x-feed" aria-hidden>
+        <span className="studio-workspace__mockup-thumb-x-head">
+          <span className="studio-workspace__mockup-thumb-x-logo" />
+          <span className="studio-workspace__mockup-thumb-x-name" />
+        </span>
+        <span className="studio-workspace__mockup-thumb-x-caption" />
+        <span className="studio-workspace__mockup-thumb-x-media">
+          <span className="studio-workspace__mockup-thumb-x-ad">Ad</span>
+        </span>
+        <span className="studio-workspace__mockup-thumb-x-actions">
+          <span />
+          <span />
+          <span />
+        </span>
+      </span>
+      <span className="studio-workspace__mockup-thumb-x-rail" aria-hidden>
+        <span />
+        <span />
+      </span>
     </span>
   );
 }
@@ -96,7 +103,6 @@ export function StudioWorkspace({ onClose }) {
   const useChrome = studioMockupUsesChrome(mockupId);
   const useIdentity = studioMockupUsesIdentity(mockupId);
   const useXFeed = mockupId === "x";
-  const useXZoom = mockupId === "x-zoom";
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -115,7 +121,6 @@ export function StudioWorkspace({ onClose }) {
   const wallPreview = resolveWallColor(draft.wallColor);
   const strokePreview = resolveStudioFrameStroke(draft.frameStroke, mockupId);
   const textPreview = resolveStudioTextColor(draft.draftTextColor, mockupId);
-  const xZoomLayout = studioXZoomLayoutMode(draft.aspectRatio);
   const playbackSrc = normalizeEmbedSrcForPlayback(draft.embedSrc);
   const hasVideo = Boolean(playbackSrc);
   const aspectCss = studioAspectCss(draft.aspectRatio);
@@ -314,7 +319,6 @@ export function StudioWorkspace({ onClose }) {
         "studio-workspace"
         + (isView ? " studio-workspace--view" : "")
         + (isView && useXFeed ? " studio-workspace--mockup-x" : "")
-        + (isView && useXZoom ? " studio-workspace--mockup-x-zoom" : "")
       }
     >
       <header className="studio-workspace__header">
@@ -506,7 +510,7 @@ export function StudioWorkspace({ onClose }) {
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  aria-label={t(`studio.${m.labelKey}`)}
+                  aria-label={`${t(`studio.${m.labelKey}`)}. ${t(`studio.${m.descKey}`)}`}
                   title={t(`studio.${m.labelKey}`)}
                   className={
                     "studio-workspace__mockup-card studio-workspace__mockup-card--image"
@@ -516,6 +520,14 @@ export function StudioWorkspace({ onClose }) {
                 >
                   <span className="studio-workspace__mockup-thumb" aria-hidden>
                     <MockupThumb id={m.id} />
+                  </span>
+                  <span className="studio-workspace__mockup-copy">
+                    <span className="studio-workspace__mockup-name">
+                      {t(`studio.${m.labelKey}`)}
+                    </span>
+                    <span className="studio-workspace__mockup-desc">
+                      {t(`studio.${m.descKey}`)}
+                    </span>
                   </span>
                 </button>
               );
@@ -742,9 +754,6 @@ export function StudioWorkspace({ onClose }) {
             className={
               "studio-workspace__stage studio-workspace__stage--immersive studio-workspace__stage--noscroll"
               + (useXFeed ? " studio-workspace__stage--x" : "")
-              + (useXZoom ? " studio-workspace__stage--x-zoom" : "")
-              + (useXZoom && xZoomLayout === "zoom" ? " is-zoom" : "")
-              + (useXZoom && xZoomLayout === "post" ? " is-post" : "")
             }
             style={{ backgroundColor: wallPreview }}
           >
@@ -762,20 +771,6 @@ export function StudioWorkspace({ onClose }) {
               >
                 {videoPlayer}
               </StudioMockupX>
-            ) : useXZoom ? (
-              <StudioMockupXZoom
-                wallColor={wallPreview}
-                frameStroke={strokePreview}
-                textColor={textPreview}
-                aspectCss={aspectCss}
-                frameSizeClass={frameSizeClass}
-                layoutMode={xZoomLayout}
-                logoDataUrl={draft.draftLogoDataUrl}
-                displayName={draft.draftDisplayName}
-                description={draft.draftDescription}
-              >
-                {videoPlayer}
-              </StudioMockupXZoom>
             ) : (
               <div
                 className={`studio-workspace__frame ${frameSizeClass}`}

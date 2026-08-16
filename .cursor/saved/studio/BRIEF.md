@@ -27,14 +27,14 @@ Intel tabs:  News | YouTube | Studio | Campaign | …
 ```
 1. Embed     → paste Vimeo URL (library-style drop + Continuar)
 2. Frame     → ratio picker: 2:3 · 3:2 · 1:1 · 9:16 · 16:9 (user chooses; mockup does NOT force ratio)
-3. Mockup    → gallery thumbs only [Plano | X feed | X zoom]; selecting applies default wall + stroke
-4. Wall      → inspector colors (no mini wall strip) + identity for X / X zoom (session only)
-5. View      → full stage. X feed: logo + name + Ad + desc + video. X zoom by ratio: portrait = video-only; landscape = post.
+3. Mockup    → 2 cards [Cine / Pantalla completa | Redes sociales / Multi-stage] with layout preview + description
+4. Wall      → inspector colors (no mini wall strip) + identity for Redes (session only)
+5. View      → full stage without scroll. Cine = frame only; Redes = feed + sidebars + Ad + identity.
 ```
 
 - Mockup chrome (nav / rail / actions) = **shapes**. **No tabs** on X feed. Post identity = session text.
 - **Visualize never scrolls:** stage + mockup use `overflow: hidden`; frames must fit in view.
-- Defaults: Plano wall `#151515`; X wall `#000000`, video stroke `#191A1C` (editable).
+- Defaults: Cine wall `#151515`; Redes wall `#000000`, video stroke `#191A1C` (editable).
 - **CTA:** button **Vimeo** → `https://vimeo.com/join`.
 - **No credits.** No notes. Session draft includes `phase`, `mockupId`, `frameStroke`, identity + text color.
 - Later: mockup **position** step; more networks; low-def social chrome variants.
@@ -48,7 +48,7 @@ Intel tabs:  News | YouTube | Studio | Campaign | …
   videoId: string,
   wallColor: string | null,
   frameStroke: string | null,
-  mockupId: "none" | "x" | "x-zoom",
+  mockupId: "none" | "x",
   aspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9",
   phase: "embed" | "aspect" | "mockup" | "wall" | "view",
   draftLogoDataUrl: string | null, // session only

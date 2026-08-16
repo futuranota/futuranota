@@ -71,9 +71,10 @@ describe("studioMockup", () => {
     });
   });
 
-  it("applies X zoom color defaults", () => {
+  it("maps legacy x-zoom to x defaults", () => {
+    expect(normalizeStudioMockupId("x-zoom")).toBe("x");
     expect(studioMockupColorDefaults("x-zoom")).toEqual({
-      mockupId: "x-zoom",
+      mockupId: "x",
       wallColor: "#000000",
       frameStroke: "#191A1C",
       draftTextColor: "#E7E9EA",
