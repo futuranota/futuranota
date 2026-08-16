@@ -19,15 +19,23 @@ Intel panel will shrink later; YouTube embed stays as a sibling until notes move
 
 ```
 Intel tabs:  News | YouTube | Studio | Campaign | …
-                              └── opens Studio overlay
+                              └── opens Studio overlay (wizard)
 ```
 
-- **Real estate:** large overlay (`#151515`), dominant stage.
-- **Paste** Vimeo URL / embed → play in iframe (reuse `videoEmbed` Vimeo parse; reject YouTube).
-- **Wall color:** same atelier model as folder library (`wallColor` hex + Apply behind the frame).
-- **One frame**, selectable aspect: `16:9` | `9:16` | `1:1` (CSS `aspect-ratio`; letterbox on wall).
-- **CTA:** button **Vimeo** → official join/signup relink (`https://vimeo.com/join`) for users without an account.
-- **No credits** in v1. No notes. Session-local draft (sessionStorage) — not a corpus document yet.
+### Wizard (setup → visualize)
+
+```
+1. Embed     → paste Vimeo URL (library-style drop + Continuar)
+2. Frame     → ratio picker: 2:3 Alto · 3:2 Ancho · 1:1 · 9:16 · 16:9
+3. Wall      → hex / swatch + mini frame preview → Visualizar
+4. View      → immersive stage (wall + frame + video); Edit / ← back to setup
+```
+
+- **Real estate:** large overlay (`#151515`); view phase widens.
+- **Vimeo only** (reject YouTube — that stays on YouTube tab + notes).
+- **CTA:** button **Vimeo** → `https://vimeo.com/join`.
+- **No credits.** No notes. Session draft includes `phase`.
+- Later: low-def social chrome around the frame (Stories / Feed sim).
 
 ## Data (v1 session)
 
@@ -37,7 +45,8 @@ Intel tabs:  News | YouTube | Studio | Campaign | …
   embedSrc: string,
   videoId: string,
   wallColor: string | null,  // #RRGGBB
-  aspectRatio: "16:9" | "9:16" | "1:1",
+  aspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9",
+  phase: "embed" | "aspect" | "wall" | "view",
 }
 ```
 

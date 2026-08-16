@@ -19,10 +19,10 @@ Canonical brief: `.cursor/saved/studio/BRIEF.md`.
 
 ## v1
 
-- Intel tab **Studio** → large overlay.
-- Vimeo URL only + wall color + one frame aspect `16:9` | `9:16` | `1:1`.
+- Intel tab **Studio** → overlay wizard: **embed → aspect → wall → view**.
+- Vimeo URL only; ratios `2:3` | `3:2` | `1:1` | `9:16` | `16:9`; wall color; **Visualizar**.
 - CTA **Vimeo** → `https://vimeo.com/join`.
-- No credits, no NoteTaker. Session draft OK.
+- No credits, no NoteTaker. Session draft includes `phase`.
 
 ## Rules
 
