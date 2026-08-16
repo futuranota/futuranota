@@ -241,6 +241,11 @@ export const messages = {
         noImage: "No image yet. Use Edit to upload a WebP.",
         noSkillDescription: "No description yet. Use Edit to explain what this skill does.",
         noAttachment: "No attachment yet",
+        wallColorLabel: "Wall color (hex)",
+        wallColorPlaceholder: "#151515",
+        wallColorApply: "Apply",
+        wallColorHint: "Applied behind the image preview (production wall).",
+        invalidWallColor: "Use a valid hex color like #FF5500.",
       },
       blockDelete: {
         title: "Delete block",
@@ -1548,6 +1553,11 @@ export const messages = {
         noImage: "Todavía no hay imagen. Usá Edit para subir un WebP.",
         noSkillDescription: "Todavía no hay descripción. Usá Edit para explicar qué hace el skill.",
         noAttachment: "Todavía no hay attachment",
+        wallColorLabel: "Color de pared (hex)",
+        wallColorPlaceholder: "#151515",
+        wallColorApply: "Aplicar",
+        wallColorHint: "Se aplica detrás del preview de la imagen (pared de producción).",
+        invalidWallColor: "Usá un hex válido como #FF5500.",
       },
       blockDelete: {
         title: "Eliminar bloque",

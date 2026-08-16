@@ -71,6 +71,16 @@ describe("folderLibrary normalize", () => {
     expect(item?.attachmentUrl).toContain("a.zip");
     expect(item?.attachmentKind).toBe("zip");
   });
+
+  it("normalizes wallColor hex", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "w1",
+      tag: "poster",
+      category: "image",
+      wallColor: "#abC",
+    });
+    expect(item?.wallColor).toBe("#AABBCC");
+  });
 });
 
 describe("folderLibrary CRUD", () => {

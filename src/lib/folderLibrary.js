@@ -4,10 +4,12 @@ import {
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryItems,
+  normalizeWallColor,
 } from "./folderLibraryNormalize.js";
 
 export {
   FOLDER_LIBRARY_CATEGORIES,
+  FOLDER_LIBRARY_DEFAULT_WALL,
   FOLDER_LIBRARY_FILTER_TABS,
   buildFolderLibraryItem,
   folderLibraryItemMatchesFilter,
@@ -16,6 +18,8 @@ export {
   normalizeFolderLibraryFilterTab,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizeWallColor,
+  resolveWallColor,
 } from "./folderLibraryNormalize.js";
 
 /**
@@ -96,6 +100,10 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
       : (current.attachmentKind || inferAttachmentKind(attachmentName || "", "")))
     : null;
 
+  const wallColor = patch.wallColor !== undefined
+    ? normalizeWallColor(patch.wallColor)
+    : current.wallColor;
+
   const next = {
     ...current,
     tag: nextTag,
@@ -110,6 +118,7 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
     attachmentUrl,
     attachmentName: attachmentUrl ? attachmentName : null,
     attachmentKind,
+    wallColor,
     updatedAt: new Date().toISOString(),
   };
 

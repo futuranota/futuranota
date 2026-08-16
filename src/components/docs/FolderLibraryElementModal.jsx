@@ -8,8 +8,11 @@ import {
 import { generateId } from "../../lib/ids.js";
 import {
   FOLDER_LIBRARY_CATEGORIES,
+  FOLDER_LIBRARY_DEFAULT_WALL,
   createFolderLibraryItem,
   normalizeFolderLibraryCategory,
+  normalizeWallColor,
+  resolveWallColor,
   updateFolderLibraryItem,
 } from "../../lib/folderLibrary.js";
 
@@ -46,13 +49,17 @@ export function FolderLibraryElementModal({
   const [attachmentUrl, setAttachmentUrl] = useState(item?.attachmentUrl || null);
   const [attachmentName, setAttachmentName] = useState(item?.attachmentName || null);
   const [attachmentKind, setAttachmentKind] = useState(item?.attachmentKind || null);
+  const [wallHexDraft, setWallHexDraft] = useState(item?.wallColor || "");
+  const [wallColor, setWallColor] = useState(item?.wallColor || null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   const isSkillLike = category === "skill" || category === "pdf";
-  const isImageLike = category === "image" || (!isSkillLike && category !== "video");
+  const isVideoLike = category === "video";
+  const showWallColor = category === "image" || category === "video" || category === "auto";
+  const wallPreview = resolveWallColor(wallColor);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -115,6 +122,17 @@ export function FolderLibraryElementModal({
     }
   };
 
+  const handleApplyWall = () => {
+    const next = normalizeWallColor(wallHexDraft);
+    if (!next && String(wallHexDraft || "").trim()) {
+      setError(t("doc.library.invalidWallColor"));
+      return;
+    }
+    setError("");
+    setWallColor(next);
+    setWallHexDraft(next || "");
+  };
+
   const handleSave = () => {
     const trimmed = tag.trim();
     if (!trimmed) {
@@ -132,9 +150,11 @@ export function FolderLibraryElementModal({
         attachmentUrl: isSkillLike ? attachmentUrl : (item?.attachmentUrl || null),
         attachmentName: isSkillLike ? attachmentName : (item?.attachmentName || null),
         attachmentKind: isSkillLike ? attachmentKind : (item?.attachmentKind || null),
+        wallColor: showWallColor ? wallColor : null,
       };
       if (isSkillLike) {
         payload.mediaUrl = null;
+        payload.wallColor = null;
       }
       const saved = editing
         ? updateFolderLibraryItem(folderId, item.id, payload)
@@ -163,6 +183,7 @@ export function FolderLibraryElementModal({
     : t("doc.library.uploadHint");
 
   const hasUploadPreview = isSkillLike ? Boolean(attachmentUrl) : Boolean(mediaUrl);
+  const isImageLike = category === "image" || (!isSkillLike && !isVideoLike);
 
   return createPortal(
     <div
@@ -227,6 +248,52 @@ export function FolderLibraryElementModal({
               />
             </label>
 
+            {showWallColor ? (
+              <div className="folder-library-element-modal__field">
+                <span className="folder-library-element-modal__label">
+                  {t("doc.library.wallColorLabel")}
+                </span>
+                <div className="folder-library-element-modal__wall-row">
+                  <input
+                    type="color"
+                    className="folder-library-element-modal__wall-swatch"
+                    value={wallPreview}
+                    aria-label={t("doc.library.wallColorLabel")}
+                    onChange={(e) => {
+                      const next = normalizeWallColor(e.target.value);
+                      setWallHexDraft(next || FOLDER_LIBRARY_DEFAULT_WALL);
+                      setWallColor(next);
+                      setError("");
+                    }}
+                  />
+                  <input
+                    className="folder-library-element-modal__input folder-library-element-modal__wall-hex"
+                    type="text"
+                    value={wallHexDraft}
+                    placeholder={t("doc.library.wallColorPlaceholder")}
+                    spellCheck={false}
+                    onChange={(e) => setWallHexDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleApplyWall();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="folder-library-element-modal__wall-apply"
+                    onClick={handleApplyWall}
+                  >
+                    {t("doc.library.wallColorApply")}
+                  </button>
+                </div>
+                <span className="folder-library-element-modal__wall-hint">
+                  {t("doc.library.wallColorHint")}
+                </span>
+              </div>
+            ) : null}
+
             {!lockCategory ? (
               <label className="folder-library-element-modal__field">
                 <span className="folder-library-element-modal__label">{t("doc.library.categoryLabel")}</span>
@@ -252,6 +319,11 @@ export function FolderLibraryElementModal({
                 "folder-library-element-modal__drop"
                 + (dragOver ? " is-dragover" : "")
                 + (hasUploadPreview ? " has-media" : "")
+              }
+              style={
+                showWallColor && mediaUrl
+                  ? { backgroundColor: wallPreview }
+                  : undefined
               }
               disabled={uploading || category === "video"}
               onClick={() => {
@@ -285,7 +357,7 @@ export function FolderLibraryElementModal({
                 </span>
               ) : mediaUrl && isImageLike ? (
                 <img
-                  className="folder-library-element-modal__preview"
+                  className="folder-library-element-modal__preview folder-library-element-modal__preview--contain"
                   src={mediaUrl}
                   alt=""
                 />

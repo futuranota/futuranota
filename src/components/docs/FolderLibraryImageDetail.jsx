@@ -3,7 +3,10 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { copyToClipboard } from "../../lib/copyToClipboard.js";
-import { normalizeFolderLibraryItems } from "../../lib/folderLibrary.js";
+import {
+  normalizeFolderLibraryItems,
+  resolveWallColor,
+} from "../../lib/folderLibrary.js";
 
 /**
  * @param {string} tag
@@ -197,7 +200,10 @@ export function FolderLibraryImageDetail({
               </button>
             </div>
           ) : (
-            <div className="folder-library-image-detail__image-pane">
+            <div
+              className="folder-library-image-detail__image-pane"
+              style={{ backgroundColor: resolveWallColor(item.wallColor) }}
+            >
               {hasImage ? (
                 <>
                   <img

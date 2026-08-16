@@ -82,9 +82,13 @@ Still to brief in detail. Video create type exists in `[+]`. PDF may share Skill
 - Detail: tag, TXT-Placeholder \| Image, copy description, download WebP
 - Placeholders EN/ES for description: idea/concept of the image description
 
-## Atelier (later)
+## Atelier / wall color (Image live; Video next)
 
-Wall color + social hex after core types feel solid. FN does not generate images.
+- Field `wallColor` (`#RRGGBB`) on the ficha — production wall behind the asset.
+- **Edit:** hex + color picker + **Apply**; live behind upload preview.
+- **Open Image:** `folder-library-image-detail__image-pane` uses `resolveWallColor(wallColor)` (default `#151515`).
+- Does not recolor the WebP pixels. Same field later for Video.
+- FN does not generate images.
 
 ## Persistence
 

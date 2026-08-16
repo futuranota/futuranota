@@ -13,9 +13,12 @@ import { generateId } from "./ids.js";
  * @property {string|null} attachmentUrl
  * @property {string|null} attachmentName
  * @property {string|null} attachmentKind
+ * @property {string|null} wallColor Preview wall / production hex behind image or video (`#RRGGBB`)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
+
+export const FOLDER_LIBRARY_DEFAULT_WALL = "#151515";
 
 export const FOLDER_LIBRARY_CATEGORIES = /** @type {const} */ ([
   "auto",
@@ -33,6 +36,37 @@ export const FOLDER_LIBRARY_FILTER_TABS = /** @type {const} */ ([
   "skill",
 ]);
 
+/**
+ * Normalize a CSS hex color for library wall preview.
+ * Accepts `#RGB`, `#RRGGBB`, or without `#`. Empty → null.
+ * @param {unknown} value
+ * @returns {string|null} `#RRGGBB` uppercase or null
+ */
+export function normalizeWallColor(value) {
+  if (value == null) return null;
+  let raw = String(value).trim();
+  if (!raw) return null;
+  if (raw[0] !== "#") raw = `#${raw}`;
+  if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+    const r = raw[1];
+    const g = raw[2];
+    const b = raw[3];
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) {
+    return raw.toUpperCase();
+  }
+  return null;
+}
+
+/**
+ * Color used for the image/video preview pane.
+ * @param {string|null|undefined} wallColor
+ * @returns {string}
+ */
+export function resolveWallColor(wallColor) {
+  return normalizeWallColor(wallColor) || FOLDER_LIBRARY_DEFAULT_WALL;
+}
 /**
  * @param {unknown} value
  * @returns {FolderLibraryCategory}
@@ -126,6 +160,7 @@ export function normalizeFolderLibraryItem(raw) {
       ? raw.attachmentKind.trim().toLowerCase()
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
+  const wallColor = normalizeWallColor(raw.wallColor);
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -142,6 +177,7 @@ export function normalizeFolderLibraryItem(raw) {
     attachmentUrl,
     attachmentName,
     attachmentKind,
+    wallColor,
     createdAt,
     updatedAt,
   };
@@ -174,6 +210,7 @@ export function normalizeFolderLibraryItems(value) {
  *   attachmentUrl?: string|null,
  *   attachmentName?: string|null,
  *   attachmentKind?: string|null,
+ *   wallColor?: string|null,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -196,6 +233,7 @@ export function buildFolderLibraryItem(input = {}) {
       ? String(input.attachmentKind).trim().toLowerCase()
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
+  const wallColor = normalizeWallColor(input.wallColor);
   return {
     id: generateId("LIB"),
     tag,
@@ -206,6 +244,7 @@ export function buildFolderLibraryItem(input = {}) {
     attachmentUrl,
     attachmentName,
     attachmentKind,
+    wallColor,
     createdAt: now,
     updatedAt: now,
   };

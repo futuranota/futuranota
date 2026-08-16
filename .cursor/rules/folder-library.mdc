@@ -13,9 +13,9 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 
 - **`[+]` menu:** Skills/PDF · Image · Video (not blind create into current tab).
 - **Tabs:** All · Images · Videos · AI skills.
-- **Image:** tag + TXT-Placeholder description + WebP; detail switch + copy + download.
-- **Skill:** tag + “qué hace?” description + **attachment** upload; open → **Download** (no WebP convert).
-- Bytes → `doc-images`. Metadatos → `campaigns.library_items`.
+- **Image:** tag + TXT-Placeholder + WebP; detail switch + copy + download; **wallColor** hex on preview pane (Edit Apply → open Image).
+- **Skill:** tag + “qué hace?” + attachment; open → Download.
+- Video wallColor = same field next. Bytes → `doc-images`.
 
 ## Gina
 

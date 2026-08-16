@@ -17902,6 +17902,10 @@ body.doc-content-resizing * {
   flex-direction: column;
   gap: 12px;
   align-items: stretch;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-sizing: border-box;
 }
 
 .folder-library-image-detail__img {
@@ -17909,9 +17913,9 @@ body.doc-content-resizing * {
   width: 100%;
   max-height: min(52vh, 420px);
   object-fit: contain;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: transparent;
+  border: none;
 }
 
 .folder-library-image-detail__download {
@@ -18082,6 +18086,59 @@ body.doc-content-resizing * {
   min-height: 200px;
   object-fit: cover;
   display: block;
+}
+
+.folder-library-element-modal__preview--contain {
+  object-fit: contain;
+  background: transparent;
+}
+
+.folder-library-element-modal__wall-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-library-element-modal__wall-swatch {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.folder-library-element-modal__wall-hex {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.folder-library-element-modal__wall-apply {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-element-modal__wall-apply:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.folder-library-element-modal__wall-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .folder-library-element-modal__remove-media {
