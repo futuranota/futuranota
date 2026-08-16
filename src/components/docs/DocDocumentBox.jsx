@@ -35,6 +35,7 @@ import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { FolderFileShredder } from "./FolderFileShredder.jsx";
+import { FolderLibraryOverlay } from "./FolderLibraryOverlay.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
@@ -213,6 +214,7 @@ export function DocDocumentBox({
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
+  const [folderLibraryOpen, setFolderLibraryOpen] = useState(false);
   const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
   const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -791,6 +793,17 @@ export function DocDocumentBox({
               </span>
             </button>
           )}
+          {isContentMode && docId ? (
+            <button
+              type="button"
+              className="doc-folder-library-trigger"
+              onClick={() => setFolderLibraryOpen(true)}
+              aria-label={t("doc.library.openAria")}
+              title={t("doc.library.open")}
+            >
+              {t("doc.library.open")}
+            </button>
+          ) : null}
         </div>
         <textarea
           ref={titleRef}
@@ -1031,6 +1044,12 @@ export function DocDocumentBox({
         </button>
       </div>
       <MarkLoadingOverlay open={isSaving} label="Saving…" />
+      {folderLibraryOpen && isContentMode && docId ? (
+        <FolderLibraryOverlay
+          folderId={docId}
+          onClose={() => setFolderLibraryOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

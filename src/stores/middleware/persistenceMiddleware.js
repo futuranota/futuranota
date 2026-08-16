@@ -1,6 +1,7 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { resolveSyncUserId } from "../../lib/resolveSyncUserId.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
+import { normalizeFolderLibraryItems } from "../../lib/folderLibraryNormalize.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
@@ -1487,6 +1488,7 @@ export function initPersistenceMiddleware(stores) {
           nodeLinkColor: camp.node_link_color || "mint",
           viewMode: camp.view_mode === "quick" ? "quick" : "story",
           knowledgeImport: stripKnowledgeImportSidecar(camp.knowledge_import),
+          libraryItems: normalizeFolderLibraryItems(camp.library_items),
         };
         if (camp.company_id && objects[camp.company_id]) {
           objects[camp.company_id].children.push(camp.id);
@@ -1876,6 +1878,7 @@ export function initPersistenceMiddleware(stores) {
         node_link_color: doc.nodeLinkColor || "mint",
         view_mode: doc.viewMode === "quick" ? "quick" : "story",
         knowledge_import: knowledgeImportWithTimelineSource(doc),
+        library_items: normalizeFolderLibraryItems(doc.libraryItems),
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,
       }));

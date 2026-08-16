@@ -1,6 +1,7 @@
 import { normalizeSidebarOrder } from "./folderSidebarOrder.js";
 import { normalizeKnowledgeImport } from "./knowledgeImport.js";
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
+import { normalizeFolderLibraryItems } from "./folderLibraryNormalize.js";
 import {
   FOLDER_VIEW_MODE_QUICK,
   normalizeFolderViewMode,
@@ -38,6 +39,8 @@ export function emptyDocCampaignFields() {
     knowledgeImport: null,
     launchRadarSnapshot: null,
     reportPresentation: null,
+    /** Folder-scoped library fichas (tag + metadata + optional media). */
+    libraryItems: [],
   };
 }
 
@@ -96,6 +99,9 @@ export function normalizeDoc(doc) {
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
     reportPresentation: doc.reportPresentation ?? base.reportPresentation,
     launchRadarSnapshot: doc.launchRadarSnapshot ?? readLaunchRadarFromDoc(doc) ?? base.launchRadarSnapshot,
+    libraryItems: normalizeFolderLibraryItems(
+      doc.libraryItems !== undefined ? doc.libraryItems : base.libraryItems,
+    ),
   };
   return normalized;
 }

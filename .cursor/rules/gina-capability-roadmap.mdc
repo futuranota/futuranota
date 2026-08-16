@@ -27,6 +27,7 @@ No inventa corpus. No edita el **body** del documento.
 | **Google Calendar** | Notificador **fuera** de FN; FN = source of truth. Ej. “recuérdame mañana a las 10:30” → evento GCal |
 | **Google Drive** | Transformar doc a otro formato + botón enviar al Drive del user (después) |
 | **URLs / tabla** | Informar filas (cookies, comisión, etc.); llenar listados por pedido |
+| **Folder library** | Fichas del folder (tips / trailer / attachment). Gina **recuerda y muestra** en el mismo chat del día — mismo modelo que la UI (ver `folder-library.mdc`). LIVE CORPUS ONLY |
 
 ## Orden de build (seguir este orden)
 
