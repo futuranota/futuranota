@@ -147,3 +147,97 @@ export async function uploadDocAttachmentFile(file, options = {}) {
     kind: inferAttachmentKind(originalName, contentType),
   };
 }
+
+const LIBRARY_VIDEO_MAX_SECONDS = 120;
+const LIBRARY_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Read duration (seconds) from a local video File via metadata.
+ * @param {File|Blob} file
+ * @returns {Promise<number>}
+ */
+export function probeVideoDurationSeconds(file) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Video probe requires a browser."));
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration);
+      URL.revokeObjectURL(url);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        reject(new Error("Could not read video duration."));
+        return;
+      }
+      resolve(duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read video file."));
+    };
+    video.src = url;
+  });
+}
+
+/**
+ * Upload a library video (mp4/webm/mov) without WebP conversion.
+ * Caps: {@link LIBRARY_VIDEO_MAX_SECONDS} and {@link LIBRARY_VIDEO_MAX_BYTES}.
+ *
+ * @param {File} file
+ * @param {{ fileId?: string, scopeId?: string, upsert?: boolean, fileName?: string, maxSeconds?: number, maxBytes?: number }} [options]
+ * @returns {Promise<{ url: string, name: string, contentType: string, duration: number }>}
+ */
+export async function uploadDocVideoFile(file, options = {}) {
+  if (!file) {
+    throw new Error("No video to upload.");
+  }
+  const mime = String(file.type || "").toLowerCase();
+  const name = String(options.fileName || file.name || "").toLowerCase();
+  const okType = /^video\/(mp4|webm|quicktime)$/i.test(mime)
+    || /\.(mp4|webm|mov)$/i.test(name);
+  if (!okType) {
+    throw new Error("Choose an MP4, WebM, or MOV video.");
+  }
+
+  const maxBytes = Number(options.maxBytes) > 0
+    ? Number(options.maxBytes)
+    : LIBRARY_VIDEO_MAX_BYTES;
+  if (Number(file.size) > maxBytes) {
+    const err = new Error("VIDEO_TOO_LARGE");
+    err.code = "VIDEO_TOO_LARGE";
+    err.maxBytes = maxBytes;
+    err.size = file.size;
+    throw err;
+  }
+
+  const maxSeconds = Number(options.maxSeconds) > 0
+    ? Number(options.maxSeconds)
+    : LIBRARY_VIDEO_MAX_SECONDS;
+  const duration = await probeVideoDurationSeconds(file);
+  if (duration > maxSeconds + 0.25) {
+    const err = new Error(`VIDEO_TOO_LONG:${Math.ceil(duration)}`);
+    err.code = "VIDEO_TOO_LONG";
+    err.duration = duration;
+    err.maxSeconds = maxSeconds;
+    throw err;
+  }
+
+  const uploaded = await uploadDocAttachmentFile(file, {
+    fileId: options.fileId || `vid_${Date.now()}`,
+    scopeId: options.scopeId,
+    upsert: options.upsert,
+    fileName: options.fileName || file.name,
+  });
+
+  return {
+    url: uploaded.url,
+    name: uploaded.name,
+    contentType: uploaded.contentType,
+    duration,
+  };
+}
+
+export { LIBRARY_VIDEO_MAX_SECONDS, LIBRARY_VIDEO_MAX_BYTES };

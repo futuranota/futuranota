@@ -1,0 +1,31 @@
+---
+description: Studio — Vimeo brand video stage (visualize, wall, aspect). Not YouTube notes.
+globs:
+  - src/components/studio/**
+  - src/lib/studio*.js
+  - src/styles/studio.css
+  - .cursor/saved/studio/**
+---
+
+# Studio
+
+Canonical brief: `.cursor/saved/studio/BRIEF.md`.
+
+## Product
+
+- **Studio** = visualize brand video on a wall (Vimeo embed). **Not** note-taking.
+- **YouTube** (Intel) = embed + notes until that panel is retired.
+- Folder-library video **uploads** are transitional; Studio is the long-term host path.
+
+## v1
+
+- Intel tab **Studio** → large overlay.
+- Vimeo URL only + wall color + one frame aspect `16:9` | `9:16` | `1:1`.
+- CTA **Vimeo** → `https://vimeo.com/join`.
+- No credits, no NoteTaker. Session draft OK.
+
+## Rules
+
+- Base surface `#151515`.
+- Reuse wall helpers from folder library normalize.
+- Do not invent embeds for Gina (LIVE CORPUS ONLY).

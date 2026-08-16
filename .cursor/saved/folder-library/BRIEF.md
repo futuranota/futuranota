@@ -29,7 +29,7 @@ v1 = **folder only**.
 [ + ]
   ├── Skills / PDF   → skill (or pdf) ficha — attachment downloadable
   ├── Image          → image ficha — WebP preview
-  └── Video          → video ficha (later detail)
+  └── Video          → video ficha (upload mp4/webm/mov ≤2 min · ≤100 MB + detail)
 ```
 
 Each type has its own create fields and open behavior (define per type; Image + Skill first).
@@ -72,9 +72,15 @@ Remember last tab per folder (`sessionStorage`).
 - Grid: FileCard-style format badge ([`FileCard.original.tsx`](FileCard.original.tsx); shared format-tag grid ref from user — CODE / JSON / ZIP / MD / PDF, etc.)
 - Bytes: same Storage pool `doc-images` with expanded MIME allow-list (or raw file path under user scope) — **no WebP conversion** for attachments
 
-### Video / PDF open UX
+### Video (live)
 
-Still to brief in detail. Video create type exists in `[+]`. PDF may share Skills/PDF entry or land as `pdf` category under AI skills tab for now.
+- Create: tag + description (TXT-Placeholder) + upload **MP4/WebM/MOV ≤ 2 min · ≤ 100 MB** + optional `wallColor`
+- Open: detail — TXT-Placeholder | Video switch, play on wall-colored pane, download
+- Grid: VIDEO badge
+
+### Video / PDF open UX (PDF still later)
+
+PDF may share Skills/PDF entry or land as `pdf` under AI skills tab.
 
 ## Image card UX (live)
 
@@ -82,13 +88,13 @@ Still to brief in detail. Video create type exists in `[+]`. PDF may share Skill
 - Detail: tag, TXT-Placeholder \| Image, copy description, download WebP
 - Placeholders EN/ES for description: idea/concept of the image description
 
-## Atelier / wall color (Image live; Video next)
+## Atelier / wall color (Image + Video live)
 
 - Field `wallColor` (`#RRGGBB`) on the ficha — production wall behind the asset.
 - **Edit:** hex + color picker + **Apply**; live behind upload preview.
-- **Open Image:** `folder-library-image-detail__image-pane` uses `resolveWallColor(wallColor)` (default `#151515`).
-- Does not recolor the WebP pixels. Same field later for Video.
-- FN does not generate images.
+- **Open Image/Video:** preview pane uses `resolveWallColor(wallColor)` (default `#151515`).
+- Does not recolor the media pixels.
+- FN does not generate images/video.
 
 ## Persistence
 
@@ -115,6 +121,6 @@ Still to brief in detail. Video create type exists in `[+]`. PDF may share Skill
 2. ~~Folder grid + Image detail~~
 3. ~~Memory: [+] types + tabs All/Images/Videos/AI skills + Skill attachment~~
 4. **Build:** `[+]` chooser + Skill create (tag, description, attachment) + skill open/download + AI skills tab
-5. Video create/open brief + UI
-6. PDF-specific polish / FileCard thumbs polish
-7. Document mini strip · Atelier · Gina library tools · @tag
+5. ~~Video create/open + wallColor~~  
+6. PDF-specific polish / FileCard thumbs polish  
+7. Document mini strip · Atelier extras · Gina library tools · @tag  

@@ -17117,6 +17117,11 @@ body.doc-content-resizing * {
   width: min(720px, calc(100vw - 48px));
 }
 
+.folder-library-element-modal--video {
+  width: min(880px, calc(100vw - 40px));
+  max-height: min(92vh, 860px);
+}
+
 .folder-library-overlay__header,
 .folder-library-element-modal__head {
   display: flex;
@@ -17939,6 +17944,241 @@ body.doc-content-resizing * {
   cursor: default;
 }
 
+.folder-library-video-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 1215;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.folder-library-video-detail__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(6, 7, 9, 0.55);
+  cursor: default;
+}
+
+.folder-library-video-detail__shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(88vh, 720px);
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.folder-library-video-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  flex-shrink: 0;
+}
+
+.folder-library-video-detail__tag {
+  margin: 0;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-library-video-detail__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.folder-library-video-detail__edit {
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-video-detail__edit:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.folder-library-video-detail__close {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.folder-library-video-detail__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.folder-library-video-detail__switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 18px 12px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.folder-library-video-detail__switch-btn {
+  margin: 0;
+  padding: 8px 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.folder-library-video-detail__switch-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.folder-library-video-detail__switch-btn.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.folder-library-video-detail__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+
+.folder-library-video-detail__ref {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 44px 14px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.folder-library-video-detail__description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.folder-library-video-detail__empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.folder-library-video-detail__copy {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.folder-library-video-detail__copy:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.folder-library-video-detail__copy:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.folder-library-video-detail__video-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-sizing: border-box;
+}
+
+.folder-library-video-detail__player {
+  display: block;
+  width: 100%;
+  max-height: min(52vh, 420px);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.folder-library-video-detail__download {
+  align-self: flex-end;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-video-detail__download:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.folder-library-video-detail__download:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .folder-library-element-modal__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 42%);
@@ -17946,6 +18186,10 @@ body.doc-content-resizing * {
   padding: 4px 18px 12px;
   min-height: 0;
   overflow: auto;
+}
+
+.folder-library-element-modal--video .folder-library-element-modal__body {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 52%);
 }
 
 @media (max-width: 640px) {
@@ -18044,6 +18288,49 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   overflow: hidden;
+}
+
+.folder-library-element-modal__drop--video {
+  min-height: 320px;
+  padding: 28px 24px;
+  gap: 14px;
+}
+
+.folder-library-element-modal__drop--video .folder-library-element-modal__plus {
+  width: 48px;
+  height: 48px;
+  font-size: 28px;
+}
+
+.folder-library-element-modal__drop--video.has-media {
+  min-height: 360px;
+}
+
+.folder-library-element-modal__drop--video .folder-library-element-modal__preview {
+  min-height: 360px;
+}
+
+.folder-library-element-modal__upload-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 28rem;
+  text-align: center;
+}
+
+.folder-library-element-modal__upload-info-lead {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.folder-library-element-modal__upload-info-body {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .folder-library-element-modal__drop.is-dragover {

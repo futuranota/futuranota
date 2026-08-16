@@ -11,6 +11,7 @@ import {
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
 import { FolderLibrarySkillDetail } from "./FolderLibrarySkillDetail.jsx";
+import { FolderLibraryVideoDetail } from "./FolderLibraryVideoDetail.jsx";
 
 const FILTER_TABS = [
   { id: "all", labelKey: "doc.library.tabAll" },
@@ -134,6 +135,11 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
   const openItem = (item) => {
     if (item.category === "image") {
       setDetailKind("image");
+      setDetailItemId(item.id);
+      return;
+    }
+    if (item.category === "video") {
+      setDetailKind("video");
       setDetailItemId(item.id);
       return;
     }
@@ -281,6 +287,7 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
                     </span>
                   </button>
                   {(item.category === "image"
+                    || item.category === "video"
                     || item.category === "skill"
                     || item.category === "pdf") ? (
                     <button
@@ -314,6 +321,19 @@ export function FolderLibraryOverlay({ folderId, onClose }) {
 
       {detailItemId && detailKind === "image" ? (
         <FolderLibraryImageDetail
+          folderId={folderId}
+          itemId={detailItemId}
+          escapeEnabled={!modalOpen}
+          onClose={() => {
+            setDetailItemId(null);
+            setDetailKind(null);
+          }}
+          onEdit={(item) => openEdit(item)}
+        />
+      ) : null}
+
+      {detailItemId && detailKind === "video" ? (
+        <FolderLibraryVideoDetail
           folderId={folderId}
           itemId={detailItemId}
           escapeEnabled={!modalOpen}

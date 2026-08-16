@@ -7,6 +7,7 @@ import './styles.css';
 import './styles/parte3.css';
 import './styles/left-panel.css';
 import './styles/intel-reference.css';
+import './styles/studio.css';
 import './styles/pack-wizard.css';
 import './styles/steps-runner.css';
 import './styles/lazy-todos.css';

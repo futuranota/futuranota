@@ -23,6 +23,7 @@ import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
+import { StudioPanel } from './components/studio/StudioPanel.jsx';
 import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
 import { IntelRateLimitBadge } from './components/intel/IntelRateLimitBadge.jsx';
@@ -604,6 +605,7 @@ function useIntelTabOptions() {
   return useMemo(() => ([
     { id: "news", label: t("intel.news") },
     { id: "youtube", label: t("intel.youtube") },
+    { id: "studio", label: t("intel.studio") },
     { id: "campaign", label: t("intel.campaign") },
   ]), [t]);
 }
@@ -845,6 +847,7 @@ function IntelPanel({
   const pluralS = (n) => (n === 1 ? "" : "s");
   const [tab, setTab] = useState("news");
   const [youtubePanelOpen, setYoutubePanelOpen] = useState(false);
+  const [studioPanelOpen, setStudioPanelOpen] = useState(false);
   const [intelFolderTab, setIntelFolderTab] = useState("calendar");
   const [intelQuery, setIntelQuery] = useState("");
   const intelQueryRef = useRef(null);
@@ -894,7 +897,8 @@ function IntelPanel({
   useEffect(() => {
     if (!intelLocked) return;
     setYoutubePanelOpen(false);
-    if (tab === "youtube") setTab("news");
+    setStudioPanelOpen(false);
+    if (tab === "youtube" || tab === "studio") setTab("news");
   }, [intelLocked, tab]);
 
   const syncIntelQueryHeight = () => {
@@ -962,7 +966,8 @@ function IntelPanel({
     setIntelQuery("");
     clearIntelSearch();
     setYoutubePanelOpen(false);
-    if (tab === "youtube") setTab("news");
+    setStudioPanelOpen(false);
+    if (tab === "youtube" || tab === "studio") setTab("news");
     if (tab === "campaign") {
       requestAnimationFrame(() => {
         injectCampaignQuery();
@@ -996,14 +1001,27 @@ function IntelPanel({
     if (nextTab === "youtube") {
       setTab("youtube");
       setYoutubePanelOpen(true);
+      setStudioPanelOpen(false);
+      return;
+    }
+    if (nextTab === "studio") {
+      setTab("studio");
+      setStudioPanelOpen(true);
+      setYoutubePanelOpen(false);
       return;
     }
     setYoutubePanelOpen(false);
+    setStudioPanelOpen(false);
     setTab(nextTab);
   };
 
   const handleYoutubePanelClose = () => {
     setYoutubePanelOpen(false);
+    setTab("news");
+  };
+
+  const handleStudioPanelClose = () => {
+    setStudioPanelOpen(false);
     setTab("news");
   };
 
@@ -1039,6 +1057,9 @@ function IntelPanel({
           onClose={handleYoutubePanelClose}
           onSlashCreateNode={onSlashCreateNode}
         />
+      ) : null}
+      {studioPanelOpen ? (
+        <StudioPanel onClose={handleStudioPanelClose} />
       ) : null}
       <div className="col-header intel-header">
         <div className="intel-search-card">

@@ -1,0 +1,331 @@
+/* Studio — Vimeo brand stage (visualize + wall + aspect) */
+
+.studio-overlay {
+  z-index: 220;
+}
+
+.studio-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.studio-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(960px, calc(100vw - 40px));
+  height: min(860px, calc(100vh - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  background: #151515;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
+}
+
+.studio-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 18px 16px;
+  gap: 12px;
+}
+
+.studio-workspace__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.studio-workspace__back,
+.studio-workspace__close {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio-workspace__back:hover,
+.studio-workspace__close:hover {
+  color: #fff;
+}
+
+.studio-workspace__title {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.studio-workspace__vimeo-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #1ab7ea;
+  color: #0b1a22;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+.studio-workspace__vimeo-cta:hover {
+  filter: brightness(1.06);
+}
+
+.studio-workspace__lede {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.studio-workspace__stage {
+  flex: 1 1 auto;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.studio-workspace__frame {
+  width: min(100%, 720px);
+  max-height: 100%;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-workspace__frame--portrait {
+  width: min(100%, 320px);
+}
+
+.studio-workspace__frame--square {
+  width: min(100%, 420px);
+}
+
+.studio-workspace__iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: #000;
+}
+
+.studio-workspace__empty {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.studio-workspace__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.studio-workspace__url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.studio-workspace__url-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.studio-workspace__url-input:focus {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.studio-workspace__load,
+.studio-workspace__clear,
+.studio-workspace__wall-apply,
+.studio-workspace__reset {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.studio-workspace__load {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+}
+
+.studio-workspace__load:hover:not(:disabled),
+.studio-workspace__clear:hover,
+.studio-workspace__wall-apply:hover,
+.studio-workspace__reset:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.studio-workspace__load:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.studio-workspace__control-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.studio-workspace__aspect-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-workspace__aspect-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.studio-workspace__aspect-chip:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.studio-workspace__aspect-chip.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+  color: #fff;
+}
+
+.studio-workspace__wall-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-workspace__wall-swatch {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.studio-workspace__wall-hex {
+  flex: 1 1 120px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  outline: none;
+}
+
+.studio-workspace__wall-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.studio-workspace__error {
+  margin: 0;
+  font-size: 12px;
+  color: #f07178;
+}
+
+.studio-workspace__footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.studio-workspace__vimeo-link {
+  font-size: 12px;
+  color: #1ab7ea;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.studio-workspace__vimeo-link:hover {
+  color: #5ccff5;
+}
+
+@media (max-width: 640px) {
+  .studio-panel {
+    width: calc(100vw - 24px);
+    height: min(92vh, 920px);
+  }
+
+  .studio-workspace__stage {
+    min-height: 220px;
+    padding: 12px;
+  }
+}

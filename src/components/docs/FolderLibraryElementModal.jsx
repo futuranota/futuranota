@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import {
   convertAndUploadDocImage,
   uploadDocAttachmentFile,
+  uploadDocVideoFile,
 } from "../../lib/docImageStorage.js";
 import { generateId } from "../../lib/ids.js";
 import {
@@ -96,6 +97,45 @@ export function FolderLibraryElementModal({
       return;
     }
 
+    if (isVideoLike) {
+      const mime = String(file.type || "").toLowerCase();
+      const okVideo = /^video\/(mp4|webm|quicktime)$/i.test(mime)
+        || /\.(mp4|webm|mov)$/i.test(file.name || "");
+      if (!okVideo) {
+        setError(t("doc.library.invalidVideo"));
+        return;
+      }
+      setUploading(true);
+      setError("");
+      try {
+        const uploaded = await uploadDocVideoFile(file, {
+          fileId: generateId("LIBVID"),
+          scopeId: folderId || "folder-lib",
+          fileName: file.name,
+        });
+        setMediaUrl(uploaded.url);
+      } catch (err) {
+        if (err?.code === "VIDEO_TOO_LONG" || String(err?.message || "").startsWith("VIDEO_TOO_LONG")) {
+          setError(
+            t("doc.library.videoTooLong").replace(
+              "{max}",
+              String(Math.round((err.maxSeconds || 120) / 60) || 2),
+            ),
+          );
+        } else if (err?.code === "VIDEO_TOO_LARGE" || String(err?.message || "") === "VIDEO_TOO_LARGE") {
+          setError(t("doc.library.videoTooLarge"));
+        } else if (/maximum allowed size|exceeded|too large|Payload too large/i.test(String(err?.message || ""))) {
+          setError(t("doc.library.videoTooLarge"));
+        } else {
+          setError(err?.message || t("doc.library.uploadFailed"));
+        }
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     if (!file.type.startsWith("image/")) {
       setError(t("doc.library.invalidImage"));
       return;
@@ -176,14 +216,23 @@ export function FolderLibraryElementModal({
 
   const uploadTitle = isSkillLike
     ? (uploading ? t("doc.library.uploading") : t("doc.library.uploadAttachmentTitle"))
-    : (uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle"));
+    : isVideoLike
+      ? (uploading ? t("doc.library.uploading") : null)
+      : (uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle"));
 
   const uploadHint = isSkillLike
     ? t("doc.library.uploadAttachmentHint")
-    : t("doc.library.uploadHint");
+    : isVideoLike
+      ? null
+      : t("doc.library.uploadHint");
 
   const hasUploadPreview = isSkillLike ? Boolean(attachmentUrl) : Boolean(mediaUrl);
   const isImageLike = category === "image" || (!isSkillLike && !isVideoLike);
+  const fileAccept = isSkillLike
+    ? undefined
+    : isVideoLike
+      ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+      : "image/*";
 
   return createPortal(
     <div
@@ -198,7 +247,12 @@ export function FolderLibraryElementModal({
         aria-label={t("doc.library.cancel")}
         onClick={onClose}
       />
-      <div className="folder-library-element-modal">
+      <div
+        className={
+          "folder-library-element-modal"
+          + (isVideoLike ? " folder-library-element-modal--video" : "")
+        }
+      >
         <header className="folder-library-element-modal__head">
           <h2 className="folder-library-element-modal__title">
             {editing
@@ -317,6 +371,7 @@ export function FolderLibraryElementModal({
               type="button"
               className={
                 "folder-library-element-modal__drop"
+                + (isVideoLike ? " folder-library-element-modal__drop--video" : "")
                 + (dragOver ? " is-dragover" : "")
                 + (hasUploadPreview ? " has-media" : "")
               }
@@ -325,11 +380,8 @@ export function FolderLibraryElementModal({
                   ? { backgroundColor: wallPreview }
                   : undefined
               }
-              disabled={uploading || category === "video"}
-              onClick={() => {
-                if (category === "video") return;
-                fileInputRef.current?.click();
-              }}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
               onDragEnter={(e) => {
                 e.preventDefault();
                 setDragOver(true);
@@ -342,7 +394,6 @@ export function FolderLibraryElementModal({
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOver(false);
-                if (category === "video") return;
                 handleFiles(e.dataTransfer?.files);
               }}
             >
@@ -355,20 +406,46 @@ export function FolderLibraryElementModal({
                     {attachmentName || t("doc.library.attachmentReady")}
                   </span>
                 </span>
+              ) : mediaUrl && isVideoLike ? (
+                <video
+                  className="folder-library-element-modal__preview folder-library-element-modal__preview--contain"
+                  src={mediaUrl}
+                  controls
+                  playsInline
+                  onClick={(e) => e.stopPropagation()}
+                />
               ) : mediaUrl && isImageLike ? (
                 <img
                   className="folder-library-element-modal__preview folder-library-element-modal__preview--contain"
                   src={mediaUrl}
                   alt=""
                 />
+              ) : isVideoLike ? (
+                <>
+                  <span className="folder-library-element-modal__plus" aria-hidden>+</span>
+                  {uploading ? (
+                    <span className="folder-library-element-modal__upload-title">
+                      {t("doc.library.uploading")}
+                    </span>
+                  ) : (
+                    <span className="folder-library-element-modal__upload-info">
+                      <span className="folder-library-element-modal__upload-info-lead">
+                        {t("doc.library.uploadVideoInfoLead")}
+                      </span>
+                      <span className="folder-library-element-modal__upload-info-body">
+                        {t("doc.library.uploadVideoInfoBody")}
+                      </span>
+                    </span>
+                  )}
+                </>
               ) : (
                 <>
                   <span className="folder-library-element-modal__plus" aria-hidden>+</span>
                   <span className="folder-library-element-modal__upload-title">
-                    {category === "video" ? t("doc.library.videoUploadLater") : uploadTitle}
+                    {uploadTitle}
                   </span>
                   <span className="folder-library-element-modal__upload-hint">
-                    {category === "video" ? t("doc.library.videoUploadLaterHint") : uploadHint}
+                    {uploadHint}
                   </span>
                 </>
               )}
@@ -392,13 +469,13 @@ export function FolderLibraryElementModal({
                 className="folder-library-element-modal__remove-media"
                 onClick={() => setMediaUrl(null)}
               >
-                {t("doc.library.removeMedia")}
+                {isVideoLike ? t("doc.library.removeVideo") : t("doc.library.removeMedia")}
               </button>
             ) : null}
             <input
               ref={fileInputRef}
               type="file"
-              accept={isSkillLike ? undefined : "image/*"}
+              accept={fileAccept}
               hidden
               onChange={(e) => handleFiles(e.target.files)}
             />
