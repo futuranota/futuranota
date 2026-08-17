@@ -88,22 +88,23 @@ export function normalizeFolderLibraryCategory(value) {
 
 /**
  * @param {unknown} value
- * @returns {"all"|"image"|"skill"}
+ * @returns {"all"|"documents"|"image"|"skill"}
  */
 export function normalizeFolderLibraryFilterTab(value) {
   const raw = String(value || "").trim().toLowerCase();
   if (raw === "image" || raw === "skill") return raw;
+  if (raw === "documents" || raw === "docs") return "documents";
   // Legacy "video" tab maps to All (create/filter retired).
   return "all";
 }
 
 /**
  * @param {FolderLibraryItem} item
- * @param {"all"|"image"|"skill"|string} tab
+ * @param {"all"|"documents"|"image"|"skill"|string} tab
  */
 export function folderLibraryItemMatchesFilter(item, tab) {
   if (!item) return false;
-  if (tab === "all") return true;
+  if (tab === "all" || tab === "documents") return true;
   if (tab === "image") return item.category === "image";
   if (tab === "skill") return item.category === "skill" || item.category === "pdf";
   return true;

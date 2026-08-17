@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
-  isLibrarySlashAction,
+  getLibraryHashActionAtCaret,
   parseNodeSlashQuery,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
@@ -23,6 +23,7 @@ import {
   mergeBlockBoldRanges,
 } from "../../lib/docTextBoldRanges.js";
 import {
+  applyLibraryHashInTextBlock,
   applySlashInTextBlock,
   createEmptyTextBlock,
   ensureEmptyTextBlockAfterNode,
@@ -62,7 +63,6 @@ import { removeEmbeddedFromWritingBlock } from "../../lib/nodeIntelWidget.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
 import { collectTagCandidatesForObject } from "../../lib/urlTableTags.js";
-import { collectMoodboardTagCandidates } from "../../lib/docTagRefs.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -304,11 +304,6 @@ export function NodeWritingBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, urlTableEntries, urlTables]);
-  const tagRefCandidates = useMemo(
-    () => collectMoodboardTagCandidates(blocks),
-    [blocks],
-  );
-
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
   }, [onBlocksChange]);
@@ -570,6 +565,19 @@ export function NodeWritingBlockStack({
 
     const { slash } = splitBodyForSlash(block.text);
 
+    const confirmLibraryHash = () => {
+      if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return false;
+      if (!onLibrarySlashAction) return false;
+      const liveText = e.currentTarget?.value ?? block.text ?? "";
+      const caret = e.currentTarget?.selectionStart ?? liveText.length;
+      const hashAction = getLibraryHashActionAtCaret(liveText, caret);
+      if (!hashAction) return false;
+      e.preventDefault();
+      updateBlocks(applyLibraryHashInTextBlock(current, blockIndex, hashAction));
+      onLibrarySlashAction(hashAction.action);
+      return true;
+    };
+
     // Folder expand blueprint: Enter inserts newline in the same cell (SlashAwareTextarea scrolls caret).
     if (contentFocusMode) {
       // Backspace at start → merge with / move to the previous cell (DocBlockStack parity).
@@ -647,6 +655,8 @@ export function NodeWritingBlockStack({
         }
       }
 
+      if (confirmLibraryHash()) return;
+
       if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
         if (slash) {
           const parsed = parseSlashQuery(slash.slice(1));
@@ -654,10 +664,6 @@ export function NodeWritingBlockStack({
             e.preventDefault();
             const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
             updateBlocks(nextBlocks);
-            if (isLibrarySlashAction(parsed)) {
-              onLibrarySlashAction?.(parsed.action);
-              return;
-            }
             focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
             return;
           }
@@ -679,6 +685,8 @@ export function NodeWritingBlockStack({
       return;
     }
 
+    if (confirmLibraryHash()) return;
+
     // Slash command confirm (e.g. /macronodo) — keep existing behavior.
     if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       const { slash } = splitBodyForSlash(block.text);
@@ -688,10 +696,6 @@ export function NodeWritingBlockStack({
           e.preventDefault();
           const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
           updateBlocks(nextBlocks);
-          if (isLibrarySlashAction(parsed)) {
-            onLibrarySlashAction?.(parsed.action);
-            return;
-          }
           focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
           return;
         }
@@ -1199,7 +1203,6 @@ export function NodeWritingBlockStack({
             >
               <MoodboardBlockView
                 block={block}
-                tagRefCandidates={tagRefCandidates}
                 slashGhostHints={slashGhostHints}
                 onChange={(patch) => {
                   const patchHasSavedImage = Array.isArray(patch.columns)
@@ -1355,7 +1358,6 @@ export function NodeWritingBlockStack({
                 tagRefs={block.tagRefs || []}
                 mentionCandidates={mentionCandidates}
                 companyObjectId={companyObjectId}
-                tagRefCandidates={tagRefCandidates}
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
                 onChange={(text, meta) => {
@@ -1410,7 +1412,6 @@ export function NodeWritingBlockStack({
                   tagRefs={block.tagRefs || []}
                   mentionCandidates={mentionCandidates}
                   companyObjectId={companyObjectId}
-                  tagRefCandidates={tagRefCandidates}
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
                   onChange={(text, meta) => {

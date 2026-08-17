@@ -13,6 +13,7 @@ import {
   listLooseLibraryItems,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizeFolderLibraryFilterTab,
   normalizeLibraryOwnerKind,
   normalizeLibrarySets,
   removeFolderLibraryItem,
@@ -117,6 +118,13 @@ describe("folderLibrary normalize", () => {
     expect(sets).toHaveLength(1);
     expect(sets[0].tag).toBe("pack_a");
     expect(sets[0].description).toBe("Story");
+  });
+
+  it("normalizeFolderLibraryFilterTab maps documents and legacy all", () => {
+    expect(normalizeFolderLibraryFilterTab("documents")).toBe("documents");
+    expect(normalizeFolderLibraryFilterTab("docs")).toBe("documents");
+    expect(normalizeFolderLibraryFilterTab("image")).toBe("image");
+    expect(normalizeFolderLibraryFilterTab("all")).toBe("all");
   });
 });
 

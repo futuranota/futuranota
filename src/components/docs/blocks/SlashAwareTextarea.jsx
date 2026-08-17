@@ -283,16 +283,18 @@ export function SlashAwareTextarea({
   );
   const hasMentions = normalizedMentions.length > 0;
 
-  // null/undefined candidates => # stays plain text.
-  const tagRefsEnabled = Array.isArray(tagRefCandidates);
-  const hasTagRefSource = tagRefsEnabled;
+  // Array candidates => # opens the moodboard tag menu. null/undefined => # stays
+  // plain text (reserved for `#i` / `#o`). Existing chips still render from `tagRefs`.
+  const tagInsertEnabled = Array.isArray(tagRefCandidates);
+  const tagRefsEnabled = Array.isArray(tagRefs) || tagInsertEnabled;
+  const hasTagRefSource = tagInsertEnabled;
   const normalizedTagRefs = useMemo(() => {
     if (!tagRefsEnabled) return [];
     const fromProp = normalizeTagRefs(value, tagRefs);
     if (fromProp.length > 0) return fromProp;
-    if (optimisticTagRefs) return normalizeTagRefs(value, optimisticTagRefs);
+    if (tagInsertEnabled && optimisticTagRefs) return normalizeTagRefs(value, optimisticTagRefs);
     return [];
-  }, [optimisticTagRefs, tagRefs, tagRefsEnabled, value]);
+  }, [optimisticTagRefs, tagInsertEnabled, tagRefs, tagRefsEnabled, value]);
   const hasTagRefs = normalizedTagRefs.length > 0;
 
   useEffect(() => {

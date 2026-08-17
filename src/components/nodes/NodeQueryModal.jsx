@@ -54,7 +54,6 @@ import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedS
 import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
 import { LibraryNeedSaveNotice } from "../docs/LibraryNeedSaveNotice.jsx";
 import { LibrarySetInputModal } from "../docs/LibrarySetInputModal.jsx";
-import { LibrarySetsOverlay } from "../docs/LibrarySetsOverlay.jsx";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -219,7 +218,16 @@ export function NodeQueryModal({
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [librarySlashAction, setLibrarySlashAction] = useState(null);
+  const [libraryInitialTab, setLibraryInitialTab] = useState(null);
   const writingCaretRef = useRef(null);
+
+  useEffect(() => {
+    if (librarySlashAction !== LIBRARY_SLASH_ACTIONS.OUTPUT) return;
+    if (!entityNodeId) return;
+    setLibraryInitialTab("documents");
+    setLibraryOpen(true);
+    setLibrarySlashAction(null);
+  }, [librarySlashAction, entityNodeId]);
 
   // Accept on talk popover opens a floating small chat — close in-doc overlay so we don't stack two.
   useEffect(() => {
@@ -2331,7 +2339,11 @@ export function NodeQueryModal({
     <FolderLibraryOverlay
       ownerKind="document"
       ownerId={entityNodeId}
-      onClose={() => setLibraryOpen(false)}
+      initialTab={libraryInitialTab}
+      onClose={() => {
+        setLibraryOpen(false);
+        setLibraryInitialTab(null);
+      }}
     />
   ) : null;
 
@@ -2341,11 +2353,11 @@ export function NodeQueryModal({
     <LibrarySetInputModal
       ownerId={entityNodeId}
       onClose={() => setLibrarySlashAction(null)}
-    />
-  ) : librarySlashAction === LIBRARY_SLASH_ACTIONS.OUTPUT && entityNodeId ? (
-    <LibrarySetsOverlay
-      ownerId={entityNodeId}
-      onClose={() => setLibrarySlashAction(null)}
+      onSaved={() => {
+        setLibrarySlashAction(null);
+        setLibraryInitialTab("documents");
+        setLibraryOpen(true);
+      }}
     />
   ) : null;
 

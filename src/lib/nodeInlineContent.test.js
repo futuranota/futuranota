@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DOC_BLOCK_TYPES } from "./docBlocks.js";
-import { parseDocumentSlashQuery } from "./docBlockSlash.js";
+import {
+  getLibraryHashActionAtCaret,
+  parseDocumentSlashQuery,
+  parseLibraryHashQuery,
+} from "./docBlockSlash.js";
 import {
   appendNodeWritingBlock,
+  applyLibraryHashInTextBlock,
   applySlashInTextBlock,
   createEmptyTextBlock,
   createInlineH1Block,
@@ -33,9 +38,11 @@ describe("applySlashInTextBlock /title", () => {
     expect(next[1].title).toBe("");
   });
 
-  it("strips /i without inserting a block", () => {
-    const blocks = [createEmptyTextBlock("Hello\n/i")];
-    const next = applySlashInTextBlock(blocks, 0, { action: "libraryInput" });
+  it("strips #i without inserting a block", () => {
+    const text = "Hello\n#i";
+    const blocks = [createEmptyTextBlock(text)];
+    const hashAction = getLibraryHashActionAtCaret(text, text.length);
+    const next = applyLibraryHashInTextBlock(blocks, 0, hashAction);
     expect(next[0].type).toBe(NODE_BLOCK_TYPES.TEXT);
     expect(next[0].text).toBe("Hello\n");
     expect(next.some((block) => block.type === NODE_BLOCK_TYPES.H1)).toBe(false);
@@ -43,14 +50,27 @@ describe("applySlashInTextBlock /title", () => {
   });
 });
 
-describe("document slash /i /o actions", () => {
-  it("parses /i and /o as library actions without a block type", () => {
-    const input = parseDocumentSlashQuery("i");
-    expect(input?.action).toBe("libraryInput");
-    expect(input?.type).toBeUndefined();
-    const output = parseDocumentSlashQuery("o");
-    expect(output?.action).toBe("libraryOutput");
-    expect(parseDocumentSlashQuery("input")?.action).toBe("libraryInput");
+describe("document hash #i #o actions", () => {
+  it("parses #i and #o as library actions without a block type", () => {
+    expect(parseLibraryHashQuery("i")?.action).toBe("libraryInput");
+    expect(parseLibraryHashQuery("o")?.action).toBe("libraryOutput");
+    expect(parseLibraryHashQuery("input")?.action).toBe("libraryInput");
+    expect(parseLibraryHashQuery("output")?.action).toBe("libraryOutput");
+    expect(parseLibraryHashQuery("imagen")).toBeNull();
+  });
+
+  it("does not parse /i as a slash library action", () => {
+    expect(parseDocumentSlashQuery("i")).toBeNull();
+    expect(parseDocumentSlashQuery("o")).toBeNull();
+    expect(parseDocumentSlashQuery("input")).toBeNull();
+  });
+
+  it("resolves #i at caret and ignores ## heading", () => {
+    expect(getLibraryHashActionAtCaret("#i", 2)?.action).toBe("libraryInput");
+    expect(getLibraryHashActionAtCaret("#o", 2)?.action).toBe("libraryOutput");
+    expect(getLibraryHashActionAtCaret("##", 2)).toBeNull();
+    expect(getLibraryHashActionAtCaret("#imagen", 7)).toBeNull();
+    expect(getLibraryHashActionAtCaret("x#i", 3)).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 # Folder library — product memory
 
-Saved: 2026-08-15 (updated 2026-08-17: document sets `/i` `/o`). Scope: folder + document libraries.
+Saved: 2026-08-15 (updated 2026-08-17: document assets `#i` `#o`, Documents tab). Scope: folder + document libraries.
 
 ## Problem Futura solves
 
@@ -25,23 +25,26 @@ Document / folder `[+]` = Image + Attachments. Video create retired.
 
 The folder **groups** document fichas; it does not copy them.
 
-## Document sets (`/i` input · `/o` output) — live
+## Document assets (`#i` input · `#o` output) — live
 
-Sets live **only on the document** (node), not on the folder.
+Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose = later.
 
-- **`/i`** — action (does not insert a block): modal Name + Story → `createLibrarySet`.
-- **`/o`** — action: list of this document’s sets (File.svg + title + count). Open a set → tabs **Folder | Images | Attachments**.
-  - **Folder:** set story (copy). Empty → “No story yet.”
-  - **Images / Attachments:** fichas with `item.setId === set.id`.
-  - **Add from this document:** assign loose fichas (`setId` null) into the set.
-- Loose fichas stay in the document **Library** button. The set is the pack.
-- Unsaved document → same message as `-- --` capture (“save the document first”).
-- Out of this slice: reuse folder→doc, `--script--` picker, `#` / moodboard, `element.set` in prose.
+- **`#i`** — action: modal like Image create — Name + Description (metadata) + **image queue** (file-type icon slots, not “Upload”). Saves `createLibrarySet` + image fichas with `setId`. Icon: `FolderDashed.svg`.
+- **`#o`** — action: opens document Library on tab **Documents**.
+- Document library tabs: **Documents | Images | Attachments** (Documents replaces All). Folder library still **All | Images | Attachments**.
+- Documents tab (Group 4): `FolderDashed.svg` + “Documents” + `Info 1.svg`. Rows = assets with `Folders.svg` + name + count.
+- Open an asset → `[ metadato | imagen ] × n` (fichas with that `setId`).
+- Images / Attachments = **loose** fichas (`setId` null). `[+]` on Documents creates an asset; inside an asset `[+]` adds Image/Attachments into it.
+- Unsaved document → same message as `-- --` capture.
+- `#` in document writing is reserved for I/O (`#i` / `#o`). Moodboard tag insert via `#` is off. Existing chips still render.
+- Out of this slice: `.asset-name` / `element.set` in body, reuse folder→doc, `--script--`.
 
 ```
-librarySets: [{ id, tag, description, createdAt, updatedAt }]
+librarySets: [{ id, tag, description, createdAt, updatedAt }]  // UI: assets
 libraryItems[].setId  // null = loose
 ```
+
+Icons: `public/uploads/FolderDashed.svg` (`#i`) · `Folders.svg` (`#o` rows) · `Info 1.svg` (tab) · `Group 4.svg` (tab example).
 
 ## [+] create menu (segment types)
 
@@ -58,11 +61,13 @@ Each type has its own create fields and open behavior.
 ## Section tabs (filter the grid)
 
 ```
-[ All | Images | Attachments ]
+[ All | Images | Attachments ]          ← folder library
+[ Documents | Images | Attachments ]    ← document library (Documents replaces All)
 ```
 
-- **All** — every ficha
-- **Images** — `category === image`
+- **All** — every ficha (folder only)
+- **Documents** — assets / subfolders created with `#i` (document only)
+- **Images** — `category === image` (loose on the document)
 - **Attachments** — `category === skill` (and `pdf`)
 
 Remember last tab per folder (`sessionStorage`). Video tab retired.
@@ -121,11 +126,11 @@ Legacy video fichas may still appear under All and open in detail. No new Video 
 
 ## Live today (code)
 
-- Grid + type filter All / Images / Attachments
+- Grid + type filter All / Images / Attachments (folder) · Documents / Images / Attachments (document)
 - Image create/open + wallColor; Attachments create/open
-- Persist `campaigns.library_items` + `nodes.library_items`
+- Persist `campaigns.library_items` + `nodes.library_items` + `nodes.library_sets`
 - Document Library button in `NodeQueryModal`; Folder | Docs toggle + subfolders when docs have fichas
-- Document sets: `/i` create · `/o` list/open · assign loose fichas from the same doc
+- Document assets: `#i` create (metadata + image queue) · `#o` opens Documents tab · Folders.svg rows
 - Video create retired from `[+]` / tabs
 
 ## UI reference
@@ -143,4 +148,5 @@ Legacy video fichas may still appear under All and open in detail. No new Video 
 5. ~~Video create/open + wallColor~~
 6. PDF-specific polish / FileCard thumbs polish
 7. ~~Document sub-library (overlay + Folder/Docs toggle)~~
-8. ~~Document sets `/i` `/o` (create + list + assign loose fichas)~~ · later: reuse main · `--script--` · `element.set` · mini strip · Atelier extras · Gina library tools · @tag  
+8. ~~Document sets `/i` `/o`~~ → **assets** + `#i` `#o` + Documents tab (create queue live)
+9. later: invoke `.asset-name` in document story · reuse main · `--script--` · mini strip · Atelier extras · Gina library tools · @tag  

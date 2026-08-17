@@ -1,10 +1,10 @@
 import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
-import { normalizeMentions } from "./docMentions.js";
-import { normalizeTagRefs, splitTagRefsAt } from "./docTagRefs.js";
-import { normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
-import { normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
+import { applyTextEditToMentions, normalizeMentions } from "./docMentions.js";
+import { applyTextEditToTagRefs, normalizeTagRefs, splitTagRefsAt } from "./docTagRefs.js";
+import { applyTextEditToMarkerRanges, normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
+import { applyTextEditToBoldRanges, normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
@@ -813,6 +813,49 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
     };
   }
   return null;
+}
+
+/**
+ * Strip a confirmed `#i` / `#o` token at the caret without inserting a writing block.
+ * @param {object[]} blocks
+ * @param {number} blockIndex
+ * @param {{ start: number, end: number }} hashAction
+ */
+export function applyLibraryHashInTextBlock(blocks, blockIndex, hashAction) {
+  const normalized = normalizeWritingBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return normalized;
+  if (!hashAction || typeof hashAction.start !== "number") return normalized;
+
+  const text = block.text || "";
+  const start = Math.max(0, Math.min(text.length, hashAction.start));
+  const end = Math.max(start, Math.min(text.length, Number(hashAction.end) || start));
+  if (end <= start) return normalized;
+
+  const nextText = `${text.slice(0, start)}${text.slice(end)}`;
+  const mentions = normalizeMentions(nextText, applyTextEditToMentions(text, nextText, block.mentions));
+  const tagRefs = normalizeTagRefs(nextText, applyTextEditToTagRefs(text, nextText, block.tagRefs));
+  const markerRanges = normalizeMarkerRanges(
+    nextText,
+    applyTextEditToMarkerRanges(text, nextText, block.markerRanges),
+  );
+  const boldRanges = normalizeBoldRanges(
+    nextText,
+    applyTextEditToBoldRanges(text, nextText, block.boldRanges),
+  );
+  const updated = normalized.map((entry, index) => (
+    index === blockIndex
+      ? {
+        ...entry,
+        text: nextText,
+        ...(mentions.length ? { mentions } : { mentions: undefined }),
+        ...(tagRefs.length ? { tagRefs } : { tagRefs: undefined }),
+        ...(markerRanges.length ? { markerRanges } : { markerRanges: undefined }),
+        ...(boldRanges.length ? { boldRanges } : { boldRanges: undefined }),
+      }
+      : entry
+  ));
+  return ensureNodeWritingTail(updated);
 }
 
 export function applySlashInTextBlock(blocks, blockIndex, parsed, caret = null) {

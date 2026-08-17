@@ -17420,6 +17420,33 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.folder-library-overlay__tab--documents {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.folder-library-overlay__tab-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: brightness(0) invert(0.55);
+}
+
+.folder-library-overlay__tab.is-active .folder-library-overlay__tab-icon {
+  filter: brightness(0) invert(0.95);
+}
+
+.folder-library-overlay__tab-info {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  object-fit: contain;
+  opacity: 0.75;
+}
+
 .folder-library-overlay__empty {
   margin: 0;
   padding: 28px 18px 32px;
@@ -18756,4 +18783,75 @@ body.doc-content-resizing * {
   font-size: 11px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.55);
+}
+
+.library-asset-modal__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.library-asset-modal__title-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: brightness(0) invert(0.85);
+}
+
+.library-asset-queue {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 200px;
+  margin: 0;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.library-asset-queue.is-dragover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.library-asset-queue__slot {
+  position: relative;
+  min-height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.library-asset-queue__slot .folder-library-overlay__cell-badge {
+  padding-bottom: 18px;
+}
+
+.library-asset-queue__thumb {
+  display: block;
+  width: 100%;
+  height: 88px;
+  object-fit: cover;
+}
+
+.library-asset-queue__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
 }

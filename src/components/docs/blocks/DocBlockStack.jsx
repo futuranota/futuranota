@@ -54,7 +54,6 @@ import {
 } from "../../../lib/docMentions.js";
 import {
   applyTextEditToTagRefs,
-  collectMoodboardTagCandidates,
   snapCaretOutOfTagRefBoxInterior,
 } from "../../../lib/docTagRefs.js";
 import {
@@ -221,10 +220,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, tagMentionInSurface, urlTableEntries, urlTables]);
-  const tagRefCandidates = useMemo(
-    () => collectMoodboardTagCandidates(blocks),
-    [blocks],
-  );
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
@@ -1965,7 +1960,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.MOODBOARD ? (
             <MoodboardBlockView
               block={block}
-              tagRefCandidates={tagRefCandidates}
               slashGhostHints={slashGhostHints}
               autoFocusBody={
                 focusBlockId === block.id
@@ -2358,7 +2352,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     tagRefs={block.tagRefs || []}
                     mentionCandidates={mentionCandidates}
                     companyObjectId={companyObjectId}
-                    tagRefCandidates={tagRefCandidates}
                     markerRanges={block.markerRanges || []}
                     boldRanges={block.boldRanges || []}
                     placeholder={bodyPlaceholder}
@@ -2392,7 +2385,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               tagRefs={block.tagRefs || []}
               mentionCandidates={mentionCandidates}
               companyObjectId={companyObjectId}
-              tagRefCandidates={tagRefCandidates}
               markerRanges={block.markerRanges || []}
               boldRanges={block.boldRanges || []}
               ghostHints={slashGhostHints}
@@ -2511,7 +2503,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 tagRefs={collapsedWriteBlock?.tagRefs || []}
                 mentionCandidates={mentionCandidates}
                 companyObjectId={companyObjectId}
-                tagRefCandidates={tagRefCandidates}
                 markerRanges={collapsedWriteBlock?.markerRanges || []}
                 boldRanges={collapsedWriteBlock?.boldRanges || []}
                 ghostHints={slashGhostHints}

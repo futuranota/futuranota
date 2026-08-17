@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
- * Shown when `/i` or `/o` runs before the document exists in the store.
+ * Shown when `#i` or `#o` runs before the document exists in the store.
  */
 export function LibraryNeedSaveNotice({ onClose }) {
   const { t } = useI18n();
@@ -34,7 +34,7 @@ export function LibraryNeedSaveNotice({ onClose }) {
       <div className="folder-library-element-modal folder-library-element-modal--capture">
         <header className="folder-library-element-modal__head">
           <h2 className="folder-library-element-modal__title">
-            {t("doc.library.setOutputTitle")}
+            {t("doc.library.title")}
           </h2>
           <button
             type="button"

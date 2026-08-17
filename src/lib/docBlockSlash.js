@@ -5,6 +5,7 @@ import {
   DOC_BLOCK_TYPES,
 } from "./docBlocks.js";
 import { getSlashTail, splitBodyForSlash } from "./docSlashTail.js";
+import { getTagRefQueryAtCaret } from "./docTagRefs.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
 import {
   createDefaultNodeTodoContent,
@@ -163,7 +164,7 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 
-/** `/i` create set and `/o` list sets — actions, not writing blocks. */
+/** `#i` create asset and `#o` open Documents — actions, not writing blocks. */
 export const LIBRARY_SLASH_ACTIONS = {
   INPUT: "libraryInput",
   OUTPUT: "libraryOutput",
@@ -193,6 +194,40 @@ export const LIBRARY_SLASH_COMMANDS = [
 export function isLibrarySlashAction(parsed) {
   return parsed?.action === LIBRARY_SLASH_ACTIONS.INPUT
     || parsed?.action === LIBRARY_SLASH_ACTIONS.OUTPUT;
+}
+
+/**
+ * Exact `#i` / `#input` / `#o` / `#output` (case-insensitive). `#imagen` stays plain text.
+ * @param {string} query
+ * @returns {{ action: string } | null}
+ */
+export function parseLibraryHashQuery(query) {
+  const normalized = String(query ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  if (!normalized) return null;
+  const match = LIBRARY_SLASH_COMMANDS.find((cmd) =>
+    cmd.aliases.some((alias) => alias.replace(/\s+/g, "") === normalized),
+  );
+  return match ? { action: match.action } : null;
+}
+
+/**
+ * @param {string} text
+ * @param {number} caret
+ * @returns {{ action: string, start: number, end: number } | null}
+ */
+export function getLibraryHashActionAtCaret(text, caret) {
+  const tagQuery = getTagRefQueryAtCaret(text, caret);
+  if (!tagQuery) return null;
+  const parsed = parseLibraryHashQuery(tagQuery.query);
+  if (!parsed) return null;
+  return {
+    action: parsed.action,
+    start: tagQuery.start,
+    end: tagQuery.end,
+  };
 }
 
 /**
@@ -236,12 +271,9 @@ export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
 );
 
 /** Documents (and node writing surfaces): tools except Create a document and in-body Todo list. */
-export const DOCUMENT_SLASH_COMMANDS = [
-  ...DOC_SLASH_COMMANDS.filter(
-    (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
-  ),
-  ...LIBRARY_SLASH_COMMANDS,
-];
+export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
+);
 
 export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
@@ -257,10 +289,8 @@ export const NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 /** Slash commands for nodes opened from a folder — same writing toolkit. */
 export const DOC_LINKED_NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 
-/** Slash commands allowed inside Image card body (same toolkit as document text, no /i /o). */
-export const IMAGE_CARD_BODY_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS.filter(
-  (cmd) => !cmd.action,
-);
+/** Slash commands allowed inside Image card body (same toolkit as document text). */
+export const IMAGE_CARD_BODY_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 
 export const IMAGE_CARD_BODY_SLASH_GHOST_HINTS = IMAGE_CARD_BODY_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,

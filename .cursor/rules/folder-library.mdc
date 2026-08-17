@@ -1,5 +1,5 @@
 ---
-description: Folder library — Image + Attachments, document sub-library, sets /i /o, Gina
+description: Folder library — Image + Attachments, document assets #i #o, Documents tab, Gina
 globs: src/lib/folderLibrary*.js,src/components/docs/FolderLibrary*.jsx,src/components/docs/LibrarySet*.jsx,src/stores/middleware/persistenceMiddleware.js,supabase_storage_doc_images.sql,supabase_node_library_items.sql,supabase_node_library_sets.sql,src/lib/gina/**
 alwaysApply: false
 ---
@@ -11,14 +11,14 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 
 ## Product
 
-- **`[+]` menu (folder + document):** Attachments · Image (not blind create into current tab).
-- **Tabs:** All · Images · Attachments.
+- **`[+]` menu (folder + document):** Attachments · Image (not blind create into current tab). Documents tab `[+]` creates an **asset**.
+- **Tabs:** folder All · Images · Attachments. **Document:** Documents · Images · Attachments (Documents replaces All).
 - **Image:** tag + **Prompt** + optional WebP; detail switch + copy prompt + download; **wallColor** on preview pane.
 - **`--prompt--` capture** in the document editor: name the ficha, save prompt-only to the document library, open detail to copy.
 - **Attachments** (category `skill` / `pdf`): tag + description + downloadable file; open → Download.
 - **Video create retired** — no Video in `[+]` or tabs (legacy `video` fichas may still open from All).
 - **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle only if a child doc has fichas (subfolder per doc).
-- **Document sets (live):** `/i` creates a set (name + story) on **this document**; `/o` lists sets and opens Folder | Images | Attachments; assign loose fichas (`setId`) from the same doc. Actions, not blocks. No folder sets. No main reuse / `element.set` yet.
+- **Document assets (live):** `#i` creates an asset (name + description + image queue, FolderDashed). `#o` opens Library on **Documents** (Folders.svg rows). Images/Attachments = loose fichas. Story = document body. **Do not** invoke `.name` in prose yet. Moodboard `#` tags in writing are retired so `#` is reserved for I/O.
 - Bytes → `doc-images`. Metadatos → `campaigns.library_items` (folder) · `nodes.library_items` + `nodes.library_sets` (document).
 
 ## Gina
@@ -31,4 +31,5 @@ Live corpus — remember/show fichas in day chat. LIVE CORPUS ONLY.
 - Port AI Multi-Modal generation
 - Mix folder fichas into a document owner (group, don’t copy)
 - Reintroduce Video create unless product asks again
-- Put sets on the folder, or treat `/i` `/o` as heading/image blocks
+- Put assets/sets on the folder, or treat `#i` `#o` as heading/image blocks
+- Wire `.asset-name` / `element.set` in the document body until that slice is scheduled
