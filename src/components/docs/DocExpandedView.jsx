@@ -1463,6 +1463,7 @@ export function DocExpandedView({
     if (!activeNodeContext || !nodeInitialSnapshot) return false;
     return (
       normalizeNodeContent(nodeDraftContent) !== nodeInitialSnapshot.content
+      || String(activeNodeContext.query || "").trim() !== String(nodeInitialSnapshot.query || "").trim()
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
       || (nodeDraftAnchorFinishTime || "") !== (nodeInitialSnapshot.anchorFinishTime || "")
@@ -1521,12 +1522,15 @@ export function DocExpandedView({
         ? isoFromAnchorFields(restoredAnchorDate, restoredAnchorFinishTime)
         : undefined;
 
+      const restoredQuery = String(snap.query || "").trim();
+
       if (nodeId) {
         updateNode(nodeId, {
           content: restoredContent,
           status: restoredStatus,
           completed: restoredCompleted,
           sourceId: restoredSourceId,
+          ...(restoredQuery ? { title: restoredQuery, sourceQuery: restoredQuery } : {}),
           ...(restoredAnchorAt !== undefined ? { anchorAt: restoredAnchorAt } : {}),
           ...(restoredAnchorFinishAt !== undefined ? { anchorFinishAt: restoredAnchorFinishAt } : {}),
         });
@@ -1536,6 +1540,20 @@ export function DocExpandedView({
       const block = draftBlocks[blockIndex];
       if (block && block.type === blockType) {
         let nextBlocks = draftBlocks;
+        if (restoredQuery) {
+          const titlePatch = { sourceQuery: restoredQuery };
+          if (
+            block.type === DOC_BLOCK_TYPES.H1
+            || block.type === DOC_BLOCK_TYPES.DATE
+            || block.type === DOC_BLOCK_TYPES.METRIC
+          ) {
+            titlePatch.title = restoredQuery;
+          }
+          if (block.type === DOC_BLOCK_TYPES.TODO) {
+            titlePatch.listTitle = restoredQuery;
+          }
+          nextBlocks = updateBlockAt(nextBlocks, blockIndex, titlePatch);
+        }
         if (shouldMirrorNodeContentInDoc(block)) {
           nextBlocks = setContentForNodeBlock(
             nextBlocks,
@@ -1861,7 +1879,7 @@ export function DocExpandedView({
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
-    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
+    const queryText = (query || "").trim() || getBlockQueryText(block) || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
     // Persist when folder is reserved or doc status is reserved; otherwise clear.
     const scheduleDate = String(anchorDate || "").trim();
@@ -1965,10 +1983,10 @@ export function DocExpandedView({
       sourceQuery: queryText,
     };
     if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.DATE || block.type === DOC_BLOCK_TYPES.METRIC) {
-      patch.title = block.title || queryText;
+      patch.title = queryText;
     }
     if (block.type === DOC_BLOCK_TYPES.TODO) {
-      patch.listTitle = block.listTitle || queryText;
+      patch.listTitle = queryText;
     }
     if (commitSchedule && supportsScheduleAnchor(dataType)) {
       patch.anchorDate = anchorDate;
@@ -2007,6 +2025,7 @@ export function DocExpandedView({
     if (commitSchedule) {
       const snap = {
         content: normalizeNodeContent(contentForStorage),
+        query: queryText,
         anchorDate: anchorDate || "",
         anchorTime: anchorTime || "",
         anchorFinishTime: anchorFinishTime || "",
@@ -2024,6 +2043,40 @@ export function DocExpandedView({
         nodeEntitiesById: useNodesStore.getState().nodes,
       });
     }
+  };
+
+  const handleQueryChange = (nextQuery) => {
+    setActiveNodeContext((prev) => (prev ? { ...prev, query: nextQuery } : prev));
+    const context = activeNodeContext;
+    if (!context) return;
+    const title = String(nextQuery ?? "").trim();
+    if (!title) return;
+    const { blockIndex, nodeId, blockType } = context;
+    if (nodeId) {
+      updateNode(nodeId, { title, sourceQuery: title });
+      syncNodeToParentDoc(nodeId, doc.id);
+    }
+    const block = draftBlocks[blockIndex];
+    if (!block || block.type !== blockType) return;
+    const patch = { sourceQuery: title };
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.DATE
+      || block.type === DOC_BLOCK_TYPES.METRIC
+    ) {
+      patch.title = title;
+    }
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      patch.listTitle = title;
+    }
+    const nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
+    setDraftBlocks(nextBlocks);
+    const body = docBlocksToBody(nextBlocks);
+    updateDoc(doc.id, {
+      blocks: nextBlocks,
+      body,
+      content: body,
+    });
   };
 
   const handleNodeContentChange = (content) => {
@@ -2137,19 +2190,21 @@ export function DocExpandedView({
       if (answer.trim()) blockContent = answer;
     }
 
+    const openedQuery = (
+      (existing
+        ? (existing.sourceQuery || existing.title || "")
+        : ""
+      ).trim()
+      || getBlockQueryText(block)
+    );
+
     setActiveNodeContext({
       blockId: block.id,
       blockIndex,
       blockType: block.type,
       nodeId: ensuredNodeId || block.nodeId || null,
       // Linked macronode title lives on the node entity — prefer it over a stale H1.
-      query: (
-        (existing
-          ? (existing.sourceQuery || existing.title || "")
-          : ""
-        ).trim()
-        || getBlockQueryText(block)
-      ),
+      query: openedQuery,
       dataType,
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
@@ -2189,6 +2244,7 @@ export function DocExpandedView({
       setNodeDraftAnchorFinishTime(fromFinish.anchorTime || "");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
+        query: openedQuery,
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
         anchorFinishTime: fromFinish.anchorTime || "",
@@ -2210,6 +2266,7 @@ export function DocExpandedView({
       setNodeDraftAnchorFinishTime(anchorFromBlock.anchorFinishTime || "");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
+        query: openedQuery,
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
         anchorFinishTime: anchorFromBlock.anchorFinishTime || "",
@@ -2226,6 +2283,7 @@ export function DocExpandedView({
       setNodeDraftAnchorFinishTime("");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
+        query: openedQuery,
         anchorDate: "",
         anchorTime: "",
         anchorFinishTime: "",
@@ -2523,6 +2581,7 @@ export function DocExpandedView({
       {activeNodeContext && !showNodeUnsavedConfirm ? (
         <NodeQueryModal
           query={activeNodeContext.query}
+          onQueryChange={handleQueryChange}
           content={nodeDraftContent}
           dataType={activeNodeContext.dataType}
           onContentChange={handleNodeContentChange}

@@ -179,7 +179,7 @@ export function useDocBlockNodeModal({
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
-    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
+    const queryText = (query || "").trim() || getBlockQueryText(block) || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
     // Persist when folder is reserved or doc status is reserved; otherwise clear.
     const scheduleDate = String(anchorDate || "").trim();
@@ -274,10 +274,10 @@ export function useDocBlockNodeModal({
       || block.type === DOC_BLOCK_TYPES.DATE
       || block.type === DOC_BLOCK_TYPES.METRIC
     ) {
-      patch.title = block.title || queryText;
+      patch.title = queryText;
     }
     if (block.type === DOC_BLOCK_TYPES.TODO) {
-      patch.listTitle = block.listTitle || queryText;
+      patch.listTitle = queryText;
     }
     if (commitSchedule && supportsScheduleAnchor(dataType)) {
       patch.anchorDate = scheduleDate;
@@ -309,6 +309,44 @@ export function useDocBlockNodeModal({
         content: body,
       });
       if (savedNodeId) syncNodeToParentDoc(savedNodeId, docId);
+    }
+  };
+
+  const handleQueryChange = (nextQuery) => {
+    setActiveNodeContext((prev) => (prev ? { ...prev, query: nextQuery } : prev));
+    const context = activeNodeContext;
+    if (!context) return;
+    const title = String(nextQuery ?? "").trim();
+    if (!title) return;
+    const { blockIndex, nodeId, blockType } = context;
+    if (nodeId && docId) {
+      updateNode(nodeId, { title, sourceQuery: title });
+      syncNodeToParentDoc(nodeId, docId);
+    } else if (nodeId) {
+      updateNode(nodeId, { title, sourceQuery: title });
+    }
+    const block = blocks[blockIndex];
+    if (!block || block.type !== blockType) return;
+    const patch = { sourceQuery: title };
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.DATE
+      || block.type === DOC_BLOCK_TYPES.METRIC
+    ) {
+      patch.title = title;
+    }
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      patch.listTitle = title;
+    }
+    const nextBlocks = updateBlockAt(blocks, blockIndex, patch);
+    setBlocks(nextBlocks);
+    if (docId) {
+      const body = docBlocksToBody(nextBlocks);
+      updateDoc(docId, {
+        blocks: nextBlocks,
+        body,
+        content: body,
+      });
     }
   };
 
@@ -413,7 +451,13 @@ export function useDocBlockNodeModal({
       blockIndex,
       blockType: block.type,
       nodeId: ensuredNodeId || block.nodeId || null,
-      query: getBlockQueryText(block),
+      query: (
+        (existing
+          ? (existing.sourceQuery || existing.title || "")
+          : ""
+        ).trim()
+        || getBlockQueryText(block)
+      ),
       dataType,
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
@@ -595,6 +639,7 @@ export function useDocBlockNodeModal({
   const nodeModal = activeNodeContext ? (
     <NodeQueryModal
       query={activeNodeContext.query}
+      onQueryChange={handleQueryChange}
       content={nodeDraftContent}
       dataType={activeNodeContext.dataType}
       onContentChange={handleNodeContentChange}
