@@ -16,12 +16,12 @@ Anything we build in the library is also **signal for Gina**. She should be able
 Workspace (later: index view only)
   └── Folder library          ← live
         ├── fichas shared by all docs in the folder
-        └── Document sub-library — live: Image + Skills/PDF local to one doc
+        └── Document sub-library — live: Image + Attachments local to one doc
 ```
 
 Folder overlay shows **Folder | Docs** only when at least one child document already has fichas. Docs view = subfolder per document (title + count). Create from the document editor (`NodeQueryModal` Library) or by opening that subfolder.
 
-Document `[+]` = Image + Skills/PDF (script/file). Video stays folder-only.
+Document / folder `[+]` = Image + Attachments. Video create retired.
 
 The folder **groups** document fichas; it does not copy them.
 
@@ -31,25 +31,23 @@ The folder **groups** document fichas; it does not copy them.
 
 ```
 [ + ]
-  ├── Skills / PDF   → skill (or pdf) ficha — attachment downloadable
-  ├── Image          → image ficha — WebP preview
-  └── Video          → video ficha (upload mp4/webm/mov ≤2 min · ≤100 MB + detail)
+  ├── Attachments   → skill/pdf ficha — downloadable file
+  └── Image         → image ficha — WebP preview
 ```
 
-Each type has its own create fields and open behavior (define per type; Image + Skill first).
+Each type has its own create fields and open behavior.
 
 ## Section tabs (filter the grid)
 
 ```
-[ All | Images | Videos | AI skills ]
+[ All | Images | Attachments ]
 ```
 
-- **All** — every ficha (user requested; overrides earlier “no All in v1”).
+- **All** — every ficha
 - **Images** — `category === image`
-- **Videos** — `category === video`
-- **AI skills** — `category === skill` (and `pdf` until PDF has its own tab)
+- **Attachments** — `category === skill` (and `pdf`)
 
-Remember last tab per folder (`sessionStorage`).
+Remember last tab per folder (`sessionStorage`). Video tab retired.
 
 ## Ficha model
 
@@ -69,22 +67,16 @@ Remember last tab per folder (`sessionStorage`).
 - Open: detail — tag, TXT-Placeholder \| Image switch, copy, download WebP
 - Grid: real thumb or IMG badge
 
-### Skill / AI skills (building)
+### Attachments (live; category `skill`)
 
-- Create: **tag** + **description** (“¿qué hace este skill?”) + upload **attachment** (file, not image)
+- Create: **tag** + **description** + upload **attachment** (file, not image)
 - Open: show tag + description + easy **Download** of the attachment
-- Grid: FileCard-style format badge ([`FileCard.original.tsx`](FileCard.original.tsx); shared format-tag grid ref from user — CODE / JSON / ZIP / MD / PDF, etc.)
-- Bytes: same Storage pool `doc-images` with expanded MIME allow-list (or raw file path under user scope) — **no WebP conversion** for attachments
+- Grid: FileCard-style format badge
+- Bytes: same Storage pool `doc-images` — **no WebP conversion** for attachments
 
-### Video (live)
+### Video (retired from create)
 
-- Create: tag + description (TXT-Placeholder) + upload **MP4/WebM/MOV ≤ 2 min · ≤ 100 MB** + optional `wallColor`
-- Open: detail — TXT-Placeholder | Video switch, play on wall-colored pane, download
-- Grid: VIDEO badge
-
-### Video / PDF open UX (PDF still later)
-
-PDF may share Skills/PDF entry or land as `pdf` under AI skills tab.
+Legacy video fichas may still appear under All and open in detail. No new Video create.
 
 ## Image card UX (live)
 
@@ -108,10 +100,11 @@ PDF may share Skills/PDF entry or land as `pdf` under AI skills tab.
 
 ## Live today (code)
 
-- Grid + type filter All / Images / Videos / AI skills
-- Image + Video + Skill create/open + wallColor
+- Grid + type filter All / Images / Attachments
+- Image create/open + wallColor; Attachments create/open
 - Persist `campaigns.library_items` + `nodes.library_items`
 - Document Library button in `NodeQueryModal`; Folder | Docs toggle + subfolders when docs have fichas
+- Video create retired from `[+]` / tabs
 
 ## UI reference
 

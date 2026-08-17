@@ -362,7 +362,7 @@ export function FolderLibraryElementModal({
                   value={category}
                   onChange={(e) => setCategory(normalizeFolderLibraryCategory(e.target.value))}
                 >
-                  {FOLDER_LIBRARY_CATEGORIES.map((id) => (
+                  {FOLDER_LIBRARY_CATEGORIES.filter((id) => id !== "video").map((id) => (
                     <option key={id} value={id}>
                       {t(CATEGORY_LABEL_KEYS[id] || CATEGORY_LABEL_KEYS.auto)}
                     </option>

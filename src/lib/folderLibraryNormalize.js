@@ -28,11 +28,10 @@ export const FOLDER_LIBRARY_CATEGORIES = /** @type {const} */ ([
   "video",
 ]);
 
-/** Tabs shown in the library table (All = no filter). */
+/** Tabs shown in the library table (All = no filter). Video tab retired. */
 export const FOLDER_LIBRARY_FILTER_TABS = /** @type {const} */ ([
   "all",
   "image",
-  "video",
   "skill",
 ]);
 
@@ -79,23 +78,23 @@ export function normalizeFolderLibraryCategory(value) {
 
 /**
  * @param {unknown} value
- * @returns {"all"|"image"|"video"|"skill"}
+ * @returns {"all"|"image"|"skill"}
  */
 export function normalizeFolderLibraryFilterTab(value) {
   const raw = String(value || "").trim().toLowerCase();
-  if (raw === "image" || raw === "video" || raw === "skill") return raw;
+  if (raw === "image" || raw === "skill") return raw;
+  // Legacy "video" tab maps to All (create/filter retired).
   return "all";
 }
 
 /**
  * @param {FolderLibraryItem} item
- * @param {"all"|"image"|"video"|"skill"} tab
+ * @param {"all"|"image"|"skill"|string} tab
  */
 export function folderLibraryItemMatchesFilter(item, tab) {
   if (!item) return false;
   if (tab === "all") return true;
   if (tab === "image") return item.category === "image";
-  if (tab === "video") return item.category === "video";
   if (tab === "skill") return item.category === "skill" || item.category === "pdf";
   return true;
 }

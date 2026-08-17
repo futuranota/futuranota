@@ -19,26 +19,17 @@ import { FolderLibraryVideoDetail } from "./FolderLibraryVideoDetail.jsx";
 const FOLDER_FILTER_TABS = [
   { id: "all", labelKey: "doc.library.tabAll" },
   { id: "image", labelKey: "doc.library.tabImages" },
-  { id: "video", labelKey: "doc.library.tabVideos" },
   { id: "skill", labelKey: "doc.library.tabSkills" },
 ];
 
-const DOCUMENT_FILTER_TABS = [
-  { id: "all", labelKey: "doc.library.tabAll" },
-  { id: "image", labelKey: "doc.library.tabImages" },
-  { id: "skill", labelKey: "doc.library.tabSkills" },
-];
+const DOCUMENT_FILTER_TABS = FOLDER_FILTER_TABS;
 
 const FOLDER_CREATE_TYPES = [
   { id: "skill", labelKey: "doc.library.createSkill" },
   { id: "image", labelKey: "doc.library.createImage" },
-  { id: "video", labelKey: "doc.library.createVideo" },
 ];
 
-const DOCUMENT_CREATE_TYPES = [
-  { id: "skill", labelKey: "doc.library.createSkill" },
-  { id: "image", labelKey: "doc.library.createImage" },
-];
+const DOCUMENT_CREATE_TYPES = FOLDER_CREATE_TYPES;
 
 const FILTER_STORAGE_PREFIX = "fn-folder-library-filter:";
 
@@ -65,7 +56,7 @@ function writeStoredFilter(ownerKey, tab) {
 function formatBadge(item) {
   if (item.attachmentKind) return String(item.attachmentKind).toUpperCase().slice(0, 6);
   if (item.category === "pdf") return "PDF";
-  if (item.category === "skill") return "SKILL";
+  if (item.category === "skill") return "FILE";
   if (item.category === "image") return "IMG";
   if (item.category === "video") return "VIDEO";
   return "FILE";
@@ -348,7 +339,13 @@ export function FolderLibraryOverlay({
                     onClick={() => setFocusedDocumentId(group.documentId)}
                     aria-label={t("doc.library.openDocAria").replace("{title}", group.title)}
                   >
-                    <span className="folder-library-overlay__subfolder-icon" aria-hidden />
+                    <img
+                      className="folder-library-overlay__subfolder-icon"
+                      src="/uploads/File.svg"
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
                     <span className="folder-library-overlay__subfolder-meta">
                       <span className="folder-library-overlay__subfolder-title">{group.title}</span>
                       <span className="folder-library-overlay__subfolder-count">
