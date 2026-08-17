@@ -234,6 +234,31 @@ function resolveLeftPanelObjectId(
   return null;
 }
 
+/** Restore Documents department / category / search from the left-panel nav snapshot. */
+function applyDocsBrowseFiltersFromSnap(snap, apply) {
+  if (!snap || typeof snap !== "object") return;
+  if (typeof snap.departmentFilterId === "string") {
+    apply.setDepartmentFilterId(snap.departmentFilterId);
+  }
+  if (typeof snap.departmentCategoryFilter === "string") {
+    apply.setDepartmentCategoryFilter(snap.departmentCategoryFilter);
+  }
+  if (
+    snap.categoryByDepartmentId
+    && typeof snap.categoryByDepartmentId === "object"
+    && !Array.isArray(snap.categoryByDepartmentId)
+  ) {
+    const next = {};
+    for (const [key, value] of Object.entries(snap.categoryByDepartmentId)) {
+      if (typeof value === "string") next[key] = value;
+    }
+    apply.setCategoryByDepartmentId(next);
+  }
+  if (typeof snap.folderSearchQuery === "string") {
+    apply.setFolderSearchQuery(snap.folderSearchQuery);
+  }
+}
+
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
 }
@@ -2517,9 +2542,19 @@ export function LeftPanel({
     return () => setKnowledgeFolderActive(false);
   }, [setKnowledgeFolderActive]);
 
+  const prevFilterObjectIdRef = useRef(filterObjectId);
   useEffect(() => {
+    if (!leftPanelNavRestored) {
+      prevFilterObjectIdRef.current = filterObjectId;
+      return;
+    }
+    if (prevFilterObjectIdRef.current === filterObjectId) return;
+    prevFilterObjectIdRef.current = filterObjectId;
     setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
-  }, [filterObjectId, clickFolderView]);
+    setDepartmentCategoryFilter("");
+    setCategoryByDepartmentId({});
+    setFolderSearchQuery("");
+  }, [filterObjectId, leftPanelNavRestored]);
 
   /** Sidebar highlight only — does not add to the canvas-driven timeline queue. */
   const handleSelectFolderDoc = (docId) => {
@@ -2661,13 +2696,9 @@ export function LeftPanel({
     if (!inFolderSelectView && folderBulkDeleteMode) {
       exitFolderBulkDeleteMode();
     }
-    if (!inFolderSelectView && folderSearchQuery) {
-      setFolderSearchQuery("");
-    }
   }, [
     clickFolderView,
     folderBulkDeleteMode,
-    folderSearchQuery,
     exitFolderBulkDeleteMode,
   ]);
 
@@ -2922,11 +2953,23 @@ export function LeftPanel({
         if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
           setClickFolderView(snap.clickFolderView);
         }
+        applyDocsBrowseFiltersFromSnap(snap, {
+          setDepartmentFilterId,
+          setDepartmentCategoryFilter,
+          setCategoryByDepartmentId,
+          setFolderSearchQuery,
+        });
       }
     } else if (objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
       setFilterObjectId(objectId);
       setCorpusTimelineAuthority(authorityId);
+      applyDocsBrowseFiltersFromSnap(snap, {
+        setDepartmentFilterId,
+        setDepartmentCategoryFilter,
+        setCategoryByDepartmentId,
+        setFolderSearchQuery,
+      });
     }
 
     setLeftPanelNavRestored(true);
@@ -2973,6 +3016,12 @@ export function LeftPanel({
             if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
               setClickFolderView(snap.clickFolderView);
             }
+            applyDocsBrowseFiltersFromSnap(snap, {
+              setDepartmentFilterId,
+              setDepartmentCategoryFilter,
+              setCategoryByDepartmentId,
+              setFolderSearchQuery,
+            });
           }
         }
       } else if (rawObjectId) {
@@ -3002,6 +3051,10 @@ export function LeftPanel({
       filterObjectId,
       selectedObjectId,
       clickFolderView,
+      departmentFilterId,
+      departmentCategoryFilter,
+      categoryByDepartmentId,
+      folderSearchQuery,
     });
   }, [
     leftPanelNavRestored,
@@ -3010,6 +3063,10 @@ export function LeftPanel({
     filterObjectId,
     selectedObjectId,
     clickFolderView,
+    departmentFilterId,
+    departmentCategoryFilter,
+    categoryByDepartmentId,
+    folderSearchQuery,
   ]);
 
   useEffect(() => {

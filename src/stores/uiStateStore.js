@@ -33,6 +33,10 @@ function writeFolderDensity(density) {
  *   filterObjectId?: string|null,
  *   selectedObjectId?: string|null,
  *   clickFolderView?: string|null,
+ *   departmentFilterId?: string,
+ *   departmentCategoryFilter?: string,
+ *   categoryByDepartmentId?: Record<string, string>,
+ *   folderSearchQuery?: string,
  * }} LeftPanelNavSnapshot
  */
 
