@@ -3988,6 +3988,45 @@
   text-transform: none;
 }
 
+.obj-create-role {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.obj-create-role__btn {
+  flex: 1;
+  border: 1px solid color-mix(in oklab, #7a818b 35%, transparent);
+  background: #151515;
+  color: #7a818b;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.obj-create-role__btn.is-active {
+  color: #fff;
+  border-color: color-mix(in oklab, #dcb2a6 55%, transparent);
+  background: color-mix(in oklab, #dcb2a6 16%, #151515);
+}
+
+.obj-create-quota {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: #9fa1a6;
+  letter-spacing: 0.04em;
+}
+
+.obj-create-quota.is-full {
+  color: #e8b4a4;
+}
+
+.obj-thumb.is-guest .obj-thumb-preview {
+  opacity: 0.92;
+}
+
 .obj-create-actions {
   display: flex;
   gap: 8px;

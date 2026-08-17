@@ -1,4 +1,5 @@
 import { findObjectIdByName } from "./storeSanitize.js";
+import { OBJECT_ROLE_GUEST } from "./objectColors.js";
 import { deriveAnnouncementDateIso } from "./launchCadenceMath.js";
 import { initStores } from "../stores/initStores.js";
 import { useObjectsStore } from "../stores/objectsStore.js";
@@ -22,7 +23,7 @@ export function ensureCompanyObject(company) {
 
   let objectId = findObjectIdByName(objects, name);
   if (!objectId) {
-    objectId = addObject(name, description, undefined, name);
+    objectId = addObject(name, description, undefined, name, OBJECT_ROLE_GUEST);
   }
 
   const study = company.campaignStudy || null;

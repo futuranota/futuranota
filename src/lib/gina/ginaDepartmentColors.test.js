@@ -18,7 +18,7 @@ describe("ginaDepartmentColors", () => {
     expect(rail).toHaveLength(3);
     expect(rail[0]).toMatchObject({ name: "Marketing", count: 2 });
     expect(rail[1]).toMatchObject({ name: "Sales", count: 1 });
-    expect(rail[2]).toMatchObject({ name: "# Department", count: 1, color: GINA_DEPT_RAIL_UNASSIGNED });
+    expect(rail[2]).toMatchObject({ name: "Uncategorized", count: 1, color: GINA_DEPT_RAIL_UNASSIGNED });
     expect(rail[0].color).not.toBe(rail[1].color);
   });
 

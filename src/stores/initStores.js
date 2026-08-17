@@ -18,6 +18,7 @@ import { initPasswordTableSync } from "../lib/passwordTableSync.js";
 import { migrateVaultTablesFromCampaignDocs } from "../lib/migrateVaultTablesFromCampaigns.js";
 import { useDepartmentsStore } from "./departmentsStore.js";
 import { initDepartmentsSync } from "../lib/departmentsSync.js";
+import { restoreMisclassifiedGuestCorpora } from "../lib/objectPlanLimits.js";
 
 let seeded = false;
 
@@ -40,6 +41,16 @@ export function initStores() {
   migrateLocalUrlEntriesToTables();
   initPasswordTableSync(usePasswordTableStore);
   initDepartmentsSync(useDepartmentsStore);
+
+  const restoreCorpusRoles = () => {
+    const objects = useObjectsStore.getState().objects;
+    const departments = useDepartmentsStore.getState().departments;
+    const docs = useDocsStore.getState().docs;
+    const next = restoreMisclassifiedGuestCorpora(objects, departments, docs);
+    if (next !== objects) useObjectsStore.setState({ objects: next });
+  };
+  restoreCorpusRoles();
+  window.setTimeout(restoreCorpusRoles, 800);
   initSyncMiddleware();
 
   // After campaigns hydrate from localStorage/Supabase, migrate dedicated vault docs once.

@@ -239,25 +239,18 @@ export function listAdoptableDocs(docs = {}, { parentObjectId } = {}) {
 }
 
 /**
- * Clear parentDocId on nodes whose document no longer exists.
- * @returns {string[]} node entity ids that were released
+ * Delete nodes whose parent folder no longer exists (do not dump them into # Department).
+ * @returns {string[]} node entity ids that were deleted
  */
 export function releaseStaleNodeParentRefs(docsById = {}) {
   const nodesStore = useNodesStore.getState();
-  const released = [];
+  const deleted = [];
+  if (!docsById || Object.keys(docsById).length === 0) return deleted;
   for (const node of nodesStore.getAllNodes()) {
     if (!node.parentDocId) continue;
     if (isValidParentDoc(node.parentDocId, docsById)) continue;
-    const staleDoc = docsById[node.parentDocId];
-    nodesStore.updateNode(node.id, {
-      parentDocId: null,
-      linkedToDoc: false,
-      sourceBlockId: undefined,
-      sourceTextBlockId: undefined,
-      // Keep corpus membership so Independent Documents stays company-scoped.
-      objectId: node.objectId || staleDoc?.parentObjectId || null,
-    });
-    released.push(node.id);
+    nodesStore.deleteNode(node.id);
+    deleted.push(node.id);
   }
-  return released;
+  return deleted;
 }

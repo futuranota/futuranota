@@ -20,7 +20,7 @@ export const PRICING_PLANS_DEFAULT = [
     billingNote: 'No credit card is required',
     cta: 'Get Started',
     bullets: [
-      '1 Object · 5 MB storage',
+      '1 corpus · 5 MB storage',
       '10 AI search credits (one-time)',
       'YouTube note taker while credits last',
       'Calendar & Forecast — one use each',
@@ -30,7 +30,7 @@ export const PRICING_PLANS_DEFAULT = [
       {
         title: 'Features & tools',
         features: [
-          { title: 'Objects & Storage', detail: '1 Object Max / 5 MB' },
+          { title: 'Objects & Storage', detail: '1 corpus / 5 MB' },
           { title: 'AI Search Credits', detail: '10 credits total (one-time)' },
           { title: 'YouTube Note Taker', detail: 'Available while credits remain.' },
           {
@@ -64,7 +64,7 @@ export const PRICING_PLANS_DEFAULT = [
     cta: 'Get Started',
     secondaryCta: 'Start free trial',
     bullets: [
-      'Unlimited Objects · 5 GB storage',
+      '2 corpus · 8 guests · 5 GB storage',
       '200 AI search credits + top-up option',
       'Advanced Calendar cross-referencing',
       'Unlimited Forecast with canvas risk alerts',
@@ -77,7 +77,7 @@ export const PRICING_PLANS_DEFAULT = [
       {
         title: 'Features & tools',
         features: [
-          { title: 'Objects & Storage', detail: 'Unlimited Objects / 5 GB storage' },
+          { title: 'Objects & Storage', detail: '2 corpus · 8 guests / 5 GB storage' },
           { title: 'AI Search Credits', detail: '200 credits per month + top-up option' },
           {
             title: 'Calendar',

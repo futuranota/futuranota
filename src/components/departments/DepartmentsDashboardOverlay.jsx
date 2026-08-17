@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
-import { useDepartmentsStore, cascadeFolderCategoryClear } from "../../stores/departmentsStore.js";
+import {
+  useDepartmentsStore,
+  cascadeFolderCategoryClear,
+  countFoldersWithDepartmentCategory,
+} from "../../stores/departmentsStore.js";
 import { findDepartmentById, normalizeDescription } from "../../lib/departments.js";
 import { flushDepartmentsSync } from "../../lib/departmentsSync.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 
 const DEPT_BG_SRC = "/uploads/department-img.png";
 
@@ -19,6 +24,7 @@ const DEPT_BG_SRC = "/uploads/department-img.png";
  */
 export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const departments = useDepartmentsStore((s) => s.departments);
   const createDepartment = useDepartmentsStore((s) => s.createDepartment);
   const updateDepartment = useDepartmentsStore((s) => s.updateDepartment);
@@ -83,6 +89,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
+      if (useConfirmStore.getState().payload) return;
       event.preventDefault();
       if (addingCategory) {
         setTagDraft("");
@@ -174,14 +181,47 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     setAddingCategory(false);
   };
 
-  const removeTag = (tag) => {
+  const removeTag = async (tag) => {
     const key = draftKeyOf(tag).toLowerCase();
-    setDraftTags((prev) =>
-      prev.filter((item) => draftKeyOf(item).toLowerCase() !== key),
+    const cascadeLabel = tag.originLabel || tag.label;
+    const assigned = existing
+      ? countFoldersWithDepartmentCategory(existing.id, cascadeLabel)
+      : 0;
+    const confirmed = await askConfirm({
+      title: t("sidebar.departmentRemoveSubTitle"),
+      message: t("sidebar.departmentRemoveSubConfirm", { name: tag.label }),
+      hint: assigned > 0
+        ? t("sidebar.departmentRemoveSubHintAssigned", { count: assigned })
+        : t("sidebar.departmentRemoveSubHint"),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+
+    const nextTags = draftTags.filter(
+      (item) => draftKeyOf(item).toLowerCase() !== key,
     );
+    setDraftTags(nextTags);
     if (editingKey && editingKey.toLowerCase() === key) {
       setEditingKey(null);
     }
+
+    if (!existing) return;
+    const wasSaved = (existing.subcategories || []).some(
+      (sub) => String(sub?.label || "").trim().toLowerCase() === String(cascadeLabel).trim().toLowerCase(),
+    );
+    if (!wasSaved) return;
+
+    cascadeFolderCategoryClear(existing.id, cascadeLabel);
+    updateDepartment(existing.id, {
+      category: existing.category,
+      description: normalizeDescription(existing.description),
+      subcategories: nextTags.map((item) => ({
+        label: item.label,
+        description: normalizeDescription(item.description),
+      })),
+    });
+    void flushDepartmentsSync();
   };
 
   const beginEditTag = (tag) => {

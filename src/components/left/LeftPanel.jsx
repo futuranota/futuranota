@@ -9,7 +9,6 @@ import {
   useTimelineStore,
   usePlanStore,
   useUpgradeModalStore,
-  FREE_LIMITS,
 } from "../../stores/index.js";
 import {
   readLeftPanelNavSnapshot,
@@ -145,6 +144,16 @@ import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnow
 import { resolveGinaLearnBrief, resolveGinaLearnBriefByTitle } from "../../lib/gina/resolveGinaLearnBrief.js";
 import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
+import { OBJECT_ROLE_CORPUS, OBJECT_ROLE_GUEST } from "../../lib/objectColors.js";
+import {
+  canAddDocToObject,
+  canCreateGuest,
+  canCreateOwnedCorpus,
+  countGuestObjects,
+  countOwnedCorpora,
+  getObjectPlanCaps,
+  isGuestObject,
+} from "../../lib/objectPlanLimits.js";
 import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import {
   folderSchedulePickerMinDateInput,
@@ -310,7 +319,7 @@ function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, 
     <div className={"obj-thumb-cell" + (menuOpen ? " is-menu-open" : "") + (selected ? " is-selected" : "")}>
       <button
         type="button"
-        className={"obj-thumb" + (selected ? " is-selected" : "")}
+        className={"obj-thumb" + (selected ? " is-selected" : "") + (isGuestObject(object) ? " is-guest" : "")}
         draggable
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
@@ -322,7 +331,7 @@ function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, 
         onDragStart={(e) => startObjectDrag(e, object.id)}
         title={t("sidebar.clickFolderDocs")}
       >
-        <ObjectThumbPreview />
+        <ObjectThumbPreview guest={isGuestObject(object)} />
         <span className="obj-thumb-name">{object.name}</span>
       </button>
       {menuOpen && (
@@ -1189,22 +1198,66 @@ function DocNodesBlockCard({
    MODAL: Create Object  "CREATE YOUR MODEL"
 ───────────────────────────────────────────── */
 const CREATE_BUSINESS_ILLUSTRATION = "/uploads/botones/create-business-name.svg";
+const CREATE_GUEST_ILLUSTRATION = "/uploads/botones/object.svg";
 
 function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
   const { t } = useI18n();
   const isEdit = Boolean(initial);
+  const objects = useObjectsStore((s) => s.objects);
+  const planId = usePlanStore((s) => s.profile?.plan);
+  const showUpgrade = useUpgradeModalStore((s) => s.show);
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [desc, setDesc] = useState(initial?.description ?? "");
+  const [createRole, setCreateRole] = useState(
+    isGuestObject(initial) ? OBJECT_ROLE_GUEST : OBJECT_ROLE_CORPUS,
+  );
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
+
+  const caps = getObjectPlanCaps(planId);
+  const ownedUsed = countOwnedCorpora(objects);
+  const guestUsed = countGuestObjects(objects);
+  const isGuestCreate = !isEdit && createRole === OBJECT_ROLE_GUEST;
+  const quotaUsed = isGuestCreate ? guestUsed : ownedUsed;
+  const quotaMax = isGuestCreate ? caps.maxGuestObjects : caps.maxOwnedCorpora;
+  const quotaFull = !isEdit && quotaUsed >= quotaMax;
+  const guestLocked = !isEdit && caps.maxGuestObjects <= 0;
 
   const submitPayload = () => ({
     name: name.trim(),
     brand: brand.trim(),
     description: desc,
     color: initial?.color ?? "#5a1f1f",
+    role: isEdit
+      ? (initial?.role || OBJECT_ROLE_CORPUS)
+      : (isGuestCreate ? OBJECT_ROLE_GUEST : OBJECT_ROLE_CORPUS),
   });
+
+  const trySubmit = () => {
+    if (!name.trim()) return;
+    if (isEdit) {
+      onSubmit(submitPayload());
+      return;
+    }
+    if (isGuestCreate && guestLocked) {
+      showUpgrade("guest_limit");
+      return;
+    }
+    if (quotaFull) {
+      showUpgrade(isGuestCreate ? "guest_limit" : "object_limit");
+      return;
+    }
+    onSubmit(submitPayload());
+  };
+
+  const selectGuest = () => {
+    if (guestLocked) {
+      showUpgrade("guest_limit");
+      return;
+    }
+    setCreateRole(OBJECT_ROLE_GUEST);
+  };
 
   return (
     <div className="lp-overlay" onClick={onCancel}>
@@ -1213,7 +1266,7 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
 
         <div className="obj-create-preview-row">
           <img
-            src={CREATE_BUSINESS_ILLUSTRATION}
+            src={isGuestCreate ? CREATE_GUEST_ILLUSTRATION : CREATE_BUSINESS_ILLUSTRATION}
             alt=""
             className="obj-create-illustration"
             draggable={false}
@@ -1224,6 +1277,35 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
           <h3 className="obj-create-title">
             {isEdit ? t("sidebar.editBusinessRef") : t("sidebar.insertBusinessRef")}
           </h3>
+          {!isEdit ? (
+            <div className="obj-create-role" role="tablist" aria-label={t("sidebar.insertBusinessRef")}>
+              <button
+                type="button"
+                role="tab"
+                className={"obj-create-role__btn" + (!isGuestCreate ? " is-active" : "")}
+                aria-selected={!isGuestCreate}
+                onClick={() => setCreateRole(OBJECT_ROLE_CORPUS)}
+              >
+                {t("sidebar.createRoleSelf")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={"obj-create-role__btn" + (isGuestCreate ? " is-active" : "")}
+                aria-selected={isGuestCreate}
+                onClick={selectGuest}
+              >
+                {t("sidebar.createRoleGuest")}
+              </button>
+            </div>
+          ) : null}
+          {!isEdit ? (
+            <p className={"obj-create-quota" + (quotaFull ? " is-full" : "")}>
+              {isGuestCreate
+                ? t("sidebar.guestQuota", { used: guestUsed, max: caps.maxGuestObjects })
+                : t("sidebar.corpusQuota", { used: ownedUsed, max: caps.maxOwnedCorpora })}
+            </p>
+          ) : null}
           <input
             ref={ref}
             className="note-form-field obj-name-input"
@@ -1231,7 +1313,7 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && name.trim()) onSubmit(submitPayload());
+              if (e.key === "Enter" && name.trim()) trySubmit();
               if (e.key === "Escape") onCancel();
             }}
           />
@@ -1241,7 +1323,7 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
             value={brand}
             onChange={e => setBrand(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && name.trim()) onSubmit(submitPayload());
+              if (e.key === "Enter" && name.trim()) trySubmit();
               if (e.key === "Escape") onCancel();
             }}
             spellCheck={false}
@@ -1259,9 +1341,11 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
               type="button"
               className="btn primary obj-create-save"
               disabled={!name.trim()}
-              onClick={() => onSubmit(submitPayload())}
+              onClick={trySubmit}
             >
-              {isEdit ? t("sidebar.saveChanges") : t("sidebar.saveObject")}
+              {isEdit
+                ? t("sidebar.saveChanges")
+                : (isGuestCreate ? t("sidebar.saveGuest") : t("sidebar.saveObject"))}
             </button>
           </div>
         </div>
@@ -2170,6 +2254,7 @@ export function LeftPanel({
   const nodeList = Object.values(nodes);
   const activeObjectId = selectedObjectId || filterObjectId || null;
   const activeObject = activeObjectId ? objects[activeObjectId] : null;
+  const guestWorkspace = Boolean(objectWorkspaceActive && isGuestObject(activeObject));
 
   const docsWithoutParent = docList.filter((doc) => !doc.parentObjectId);
   const filteredObjectList = objList;
@@ -2178,32 +2263,6 @@ export function LeftPanel({
     .map((obj) => ({ object: obj, docs: getDocsByObject(obj.id) }))
     .filter((section) => section.docs.length > 0);
 
-  // Independent Documents: only orphans scoped to this company/corpus.
-  // Never pull parentless nodes from other corpus objects.
-  // UI: Documents → # Department inbox (not a separate Nodes panel).
-  const independentNodes = useMemo(() => {
-    if (!activeObjectId) return [];
-    return nodeList.filter((node) => {
-      if (node.parentDocId) return false;
-      return node.objectId === activeObjectId;
-    });
-  }, [activeObjectId, nodeList]);
-
-  /** # Department inbox — searchable from Documents folder search. */
-  const departmentInboxNodes = useMemo(() => {
-    const q = folderSearchQuery.trim().toLowerCase();
-    if (!q) return independentNodes;
-    return independentNodes.filter((node) => {
-      const title = (node.sourceQuery || node.title || "").toLowerCase();
-      return title.includes(q);
-    });
-  }, [independentNodes, folderSearchQuery]);
-
-  const isDepartmentInboxView =
-    clickFolderView === "subgroups" && !departmentFilterId;
-
-  // Resolve folder children from block.nodeId (editor source of truth) + parentDocId.
-  // Many persisted nodes have parentDocId wiped; counting only parentDocId shows "0 documents".
   const nodesByDocId = useMemo(
     () => buildNodesByDocIdMap(docs, nodes),
     [docs, nodes],
@@ -2248,8 +2307,10 @@ export function LeftPanel({
   );
 
   const campaignDocs = useMemo(
-    () => contentDocs.filter((doc) => Boolean(doc.campaignActive)),
-    [contentDocs],
+    () => (guestWorkspace
+      ? contentDocs
+      : contentDocs.filter((doc) => Boolean(doc.campaignActive))),
+    [contentDocs, guestWorkspace],
   );
 
   const campaignCategoryFilterOptions = useMemo(
@@ -2335,8 +2396,11 @@ export function LeftPanel({
   );
 
   const filteredUncategorizedDocs = useMemo(
-    () => (contentProductFilter ? [] : uncategorizedDocs),
-    [uncategorizedDocs, contentProductFilter],
+    () => {
+      if (contentProductFilter || departmentFilterId) return [];
+      return uncategorizedDocs;
+    },
+    [uncategorizedDocs, contentProductFilter, departmentFilterId],
   );
 
   const folderSearchNeedle = folderSearchQuery.trim().toLowerCase();
@@ -2641,7 +2705,7 @@ export function LeftPanel({
     selectObject(objectId);
     setObjectWorkspaceActive(true);
     setPanelType("Documents");
-    setClickFolderView(null);
+    setClickFolderView(isGuestObject(objects[objectId]) ? "campaign" : null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
@@ -2650,7 +2714,18 @@ export function LeftPanel({
     setFolderOpen(false);
   };
 
-  // Enter workspace when company is selected from selector (ensureCompanyObject).
+  useEffect(() => {
+    if (!guestWorkspace) return;
+    if (packImportActive || stepsLibraryActive || lazyTodosActive || urlTableLibraryActive) return;
+    if (clickFolderView !== "campaign") setClickFolderView("campaign");
+  }, [
+    guestWorkspace,
+    packImportActive,
+    stepsLibraryActive,
+    lazyTodosActive,
+    urlTableLibraryActive,
+    clickFolderView,
+  ]);
   useEffect(() => {
     if (!requestEnterWorkspaceId || !objects[requestEnterWorkspaceId]) return;
     clearLeftPanelNavSnapshot();
@@ -2958,7 +3033,7 @@ export function LeftPanel({
     if (objectWorkspaceActive && activeObjectId) {
       setFilterObjectId(activeObjectId);
     }
-    // Independent Documents → Documents / # Department inbox
+    // Nodes panel retired — Independent / # Department inbox removed
     if (t === "Nodes") {
       setPanelType("Documents");
       setActiveId(null);
@@ -2990,7 +3065,6 @@ export function LeftPanel({
     } = leftPanelNavigateRequest;
 
     if (panel === "Nodes") {
-      // Independent Documents live under Documents → # Department
       switchType("Documents");
       setClickFolderView("subgroups");
       setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
@@ -3065,17 +3139,27 @@ export function LeftPanel({
 
   const handleCreate = async (data) => {
     if (panelType === "Objects") {
-      if (planProfile.plan === "free" && Object.keys(objects).length >= FREE_LIMITS.maxObjects) {
+      const role = data.role === OBJECT_ROLE_GUEST ? OBJECT_ROLE_GUEST : OBJECT_ROLE_CORPUS;
+      if (role === OBJECT_ROLE_GUEST && !canCreateGuest(objects, planProfile.plan)) {
+        showUpgradeModal("guest_limit");
+        return;
+      }
+      if (role === OBJECT_ROLE_CORPUS && !canCreateOwnedCorpus(objects, planProfile.plan)) {
         showUpgradeModal("object_limit");
         return;
       }
-      const newObjectId = addObject(data.name, data.description, data.color, data.brand);
+      const newObjectId = addObject(data.name, data.description, data.color, data.brand, role);
       if (newObjectId) {
         setActiveId(newObjectId);
       }
     } else if (panelType === "Documents") {
-      const parentId = data.parentObjectId || null;
-      const isCampaignFolder = Boolean(data.campaignActive);
+      const parentId = data.parentObjectId || (guestWorkspace ? activeObjectId : null);
+      const parentObj = parentId ? objects[parentId] : null;
+      if (parentObj && isGuestObject(parentObj) && !canAddDocToObject(parentObj, docs, planProfile.plan)) {
+        showUpgradeModal("guest_doc_limit");
+        return;
+      }
+      const isCampaignFolder = Boolean(data.campaignActive) || isGuestObject(parentObj);
       const newDocId = addDoc(
         data.title,
         parentId,
@@ -3156,18 +3240,13 @@ export function LeftPanel({
   const handleNewByFolder = () => {
     if (!objectWorkspaceActive && panelType !== "Objects") return;
     if (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId) return;
-    if (panelType === "Documents" && !clickFolderView) return;
-    // # Department inbox — create independent documents (not folders)
+    if (panelType === "Documents" && !clickFolderView && !guestWorkspace) return;
     if (
-      panelType === "Documents"
-      && clickFolderView === "subgroups"
-      && !departmentFilterId
+      guestWorkspace
+      && panelType === "Documents"
+      && !canAddDocToObject(activeObject, docs, planProfile.plan)
     ) {
-      openCreateDocument(null);
-      return;
-    }
-    if (panelType === "Nodes") {
-      openCreateDocument(null);
+      showUpgradeModal("guest_doc_limit");
       return;
     }
     if (panelType === "Documents" && clickFolderView === "departments") {
@@ -3182,12 +3261,12 @@ export function LeftPanel({
   const newDisabled =
     (!objectWorkspaceActive && panelType !== "Objects")
     || (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId)
-    || (panelType === "Documents" && !clickFolderView)
-    || clickFolderView === "agents"
-    || clickFolderView === "assistance";
+    || (panelType === "Documents" && !clickFolderView && !guestWorkspace)
+    || (!guestWorkspace && clickFolderView === "agents")
+    || (!guestWorkspace && clickFolderView === "assistance");
   const docCreateMode = clickFolderView === "groups"
     ? "product"
-    : clickFolderView === "campaign"
+    : (clickFolderView === "campaign" || guestWorkspace)
       ? "campaign"
       : "content";
 
@@ -5368,7 +5447,7 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === null ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === null && !guestWorkspace ? (
               <>
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5412,7 +5491,7 @@ export function LeftPanel({
               </>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "groups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "groups" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5490,8 +5569,8 @@ export function LeftPanel({
                   <ClickFolderBack
                     iconOnly
                     inline
-                    onBack={() => setClickFolderView(null)}
-                    label={t("sidebar.campaign")}
+                    onBack={guestWorkspace ? exitObjectWorkspace : () => setClickFolderView(null)}
+                    label={guestWorkspace ? t("sidebar.clickFolderDocuments") : t("sidebar.campaign")}
                   />
                   <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
                     <button
@@ -5536,11 +5615,11 @@ export function LeftPanel({
                     placement="documents"
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
-                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
-                    onOpenLazyTodos={openLazyTodosFromToolbar}
-                    onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenProducts={openProductsFromToolbar}
-                    onOpenCampaign={openCampaignFromToolbar}
+                    onOpenStepsLibrary={guestWorkspace ? undefined : openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={guestWorkspace ? undefined : openLazyTodosFromToolbar}
+                    onOpenUrlTable={guestWorkspace ? undefined : openUrlTableFromToolbar}
+                    onOpenProducts={guestWorkspace ? undefined : openProductsFromToolbar}
+                    onOpenCampaign={guestWorkspace ? undefined : openCampaignFromToolbar}
                     filterMode="category"
                     filterOptions={campaignCategoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -5646,7 +5725,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" && !guestWorkspace ? (
               <DepartmentsPanel
                 objectId={filterObjectId}
                 onBack={() => setClickFolderView(null)}
@@ -5655,7 +5734,7 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "agents" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "agents" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -5674,7 +5753,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -5694,7 +5773,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5890,25 +5969,6 @@ export function LeftPanel({
                     + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
                   }
                 >
-                  {isDepartmentInboxView ? (
-                    <DocNodesBlockCard
-                      doc={null}
-                      orphan
-                      nodes={departmentInboxNodes}
-                      objects={objects}
-                      showWhenEmpty
-                      defaultExpanded
-                      highlightNodeId={revealHighlightNodeId}
-                      onCreateDocument={() => openCreateDocument(null)}
-                      onNodeClick={(node) => {
-                        setActiveId(node.id);
-                        setNodeEditContentFocus(false);
-                        setNodeEditId(node.id);
-                      }}
-                      onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                      onNodeDelete={handleDeleteNode}
-                    />
-                  ) : null}
                   {visibleContentDocs.length || visibleUncategorizedDocs.length ? (
                     <>
                       {visibleContentDocs.map((doc) => (
@@ -5982,8 +6042,6 @@ export function LeftPanel({
                         {t("sidebar.useNewContentInDepartment")}
                       </p>
                     </div>
-                  ) : isDepartmentInboxView ? (
-                    null
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
@@ -5991,11 +6049,7 @@ export function LeftPanel({
                           ? t("sidebar.noFoldersMatch")
                           : contentProductFilter
                             ? t("sidebar.noContentForProduct")
-                            : filterObjectId && getDocsByObject(filterObjectId).length > 0
-                              ? t("sidebar.noContentUncategorized", {
-                                count: getDocsByObject(filterObjectId).length,
-                              })
-                              : t("sidebar.noContentYet")}
+                            : t("sidebar.noContentYet")}
                       </p>
                       <p className="dim">
                         {folderSearchNeedle
@@ -6012,7 +6066,7 @@ export function LeftPanel({
           </div>
         )}
 
-        {/* Independent Documents panel removed — inbox lives under Documents → # Department */}
+        {/* Independent / # Department inbox removed — + new always creates a folder */}
 
       </div>
 
@@ -6052,18 +6106,6 @@ export function LeftPanel({
           onCancel={() => setShowCreate(false)}
           onOpenDocument={onOpenDocument}
           onInsertToCanvas={onInsertToCanvas}
-        />,
-        document.body,
-      )}
-      {showCreate && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
-        <StandaloneNodeModal
-          docs={docList}
-          parentObjectId={activeObjectId}
-          onClose={() => setShowCreate(false)}
-          onSaved={(entity) => {
-            setShowCreate(false);
-            if (entity) onInsertToCanvas?.(entity);
-          }}
         />,
         document.body,
       )}

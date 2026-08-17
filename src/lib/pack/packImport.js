@@ -123,12 +123,8 @@ export function applyPackImport(pack, options) {
       srcRoot.description || "",
       srcRoot.color || undefined,
       srcRoot.brand || pack.manifest.brand || "",
+      hasCorpus ? OBJECT_ROLE_SATELLITE : OBJECT_ROLE_CORPUS,
     );
-    if (hasCorpus) {
-      objectsStore.updateObject(rootObjectId, { role: OBJECT_ROLE_SATELLITE });
-    } else {
-      objectsStore.updateObject(rootObjectId, { role: OBJECT_ROLE_CORPUS });
-    }
   } else if (!rootObjectId) {
     throw new Error("Select an object to merge into");
   }

@@ -35,6 +35,7 @@ export function createPlaceholderImage({
 }
 
 export const OBJECT_THUMB_SRC = "/uploads/new-company.svg";
+export const OBJECT_GUEST_THUMB_SRC = "/uploads/botones/object.svg";
 
 export function ObjectIcon({ variant = "md", className = "" }) {
   const src = variant === "sm" ? CUBE_SMALL_SRC : CUBE_M_SRC;
@@ -50,12 +51,12 @@ export function ObjectIcon({ variant = "md", className = "" }) {
   );
 }
 
-export function ObjectThumbPreview({ className = "" }) {
+export function ObjectThumbPreview({ className = "", guest = false }) {
   return (
     <img
-      src={OBJECT_THUMB_SRC}
+      src={guest ? OBJECT_GUEST_THUMB_SRC : OBJECT_THUMB_SRC}
       alt=""
-      className={`obj-thumb-preview${className ? ` ${className}` : ""}`}
+      className={`obj-thumb-preview${guest ? " obj-thumb-preview--guest" : ""}${className ? ` ${className}` : ""}`}
       draggable={false}
     />
   );

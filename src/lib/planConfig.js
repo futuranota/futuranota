@@ -50,6 +50,9 @@ export const PLAN_LIMITS = {
     tokensCap: 10_000,
     tokensRenewable: false,
     maxObjects: 1,
+    maxOwnedCorpora: 1,
+    maxGuestObjects: 0,
+    maxDocsPerGuest: 0,
     maxImportBytes: 5 * 1024 * 1024,
     stepsLibraryCrossObject: false,
     maxSearchesLifetime: 10,
@@ -67,7 +70,10 @@ export const PLAN_LIMITS = {
     label: 'Pro',
     tokensCap: 2_000_000,
     tokensRenewable: true,
-    maxObjects: Infinity,
+    maxObjects: 10,
+    maxOwnedCorpora: 2,
+    maxGuestObjects: 8,
+    maxDocsPerGuest: 8,
     maxImportBytes: 5 * 1024 * 1024 * 1024,
     stepsLibraryCrossObject: true,
     maxLiveRunsPerMonth: 200,
@@ -257,7 +263,7 @@ export function getPlanFeatureRows(plan) {
   const f = getPlanLimits(plan);
   return [
     { key: 'credits', label: 'AI credits', value: isPro ? `${f.maxLiveRunsPerMonth}/mo` : `${f.maxSearchesLifetime} lifetime` },
-    { key: 'objects', label: 'Objects', value: isPro ? 'Unlimited' : String(f.maxObjects) },
+    { key: 'objects', label: 'Objects', value: isPro ? `${f.maxOwnedCorpora} corpus · ${f.maxGuestObjects} guests` : String(f.maxOwnedCorpora) },
     { key: 'storage', label: 'Storage', value: f.storageLabel },
     { key: 'agents', label: 'Agents', value: '3 credits/call' },
     { key: 'calendar', label: 'Calendar', value: isPro ? `${f.calendarSearchesCap}/mo` : `${f.calendarSearchesCap} use` },
@@ -291,8 +297,8 @@ export function getPlanFeatureMatrix() {
     {
       key: 'objects',
       label: 'Objects / companies',
-      free: String(free.maxObjects),
-      pro: 'Unlimited',
+      free: `${free.maxOwnedCorpora} corpus`,
+      pro: `${pro.maxOwnedCorpora} corpus · ${pro.maxGuestObjects} guests`,
     },
     {
       key: 'storage',

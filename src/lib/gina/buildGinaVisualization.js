@@ -247,7 +247,7 @@ export function docWorkMinutes(doc) {
  */
 export function colorForDepartment(name, index = 0, total = GINA_DEPT_RAIL_COLORS.length) {
   const key = String(name || "").trim();
-  if (!key || key === "—" || key === "# Department") {
+  if (!key || key === "—" || key === "# Department" || key === "Uncategorized") {
     return GINA_DEPT_RAIL_UNASSIGNED;
   }
   return ginaDepartmentRailColor(index, total);

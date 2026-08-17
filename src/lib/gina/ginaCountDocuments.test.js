@@ -143,7 +143,7 @@ describe("Gina count_documents browse + list", () => {
     expect(viz.data.count).toBe(3);
   });
 
-  it("includes # Department independent docs in corpus count/list", () => {
+  it("does not count folderless independent docs as a # Department bucket", () => {
     const withIndependent = {
       ...ctx,
       nodes: {
@@ -162,12 +162,10 @@ describe("Gina count_documents browse + list", () => {
       withIndependent,
     );
     expect(routed.family).toBe("count_documents");
-    expect(routed.toolContext.count).toBe(4);
+    expect(routed.toolContext.count).toBe(3);
     const list = runGinaQueryFamily("entregame todos los documentos", withIndependent);
     expect(list.toolContext.mode).toBe("list_all");
-    expect(list.toolContext.documents.some((d) => d.title === "Inbox draft")).toBe(true);
-    expect(list.toolContext.documents.find((d) => d.title === "Inbox draft")?.departmentName)
-      .toBe("# Department");
+    expect(list.toolContext.documents.some((d) => d.title === "Inbox draft")).toBe(false);
   });
 
   it("listado completo → all_docs Doc|Cat|Status|Time + dept rail (incluye Flexible)", () => {

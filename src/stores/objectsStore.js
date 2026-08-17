@@ -3,6 +3,7 @@ import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import {
   OBJECT_ROLE_CORPUS,
+  OBJECT_ROLE_GUEST,
   OBJECT_ROLE_SATELLITE,
   resolveDefaultObjectColor,
 } from "../lib/objectColors.js";
@@ -23,12 +24,19 @@ export const useObjectsStore = create(
         return { ...obj };
       },
 
-      addObject: (name, description = "", color, brand = "") => {
+      addObject: (name, description = "", color, brand = "", role) => {
         const id = generateId("OBJ");
         const existingCount = Object.keys(get().objects).length;
-        const isFirst = existingCount === 0;
-        const resolvedColor = color || resolveDefaultObjectColor(existingCount);
-        const role = isFirst ? OBJECT_ROLE_CORPUS : OBJECT_ROLE_SATELLITE;
+        const resolvedRole = role === OBJECT_ROLE_GUEST
+          ? OBJECT_ROLE_GUEST
+          : role === OBJECT_ROLE_CORPUS
+            ? OBJECT_ROLE_CORPUS
+            : role === OBJECT_ROLE_SATELLITE
+              ? OBJECT_ROLE_SATELLITE
+              : (existingCount === 0 ? OBJECT_ROLE_CORPUS : OBJECT_ROLE_SATELLITE);
+        const resolvedColor = color || resolveDefaultObjectColor(
+          resolvedRole === OBJECT_ROLE_GUEST ? 1 : (resolvedRole === OBJECT_ROLE_CORPUS ? 0 : existingCount),
+        );
         set((state) => ({
           objects: {
             ...state.objects,
@@ -39,7 +47,7 @@ export const useObjectsStore = create(
               brand: typeof brand === "string" ? brand : "",
               children: [],
               color: resolvedColor,
-              role,
+              role: resolvedRole,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             },

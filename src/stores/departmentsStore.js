@@ -61,6 +61,25 @@ function persistDepartments(departments) {
 }
 
 /**
+ * Folders in this department currently tagged with `label`.
+ * @param {string} departmentId
+ * @param {string} label
+ * @returns {number}
+ */
+export function countFoldersWithDepartmentCategory(departmentId, label) {
+  const key = String(label || "").trim().toLowerCase();
+  if (!departmentId || !key) return 0;
+  const docs = useDocsStore.getState().docs || {};
+  let n = 0;
+  for (const doc of Object.values(docs)) {
+    if (!doc || String(doc.departmentId || "") !== String(departmentId)) continue;
+    if (String(doc.category || "").trim().toLowerCase() !== key) continue;
+    n += 1;
+  }
+  return n;
+}
+
+/**
  * Cascade clear folder.category when a department tag is deleted.
  * @param {string} departmentId
  * @param {string} label

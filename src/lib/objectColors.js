@@ -6,6 +6,8 @@ export const OBJECT_COLOR_SATELLITE = "#9ca3af";
 
 export const OBJECT_ROLE_CORPUS = "corpus";
 export const OBJECT_ROLE_SATELLITE = "satellite";
+/** Third-party / invited company — same as legacy satellite. */
+export const OBJECT_ROLE_GUEST = "guest";
 
 /**
  * Soft tag styles for canvas `.cnode-parent-tag` by object family index.

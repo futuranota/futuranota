@@ -5,6 +5,8 @@ import { useI18n } from "../../i18n/useI18n.js";
 
 const REASON_MESSAGE_KEYS = {
   object_limit: "upgrade.reasonObjectLimit",
+  guest_limit: "upgrade.reasonGuestLimit",
+  guest_doc_limit: "upgrade.reasonGuestDocLimit",
   import_size: "upgrade.reasonImportSize",
   calendar: "upgrade.reasonCalendar",
   weather: "upgrade.reasonWeather",

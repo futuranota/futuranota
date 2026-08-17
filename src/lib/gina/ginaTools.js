@@ -90,13 +90,8 @@ function filterNodesForObject(nodes, docs, objectId) {
   const folderIds = new Set(filterFoldersForObject(docs, objectId).map((d) => d.id));
   return asList(nodes).filter((n) => {
     if (!n?.id) return false;
-    // Independent / # Department inbox — corpus-scoped, no folder yet
-    if (!n.parentDocId) {
-      if (!objectId) return true;
-      return n.objectId === objectId;
-    }
+    if (!n.parentDocId) return false;
     if (objectId && n.objectId && n.objectId !== objectId) {
-      // also allow via parent folder membership
       if (!folderIds.has(n.parentDocId)) return false;
     } else if (objectId && !n.objectId && !folderIds.has(n.parentDocId)) {
       return false;
@@ -156,7 +151,7 @@ function enrichDocument(node, folder, departments, now) {
     parentFolderId: node.parentDocId || null,
     parentFolderName: folder ? folderTitle(folder) : null,
     departmentId: folder?.departmentId || null,
-    departmentName: dept?.category || (independent ? "# Department" : null),
+    departmentName: dept?.category || null,
     category: folder?.category || null,
     independent,
     anchorAt,

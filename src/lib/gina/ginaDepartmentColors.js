@@ -99,7 +99,7 @@ export function buildGinaDepartmentRail(docs = []) {
 
   for (const doc of docs) {
     const raw = doc?.department || doc?.hierarchy?.department || "";
-    const name = String(raw).trim() || "# Department";
+    const name = String(raw).trim() || "Uncategorized";
     if (indexByName.has(name)) {
       ordered[indexByName.get(name)].count += 1;
     } else {
@@ -112,7 +112,7 @@ export function buildGinaDepartmentRail(docs = []) {
   return ordered.map((seg, i) => ({
     name: seg.name,
     count: seg.count,
-    color: seg.name === "# Department"
+    color: seg.name === "Uncategorized" || seg.name === "# Department"
       ? GINA_DEPT_RAIL_UNASSIGNED
       : ginaDepartmentRailColor(i, total),
   }));
@@ -214,7 +214,7 @@ export function buildGinaDepartmentRailRuns(docs = [], opts = {}) {
 
     const color = String(doc?.departmentColor || "").trim()
       || colorByDept[name]
-      || (name === "# Department" || name === "—"
+      || (name === "Uncategorized" || name === "# Department" || name === "—"
         ? GINA_DEPT_RAIL_UNASSIGNED
         : ginaDepartmentRailColor(firstIndex.get(name), Math.max(1, firstIndex.size)));
 

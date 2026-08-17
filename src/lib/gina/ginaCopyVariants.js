@@ -143,7 +143,7 @@ const LIST_REFINE_INTENT_HINT_ES = "Qué quieres lograr con los documentos hoy ?
 const LIST_REFINE_INTENT_HINT_EN = "What do you want to achieve with the documents today?";
 
 /** Unassigned rail segment — not a real department. */
-const UNASSIGNED_DEPT_NAME = "# Department";
+const UNASSIGNED_DEPT_NAME = "Uncategorized";
 
 /**
  * Count real departments on the list rail (excludes unassigned).
@@ -154,7 +154,7 @@ export function countGinaRealDepartments(departmentRail) {
   if (!Array.isArray(departmentRail)) return 0;
   return departmentRail.filter((seg) => {
     const name = String(seg?.name || "").trim();
-    return name && name !== UNASSIGNED_DEPT_NAME;
+    return name && name !== UNASSIGNED_DEPT_NAME && name !== "# Department";
   }).length;
 }
 
