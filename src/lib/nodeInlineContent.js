@@ -3,6 +3,11 @@ import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguag
 import { generateId } from "./ids.js";
 import { applyTextEditToMentions, normalizeMentions } from "./docMentions.js";
 import { applyTextEditToTagRefs, normalizeTagRefs, splitTagRefsAt } from "./docTagRefs.js";
+import {
+  applyTextEditToLibraryNameRefs,
+  normalizeLibraryNameRefs,
+  splitLibraryNameRefsAt,
+} from "./docLibraryNameRefs.js";
 import { applyTextEditToMarkerRanges, normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
 import { applyTextEditToBoldRanges, normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -46,6 +51,7 @@ export function createEmptyTextBlock(text = "", patch = {}) {
   const value = text || "";
   const mentions = normalizeMentions(value, patch.mentions);
   const tagRefs = normalizeTagRefs(value, patch.tagRefs);
+  const libraryNameRefs = normalizeLibraryNameRefs(value, patch.libraryNameRefs);
   const markerRanges = normalizeMarkerRanges(value, patch.markerRanges);
   const boldRanges = normalizeBoldRanges(value, patch.boldRanges);
   return {
@@ -54,6 +60,7 @@ export function createEmptyTextBlock(text = "", patch = {}) {
     text: value,
     ...(mentions.length ? { mentions } : {}),
     ...(tagRefs.length ? { tagRefs } : {}),
+    ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
     ...(boldRanges.length ? { boldRanges } : {}),
     ...(patch.embedded && typeof patch.embedded === "object"
@@ -114,10 +121,16 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
     headEnd,
     tailStart,
   );
+  const { headRanges: headNames, tailRanges: tailNames } = splitLibraryNameRefsAt(
+    block?.libraryNameRefs,
+    headEnd,
+    tailStart,
+  );
   return {
     beforePatch: {
       mentions: normalizeMentions(beforeText, block?.mentions),
       tagRefs: normalizeTagRefs(beforeText, headTagRefs),
+      libraryNameRefs: normalizeLibraryNameRefs(beforeText, headNames),
       markerRanges: normalizeMarkerRanges(beforeText, headMarkers),
       boldRanges: normalizeBoldRanges(beforeText, headBolds),
       ...(block?.embedded && typeof block.embedded === "object"
@@ -127,6 +140,7 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
     afterPatch: {
       mentions: normalizeMentions(afterText, block?.mentions),
       tagRefs: normalizeTagRefs(afterText, tailTagRefs),
+      libraryNameRefs: normalizeLibraryNameRefs(afterText, tailNames),
       markerRanges: normalizeMarkerRanges(afterText, tailMarkers),
       boldRanges: normalizeBoldRanges(afterText, tailBolds),
     },
@@ -358,6 +372,7 @@ export function normalizeWritingBlocks(blocks) {
     const text = block?.text || "";
     const mentions = normalizeMentions(text, block?.mentions);
     const tagRefs = normalizeTagRefs(text, block?.tagRefs);
+    const libraryNameRefs = normalizeLibraryNameRefs(text, block?.libraryNameRefs);
     const markerRanges = normalizeMarkerRanges(text, block?.markerRanges);
     const boldRanges = normalizeBoldRanges(text, block?.boldRanges);
     return {
@@ -366,6 +381,7 @@ export function normalizeWritingBlocks(blocks) {
       text,
       ...(mentions.length ? { mentions } : {}),
       ...(tagRefs.length ? { tagRefs } : {}),
+      ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
       ...(boldRanges.length ? { boldRanges } : {}),
       // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
@@ -472,6 +488,7 @@ export function nodeWritingBlocksHaveStructure(blocks) {
     if (block.embedded) return true;
     if (Array.isArray(block.mentions) && block.mentions.length > 0) return true;
     if (Array.isArray(block.tagRefs) && block.tagRefs.length > 0) return true;
+    if (Array.isArray(block.libraryNameRefs) && block.libraryNameRefs.length > 0) return true;
     if (Array.isArray(block.markerRanges) && block.markerRanges.length > 0) return true;
     if (Array.isArray(block.boldRanges) && block.boldRanges.length > 0) return true;
     return block.text.trim();
@@ -512,6 +529,7 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
       || block.embedded
       || (Array.isArray(block.mentions) && block.mentions.length > 0)
       || (Array.isArray(block.tagRefs) && block.tagRefs.length > 0)
+      || (Array.isArray(block.libraryNameRefs) && block.libraryNameRefs.length > 0)
       || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
       || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
     ),
@@ -835,6 +853,10 @@ export function applyLibraryHashInTextBlock(blocks, blockIndex, hashAction) {
   const nextText = `${text.slice(0, start)}${text.slice(end)}`;
   const mentions = normalizeMentions(nextText, applyTextEditToMentions(text, nextText, block.mentions));
   const tagRefs = normalizeTagRefs(nextText, applyTextEditToTagRefs(text, nextText, block.tagRefs));
+  const libraryNameRefs = normalizeLibraryNameRefs(
+    nextText,
+    applyTextEditToLibraryNameRefs(text, nextText, block.libraryNameRefs),
+  );
   const markerRanges = normalizeMarkerRanges(
     nextText,
     applyTextEditToMarkerRanges(text, nextText, block.markerRanges),
@@ -850,6 +872,7 @@ export function applyLibraryHashInTextBlock(blocks, blockIndex, hashAction) {
         text: nextText,
         ...(mentions.length ? { mentions } : { mentions: undefined }),
         ...(tagRefs.length ? { tagRefs } : { tagRefs: undefined }),
+        ...(libraryNameRefs.length ? { libraryNameRefs } : { libraryNameRefs: undefined }),
         ...(markerRanges.length ? { markerRanges } : { markerRanges: undefined }),
         ...(boldRanges.length ? { boldRanges } : { boldRanges: undefined }),
       }

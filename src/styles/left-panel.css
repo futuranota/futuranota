@@ -8190,6 +8190,17 @@ body.doc-content-resizing * {
     0 -0.35px 0 currentColor;
 }
 
+/* Library Name invoke: same faux-bold (no font-weight — caret-safe). */
+.doc-slash-field__library-name {
+  font-weight: inherit;
+  color: inherit;
+  text-shadow:
+    0.28px 0 0 currentColor,
+    -0.28px 0 0 currentColor,
+    0 0.28px 0 currentColor,
+    0 -0.28px 0 currentColor;
+}
+
 /* ── Marker (plumón) strokes ─────────────────────────────────────────
    Background-only ink under white text; glyph metrics never change.
    Uneven gradient + organic radii + per-range seed = hand-drawn feel. */

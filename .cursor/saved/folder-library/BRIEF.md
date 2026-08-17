@@ -36,8 +36,8 @@ Assets live **only on the document** (node), not on the folder. Copy: **assets**
 - Open an asset → `[ metadato | imagen ] × n` (fichas with that `setId`).
 - Images / Attachments = **loose** fichas (`setId` null). `[+]` on Documents creates an asset; inside an asset `[+]` adds Image/Attachments into it.
 - Unsaved document → same message as `-- --` capture.
-- `#` in document writing is reserved for I/O (`#i` / `#o`). Moodboard tag insert via `#` is off. Existing chips still render.
-- Out of this slice: `.asset-name` / `element.set` in body, reuse folder→doc, `--script--`.
+- Out of this slice: `.asset-name` dotted path (`name.folder`), reuse folder→doc, `--script--`.
+- **Name invoke (live):** typing a prefix of an image ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
 
 ```
 librarySets: [{ id, tag, description, createdAt, updatedAt }]  // UI: assets
@@ -149,4 +149,5 @@ Legacy video fichas may still appear under All and open in detail. No new Video 
 6. PDF-specific polish / FileCard thumbs polish
 7. ~~Document sub-library (overlay + Folder/Docs toggle)~~
 8. ~~Document sets `/i` `/o`~~ → **assets** + `#i` `#o` + Documents tab (create queue live)
-9. later: invoke `.asset-name` in document story · reuse main · `--script--` · mini strip · Atelier extras · Gina library tools · @tag  
+9. later: invoke `.asset-name` dotted path · reuse main · `--script--` · mini strip · Atelier extras · Gina library tools · @tag
+   Name invoke in prose (bold + autocomplete of image Names) is live.  

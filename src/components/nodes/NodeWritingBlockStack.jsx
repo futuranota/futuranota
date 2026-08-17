@@ -11,9 +11,11 @@ import {
   mergeMentionBlocks,
 } from "../../lib/docMentions.js";
 import {
-  applyTextEditToTagRefs,
-  snapCaretOutOfTagRefBoxInterior,
-} from "../../lib/docTagRefs.js";
+  applyTextEditToLibraryNameRefs,
+  mergeLibraryNameRefBlocks,
+} from "../../lib/docLibraryNameRefs.js";
+import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
+import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
@@ -233,6 +235,11 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
     // Shift @mention + #tagRef + marker + bold ranges past the newline.
     const mentions = applyTextEditToMentions(item.text || "", nextText, item.mentions || []);
     const nextTagRefs = applyTextEditToTagRefs(item.text || "", nextText, item.tagRefs || []);
+    const libraryNameRefs = applyTextEditToLibraryNameRefs(
+      item.text || "",
+      nextText,
+      item.libraryNameRefs || [],
+    );
     const markerRanges = applyTextEditToMarkerRanges(item.text || "", nextText, item.markerRanges || []);
     const boldRanges = applyTextEditToBoldRanges(item.text || "", nextText, item.boldRanges || []);
     return {
@@ -240,6 +247,7 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
       text: nextText,
       mentions: mentions.length ? mentions : undefined,
       tagRefs: nextTagRefs.length ? nextTagRefs : undefined,
+      libraryNameRefs: libraryNameRefs.length ? libraryNameRefs : undefined,
       markerRanges: markerRanges.length ? markerRanges : undefined,
       boldRanges: boldRanges.length ? boldRanges : undefined,
     };
@@ -292,6 +300,7 @@ export function NodeWritingBlockStack({
   }, [writingCaretRef]);
   const urlTableEntries = useUrlTableStore((s) => s.entries);
   const urlTables = useUrlTablesStore((s) => s.tables);
+  const libraryItems = useLibraryItems(libraryOwnerKind, libraryOwnerId);
   const mentionCandidates = useMemo(() => {
     if (!companyObjectId) return null;
     const titleById = new Map(
@@ -304,6 +313,18 @@ export function NodeWritingBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, urlTableEntries, urlTables]);
+  const libraryNameCandidates = useMemo(() => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
+    return libraryItems
+      .filter((item) => item?.category === "image" && String(item.tag || "").trim())
+      .map((item) => ({
+        id: item.id,
+        tag: String(item.tag).trim(),
+        name: String(item.tag).trim(),
+        description: String(item.description || ""),
+        setId: item.setId ?? null,
+      }));
+  }, [libraryItems, libraryOwnerId, libraryOwnerKind]);
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
   }, [onBlocksChange]);
@@ -416,6 +437,9 @@ export function NodeWritingBlockStack({
         : {}),
       ...(meta && "tagRefs" in meta
         ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
+        : {}),
+      ...(meta && "libraryNameRefs" in meta
+        ? { libraryNameRefs: meta.libraryNameRefs?.length ? meta.libraryNameRefs : undefined }
         : {}),
       ...(meta && "markerRanges" in meta
         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
@@ -596,6 +620,13 @@ export function NodeWritingBlockStack({
             block.mentions || [],
             "",
           );
+          const mergedNames = mergeLibraryNameRefBlocks(
+            prev.text || "",
+            prev.libraryNameRefs || [],
+            value,
+            block.libraryNameRefs || [],
+            "",
+          );
           const mergedMarkers = mergeBlockMarkerRanges(
             { text: prev.text || "", markerRanges: prev.markerRanges || [] },
             { text: value, markerRanges: block.markerRanges || [] },
@@ -612,6 +643,9 @@ export function NodeWritingBlockStack({
                 ...b,
                 text: mergedResult.text,
                 mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+                libraryNameRefs: mergedNames.libraryNameRefs.length
+                  ? mergedNames.libraryNameRefs
+                  : undefined,
                 markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
                 boldRanges: mergedBolds.length ? mergedBolds : undefined,
               }
@@ -744,6 +778,13 @@ export function NodeWritingBlockStack({
           block.mentions || [],
           "",
         );
+        const mergedNames = mergeLibraryNameRefBlocks(
+          prev.text || "",
+          prev.libraryNameRefs || [],
+          value,
+          block.libraryNameRefs || [],
+          "",
+        );
         const mergedMarkers = mergeBlockMarkerRanges(
           { text: prev.text || "", markerRanges: prev.markerRanges || [] },
           { text: value, markerRanges: block.markerRanges || [] },
@@ -760,6 +801,9 @@ export function NodeWritingBlockStack({
               ...b,
               text: mergedResult.text,
               mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+              libraryNameRefs: mergedNames.libraryNameRefs.length
+                ? mergedNames.libraryNameRefs
+                : undefined,
               markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
               boldRanges: mergedBolds.length ? mergedBolds : undefined,
             }
@@ -1356,6 +1400,8 @@ export function NodeWritingBlockStack({
                 value={block.text}
                 mentions={block.mentions || []}
                 tagRefs={block.tagRefs || []}
+                libraryNameRefs={block.libraryNameRefs || []}
+                libraryNameCandidates={libraryNameCandidates}
                 mentionCandidates={mentionCandidates}
                 companyObjectId={companyObjectId}
                 markerRanges={block.markerRanges || []}
@@ -1410,6 +1456,8 @@ export function NodeWritingBlockStack({
                   value={block.text}
                   mentions={block.mentions || []}
                   tagRefs={block.tagRefs || []}
+                  libraryNameRefs={block.libraryNameRefs || []}
+                  libraryNameCandidates={libraryNameCandidates}
                   mentionCandidates={mentionCandidates}
                   companyObjectId={companyObjectId}
                   markerRanges={block.markerRanges || []}

@@ -4,6 +4,7 @@ import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkCo
 import { splitBodyForSlash } from "./docSlashTail.js";
 import { mergeMentionBlocks, normalizeMentions } from "./docMentions.js";
 import { mergeTagRefBlocks, normalizeTagRefs } from "./docTagRefs.js";
+import { mergeLibraryNameRefBlocks, normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
 import { mergeBlockMarkerRanges, normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { mergeBlockBoldRanges, normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
@@ -1341,6 +1342,7 @@ export function normalizeDocBlock(block) {
   const text = block.text || "";
   const mentions = normalizeMentions(text, block.mentions);
   const tagRefs = normalizeTagRefs(text, block.tagRefs);
+  const libraryNameRefs = normalizeLibraryNameRefs(text, block.libraryNameRefs);
   const markerRanges = normalizeMarkerRanges(text, block.markerRanges);
   const boldRanges = normalizeBoldRanges(text, block.boldRanges);
   return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
@@ -1348,6 +1350,7 @@ export function normalizeDocBlock(block) {
     text,
     ...(mentions.length ? { mentions } : {}),
     ...(tagRefs.length ? { tagRefs } : {}),
+    ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
     ...(boldRanges.length ? { boldRanges } : {}),
     ...(block.embedded && typeof block.embedded === "object"
@@ -1383,6 +1386,13 @@ function mergeAdjacentTextBlocks(blocks) {
         block.tagRefs || [],
         "\n",
       );
+      const combinedNames = mergeLibraryNameRefBlocks(
+        prev.text || "",
+        prev.libraryNameRefs || [],
+        block.text || "",
+        block.libraryNameRefs || [],
+        "\n",
+      );
       const combinedMarkers = mergeBlockMarkerRanges(
         { text: prev.text || "", markerRanges: prev.markerRanges || [] },
         { text: block.text || "", markerRanges: block.markerRanges || [] },
@@ -1396,6 +1406,9 @@ function mergeAdjacentTextBlocks(blocks) {
         ...(combinedTagRefs.tagRefs.length
           ? { tagRefs: combinedTagRefs.tagRefs }
           : { tagRefs: undefined }),
+        ...(combinedNames.libraryNameRefs.length
+          ? { libraryNameRefs: combinedNames.libraryNameRefs }
+          : { libraryNameRefs: undefined }),
         ...(combinedMarkers.length ? { markerRanges: combinedMarkers } : { markerRanges: undefined }),
         ...(combinedBolds.length ? { boldRanges: combinedBolds } : { boldRanges: undefined }),
       };
@@ -1771,12 +1784,14 @@ function parseTextMentionsSection(section) {
     const text = String(parsed?.text ?? "");
     const mentions = normalizeMentions(text, parsed?.mentions);
     const tagRefs = normalizeTagRefs(text, parsed?.tagRefs);
+    const libraryNameRefs = normalizeLibraryNameRefs(text, parsed?.libraryNameRefs);
     const markerRanges = normalizeMarkerRanges(text, parsed?.markerRanges);
     const boldRanges = normalizeBoldRanges(text, parsed?.boldRanges);
     return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
       text,
       ...(mentions.length ? { mentions } : {}),
       ...(tagRefs.length ? { tagRefs } : {}),
+      ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
       ...(boldRanges.length ? { boldRanges } : {}),
       ...(parsed?.embedded && typeof parsed.embedded === "object"
@@ -2064,6 +2079,7 @@ export function docBlocksToBody(blocks) {
         && (
           (Array.isArray(block.mentions) && block.mentions.length > 0)
           || (Array.isArray(block.tagRefs) && block.tagRefs.length > 0)
+          || (Array.isArray(block.libraryNameRefs) && block.libraryNameRefs.length > 0)
           || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
           || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
         )
@@ -2075,6 +2091,9 @@ export function docBlocksToBody(blocks) {
             : {}),
           ...(Array.isArray(block.tagRefs) && block.tagRefs.length > 0
             ? { tagRefs: block.tagRefs }
+            : {}),
+          ...(Array.isArray(block.libraryNameRefs) && block.libraryNameRefs.length > 0
+            ? { libraryNameRefs: block.libraryNameRefs }
             : {}),
           ...(Array.isArray(block.markerRanges) && block.markerRanges.length > 0
             ? { markerRanges: block.markerRanges }

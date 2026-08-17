@@ -2,28 +2,31 @@ import { normalizeMentions } from "./docMentions.js";
 import { normalizeTagRefs } from "./docTagRefs.js";
 import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { normalizeBoldRanges } from "./docTextBoldRanges.js";
+import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
 
 /**
  * @typedef {Object} MirrorSegment
  * @property {string} text
  * @property {import('./docMentions.js').DocMention} [mention]
  * @property {import('./docTagRefs.js').DocTagRef} [tagRef]
+ * @property {import('./docLibraryNameRefs.js').DocLibraryNameRef} [libraryNameRef]
  * @property {import('./docTextMarkerRanges.js').MarkerRange} [marker] full range (seed source)
  * @property {boolean} [bold]
  */
 
 /**
- * Flattens @mention chips, #tag refs, marker strokes, and bold into one mirror render pass.
+ * Flattens @mention chips, #tag refs, library names, marker strokes, and bold into one mirror render pass.
  * Segments break at every boundary; a segment can carry any combination.
  *
  * @returns {MirrorSegment[]}
  */
-export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, tagRefs) {
+export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, tagRefs, libraryNameRefs) {
   const value = String(text ?? "");
   if (!value) return [];
 
   const mentionList = normalizeMentions(value, mentions);
   const tagRefList = normalizeTagRefs(value, tagRefs);
+  const libraryNameList = normalizeLibraryNameRefs(value, libraryNameRefs);
   const markerList = normalizeMarkerRanges(value, markerRanges);
   const boldList = normalizeBoldRanges(value, boldRanges);
 
@@ -35,6 +38,10 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
   for (const tagRef of tagRefList) {
     boundaries.add(tagRef.start);
     boundaries.add(tagRef.end);
+  }
+  for (const ref of libraryNameList) {
+    boundaries.add(ref.start);
+    boundaries.add(ref.end);
   }
   for (const marker of markerList) {
     boundaries.add(marker.start);
@@ -59,6 +66,9 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
     const tagRef = tagRefList.find(
       (item) => item.start <= start && item.end >= end,
     );
+    const libraryNameRef = libraryNameList.find(
+      (item) => item.start <= start && item.end >= end,
+    );
     const marker = markerList.find(
       (item) => item.start <= start && item.end >= end,
     );
@@ -70,6 +80,7 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
       text: value.slice(start, end),
       ...(mention ? { mention } : {}),
       ...(tagRef ? { tagRef } : {}),
+      ...(libraryNameRef ? { libraryNameRef } : {}),
       ...(marker ? { marker } : {}),
       ...(bold ? { bold: true } : {}),
     });
@@ -77,3 +88,4 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
 
   return segments;
 }
+
