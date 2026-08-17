@@ -48,6 +48,7 @@ import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
+import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -210,6 +211,7 @@ export function NodeQueryModal({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const writingCaretRef = useRef(null);
 
   // Accept on talk popover opens a floating small chat — close in-doc overlay so we don't stack two.
@@ -1560,6 +1562,17 @@ export function NodeQueryModal({
                 </p>
               )}
               <div className="doc-focus-top__meta">
+                {entityNodeId ? (
+                  <button
+                    type="button"
+                    className="node-query-modal__doc-action node-query-modal__library"
+                    onClick={() => setLibraryOpen(true)}
+                    title={t("doc.library.open")}
+                    aria-label={t("doc.library.openDocLibraryAria")}
+                  >
+                    <span>{t("doc.library.open")}</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__call-asistente"
@@ -1634,6 +1647,17 @@ export function NodeQueryModal({
               <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
             ) : null}
             <div className="node-query-modal__head-actions">
+              {entityNodeId ? (
+                <button
+                  type="button"
+                  className="node-query-modal__doc-action node-query-modal__library"
+                  onClick={() => setLibraryOpen(true)}
+                  title={t("doc.library.open")}
+                  aria-label={t("doc.library.openDocLibraryAria")}
+                >
+                  <span>{t("doc.library.open")}</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="node-query-modal__doc-action node-query-modal__call-asistente"
@@ -2279,12 +2303,21 @@ export function NodeQueryModal({
     />
   ) : null;
 
+  const libraryOverlay = entityNodeId && libraryOpen ? (
+    <FolderLibraryOverlay
+      ownerKind="document"
+      ownerId={entityNodeId}
+      onClose={() => setLibraryOpen(false)}
+    />
+  ) : null;
+
   if (embedded) {
     return (
       <>
         {modalCard}
         {unsavedConfirm}
         {ginaChat}
+        {libraryOverlay}
       </>
     );
   }
@@ -2306,6 +2339,7 @@ export function NodeQueryModal({
       )}
       {unsavedConfirm}
       {ginaChat}
+      {libraryOverlay}
     </>
   );
 }

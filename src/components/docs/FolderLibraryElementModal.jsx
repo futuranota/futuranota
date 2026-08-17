@@ -10,11 +10,12 @@ import { generateId } from "../../lib/ids.js";
 import {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
-  createFolderLibraryItem,
+  createLibraryItem,
   normalizeFolderLibraryCategory,
+  normalizeLibraryOwnerKind,
   normalizeWallColor,
   resolveWallColor,
-  updateFolderLibraryItem,
+  updateLibraryItem,
 } from "../../lib/folderLibrary.js";
 
 const CATEGORY_LABEL_KEYS = {
@@ -30,6 +31,8 @@ const CATEGORY_LABEL_KEYS = {
  */
 export function FolderLibraryElementModal({
   folderId,
+  ownerKind = "folder",
+  ownerId,
   item = null,
   defaultCategory = "auto",
   /** When true, category select is hidden (chosen via [+] menu). */
@@ -39,6 +42,9 @@ export function FolderLibraryElementModal({
 }) {
   const { t } = useI18n();
   const fileInputRef = useRef(null);
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  const resolvedOwnerId = String(ownerId || folderId || "").trim();
+  const uploadScopeId = resolvedOwnerId || (kind === "document" ? "doc-lib" : "folder-lib");
   const editing = Boolean(item?.id);
   const initialCategory = item?.category
     || normalizeFolderLibraryCategory(defaultCategory);
@@ -82,7 +88,7 @@ export function FolderLibraryElementModal({
       try {
         const uploaded = await uploadDocAttachmentFile(file, {
           fileId: generateId("LIBATT"),
-          scopeId: folderId || "folder-lib",
+          scopeId: uploadScopeId,
           fileName: file.name,
         });
         setAttachmentUrl(uploaded.url);
@@ -110,7 +116,7 @@ export function FolderLibraryElementModal({
       try {
         const uploaded = await uploadDocVideoFile(file, {
           fileId: generateId("LIBVID"),
-          scopeId: folderId || "folder-lib",
+          scopeId: uploadScopeId,
           fileName: file.name,
         });
         setMediaUrl(uploaded.url);
@@ -145,7 +151,7 @@ export function FolderLibraryElementModal({
     try {
       const converted = await convertAndUploadDocImage(file, {
         idPrefix: "LIBIMG",
-        scopeId: folderId || "folder-lib",
+        scopeId: uploadScopeId,
         maxWidth: 1600,
         maxHeight: 1600,
         quality: 0.88,
@@ -197,8 +203,8 @@ export function FolderLibraryElementModal({
         payload.wallColor = null;
       }
       const saved = editing
-        ? updateFolderLibraryItem(folderId, item.id, payload)
-        : createFolderLibraryItem(folderId, payload);
+        ? updateLibraryItem(kind, resolvedOwnerId, item.id, payload)
+        : createLibraryItem(kind, resolvedOwnerId, payload);
       if (!saved) {
         setError(t("doc.library.nameRequired"));
         return;

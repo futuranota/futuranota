@@ -1243,7 +1243,13 @@ export function initPersistenceMiddleware(stores) {
       nodes = repaired.nodes;
     }
     useDocsStore.setState({ docs: normalizedDocs });
-    useNodesStore.setState({ nodes });
+    const normalizedNodes = {};
+    for (const [id, node] of Object.entries(nodes || {})) {
+      normalizedNodes[id] = node && typeof node === "object"
+        ? { ...node, libraryItems: normalizeFolderLibraryItems(node.libraryItems) }
+        : node;
+    }
+    useNodesStore.setState({ nodes: normalizedNodes });
     useCanvasStore.setState({
       canvasNodes: stripped.canvasNodes || {},
       canvasConnections: stripped.canvasConnections || {},
@@ -1542,6 +1548,11 @@ export function initPersistenceMiddleware(stores) {
           objectId: objectIdFromPersistedNode(persisted),
           linkedToCanvas: node.linked_to_canvas || false,
           canvasNodeId: node.canvas_node_id || null,
+          libraryItems: normalizeFolderLibraryItems(
+            node.library_items !== undefined
+              ? node.library_items
+              : reference.libraryItems,
+          ),
           createdAt: node.created_at,
           updatedAt: node.updated_at,
         };
@@ -1945,6 +1956,7 @@ export function initPersistenceMiddleware(stores) {
         reference: referenceWithNodeMeta(node),
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
+        library_items: normalizeFolderLibraryItems(node.libraryItems),
         created_at: node.createdAt || now,
         updated_at: node.updatedAt || now,
       }));

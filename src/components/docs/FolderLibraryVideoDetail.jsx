@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
-import { useDocsStore } from "../../stores/docsStore.js";
+import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { copyToClipboard } from "../../lib/copyToClipboard.js";
-import {
-  normalizeFolderLibraryItems,
-  resolveWallColor,
-} from "../../lib/folderLibrary.js";
+import { resolveWallColor } from "../../lib/folderLibrary.js";
 
 /**
  * @param {string} tag
@@ -29,17 +26,18 @@ function downloadFilename(tag, url = "") {
  */
 export function FolderLibraryVideoDetail({
   folderId,
+  ownerKind = "folder",
+  ownerId,
   itemId,
   onClose,
   onEdit,
   escapeEnabled = true,
 }) {
   const { t } = useI18n();
-  const libraryItems = useDocsStore((s) => s.docs?.[folderId]?.libraryItems);
+  const items = useLibraryItems(ownerKind, ownerId || folderId);
   const item = useMemo(() => {
-    const list = normalizeFolderLibraryItems(libraryItems);
-    return list.find((entry) => entry.id === itemId) || null;
-  }, [libraryItems, itemId]);
+    return items.find((entry) => entry.id === itemId) || null;
+  }, [items, itemId]);
 
   const hasRef = Boolean(item?.description?.trim());
   const hasVideo = Boolean(item?.mediaUrl);

@@ -1046,6 +1046,8 @@ export function DocDocumentBox({
       <MarkLoadingOverlay open={isSaving} label="Saving…" />
       {folderLibraryOpen && isContentMode && docId ? (
         <FolderLibraryOverlay
+          ownerKind="folder"
+          ownerId={docId}
           folderId={docId}
           onClose={() => setFolderLibraryOpen(false)}
         />

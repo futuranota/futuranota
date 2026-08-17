@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
-import { useDocsStore } from "../../stores/docsStore.js";
-import { normalizeFolderLibraryItems } from "../../lib/folderLibrary.js";
+import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 
 /**
  * Skill / PDF ficha detail — tag, description, download attachment.
  */
 export function FolderLibrarySkillDetail({
   folderId,
+  ownerKind = "folder",
+  ownerId,
   itemId,
   onClose,
   onEdit,
   escapeEnabled = true,
 }) {
   const { t } = useI18n();
-  const libraryItems = useDocsStore((s) => s.docs?.[folderId]?.libraryItems);
-  const item = useMemo(() => {
-    const list = normalizeFolderLibraryItems(libraryItems);
-    return list.find((entry) => entry.id === itemId) || null;
-  }, [libraryItems, itemId]);
+  const items = useLibraryItems(ownerKind, ownerId || folderId);
+  const item = useMemo(
+    () => items.find((entry) => entry.id === itemId) || null,
+    [items, itemId],
+  );
 
   const [downloading, setDownloading] = useState(false);
 

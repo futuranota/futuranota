@@ -1,4 +1,5 @@
 import { useDocsStore } from "../stores/docsStore.js";
+import { useNodesStore } from "../stores/nodesStore.js";
 import {
   buildFolderLibraryItem,
   inferAttachmentKind,
@@ -22,13 +23,42 @@ export {
   resolveWallColor,
 } from "./folderLibraryNormalize.js";
 
+/** @typedef {"folder"|"document"} LibraryOwnerKind */
+
 /**
- * @param {string} folderId
+ * @param {unknown} value
+ * @returns {LibraryOwnerKind}
+ */
+export function normalizeLibraryOwnerKind(value) {
+  return String(value || "").trim().toLowerCase() === "document"
+    ? "document"
+    : "folder";
+}
+
+/**
+ * @param {object|null|undefined} node
+ * @returns {string}
+ */
+export function libraryDocumentTitle(node) {
+  return String(node?.sourceQuery || node?.title || "")
+    .trim() || "Untitled";
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem[]}
  */
-export function listFolderLibraryItems(folderId) {
-  const id = String(folderId || "").trim();
+export function listLibraryItems(ownerKind, ownerId) {
+  const id = String(ownerId || "").trim();
   if (!id) return [];
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  if (kind === "document") {
+    const node = useNodesStore.getState().getNode?.(id)
+      ?? useNodesStore.getState().nodes?.[id]
+      ?? null;
+    return normalizeFolderLibraryItems(node?.libraryItems);
+  }
   const doc = useDocsStore.getState().getDoc?.(id)
     ?? useDocsStore.getState().docs?.[id]
     ?? null;
@@ -37,36 +67,69 @@ export function listFolderLibraryItems(folderId) {
 
 /**
  * @param {string} folderId
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem[]}
+ */
+export function listFolderLibraryItems(folderId) {
+  return listLibraryItems("folder", folderId);
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem[]} items
+ * @returns {boolean}
+ */
+function writeLibraryItems(ownerKind, ownerId, items) {
+  const id = String(ownerId || "").trim();
+  if (!id) return false;
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  if (kind === "document") {
+    const node = useNodesStore.getState().getNode?.(id)
+      ?? useNodesStore.getState().nodes?.[id]
+      ?? null;
+    if (!node) return false;
+    useNodesStore.getState().updateNode(id, { libraryItems: items });
+    return true;
+  }
+  const doc = useDocsStore.getState().getDoc?.(id)
+    ?? useDocsStore.getState().docs?.[id]
+    ?? null;
+  if (!doc) return false;
+  useDocsStore.getState().updateDoc(id, { libraryItems: items });
+  return true;
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
  * @param {object} input
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
  */
-export function createFolderLibraryItem(folderId, input = {}) {
-  const id = String(folderId || "").trim();
+export function createLibraryItem(ownerKind, ownerId, input = {}) {
+  const id = String(ownerId || "").trim();
   if (!id) return null;
   const item = buildFolderLibraryItem(input);
   if (!item) return null;
-
-  const prev = listFolderLibraryItems(id);
-  useDocsStore.getState().updateDoc(id, { libraryItems: [...prev, item] });
+  const prev = listLibraryItems(ownerKind, id);
+  if (!writeLibraryItems(ownerKind, id, [...prev, item])) return null;
   return item;
 }
 
 /**
  * @param {string} folderId
- * @param {string} itemId
+ * @param {object} input
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function createFolderLibraryItem(folderId, input = {}) {
+  return createLibraryItem("folder", folderId, input);
+}
+
+/**
+ * @param {object} current
  * @param {object} patch
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
  */
-export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
-  const folder = String(folderId || "").trim();
-  const targetId = String(itemId || "").trim();
-  if (!folder || !targetId) return null;
-
-  const prev = listFolderLibraryItems(folder);
-  const index = prev.findIndex((item) => item.id === targetId);
-  if (index < 0) return null;
-
-  const current = prev[index];
+function applyLibraryItemPatch(current, patch = {}) {
   const nextTag = patch.tag !== undefined ? String(patch.tag).trim() : current.tag;
   if (!nextTag) return null;
 
@@ -104,7 +167,7 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
     ? normalizeWallColor(patch.wallColor)
     : current.wallColor;
 
-  const next = {
+  return {
     ...current,
     tag: nextTag,
     description: patch.description !== undefined
@@ -121,11 +184,58 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
     wallColor,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} itemId
+ * @param {object} patch
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function updateLibraryItem(ownerKind, ownerId, itemId, patch = {}) {
+  const owner = String(ownerId || "").trim();
+  const targetId = String(itemId || "").trim();
+  if (!owner || !targetId) return null;
+
+  const prev = listLibraryItems(ownerKind, owner);
+  const index = prev.findIndex((item) => item.id === targetId);
+  if (index < 0) return null;
+
+  const next = applyLibraryItemPatch(prev[index], patch);
+  if (!next) return null;
 
   const items = [...prev];
   items[index] = next;
-  useDocsStore.getState().updateDoc(folder, { libraryItems: items });
+  if (!writeLibraryItems(ownerKind, owner, items)) return null;
   return next;
+}
+
+/**
+ * @param {string} folderId
+ * @param {string} itemId
+ * @param {object} patch
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
+  return updateLibraryItem("folder", folderId, itemId, patch);
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} itemId
+ * @returns {boolean}
+ */
+export function removeLibraryItem(ownerKind, ownerId, itemId) {
+  const owner = String(ownerId || "").trim();
+  const targetId = String(itemId || "").trim();
+  if (!owner || !targetId) return false;
+
+  const prev = listLibraryItems(ownerKind, owner);
+  const next = prev.filter((item) => item.id !== targetId);
+  if (next.length === prev.length) return false;
+  return writeLibraryItems(ownerKind, owner, next);
 }
 
 /**
@@ -134,13 +244,32 @@ export function updateFolderLibraryItem(folderId, itemId, patch = {}) {
  * @returns {boolean}
  */
 export function removeFolderLibraryItem(folderId, itemId) {
-  const folder = String(folderId || "").trim();
-  const targetId = String(itemId || "").trim();
-  if (!folder || !targetId) return false;
+  return removeLibraryItem("folder", folderId, itemId);
+}
 
-  const prev = listFolderLibraryItems(folder);
-  const next = prev.filter((item) => item.id !== targetId);
-  if (next.length === prev.length) return false;
-  useDocsStore.getState().updateDoc(folder, { libraryItems: next });
-  return true;
+/**
+ * Document libraries that belong to a folder (only docs that already have fichas).
+ * @param {string} folderId
+ * @returns {{ documentId: string, title: string, items: import("./folderLibraryNormalize.js").FolderLibraryItem[] }[]}
+ */
+export function listDocumentLibraryGroups(folderId) {
+  const id = String(folderId || "").trim();
+  if (!id) return [];
+  const nodesStore = useNodesStore.getState();
+  const children = typeof nodesStore.getNodesByDoc === "function"
+    ? nodesStore.getNodesByDoc(id)
+    : Object.values(nodesStore.nodes || {}).filter((node) => node?.parentDocId === id);
+  const groups = [];
+  for (const node of children) {
+    if (!node?.id) continue;
+    const items = normalizeFolderLibraryItems(node.libraryItems);
+    if (!items.length) continue;
+    groups.push({
+      documentId: node.id,
+      title: libraryDocumentTitle(node),
+      items,
+    });
+  }
+  groups.sort((a, b) => a.title.localeCompare(b.title));
+  return groups;
 }

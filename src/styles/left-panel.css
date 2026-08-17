@@ -17179,6 +17179,37 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
+.folder-library-overlay__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.folder-library-overlay__title-row .folder-library-overlay__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-library-overlay__back {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-overlay__back:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .folder-library-overlay__header-actions {
   display: flex;
   align-items: center;
@@ -17266,7 +17297,7 @@ body.doc-content-resizing * {
 
 .folder-library-overlay__tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 4px;
   margin: 0 18px 12px;
   padding: 4px;
@@ -17274,6 +17305,99 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+}
+
+.folder-library-overlay__scope {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 18px 10px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.folder-library-overlay__scope-btn {
+  border: none;
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-overlay__scope-btn:hover {
+  color: #fff;
+}
+
+.folder-library-overlay__scope-btn.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.folder-library-overlay__subfolders {
+  list-style: none;
+  margin: 0;
+  padding: 4px 18px 18px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.folder-library-overlay__subfolder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-library-overlay__subfolder:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.folder-library-overlay__subfolder-icon {
+  width: 36px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.folder-library-overlay__subfolder-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.folder-library-overlay__subfolder-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-library-overlay__subfolder-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .folder-library-overlay__tab {

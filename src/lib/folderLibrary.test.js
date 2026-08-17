@@ -2,13 +2,20 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { normalizeDoc } from "./normalizeDoc.js";
 import {
   createFolderLibraryItem,
+  createLibraryItem,
+  listDocumentLibraryGroups,
   listFolderLibraryItems,
+  listLibraryItems,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizeLibraryOwnerKind,
   removeFolderLibraryItem,
+  removeLibraryItem,
   updateFolderLibraryItem,
+  updateLibraryItem,
 } from "./folderLibrary.js";
 import { useDocsStore } from "../stores/docsStore.js";
+import { useNodesStore } from "../stores/nodesStore.js";
 
 describe("folderLibrary normalize", () => {
   it("drops invalid entries and keeps a valid ficha", () => {
@@ -119,5 +126,82 @@ describe("folderLibrary CRUD", () => {
   it("rejects create without tag", () => {
     expect(createFolderLibraryItem("folder1", { tag: "  " })).toBeNull();
     expect(listFolderLibraryItems("folder1")).toHaveLength(0);
+  });
+});
+
+describe("document library CRUD", () => {
+  beforeEach(() => {
+    useDocsStore.setState({
+      docs: {
+        folder1: normalizeDoc({
+          id: "folder1",
+          title: "Project",
+          nodeIds: ["node1", "node2"],
+          libraryItems: [],
+        }),
+      },
+    });
+    useNodesStore.setState({
+      nodes: {
+        node1: {
+          id: "node1",
+          title: "Brief",
+          sourceQuery: "Launch brief",
+          parentDocId: "folder1",
+          libraryItems: [],
+        },
+        node2: {
+          id: "node2",
+          title: "Notes",
+          parentDocId: "folder1",
+          libraryItems: [],
+        },
+      },
+    });
+  });
+
+  it("normalizes ownerKind", () => {
+    expect(normalizeLibraryOwnerKind("document")).toBe("document");
+    expect(normalizeLibraryOwnerKind("folder")).toBe("folder");
+    expect(normalizeLibraryOwnerKind("")).toBe("folder");
+  });
+
+  it("creates, updates, lists, and removes items on a node", () => {
+    const created = createLibraryItem("document", "node1", {
+      tag: "hero_shot",
+      description: "Cover",
+      category: "image",
+    });
+    expect(created?.id).toMatch(/^LIB/);
+    expect(listLibraryItems("document", "node1")).toHaveLength(1);
+    expect(listFolderLibraryItems("folder1")).toHaveLength(0);
+
+    const updated = updateLibraryItem("document", "node1", created.id, {
+      description: "Updated cover",
+    });
+    expect(updated?.description).toBe("Updated cover");
+
+    expect(removeLibraryItem("document", "node1", created.id)).toBe(true);
+    expect(listLibraryItems("document", "node1")).toHaveLength(0);
+  });
+
+  it("lists document groups only when a doc has fichas", () => {
+    expect(listDocumentLibraryGroups("folder1")).toEqual([]);
+
+    createLibraryItem("document", "node1", {
+      tag: "script_v1",
+      category: "skill",
+    });
+    const groups = listDocumentLibraryGroups("folder1");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].documentId).toBe("node1");
+    expect(groups[0].title).toBe("Launch brief");
+    expect(groups[0].items).toHaveLength(1);
+  });
+
+  it("does not mix folder fichas into document groups", () => {
+    createFolderLibraryItem("folder1", { tag: "shared_sheet", category: "image" });
+    expect(listDocumentLibraryGroups("folder1")).toEqual([]);
+    expect(listFolderLibraryItems("folder1")).toHaveLength(1);
   });
 });

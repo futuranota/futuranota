@@ -1,6 +1,6 @@
 # Folder library — product memory
 
-Saved: 2026-08-15 (updated 2026-08-16: [+] type menu + Skill attachment + section tabs). Scope: folder-level library.
+Saved: 2026-08-15 (updated 2026-08-17: document sub-library). Scope: folder + document libraries.
 
 ## Problem Futura solves
 
@@ -14,12 +14,16 @@ Anything we build in the library is also **signal for Gina**. She should be able
 
 ```
 Workspace (later: index view only)
-  └── Folder library          ← v1 live / building
+  └── Folder library          ← live
         ├── fichas shared by all docs in the folder
-        └── Document sub-library (later) — local to one doc + inherits folder fichas
+        └── Document sub-library — live: Image + Skills/PDF local to one doc
 ```
 
-v1 = **folder only**.
+Folder overlay shows **Folder | Docs** only when at least one child document already has fichas. Docs view = subfolder per document (title + count). Create from the document editor (`NodeQueryModal` Library) or by opening that subfolder.
+
+Document `[+]` = Image + Skills/PDF (script/file). Video stays folder-only.
+
+The folder **groups** document fichas; it does not copy them.
 
 ## [+] create menu (segment types)
 
@@ -98,16 +102,16 @@ PDF may share Skills/PDF entry or land as `pdf` under AI skills tab.
 
 ## Persistence
 
-- Metadatos: `campaigns.library_items` jsonb
-- Bytes: `doc-images` (WebP for images; raw attachments for skills)
-- SQL ops: `supabase_campaign_library_items.sql`; expand bucket MIME for attachments when shipping skill upload
+- Metadatos: `campaigns.library_items` jsonb (folder) · `nodes.library_items` jsonb (document)
+- Bytes: `doc-images` (WebP for images; raw attachments for skills); `scopeId` = folderId or nodeId
+- SQL ops: `supabase_campaign_library_items.sql`; `supabase_node_library_items.sql`
 
 ## Live today (code)
 
-- Grid + type filter (migrating tabs toward All / Images / Videos / AI skills)
-- Image detail + Edit + WebP upload
-- Persist library_items
-- Skill attachment fields + detail download + `[+]` chooser — in progress this session
+- Grid + type filter All / Images / Videos / AI skills
+- Image + Video + Skill create/open + wallColor
+- Persist `campaigns.library_items` + `nodes.library_items`
+- Document Library button in `NodeQueryModal`; Folder | Docs toggle + subfolders when docs have fichas
 
 ## UI reference
 
@@ -120,7 +124,7 @@ PDF may share Skills/PDF entry or land as `pdf` under AI skills tab.
 1. ~~Persist library_items~~
 2. ~~Folder grid + Image detail~~
 3. ~~Memory: [+] types + tabs All/Images/Videos/AI skills + Skill attachment~~
-4. **Build:** `[+]` chooser + Skill create (tag, description, attachment) + skill open/download + AI skills tab
-5. ~~Video create/open + wallColor~~  
-6. PDF-specific polish / FileCard thumbs polish  
-7. Document mini strip · Atelier extras · Gina library tools · @tag  
+4. ~~`[+]` chooser + Skill create + skill open/download + AI skills tab~~
+5. ~~Video create/open + wallColor~~
+6. PDF-specific polish / FileCard thumbs polish
+7. ~~Document sub-library (overlay + Folder/Docs toggle)~~ · later: mini strip · Atelier extras · Gina library tools · @tag  

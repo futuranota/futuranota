@@ -231,6 +231,7 @@ export const useNodesStore = create(
               linkedToCanvas: false,
               linkedToDoc: Boolean(parentDocId),
               canvasNodeId: null,
+              libraryItems: Array.isArray(extra.libraryItems) ? extra.libraryItems : [],
               createdAt,
               updatedAt: now,
             },
