@@ -18353,6 +18353,29 @@ body.doc-content-resizing * {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 52%);
 }
 
+.folder-library-element-modal--capture {
+  width: min(480px, calc(100vw - 48px));
+}
+
+.folder-library-element-modal__body--capture {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  grid-template-columns: none;
+}
+
+.folder-library-element-modal__prompt-preview {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 640px) {
   .folder-library-element-modal__body {
     grid-template-columns: 1fr;

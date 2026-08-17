@@ -63,8 +63,9 @@ Remember last tab per folder (`sessionStorage`). Video tab retired.
 
 ### Image (live)
 
-- Create: tag + description (TXT-Placeholder copy) + upload **image → WebP**
-- Open: detail — tag, TXT-Placeholder \| Image switch, copy, download WebP
+- Create: tag + **Prompt** (copy) + optional upload **image → WebP**
+- Open: detail — tag, Prompt \| Image switch, copy prompt, download WebP
+- Capture from document body: `--prompt text--` → name modal → ficha without image
 - Grid: real thumb or IMG badge
 
 ### Attachments (live; category `skill`)
@@ -81,8 +82,9 @@ Legacy video fichas may still appear under All and open in detail. No new Video 
 ## Image card UX (live)
 
 - Edit on cell + detail header → `FolderLibraryElementModal`
-- Detail: tag, TXT-Placeholder \| Image, copy description, download WebP
-- Placeholders EN/ES for description: idea/concept of the image description
+- Detail: tag, Prompt \| Image, copy prompt, download WebP
+- Placeholders EN/ES for prompt: describe the image you want to generate
+- `--text--` in the document editor opens name + prompt capture (saved on the document library)
 
 ## Atelier / wall color (Image + Video live)
 

@@ -2127,6 +2127,8 @@ export function NodeQueryModal({
                     : "Escribe aquí"
                 }
                 companyObjectId={companyObjectId}
+                libraryOwnerKind={entityNodeId ? "document" : "folder"}
+                libraryOwnerId={entityNodeId || resolvedParentDocId || ""}
               />
             </div>
           ) : calendarPayload ? (

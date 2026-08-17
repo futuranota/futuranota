@@ -67,6 +67,12 @@ import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
+import {
+  findNewlyClosedLibraryPrompt,
+  stripLibraryPromptDelimiters,
+} from "../../lib/libraryPromptCapture.js";
+import { LibraryPromptCaptureModal } from "../docs/LibraryPromptCaptureModal.jsx";
+import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -263,6 +269,8 @@ export function NodeWritingBlockStack({
   companyObjectId = null,
   parseSlashQuery = parseNodeSlashQuery,
   slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
+  libraryOwnerKind = "document",
+  libraryOwnerId = "",
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -271,6 +279,8 @@ export function NodeWritingBlockStack({
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const [focusedBlockId, setFocusedBlockId] = useState(null);
+  const [promptCapture, setPromptCapture] = useState(null);
+  const [savedPromptItemId, setSavedPromptItemId] = useState(null);
 
   const snapshotWritingCaret = useCallback((blockIndex, el) => {
     if (!writingCaretRef) return;
@@ -388,6 +398,36 @@ export function NodeWritingBlockStack({
       blockIndex === index ? { ...block, ...patch } : block
     )));
   }, [updateBlocks]);
+
+  const applyTextBlockChange = useCallback((blockIndex, nextText, meta) => {
+    const prevText = blocksRef.current[blockIndex]?.text ?? "";
+    let text = nextText;
+    if (libraryOwnerId) {
+      const capture = findNewlyClosedLibraryPrompt(prevText, nextText);
+      if (capture) {
+        text = stripLibraryPromptDelimiters(nextText, capture);
+        setPromptCapture({ prompt: capture.prompt });
+      }
+    }
+    const mentions = text !== nextText
+      ? applyTextEditToMentions(nextText, text, meta?.mentions || [])
+      : meta?.mentions;
+    updateBlockAt(blockIndex, {
+      text,
+      ...(meta && "mentions" in meta
+        ? { mentions: (mentions?.length ? mentions : undefined) }
+        : {}),
+      ...(meta && "tagRefs" in meta
+        ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
+        : {}),
+      ...(meta && "markerRanges" in meta
+        ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+        : {}),
+      ...(meta && "boldRanges" in meta
+        ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
+        : {}),
+    });
+  }, [libraryOwnerId, updateBlockAt]);
 
   const removeBlockAt = useCallback((blockIndex) => {
     updateBlocks(removeWritingBlockAt(blocksRef.current, blockIndex));
@@ -836,6 +876,7 @@ export function NodeWritingBlockStack({
   );
 
   return (
+    <>
     <div
       ref={stackRef}
       className={`node-writing-block-stack${className ? ` ${className}` : ""}`}
@@ -1323,21 +1364,7 @@ export function NodeWritingBlockStack({
                       return;
                     }
                   }
-                  updateBlockAt(blockIndex, {
-                  text,
-                  ...(meta && "mentions" in meta
-                    ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
-                    : {}),
-                  ...(meta && "tagRefs" in meta
-                    ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
-                    : {}),
-                  ...(meta && "markerRanges" in meta
-                    ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
-                    : {}),
-                  ...(meta && "boldRanges" in meta
-                    ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
-                    : {}),
-                });
+                  applyTextBlockChange(blockIndex, text, meta);
                 }}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
                 onFocus={(e) => {
@@ -1392,21 +1419,7 @@ export function NodeWritingBlockStack({
                         return;
                       }
                     }
-                    updateBlockAt(blockIndex, {
-                    text,
-                    ...(meta && "mentions" in meta
-                      ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
-                      : {}),
-                    ...(meta && "tagRefs" in meta
-                      ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
-                      : {}),
-                    ...(meta && "markerRanges" in meta
-                      ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
-                      : {}),
-                    ...(meta && "boldRanges" in meta
-                      ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
-                      : {}),
-                  });
+                    applyTextBlockChange(blockIndex, text, meta);
                   }}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
                   onFocus={(e) => {
@@ -1432,5 +1445,27 @@ export function NodeWritingBlockStack({
         );
       })}
     </div>
+    {promptCapture ? (
+      <LibraryPromptCaptureModal
+        prompt={promptCapture.prompt}
+        ownerKind={libraryOwnerKind}
+        ownerId={libraryOwnerId}
+        onClose={() => setPromptCapture(null)}
+        onSaved={(item) => {
+          setPromptCapture(null);
+          if (item?.id) setSavedPromptItemId(item.id);
+        }}
+      />
+    ) : null}
+    {savedPromptItemId && libraryOwnerId ? (
+      <FolderLibraryImageDetail
+        ownerKind={libraryOwnerKind}
+        ownerId={libraryOwnerId}
+        folderId={libraryOwnerId}
+        itemId={savedPromptItemId}
+        onClose={() => setSavedPromptItemId(null)}
+      />
+    ) : null}
+    </>
   );
 }

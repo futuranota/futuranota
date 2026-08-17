@@ -297,7 +297,7 @@ export function FolderLibraryElementModal({
               <span className="folder-library-element-modal__label">
                 {isSkillLike
                   ? t("doc.library.skillDescriptionLabel")
-                  : t("doc.library.descriptionLabel")}
+                  : t("doc.library.promptLabel")}
               </span>
               <textarea
                 className="folder-library-element-modal__textarea"
