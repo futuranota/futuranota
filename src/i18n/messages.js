@@ -533,7 +533,7 @@ export const messages = {
         "Click [+ new] to add or classify workspaces in this department.",
       insertNode: "Insert document",
       dragDocToCanvas: "Drag document to canvas",
-      reorderFolder: "Drag to reorder folders",
+      reorderFolder: "Drag to reorder folders, or drop on the canvas",
       reorderFolderDoc: "Drag to reorder documents",
       clickFolderDocs: "Click for documents · hold for edit or delete · drag to canvas",
       clickOpenFolder: "Click to open folder",
@@ -1350,6 +1350,7 @@ export const messages = {
       docStatusPastDue: "Vencido",
       /* Department UI copy stays English (product labels); keep EN for overlay + cards. */
       clickFolderDocuments: "Documents",
+      reorderFolder: "Arrastra para reordenar, o suelta en el canvas",
       fileShredderLabel: "Suelta un documento para eliminarlo",
       fileShredderGrab: "Arrastra a la trituradora",
       fileShredderOpen: "Abrir documento",

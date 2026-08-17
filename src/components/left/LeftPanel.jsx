@@ -962,16 +962,15 @@ function DocNodesBlockCard({
               onDragStart={(e) => {
                 e.stopPropagation();
                 clearLongPress();
+                startDocDrag(e, doc.id);
                 if (reorderEnabled) {
-                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.effectAllowed = "copyMove";
                   e.dataTransfer.setData(SIDEBAR_REORDER_MIME, doc.id);
                   // Some browsers require a text/plain payload for DnD to start.
                   e.dataTransfer.setData("text/plain", doc.id);
                   setSidebarFolderDragImage(e.dataTransfer, rootRef.current, e);
                   onReorderDragStart?.(doc.id);
-                  return;
                 }
-                startDocDrag(e, doc.id);
               }}
               onPointerDown={(e) => {
                 e.stopPropagation();
