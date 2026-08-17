@@ -3,6 +3,7 @@ import {
   listDocumentLibraryGroups,
   normalizeFolderLibraryItems,
   normalizeLibraryOwnerKind,
+  normalizeLibrarySets,
 } from "../lib/folderLibrary.js";
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
@@ -21,6 +22,22 @@ export function useLibraryItems(ownerKind, ownerId) {
   return useMemo(
     () => normalizeFolderLibraryItems(kind === "document" ? nodeItems : folderItems),
     [kind, folderItems, nodeItems],
+  );
+}
+
+/**
+ * Live library sets for a document owner (folders have none).
+ * @param {string} [ownerKind]
+ * @param {string} [ownerId]
+ * @returns {import("../lib/folderLibraryNormalize.js").LibrarySet[]}
+ */
+export function useLibrarySets(ownerKind, ownerId) {
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  const id = String(ownerId || "").trim();
+  const nodeSets = useNodesStore((s) => (kind === "document" ? s.nodes?.[id]?.librarySets : undefined));
+  return useMemo(
+    () => (kind === "document" ? normalizeLibrarySets(nodeSets) : []),
+    [kind, nodeSets],
   );
 }
 

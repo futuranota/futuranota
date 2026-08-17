@@ -1,7 +1,7 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { resolveSyncUserId } from "../../lib/resolveSyncUserId.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
-import { normalizeFolderLibraryItems } from "../../lib/folderLibraryNormalize.js";
+import { normalizeFolderLibraryItems, normalizeLibrarySets } from "../../lib/folderLibraryNormalize.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
@@ -1246,7 +1246,11 @@ export function initPersistenceMiddleware(stores) {
     const normalizedNodes = {};
     for (const [id, node] of Object.entries(nodes || {})) {
       normalizedNodes[id] = node && typeof node === "object"
-        ? { ...node, libraryItems: normalizeFolderLibraryItems(node.libraryItems) }
+        ? {
+            ...node,
+            libraryItems: normalizeFolderLibraryItems(node.libraryItems),
+            librarySets: normalizeLibrarySets(node.librarySets),
+          }
         : node;
     }
     useNodesStore.setState({ nodes: normalizedNodes });
@@ -1552,6 +1556,11 @@ export function initPersistenceMiddleware(stores) {
             node.library_items !== undefined
               ? node.library_items
               : reference.libraryItems,
+          ),
+          librarySets: normalizeLibrarySets(
+            node.library_sets !== undefined
+              ? node.library_sets
+              : reference.librarySets,
           ),
           createdAt: node.created_at,
           updatedAt: node.updated_at,
@@ -1957,6 +1966,7 @@ export function initPersistenceMiddleware(stores) {
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
         library_items: normalizeFolderLibraryItems(node.libraryItems),
+        library_sets: normalizeLibrarySets(node.librarySets),
         created_at: node.createdAt || now,
         updated_at: node.updatedAt || now,
       }));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { parseDocumentSlashQuery } from "./docBlockSlash.js";
 import {
   appendNodeWritingBlock,
   applySlashInTextBlock,
@@ -30,6 +31,26 @@ describe("applySlashInTextBlock /title", () => {
     expect(next[0].text).toBe("Hello\n");
     expect(next[1].type).toBe(NODE_BLOCK_TYPES.H1);
     expect(next[1].title).toBe("");
+  });
+
+  it("strips /i without inserting a block", () => {
+    const blocks = [createEmptyTextBlock("Hello\n/i")];
+    const next = applySlashInTextBlock(blocks, 0, { action: "libraryInput" });
+    expect(next[0].type).toBe(NODE_BLOCK_TYPES.TEXT);
+    expect(next[0].text).toBe("Hello\n");
+    expect(next.some((block) => block.type === NODE_BLOCK_TYPES.H1)).toBe(false);
+    expect(next.some((block) => block.type === NODE_BLOCK_TYPES.IMAGE)).toBe(false);
+  });
+});
+
+describe("document slash /i /o actions", () => {
+  it("parses /i and /o as library actions without a block type", () => {
+    const input = parseDocumentSlashQuery("i");
+    expect(input?.action).toBe("libraryInput");
+    expect(input?.type).toBeUndefined();
+    const output = parseDocumentSlashQuery("o");
+    expect(output?.action).toBe("libraryOutput");
+    expect(parseDocumentSlashQuery("input")?.action).toBe("libraryInput");
   });
 });
 

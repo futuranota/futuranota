@@ -611,6 +611,27 @@ export function resolveWritingPickerTextIndex(blocks, focusTarget = null) {
  * Insert a slash block at the focused writing cell (not appended past empty cells).
  */
 export function insertNodeWritingSlashAtFocus(blocks, focusTarget, parsed, textPrefix = "") {
+  if (parsed?.action) {
+    const normalized = normalizeWritingBlocks(blocks);
+    const textIndex = resolveWritingPickerTextIndex(normalized, focusTarget);
+    if (normalized[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+      return {
+        blocks: applySlashInTextBlock(normalized, textIndex, parsed),
+        insertedIndex: -1,
+        reusedVault: false,
+        reusedAgent: false,
+        focusText: false,
+      };
+    }
+    return {
+      blocks: normalized,
+      insertedIndex: -1,
+      reusedVault: false,
+      reusedAgent: false,
+      focusText: false,
+    };
+  }
+
   if (parsed?.focusTextBlock) {
     return appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix);
   }
@@ -801,6 +822,15 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed, caret = null) 
 
   const text = block.text || "";
   const slashSplit = splitBodyForSlash(text);
+
+  if (parsed?.action) {
+    if (!slashSplit.slash) return normalized;
+    const updated = normalized.map((entry, index) => (
+      index === blockIndex ? { ...entry, text: slashSplit.prefix } : entry
+    ));
+    return ensureNodeWritingTail(updated);
+  }
+
   const vaultNodeType = vaultNodeTypeForParsed(parsed);
   if (vaultNodeType) {
     const existingIndex = findLastVaultBlockIndex(normalized, vaultNodeType);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
+  isLibrarySlashAction,
   parseNodeSlashQuery,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
@@ -271,6 +272,7 @@ export function NodeWritingBlockStack({
   slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
   libraryOwnerKind = "document",
   libraryOwnerId = "",
+  onLibrarySlashAction = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -652,6 +654,10 @@ export function NodeWritingBlockStack({
             e.preventDefault();
             const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
             updateBlocks(nextBlocks);
+            if (isLibrarySlashAction(parsed)) {
+              onLibrarySlashAction?.(parsed.action);
+              return;
+            }
             focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
             return;
           }
@@ -682,6 +688,10 @@ export function NodeWritingBlockStack({
           e.preventDefault();
           const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
           updateBlocks(nextBlocks);
+          if (isLibrarySlashAction(parsed)) {
+            onLibrarySlashAction?.(parsed.action);
+            return;
+          }
           focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
           return;
         }
@@ -788,7 +798,7 @@ export function NodeWritingBlockStack({
         focusBlockById(prev.id, "end");
       }
     }
-  }, [contentFocusMode, focusBlockById, onFocusTargetChange, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
+  }, [contentFocusMode, focusBlockById, onFocusTargetChange, onLibrarySlashAction, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];

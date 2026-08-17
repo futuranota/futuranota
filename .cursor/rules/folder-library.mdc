@@ -1,6 +1,6 @@
 ---
-description: Folder library — Image + Attachments, document sub-library, Gina
-globs: src/lib/folderLibrary*.js,src/components/docs/FolderLibrary*.jsx,src/stores/middleware/persistenceMiddleware.js,supabase_storage_doc_images.sql,supabase_node_library_items.sql,src/lib/gina/**
+description: Folder library — Image + Attachments, document sub-library, sets /i /o, Gina
+globs: src/lib/folderLibrary*.js,src/components/docs/FolderLibrary*.jsx,src/components/docs/LibrarySet*.jsx,src/stores/middleware/persistenceMiddleware.js,supabase_storage_doc_images.sql,supabase_node_library_items.sql,supabase_node_library_sets.sql,src/lib/gina/**
 alwaysApply: false
 ---
 
@@ -18,7 +18,8 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 - **Attachments** (category `skill` / `pdf`): tag + description + downloadable file; open → Download.
 - **Video create retired** — no Video in `[+]` or tabs (legacy `video` fichas may still open from All).
 - **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle only if a child doc has fichas (subfolder per doc).
-- Bytes → `doc-images`. Metadatos → `campaigns.library_items` (folder) · `nodes.library_items` (document).
+- **Document sets (live):** `/i` creates a set (name + story) on **this document**; `/o` lists sets and opens Folder | Images | Attachments; assign loose fichas (`setId`) from the same doc. Actions, not blocks. No folder sets. No main reuse / `element.set` yet.
+- Bytes → `doc-images`. Metadatos → `campaigns.library_items` (folder) · `nodes.library_items` + `nodes.library_sets` (document).
 
 ## Gina
 
@@ -30,3 +31,4 @@ Live corpus — remember/show fichas in day chat. LIVE CORPUS ONLY.
 - Port AI Multi-Modal generation
 - Mix folder fichas into a document owner (group, don’t copy)
 - Reintroduce Video create unless product asks again
+- Put sets on the folder, or treat `/i` `/o` as heading/image blocks

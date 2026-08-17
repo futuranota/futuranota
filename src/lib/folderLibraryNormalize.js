@@ -14,6 +14,16 @@ import { generateId } from "./ids.js";
  * @property {string|null} attachmentName
  * @property {string|null} attachmentKind
  * @property {string|null} wallColor Preview wall / production hex behind image or video (`#RRGGBB`)
+ * @property {string|null} setId Document library set this ficha belongs to (`null` = loose)
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * @typedef {Object} LibrarySet
+ * @property {string} id
+ * @property {string} tag
+ * @property {string} description Story / prompt for the pack
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -160,6 +170,7 @@ export function normalizeFolderLibraryItem(raw) {
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
   const wallColor = normalizeWallColor(raw.wallColor);
+  const setId = normalizeLibrarySetId(raw.setId);
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -177,6 +188,7 @@ export function normalizeFolderLibraryItem(raw) {
     attachmentName,
     attachmentKind,
     wallColor,
+    setId,
     createdAt,
     updatedAt,
   };
@@ -210,6 +222,7 @@ export function normalizeFolderLibraryItems(value) {
  *   attachmentName?: string|null,
  *   attachmentKind?: string|null,
  *   wallColor?: string|null,
+ *   setId?: string|null,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -244,6 +257,76 @@ export function buildFolderLibraryItem(input = {}) {
     attachmentName,
     attachmentKind,
     wallColor,
+    setId: normalizeLibrarySetId(input.setId),
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function normalizeLibrarySetId(value) {
+  const id = typeof value === "string" ? value.trim() : "";
+  return id || null;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {LibrarySet|null}
+ */
+export function normalizeLibrarySet(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : "";
+  if (!id) return null;
+  const tag = typeof raw.tag === "string" ? raw.tag.trim() : "";
+  const description = typeof raw.description === "string" ? raw.description.trim() : "";
+  const createdAt = typeof raw.createdAt === "string" && raw.createdAt
+    ? raw.createdAt
+    : new Date().toISOString();
+  const updatedAt = typeof raw.updatedAt === "string" && raw.updatedAt
+    ? raw.updatedAt
+    : createdAt;
+  return {
+    id,
+    tag,
+    description,
+    createdAt,
+    updatedAt,
+  };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {LibrarySet[]}
+ */
+export function normalizeLibrarySets(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of value) {
+    const set = normalizeLibrarySet(entry);
+    if (!set || seen.has(set.id)) continue;
+    seen.add(set.id);
+    out.push(set);
+  }
+  return out;
+}
+
+/**
+ * Build a new document library set (does not persist).
+ * @param {{ tag?: string, description?: string }} input
+ * @returns {LibrarySet|null}
+ */
+export function buildLibrarySet(input = {}) {
+  const tag = String(input.tag ?? "").trim();
+  if (!tag) return null;
+  const now = new Date().toISOString();
+  return {
+    id: generateId("SET"),
+    tag,
+    description: String(input.description ?? "").trim(),
     createdAt: now,
     updatedAt: now,
   };

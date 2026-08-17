@@ -2,9 +2,12 @@ import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
 import {
   buildFolderLibraryItem,
+  buildLibrarySet,
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryItems,
+  normalizeLibrarySetId,
+  normalizeLibrarySets,
   normalizeWallColor,
 } from "./folderLibraryNormalize.js";
 
@@ -13,12 +16,16 @@ export {
   FOLDER_LIBRARY_DEFAULT_WALL,
   FOLDER_LIBRARY_FILTER_TABS,
   buildFolderLibraryItem,
+  buildLibrarySet,
   folderLibraryItemMatchesFilter,
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryFilterTab,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizeLibrarySet,
+  normalizeLibrarySetId,
+  normalizeLibrarySets,
   normalizeWallColor,
   resolveWallColor,
 } from "./folderLibraryNormalize.js";
@@ -167,6 +174,10 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? normalizeWallColor(patch.wallColor)
     : current.wallColor;
 
+  const setId = patch.setId !== undefined
+    ? normalizeLibrarySetId(patch.setId)
+    : current.setId;
+
   return {
     ...current,
     tag: nextTag,
@@ -182,6 +193,7 @@ function applyLibraryItemPatch(current, patch = {}) {
     attachmentName: attachmentUrl ? attachmentName : null,
     attachmentKind,
     wallColor,
+    setId,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -272,4 +284,171 @@ export function listDocumentLibraryGroups(folderId) {
   }
   groups.sort((a, b) => a.title.localeCompare(b.title));
   return groups;
+}
+
+/**
+ * @param {string} ownerId
+ * @returns {import("./folderLibraryNormalize.js").LibrarySet[]}
+ */
+function readDocumentLibrarySets(ownerId) {
+  const id = String(ownerId || "").trim();
+  if (!id) return [];
+  const node = useNodesStore.getState().getNode?.(id)
+    ?? useNodesStore.getState().nodes?.[id]
+    ?? null;
+  return normalizeLibrarySets(node?.librarySets);
+}
+
+/**
+ * @param {string} ownerId
+ * @param {import("./folderLibraryNormalize.js").LibrarySet[]} sets
+ * @returns {boolean}
+ */
+function writeLibrarySets(ownerId, sets) {
+  const id = String(ownerId || "").trim();
+  if (!id) return false;
+  const node = useNodesStore.getState().getNode?.(id)
+    ?? useNodesStore.getState().nodes?.[id]
+    ?? null;
+  if (!node) return false;
+  useNodesStore.getState().updateNode(id, { librarySets: sets });
+  return true;
+}
+
+/**
+ * Document sets only. Folders do not store sets in this slice.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @returns {import("./folderLibraryNormalize.js").LibrarySet[]}
+ */
+export function listLibrarySets(ownerKind, ownerId) {
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return [];
+  return readDocumentLibrarySets(ownerId);
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {{ tag?: string, description?: string }} input
+ * @returns {import("./folderLibraryNormalize.js").LibrarySet|null}
+ */
+export function createLibrarySet(ownerKind, ownerId, input = {}) {
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return null;
+  const id = String(ownerId || "").trim();
+  if (!id) return null;
+  const set = buildLibrarySet(input);
+  if (!set) return null;
+  const prev = readDocumentLibrarySets(id);
+  if (!writeLibrarySets(id, [...prev, set])) return null;
+  return set;
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} setId
+ * @param {{ tag?: string, description?: string }} patch
+ * @returns {import("./folderLibraryNormalize.js").LibrarySet|null}
+ */
+export function updateLibrarySet(ownerKind, ownerId, setId, patch = {}) {
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return null;
+  const owner = String(ownerId || "").trim();
+  const targetId = String(setId || "").trim();
+  if (!owner || !targetId) return null;
+
+  const prev = readDocumentLibrarySets(owner);
+  const index = prev.findIndex((set) => set.id === targetId);
+  if (index < 0) return null;
+
+  const current = prev[index];
+  const nextTag = patch.tag !== undefined ? String(patch.tag).trim() : current.tag;
+  if (!nextTag) return null;
+
+  const next = {
+    ...current,
+    tag: nextTag,
+    description: patch.description !== undefined
+      ? String(patch.description).trim()
+      : current.description,
+    updatedAt: new Date().toISOString(),
+  };
+  const sets = [...prev];
+  sets[index] = next;
+  if (!writeLibrarySets(owner, sets)) return null;
+  return next;
+}
+
+/**
+ * Remove a set and unassign its fichas (they become loose).
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} setId
+ * @returns {boolean}
+ */
+export function removeLibrarySet(ownerKind, ownerId, setId) {
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return false;
+  const owner = String(ownerId || "").trim();
+  const targetId = String(setId || "").trim();
+  if (!owner || !targetId) return false;
+
+  const prev = readDocumentLibrarySets(owner);
+  const next = prev.filter((set) => set.id !== targetId);
+  if (next.length === prev.length) return false;
+  if (!writeLibrarySets(owner, next)) return false;
+
+  const items = listLibraryItems("document", owner);
+  const cleared = items.map((item) => (
+    item.setId === targetId ? { ...item, setId: null, updatedAt: new Date().toISOString() } : item
+  ));
+  if (cleared.some((item, index) => item.setId !== items[index].setId)) {
+    writeLibraryItems("document", owner, cleared);
+  }
+  return true;
+}
+
+/**
+ * Fichas with no set, or whose set no longer exists.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem[]}
+ */
+export function listLooseLibraryItems(ownerKind, ownerId) {
+  const items = listLibraryItems(ownerKind, ownerId);
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return items;
+  const known = new Set(listLibrarySets(ownerKind, ownerId).map((set) => set.id));
+  return items.filter((item) => !item.setId || !known.has(item.setId));
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} setId
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem[]}
+ */
+export function listLibrarySetItems(ownerKind, ownerId, setId) {
+  const targetId = String(setId || "").trim();
+  if (!targetId) return [];
+  return listLibraryItems(ownerKind, ownerId).filter((item) => item.setId === targetId);
+}
+
+/**
+ * Assign a document ficha to a set, or `null` to make it loose.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} itemId
+ * @param {string|null} setId
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function assignLibraryItemToSet(ownerKind, ownerId, itemId, setId) {
+  if (normalizeLibraryOwnerKind(ownerKind) !== "document") return null;
+  const owner = String(ownerId || "").trim();
+  const targetItem = String(itemId || "").trim();
+  if (!owner || !targetItem) return null;
+
+  const nextSetId = normalizeLibrarySetId(setId);
+  if (nextSetId) {
+    const sets = listLibrarySets("document", owner);
+    if (!sets.some((set) => set.id === nextSetId)) return null;
+  }
+  return updateLibraryItem("document", owner, targetItem, { setId: nextSetId });
 }

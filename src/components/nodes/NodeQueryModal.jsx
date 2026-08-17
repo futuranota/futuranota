@@ -11,8 +11,10 @@ import { NodeWritingBlockStack } from "./NodeWritingBlockStack.jsx";
 import { createTodoItem, DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import {
   initialNodeShapeFromSlash,
+  isLibrarySlashAction,
   isNodeSlashCommandEnabled,
   isDocLinkedNodeSlashCommandEnabled,
+  LIBRARY_SLASH_ACTIONS,
   NODE_SLASH_COMMANDS,
   DOC_LINKED_NODE_SLASH_COMMANDS,
   DOCUMENT_SLASH_GHOST_HINTS,
@@ -23,6 +25,7 @@ import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 import {
+  applySlashInTextBlock,
   createEmptyTextBlock,
   insertNodeWritingSlashAtFocus,
   NODE_BLOCK_TYPES,
@@ -49,6 +52,9 @@ import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
 import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
+import { LibraryNeedSaveNotice } from "../docs/LibraryNeedSaveNotice.jsx";
+import { LibrarySetInputModal } from "../docs/LibrarySetInputModal.jsx";
+import { LibrarySetsOverlay } from "../docs/LibrarySetsOverlay.jsx";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -212,6 +218,7 @@ export function NodeQueryModal({
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [librarySlashAction, setLibrarySlashAction] = useState(null);
   const writingCaretRef = useRef(null);
 
   // Accept on talk popover opens a floating small chat — close in-doc overlay so we don't stack two.
@@ -1364,6 +1371,20 @@ export function NodeQueryModal({
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
+    if (isLibrarySlashAction(parsed)) {
+      const normalized = normalizeWritingBlocks(writingBlocks);
+      const snap = writingCaretRef.current;
+      const blockIndex = typeof snap?.blockIndex === "number"
+        ? snap.blockIndex
+        : writingFocusTarget?.blockIndex;
+      if (blockIndex != null && normalized[blockIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+        const nextBlocks = applySlashInTextBlock(normalized, blockIndex, parsed);
+        setWritingBlocks(nextBlocks);
+        onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
+      }
+      setLibrarySlashAction(parsed.action);
+      return;
+    }
 
     const normalized = normalizeWritingBlocks(writingBlocks);
     const snap = writingCaretRef.current;
@@ -2129,6 +2150,7 @@ export function NodeQueryModal({
                 companyObjectId={companyObjectId}
                 libraryOwnerKind={entityNodeId ? "document" : "folder"}
                 libraryOwnerId={entityNodeId || resolvedParentDocId || ""}
+                onLibrarySlashAction={setLibrarySlashAction}
               />
             </div>
           ) : calendarPayload ? (
@@ -2313,6 +2335,20 @@ export function NodeQueryModal({
     />
   ) : null;
 
+  const libraryIoUi = librarySlashAction && !entityNodeId ? (
+    <LibraryNeedSaveNotice onClose={() => setLibrarySlashAction(null)} />
+  ) : librarySlashAction === LIBRARY_SLASH_ACTIONS.INPUT && entityNodeId ? (
+    <LibrarySetInputModal
+      ownerId={entityNodeId}
+      onClose={() => setLibrarySlashAction(null)}
+    />
+  ) : librarySlashAction === LIBRARY_SLASH_ACTIONS.OUTPUT && entityNodeId ? (
+    <LibrarySetsOverlay
+      ownerId={entityNodeId}
+      onClose={() => setLibrarySlashAction(null)}
+    />
+  ) : null;
+
   if (embedded) {
     return (
       <>
@@ -2320,6 +2356,7 @@ export function NodeQueryModal({
         {unsavedConfirm}
         {ginaChat}
         {libraryOverlay}
+        {libraryIoUi}
       </>
     );
   }
@@ -2342,6 +2379,7 @@ export function NodeQueryModal({
       {unsavedConfirm}
       {ginaChat}
       {libraryOverlay}
+      {libraryIoUi}
     </>
   );
 }

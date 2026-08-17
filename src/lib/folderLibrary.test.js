@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { normalizeDoc } from "./normalizeDoc.js";
 import {
+  assignLibraryItemToSet,
   createFolderLibraryItem,
   createLibraryItem,
+  createLibrarySet,
   listDocumentLibraryGroups,
   listFolderLibraryItems,
   listLibraryItems,
+  listLibrarySetItems,
+  listLibrarySets,
+  listLooseLibraryItems,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
   normalizeLibraryOwnerKind,
+  normalizeLibrarySets,
   removeFolderLibraryItem,
   removeLibraryItem,
+  removeLibrarySet,
   updateFolderLibraryItem,
   updateLibraryItem,
 } from "./folderLibrary.js";
@@ -88,6 +95,29 @@ describe("folderLibrary normalize", () => {
     });
     expect(item?.wallColor).toBe("#AABBCC");
   });
+
+  it("defaults setId to null and keeps a valid setId", () => {
+    const loose = normalizeFolderLibraryItem({ id: "a", tag: "loose" });
+    expect(loose?.setId).toBeNull();
+    const packed = normalizeFolderLibraryItem({
+      id: "b",
+      tag: "packed",
+      setId: " SET-1 ",
+    });
+    expect(packed?.setId).toBe("SET-1");
+  });
+
+  it("normalizeLibrarySets drops invalid entries", () => {
+    const sets = normalizeLibrarySets([
+      null,
+      { id: "SET1", tag: "pack_a", description: "Story" },
+      { id: "SET1", tag: "dup" },
+      { tag: "no-id" },
+    ]);
+    expect(sets).toHaveLength(1);
+    expect(sets[0].tag).toBe("pack_a");
+    expect(sets[0].description).toBe("Story");
+  });
 });
 
 describe("folderLibrary CRUD", () => {
@@ -149,12 +179,14 @@ describe("document library CRUD", () => {
           sourceQuery: "Launch brief",
           parentDocId: "folder1",
           libraryItems: [],
+          librarySets: [],
         },
         node2: {
           id: "node2",
           title: "Notes",
           parentDocId: "folder1",
           libraryItems: [],
+          librarySets: [],
         },
       },
     });
@@ -203,5 +235,83 @@ describe("document library CRUD", () => {
     createFolderLibraryItem("folder1", { tag: "shared_sheet", category: "image" });
     expect(listDocumentLibraryGroups("folder1")).toEqual([]);
     expect(listFolderLibraryItems("folder1")).toHaveLength(1);
+  });
+});
+
+describe("document library sets", () => {
+  beforeEach(() => {
+    useDocsStore.setState({
+      docs: {
+        folder1: normalizeDoc({
+          id: "folder1",
+          title: "Project",
+          nodeIds: ["node1"],
+          libraryItems: [],
+        }),
+      },
+    });
+    useNodesStore.setState({
+      nodes: {
+        node1: {
+          id: "node1",
+          title: "Brief",
+          sourceQuery: "Launch brief",
+          parentDocId: "folder1",
+          libraryItems: [],
+          librarySets: [],
+        },
+      },
+    });
+  });
+
+  it("creates, lists, and does not store sets on folders", () => {
+    const created = createLibrarySet("document", "node1", {
+      tag: "hero_pack",
+      description: "Launch stills",
+    });
+    expect(created?.id).toMatch(/^SET/);
+    expect(created?.tag).toBe("hero_pack");
+    expect(listLibrarySets("document", "node1")).toHaveLength(1);
+    expect(createLibrarySet("folder", "folder1", { tag: "nope" })).toBeNull();
+    expect(listLibrarySets("folder", "folder1")).toEqual([]);
+  });
+
+  it("rejects create without a name", () => {
+    expect(createLibrarySet("document", "node1", { tag: "  " })).toBeNull();
+    expect(listLibrarySets("document", "node1")).toHaveLength(0);
+  });
+
+  it("assigns a loose ficha into a set and lists it there", () => {
+    const set = createLibrarySet("document", "node1", { tag: "pack" });
+    const item = createLibraryItem("document", "node1", {
+      tag: "hero_shot",
+      category: "image",
+    });
+    expect(item?.setId).toBeNull();
+    expect(listLooseLibraryItems("document", "node1")).toHaveLength(1);
+
+    const assigned = assignLibraryItemToSet("document", "node1", item.id, set.id);
+    expect(assigned?.setId).toBe(set.id);
+    expect(listLibrarySetItems("document", "node1", set.id)).toHaveLength(1);
+    expect(listLooseLibraryItems("document", "node1")).toHaveLength(0);
+
+    const loosened = assignLibraryItemToSet("document", "node1", item.id, null);
+    expect(loosened?.setId).toBeNull();
+    expect(listLooseLibraryItems("document", "node1")).toHaveLength(1);
+  });
+
+  it("does not assign to a missing set", () => {
+    const item = createLibraryItem("document", "node1", { tag: "hero_shot", category: "image" });
+    expect(assignLibraryItemToSet("document", "node1", item.id, "SET-missing")).toBeNull();
+    expect(listLibraryItems("document", "node1")[0].setId).toBeNull();
+  });
+
+  it("unassigns fichas when a set is removed", () => {
+    const set = createLibrarySet("document", "node1", { tag: "pack" });
+    const item = createLibraryItem("document", "node1", { tag: "hero_shot", category: "image" });
+    assignLibraryItemToSet("document", "node1", item.id, set.id);
+    expect(removeLibrarySet("document", "node1", set.id)).toBe(true);
+    expect(listLibrarySets("document", "node1")).toEqual([]);
+    expect(listLibraryItems("document", "node1")[0].setId).toBeNull();
   });
 });

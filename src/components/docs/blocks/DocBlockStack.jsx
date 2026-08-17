@@ -1101,6 +1101,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const canInsertSlashBlock = (parsed) => {
+    if (parsed?.action) return false;
     if (
       parsed?.type === DOC_BLOCK_TYPES.PRODUCT_CARD
       && hasProductCardBlock(blocksRef.current)

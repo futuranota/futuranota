@@ -163,6 +163,38 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 
+/** `/i` create set and `/o` list sets — actions, not writing blocks. */
+export const LIBRARY_SLASH_ACTIONS = {
+  INPUT: "libraryInput",
+  OUTPUT: "libraryOutput",
+};
+
+export const LIBRARY_SLASH_COMMANDS = [
+  {
+    label: "Input",
+    menuLabel: "Input",
+    ghostHint: "input",
+    aliases: ["i", "input"],
+    action: LIBRARY_SLASH_ACTIONS.INPUT,
+  },
+  {
+    label: "Output",
+    menuLabel: "Output",
+    ghostHint: "output",
+    aliases: ["o", "output"],
+    action: LIBRARY_SLASH_ACTIONS.OUTPUT,
+  },
+];
+
+/**
+ * @param {object|null|undefined} parsed
+ * @returns {boolean}
+ */
+export function isLibrarySlashAction(parsed) {
+  return parsed?.action === LIBRARY_SLASH_ACTIONS.INPUT
+    || parsed?.action === LIBRARY_SLASH_ACTIONS.OUTPUT;
+}
+
 /**
  * Collapse flat slash commands into menu rows for the [+] picker.
  * Commands with the same `menuGroup` render under one header (Image Card, Moodboard…).
@@ -204,9 +236,12 @@ export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
 );
 
 /** Documents (and node writing surfaces): tools except Create a document and in-body Todo list. */
-export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
-);
+export const DOCUMENT_SLASH_COMMANDS = [
+  ...DOC_SLASH_COMMANDS.filter(
+    (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
+  ),
+  ...LIBRARY_SLASH_COMMANDS,
+];
 
 export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
@@ -222,10 +257,14 @@ export const NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 /** Slash commands for nodes opened from a folder — same writing toolkit. */
 export const DOC_LINKED_NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 
-/** Slash commands allowed inside Image card body (same toolkit as document text). */
-export const IMAGE_CARD_BODY_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
+/** Slash commands allowed inside Image card body (same toolkit as document text, no /i /o). */
+export const IMAGE_CARD_BODY_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS.filter(
+  (cmd) => !cmd.action,
+);
 
-export const IMAGE_CARD_BODY_SLASH_GHOST_HINTS = DOCUMENT_SLASH_GHOST_HINTS;
+export const IMAGE_CARD_BODY_SLASH_GHOST_HINTS = IMAGE_CARD_BODY_SLASH_COMMANDS.map(
+  (c) => c.ghostHint ?? c.label,
+);
 
 /** Slash commands allowed inside a step-by-step instruction field. */
 export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
@@ -264,6 +303,7 @@ export function parseSlashQueryFromCommands(query, commands = DOC_SLASH_COMMANDS
     type: match.blockType,
     nodeDataType: match.nodeDataType,
     label: match.label,
+    action: match.action || null,
     compound: Boolean(match.compound),
     macronodeHeading: Boolean(match.macronodeHeading),
     allowsNodeLink: Boolean(match.allowsNodeLink),
@@ -273,6 +313,7 @@ export function parseSlashQueryFromCommands(query, commands = DOC_SLASH_COMMANDS
 
 /** Build a new doc block from a parsed slash command. */
 export function createDocBlockFromSlash(parsed) {
+  if (parsed?.action) return null;
   if (!parsed?.type) return createDocBlock();
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
