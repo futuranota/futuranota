@@ -298,12 +298,17 @@ export function LibraryPromptCaptureModal({
                   + (insertingNew ? " is-active" : "")
                 }
                 onClick={() => {
-                  setInsertingNew((open) => !open);
+                  setInsertingNew((open) => {
+                    if (open) setTag("");
+                    return !open;
+                  });
                   setSelectedAssetId(null);
                   setError("");
                 }}
               >
-                {t("doc.library.captureInsertNew")}
+                {insertingNew
+                  ? t("doc.library.cancel")
+                  : t("doc.library.captureInsertNew")}
               </button>
             </>
           ) : null}
