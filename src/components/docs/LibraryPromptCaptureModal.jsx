@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
+import { copyToClipboard } from "../../lib/copyToClipboard.js";
 import { createLibraryItem, normalizeLibraryOwnerKind } from "../../lib/folderLibrary.js";
 
 /**
- * Name a captured `--prompt--` and save it as an image ficha (prompt only).
+ * Name a captured `--prompt--` and save it as an image ficha
+ * (loose, or assigned to an existing document asset).
  */
 export function LibraryPromptCaptureModal({
   prompt,
@@ -16,9 +19,26 @@ export function LibraryPromptCaptureModal({
   const { t } = useI18n();
   const kind = normalizeLibraryOwnerKind(ownerKind);
   const id = String(ownerId || "").trim();
+  const assets = useLibrarySets(kind, id);
+  const items = useLibraryItems(kind, id);
   const [tag, setTag] = useState("");
+  const [destination, setDestination] = useState("image");
+  const [selectedAssetId, setSelectedAssetId] = useState(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const promptText = String(prompt || "").trim();
+
+  const rankedAssets = useMemo(() => {
+    const counts = new Map();
+    items.forEach((item) => {
+      if (!item.setId) return;
+      counts.set(item.setId, (counts.get(item.setId) || 0) + 1);
+    });
+    return [...assets]
+      .map((asset) => ({ ...asset, count: counts.get(asset.id) || 0 }))
+      .sort((a, b) => a.count - b.count || String(a.tag).localeCompare(String(b.tag)));
+  }, [assets, items]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -30,6 +50,14 @@ export function LibraryPromptCaptureModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const handleCopy = async () => {
+    if (!promptText) return;
+    const ok = await copyToClipboard(promptText);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
+
   const handleSave = () => {
     const name = tag.trim();
     if (!name) {
@@ -40,14 +68,19 @@ export function LibraryPromptCaptureModal({
       setError(t("doc.library.captureNoOwner"));
       return;
     }
+    if (destination === "asset" && !selectedAssetId) {
+      setError(t("doc.library.capturePickAsset"));
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const saved = createLibraryItem(kind, id, {
         tag: name,
-        description: String(prompt || "").trim(),
+        description: promptText,
         category: "image",
         mediaUrl: null,
+        setId: destination === "asset" ? selectedAssetId : null,
       });
       if (!saved) {
         setError(t("doc.library.nameRequired"));
@@ -59,6 +92,9 @@ export function LibraryPromptCaptureModal({
       setSaving(false);
     }
   };
+
+  const copyAria = copied ? t("doc.library.copied") : t("doc.library.copy");
+  const saveDisabled = saving || (destination === "asset" && !selectedAssetId);
 
   return createPortal(
     <div
@@ -108,10 +144,104 @@ export function LibraryPromptCaptureModal({
           </label>
           <div className="folder-library-element-modal__field">
             <span className="folder-library-element-modal__label">{t("doc.library.promptLabel")}</span>
-            <p className="folder-library-element-modal__prompt-preview">
-              {String(prompt || "").trim() || t("doc.library.noReference")}
-            </p>
+            <div className="library-capture-prompt">
+              <p className="folder-library-element-modal__prompt-preview">
+                {promptText || t("doc.library.noReference")}
+              </p>
+              <button
+                type="button"
+                className="library-capture-prompt__copy"
+                onClick={handleCopy}
+                disabled={!promptText}
+                aria-label={copyAria}
+                title={copyAria}
+              >
+                {copied ? "✓" : "⧉"}
+              </button>
+            </div>
           </div>
+
+          <div
+            className="library-capture-dest"
+            role="tablist"
+            aria-label={t("doc.library.captureDestAria")}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={destination === "image"}
+              className={
+                "library-capture-dest__btn"
+                + (destination === "image" ? " is-active" : "")
+              }
+              onClick={() => {
+                setDestination("image");
+                setError("");
+              }}
+            >
+              <img src="/uploads/img.svg" alt="" aria-hidden draggable={false} />
+              <span>{t("doc.library.captureDestImage")}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={destination === "asset"}
+              className={
+                "library-capture-dest__btn"
+                + (destination === "asset" ? " is-active" : "")
+              }
+              onClick={() => {
+                setDestination("asset");
+                setError("");
+              }}
+            >
+              <img src="/uploads/assets.svg" alt="" aria-hidden draggable={false} />
+              <span>{t("doc.library.captureDestAsset")}</span>
+            </button>
+          </div>
+
+          {destination === "asset" ? (
+            rankedAssets.length === 0 ? (
+              <p className="library-capture-assets__empty">
+                {t("doc.library.captureNoAssets")}
+              </p>
+            ) : (
+              <ul className="library-capture-assets">
+                {rankedAssets.map((asset) => (
+                  <li key={asset.id}>
+                    <button
+                      type="button"
+                      className={
+                        "library-capture-assets__row"
+                        + (selectedAssetId === asset.id ? " is-selected" : "")
+                        + (asset.count === 0 ? " is-empty" : "")
+                      }
+                      onClick={() => {
+                        setSelectedAssetId(asset.id);
+                        setError("");
+                      }}
+                    >
+                      <img
+                        className="library-capture-assets__icon"
+                        src="/uploads/Folders.svg"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                      />
+                      <span className="library-capture-assets__meta">
+                        <span className="library-capture-assets__name">{asset.tag}</span>
+                        <span className="library-capture-assets__count">
+                          {asset.count === 0
+                            ? t("doc.library.captureAssetEmpty")
+                            : t("doc.library.assetCount").replace("{count}", String(asset.count))}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
         </div>
 
         {error ? (
@@ -131,7 +261,7 @@ export function LibraryPromptCaptureModal({
             type="button"
             className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveDisabled}
           >
             {t("doc.library.save")}
           </button>

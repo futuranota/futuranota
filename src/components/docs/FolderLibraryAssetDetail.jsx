@@ -2,17 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
-import { copyToClipboard } from "../../lib/copyToClipboard.js";
 import {
   triggerBlobDownload,
   zipLibraryAssetImages,
 } from "../../lib/libraryAssetZip.js";
-import { LibraryAssetEmptyImgGrid } from "./LibraryAssetImgMark.jsx";
-
-const EMPTY_SLOTS = 4;
+import { LibraryAssetMetadataGrid } from "./LibraryAssetMetadataGrid.jsx";
+import { LibraryAssetReadonlyField } from "./LibraryAssetReadonlyField.jsx";
 
 /**
- * Document asset detail — Prompt | Image, empty IMG logos, zip download of the set.
+ * Document asset detail — modal layout: Name + Prompt (copy) | metadata grid.
  */
 export function FolderLibraryAssetDetail({
   ownerKind = "document",
@@ -35,10 +33,6 @@ export function FolderLibraryAssetDetail({
     [items, assetId],
   );
   const downloadable = imageItems.filter((item) => String(item.mediaUrl || "").trim());
-
-  const hasPrompt = Boolean(asset?.description?.trim());
-  const [mode, setMode] = useState("ref");
-  const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -59,15 +53,6 @@ export function FolderLibraryAssetDetail({
 
   if (!asset) return null;
 
-  const handleCopy = async () => {
-    const text = asset.description?.trim();
-    if (!text) return;
-    const ok = await copyToClipboard(text);
-    if (!ok) return;
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  };
-
   const handleDownload = async () => {
     if (!downloadable.length || downloading) return;
     setDownloading(true);
@@ -80,144 +65,94 @@ export function FolderLibraryAssetDetail({
     }
   };
 
-  const placeholders = Math.max(0, EMPTY_SLOTS - imageItems.length);
+  const title = asset.tag || t("doc.library.assetInputTitle");
 
   return createPortal(
     <div
-      className="folder-library-image-detail folder-library-asset-detail"
+      className="folder-library-element-overlay folder-library-asset-detail"
       role="dialog"
       aria-modal="true"
-      aria-label={asset.tag || t("doc.library.assetInputTitle")}
+      aria-label={title}
     >
       <button
         type="button"
-        className="folder-library-image-detail__backdrop"
+        className="folder-library-element-overlay__backdrop"
         aria-label={t("doc.library.close")}
         onClick={onClose}
       />
-      <div className="folder-library-image-detail__shell">
-        <header className="folder-library-image-detail__header">
-          <h2 className="folder-library-image-detail__tag">{asset.tag || "—"}</h2>
-          <div className="folder-library-image-detail__header-actions">
+      <div className="folder-library-element-modal folder-library-asset-detail__modal">
+        <header className="folder-library-element-modal__head">
+          <div className="library-asset-modal__title-row">
+            <img
+              className="library-asset-modal__title-icon"
+              src="/uploads/assets.svg"
+              alt=""
+              aria-hidden
+              draggable={false}
+            />
+            <h2 className="folder-library-element-modal__title">{title}</h2>
+          </div>
+          <button
+            type="button"
+            className="folder-library-element-modal__close"
+            onClick={onClose}
+            aria-label={t("doc.library.close")}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="folder-library-element-modal__body">
+          <div className="folder-library-element-modal__fields">
+            <LibraryAssetReadonlyField
+              label={t("doc.library.assetNameLabel")}
+              value={asset.tag}
+            />
+            <LibraryAssetReadonlyField
+              value={asset.description}
+              copyLabel={t("doc.library.copy")}
+              copyable
+              multiline
+            />
+          </div>
+
+          <div className="folder-library-element-modal__media">
+            <LibraryAssetMetadataGrid
+              items={imageItems}
+              onOpenItem={onOpenItem}
+              interactive
+            />
+          </div>
+        </div>
+
+        <footer className="folder-library-element-modal__footer folder-library-asset-detail__footer">
+          <button
+            type="button"
+            className="folder-library-element-modal__btn folder-library-element-modal__btn--cancel"
+            onClick={onClose}
+          >
+            {t("doc.library.cancel")}
+          </button>
+          <div className="folder-library-asset-detail__footer-actions">
             <button
               type="button"
-              className="folder-library-image-detail__edit"
+              className="folder-library-element-modal__btn folder-library-element-modal__btn--cancel"
               onClick={() => onEdit?.(asset)}
             >
               {t("doc.library.edit")}
             </button>
             <button
               type="button"
-              className="folder-library-image-detail__close"
-              onClick={onClose}
-              aria-label={t("doc.library.close")}
+              className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
+              onClick={handleDownload}
+              disabled={!downloadable.length || downloading}
             >
-              ×
+              {downloading
+                ? t("doc.library.downloading")
+                : t("doc.library.assetDownload")}
             </button>
           </div>
-        </header>
-
-        <div
-          className="folder-library-image-detail__switch"
-          role="tablist"
-          aria-label={t("doc.library.viewSwitchAria")}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "ref"}
-            className={
-              "folder-library-image-detail__switch-btn"
-              + (mode === "ref" ? " is-active" : "")
-            }
-            onClick={() => setMode("ref")}
-          >
-            {t("doc.library.viewRef")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "image"}
-            className={
-              "folder-library-image-detail__switch-btn"
-              + (mode === "image" ? " is-active" : "")
-            }
-            onClick={() => setMode("image")}
-          >
-            {t("doc.library.viewImage")}
-          </button>
-        </div>
-
-        <div className="folder-library-image-detail__body">
-          {mode === "ref" ? (
-            <div className="folder-library-image-detail__ref">
-              {hasPrompt ? (
-                <p className="folder-library-image-detail__description">
-                  {asset.description}
-                </p>
-              ) : (
-                <p className="folder-library-image-detail__empty-ref">
-                  {t("doc.library.noReference")}
-                </p>
-              )}
-              <button
-                type="button"
-                className="folder-library-image-detail__copy"
-                onClick={handleCopy}
-                disabled={!hasPrompt}
-                aria-label={copied ? t("doc.library.copied") : t("doc.library.copy")}
-                title={copied ? t("doc.library.copied") : t("doc.library.copy")}
-              >
-                {copied ? "✓" : "⧉"}
-              </button>
-            </div>
-          ) : (
-            <div className="folder-library-asset-detail__image">
-              <div className="library-asset-queue folder-library-asset-detail__queue">
-                {imageItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="library-asset-queue__slot library-asset-queue__slot--hit"
-                    onClick={() => onOpenItem?.(item)}
-                    aria-label={item.tag || t("doc.library.viewImage")}
-                  >
-                    {item.mediaUrl ? (
-                      <img
-                        className="folder-library-asset-detail__thumb"
-                        src={item.mediaUrl}
-                        alt=""
-                      />
-                    ) : (
-                      <span className="folder-library-overlay__cell-badge folder-library-overlay__cell-badge--image">
-                        <span className="folder-library-overlay__cell-badge-fmt">IMG</span>
-                      </span>
-                    )}
-                  </button>
-                ))}
-                {imageItems.length === 0
-                  ? <LibraryAssetEmptyImgGrid />
-                  : Array.from({ length: placeholders }, (_, index) => (
-                    <div key={`ph-${index}`} className="library-asset-queue__slot">
-                      <span className="folder-library-overlay__cell-badge folder-library-overlay__cell-badge--image">
-                        <span className="folder-library-overlay__cell-badge-fmt">IMG</span>
-                      </span>
-                    </div>
-                  ))}
-              </div>
-              <button
-                type="button"
-                className="folder-library-image-detail__download"
-                onClick={handleDownload}
-                disabled={!downloadable.length || downloading}
-              >
-                {downloading
-                  ? t("doc.library.downloading")
-                  : t("doc.library.assetDownload")}
-              </button>
-            </div>
-          )}
-        </div>
+        </footer>
       </div>
     </div>,
     document.body,

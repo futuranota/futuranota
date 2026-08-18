@@ -30,7 +30,7 @@ The folder **groups** document fichas; it does not copy them.
 Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose = later.
 
 - **`#i`** — Name + **Prompt**. Right pane = 4 static **IMG** SVG cards (no upload). Saves `createLibrarySet` only.
-- Open an asset → Character-style detail: **Prompt | Image**, copy prompt, empty Image = IMG logos, **Download** = zip folder of the set’s WebPs (no metadata). Edit updates name/prompt. `[+]` while open adds an Image ficha into the set.
+- Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds an Image ficha into the set.
 - **`#o`** — action: opens document Library on tab **Assets**.
 - Document library tabs: **Assets | Images | Attachments** (Assets replaces All). Folder library: **Images | Attachments** only.
 - Assets tab: `assets.svg` + “Assets”. Rows = assets with `Folders.svg` + name + count.
@@ -107,7 +107,7 @@ Legacy video fichas no longer appear in folder tabs (create/filter retired).
 - Edit on cell + detail header → `FolderLibraryElementModal`
 - Detail: tag, Prompt \| Image, copy prompt, download WebP
 - Placeholders EN/ES for prompt: describe the image you want to generate
-- `--text--` in the document editor opens name + prompt capture (saved on the document library)
+- `--text--` in the document editor opens name + prompt capture. Destination group: **Prompt & Image** (loose image ficha) or **Asset** (pick an existing set, empty first). Copy on the captured prompt. Save opens Image detail or Asset detail.
 
 ## Atelier / wall color (Image + Video live)
 

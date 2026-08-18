@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { createLibrarySet, updateLibrarySet } from "../../lib/folderLibrary.js";
-import { LibraryAssetEmptyImgGrid } from "./LibraryAssetImgMark.jsx";
+import { useLibraryItems } from "../../hooks/useLibraryItems.js";
+import { LibraryAssetMetadataGrid } from "./LibraryAssetMetadataGrid.jsx";
+import { LibraryAssetPromptLabel } from "./LibraryAssetPromptGuide.jsx";
 
 /**
  * `#i` — name + prompt. Right pane is a static IMG preview (no upload).
@@ -23,6 +25,13 @@ export function LibrarySetInputModal({
   const title = isEdit
     ? t("doc.library.assetEditTitle")
     : t("doc.library.assetInputTitle");
+  const allItems = useLibraryItems("document", id);
+  const setImageItems = useMemo(() => {
+    if (!isEdit || !editingSet?.id) return [];
+    return allItems.filter(
+      (item) => item.setId === editingSet.id && item.category === "image",
+    );
+  }, [allItems, isEdit, editingSet?.id]);
 
   useEffect(() => {
     setTag(String(editingSet?.tag || ""));
@@ -124,24 +133,23 @@ export function LibrarySetInputModal({
                 autoFocus
               />
             </label>
-            <label className="folder-library-element-modal__field">
-              <span className="folder-library-element-modal__label">
-                {t("doc.library.assetDescriptionLabel")}
-              </span>
+            <div className="folder-library-element-modal__field library-asset-prompt-field">
+              <LibraryAssetPromptLabel />
               <textarea
-                className="folder-library-element-modal__textarea"
+                className="folder-library-element-modal__textarea library-asset-prompt-field__input"
                 value={description}
                 placeholder={t("doc.library.assetDescriptionPlaceholder")}
                 rows={5}
                 onChange={(e) => setDescription(e.target.value)}
               />
-            </label>
+            </div>
           </div>
 
-          <div className="folder-library-element-modal__media" aria-hidden>
-            <div className="library-asset-queue library-asset-queue--preview">
-              <LibraryAssetEmptyImgGrid />
-            </div>
+          <div className="folder-library-element-modal__media" aria-hidden={!isEdit && !setImageItems.length}>
+            <LibraryAssetMetadataGrid
+              items={isEdit ? setImageItems : []}
+              interactive={false}
+            />
           </div>
         </div>
 

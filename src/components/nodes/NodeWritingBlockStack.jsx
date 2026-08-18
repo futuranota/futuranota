@@ -76,6 +76,7 @@ import {
 } from "../../lib/libraryPromptCapture.js";
 import { LibraryPromptCaptureModal } from "../docs/LibraryPromptCaptureModal.jsx";
 import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
+import { FolderLibraryAssetDetail } from "../docs/FolderLibraryAssetDetail.jsx";
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -291,6 +292,7 @@ export function NodeWritingBlockStack({
   const [focusedBlockId, setFocusedBlockId] = useState(null);
   const [promptCapture, setPromptCapture] = useState(null);
   const [savedPromptItemId, setSavedPromptItemId] = useState(null);
+  const [savedPromptAssetId, setSavedPromptAssetId] = useState(null);
 
   const snapshotWritingCaret = useCallback((blockIndex, el) => {
     if (!writingCaretRef) return;
@@ -1512,8 +1514,18 @@ export function NodeWritingBlockStack({
         onClose={() => setPromptCapture(null)}
         onSaved={(item) => {
           setPromptCapture(null);
-          if (item?.id) setSavedPromptItemId(item.id);
+          if (!item?.id) return;
+          if (item.setId) setSavedPromptAssetId(item.setId);
+          else setSavedPromptItemId(item.id);
         }}
+      />
+    ) : null}
+    {savedPromptAssetId && libraryOwnerId ? (
+      <FolderLibraryAssetDetail
+        ownerKind={libraryOwnerKind}
+        ownerId={libraryOwnerId}
+        assetId={savedPromptAssetId}
+        onClose={() => setSavedPromptAssetId(null)}
       />
     ) : null}
     {savedPromptItemId && libraryOwnerId ? (

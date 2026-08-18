@@ -21,14 +21,14 @@ import { FolderLibraryVideoDetail } from "./FolderLibraryVideoDetail.jsx";
 import { LibrarySetInputModal } from "./LibrarySetInputModal.jsx";
 
 const FOLDER_FILTER_TABS = [
-  { id: "image", labelKey: "doc.library.tabImages", iconSrc: "/uploads/img.svg" },
-  { id: "skill", labelKey: "doc.library.tabSkills", iconSrc: "/uploads/attachment.svg" },
+  { id: "image", labelKey: "doc.library.tabImages" },
+  { id: "skill", labelKey: "doc.library.tabSkills" },
 ];
 
 const DOCUMENT_FILTER_TABS = [
-  { id: "documents", labelKey: "doc.library.tabDocuments", iconSrc: "/uploads/assets.svg" },
-  { id: "image", labelKey: "doc.library.tabImages", iconSrc: "/uploads/img.svg" },
-  { id: "skill", labelKey: "doc.library.tabSkills", iconSrc: "/uploads/attachment.svg" },
+  { id: "documents", labelKey: "doc.library.tabDocuments" },
+  { id: "image", labelKey: "doc.library.tabImages" },
+  { id: "skill", labelKey: "doc.library.tabSkills" },
 ];
 
 const SCOPE_OPTIONS = [
@@ -520,25 +520,11 @@ export function FolderLibraryOverlay({
                       aria-selected={filterTab === tab.id}
                       className={
                         "folder-library-overlay__tab"
-                        + (tab.iconSrc ? " folder-library-overlay__tab--with-icon" : "")
                         + (filterTab === tab.id ? " is-active" : "")
                       }
                       onClick={() => setFilter(tab.id)}
                     >
-                      {tab.iconSrc ? (
-                        <>
-                          <img
-                            className="folder-library-overlay__tab-icon"
-                            src={tab.iconSrc}
-                            alt=""
-                            aria-hidden
-                            draggable={false}
-                          />
-                          <span>{t(tab.labelKey)}</span>
-                        </>
-                      ) : (
-                        t(tab.labelKey)
-                      )}
+                      {t(tab.labelKey)}
                     </button>
                   ))}
                 </div>
