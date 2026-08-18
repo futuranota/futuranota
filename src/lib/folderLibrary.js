@@ -452,3 +452,31 @@ export function assignLibraryItemToSet(ownerKind, ownerId, itemId, setId) {
   }
   return updateLibraryItem("document", owner, targetItem, { setId: nextSetId });
 }
+
+/**
+ * Duplicate a ficha into a document asset. The source is left in place
+ * (same wardrobe in another park).
+ * @param {string} ownerId
+ * @param {object} source
+ * @param {string} setId
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function cloneLibraryItemIntoSet(ownerId, source, setId) {
+  const owner = String(ownerId || "").trim();
+  const nextSetId = normalizeLibrarySetId(setId);
+  const tag = String(source?.tag || "").trim();
+  if (!owner || !nextSetId || !tag) return null;
+  const sets = listLibrarySets("document", owner);
+  if (!sets.some((set) => set.id === nextSetId)) return null;
+  return createLibraryItem("document", owner, {
+    tag,
+    description: source.description || "",
+    category: source.category,
+    mediaUrl: source.mediaUrl,
+    attachmentUrl: source.attachmentUrl,
+    attachmentName: source.attachmentName,
+    attachmentKind: source.attachmentKind,
+    wallColor: source.wallColor,
+    setId: nextSetId,
+  });
+}

@@ -39,6 +39,19 @@ describe("library name invoke", () => {
     expect(normalizeLibraryNameRefs(result.text, result.libraryNameRefs)).toHaveLength(1);
   });
 
+  it("keeps only the name when committing over a dotted assign token", () => {
+    const text = "go Pitagoras.scene01";
+    const result = insertLibraryNameRefAtQuery(
+      text,
+      [],
+      { start: 3, end: text.length },
+      { id: "f1", tag: "Pitagoras" },
+    );
+    expect(result.text).toBe("go Pitagoras");
+    expect(result.libraryNameRefs[0].tag).toBe("Pitagoras");
+    expect(result.caret).toBe("go Pitagoras".length);
+  });
+
   it("drops the ref when the name is edited", () => {
     const query = getLibraryNameQueryAtCaret("and", 3);
     const inserted = insertLibraryNameRefAtQuery("and", [], query, andes);

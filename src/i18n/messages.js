@@ -317,7 +317,7 @@ export const messages = {
         assetCount: "{count} items",
         assetBack: "Back",
         assignPathTitle: "Insert into asset",
-        assignPathMessage: "Insert “{file}” into “{asset}”?",
+        assignPathMessage: "Copy “{file}” into “{asset}”?",
         assignPathConfirm: "Insert",
       },
       blockDelete: {
@@ -1792,7 +1792,7 @@ export const messages = {
         assetCount: "{count} elementos",
         assetBack: "Volver",
         assignPathTitle: "Insertar en asset",
-        assignPathMessage: "¿Insertar “{file}” en “{asset}”?",
+        assignPathMessage: "¿Copiar “{file}” en “{asset}”?",
         assignPathConfirm: "Insertar",
       },
       blockDelete: {

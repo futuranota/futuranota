@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { normalizeDoc } from "./normalizeDoc.js";
 import {
   assignLibraryItemToSet,
+  cloneLibraryItemIntoSet,
   createFolderLibraryItem,
   createLibraryItem,
   createLibrarySet,
@@ -313,6 +314,22 @@ describe("document library sets", () => {
     const item = createLibraryItem("document", "node1", { tag: "hero_shot", category: "image" });
     expect(assignLibraryItemToSet("document", "node1", item.id, "SET-missing")).toBeNull();
     expect(listLibraryItems("document", "node1")[0].setId).toBeNull();
+  });
+
+  it("clones a ficha into a set without moving the source", () => {
+    const set = createLibrarySet("document", "node1", { tag: "orlando" });
+    const source = createLibraryItem("document", "node1", {
+      tag: "wardrobe",
+      category: "image",
+      description: "Same clothes",
+    });
+    const cloned = cloneLibraryItemIntoSet("node1", source, set.id);
+    expect(cloned?.id).not.toBe(source.id);
+    expect(cloned?.tag).toBe("wardrobe");
+    expect(cloned?.setId).toBe(set.id);
+    expect(listLibraryItems("document", "node1")).toHaveLength(2);
+    expect(listLibraryItems("document", "node1").find((item) => item.id === source.id)?.setId).toBeNull();
+    expect(listLibrarySetItems("document", "node1", set.id)).toHaveLength(1);
   });
 
   it("unassigns fichas when a set is removed", () => {

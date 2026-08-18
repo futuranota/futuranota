@@ -27,7 +27,7 @@ The folder **groups** document fichas; it does not copy them.
 
 ## Document assets (`#i` input · `#o` output) — live
 
-Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose assigns a ficha into a document asset (`ficha.asset`).
+Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose clones a ficha into a document asset (`ficha.asset`); the story keeps only the Name.
 
 - **`#i`** — Name + **Prompt**. Right pane = 4 static **IMG** SVG cards (no upload). Saves `createLibrarySet` only.
 - Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds an Image ficha into the set.
@@ -38,7 +38,7 @@ Assets live **only on the document** (node), not on the folder. Copy: **assets**
 - Unsaved document → same message as `-- --` capture.
 - Out of this slice: reuse folder→doc as a dedicated flow, `--script--`.
 - **Name invoke (live):** typing a prefix of an image ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
-- **Dotted assign path (live):** `ficha.asset` in the document body. Autocomplete only existing names. Files = document library + folder library (document tag wins). Destination = document assets only. Enter → confirm → assign `setId` (folder fichas are **copied** onto the document). Does **not** clone a card named after the asset.
+- **Dotted assign path (live):** `ficha.asset` in the document body. Autocomplete only existing names. Files = document library + folder library (document tag wins). Destination = document assets only. Enter → confirm → **clone** the ficha into that asset (source stays; same wardrobe in another park). Prose keeps only the ficha **Name** as a slight bold ref — the `.asset` path is discarded. Does **not** clone a card named after the asset.
 
 ```
 librarySets: [{ id, tag, description, createdAt, updatedAt }]  // UI: assets

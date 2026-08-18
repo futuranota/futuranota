@@ -1355,32 +1355,50 @@ export function SlashAwareTextarea({
 
   const insertAssignPathCandidate = useCallback((candidate) => {
     if (!candidate || !activeAssignPath) return;
-    const token = candidate.kind === "file"
-      ? `${candidate.file.tag}.`
-      : String(candidate.tag || "");
-    const replaced = replaceLibraryAssignPathToken(value, activeAssignPath, token);
+    const fileTag = String(candidate.file?.tag || candidate.tag || "").trim();
+    const result = candidate.kind === "asset" && fileTag
+      ? insertLibraryNameRefAtQuery(
+        value,
+        normalizedLibraryNameRefs,
+        { start: activeAssignPath.start, end: activeAssignPath.end },
+        {
+          id: candidate.file?.id,
+          tag: fileTag,
+          setId: candidate.asset?.id ?? null,
+        },
+      )
+      : (() => {
+        const token = candidate.kind === "file" && candidate.file?.tag
+          ? `${candidate.file.tag}.`
+          : fileTag;
+        const replaced = replaceLibraryAssignPathToken(value, activeAssignPath, token);
+        return {
+          text: replaced.text,
+          caret: replaced.caret,
+          libraryNameRefs: libraryNameRefsEnabled
+            ? applyTextEditToLibraryNameRefs(value, replaced.text, normalizedLibraryNameRefs)
+            : [],
+        };
+      })();
     const nextMentions = mentionsEnabled
-      ? applyTextEditToMentions(value, replaced.text, normalizedMentions)
+      ? applyTextEditToMentions(value, result.text, normalizedMentions)
       : [];
     const nextMarkers = markersEnabled
-      ? applyTextEditToMarkerRanges(value, replaced.text, normalizedMarkers)
+      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
       : [];
     const nextBolds = boldEnabled
-      ? applyTextEditToBoldRanges(value, replaced.text, normalizedBolds)
+      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
       : [];
     const nextTagRefs = tagRefsEnabled
-      ? applyTextEditToTagRefs(value, replaced.text, normalizedTagRefs)
-      : [];
-    const nextLibraryNames = libraryNameRefsEnabled
-      ? applyTextEditToLibraryNameRefs(value, replaced.text, normalizedLibraryNameRefs)
+      ? applyTextEditToTagRefs(value, result.text, normalizedTagRefs)
       : [];
     emitChange(
-      replaced.text,
+      result.text,
       nextMentions,
       nextMarkers,
       nextBolds,
       nextTagRefs,
-      nextLibraryNames,
+      result.libraryNameRefs,
     );
     setActiveAssignPath(null);
     setAssignPathMenuAnchor(null);
@@ -1388,7 +1406,7 @@ export function SlashAwareTextarea({
       const field = textareaRef.current;
       if (!field || !("setSelectionRange" in field)) return;
       field.focus({ preventScroll: true });
-      field.setSelectionRange(replaced.caret, replaced.caret);
+      field.setSelectionRange(result.caret, result.caret);
       syncMentionQuery();
     });
     if (candidate.kind === "asset" && candidate.file && candidate.asset) {

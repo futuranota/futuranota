@@ -17,7 +17,7 @@ import {
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
 import { mergeAssignFiles } from "../../lib/libraryAssignPath.js";
-import { assignLibraryItemToSet, createLibraryItem } from "../../lib/folderLibrary.js";
+import { cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
@@ -354,21 +354,7 @@ export function NodeWritingBlockStack({
       tone: "default",
     });
     if (!ok) return;
-    if (file.sourceKind === "folder") {
-      createLibraryItem("document", libraryOwnerId, {
-        tag: fileTag,
-        description: file.description || "",
-        category: file.category,
-        mediaUrl: file.mediaUrl,
-        attachmentUrl: file.attachmentUrl,
-        attachmentName: file.attachmentName,
-        attachmentKind: file.attachmentKind,
-        wallColor: file.wallColor,
-        setId: asset.id,
-      });
-    } else if (file.id) {
-      assignLibraryItemToSet("document", libraryOwnerId, file.id, asset.id);
-    }
+    cloneLibraryItemIntoSet(libraryOwnerId, file, asset.id);
     if (asset.id) setSavedPromptAssetId(asset.id);
   }, [askConfirm, libraryOwnerId, libraryOwnerKind, t]);
 
