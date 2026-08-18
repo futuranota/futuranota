@@ -117,6 +117,17 @@ export function mergeAssignFiles(documentItems = [], folderItems = []) {
 }
 
 /**
+ * Folder sources and document Images marked loop copy into the asset.
+ * Loose document Images without loop move once.
+ * @param {{ sourceKind?: string, loop?: boolean }|null|undefined} file
+ */
+export function shouldCloneLibraryAssign(file) {
+  if (!file) return false;
+  if (file.sourceKind === "folder") return true;
+  return Boolean(file.loop);
+}
+
+/**
  * Autocomplete rows for a path query.
  * @returns {Array<{ id: string, kind: "file"|"asset", tag: string, name: string, description?: string, file?: object, asset?: object }>}
  */

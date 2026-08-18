@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { normalizeDoc } from "./normalizeDoc.js";
 import {
+  addPromptClass,
   assignLibraryItemToSet,
   cloneLibraryItemIntoSet,
   createFolderLibraryItem,
@@ -12,7 +13,10 @@ import {
   listLibrarySetItems,
   listLibrarySets,
   listLooseLibraryItems,
+  listPromptClasses,
   normalizeFolderLibraryItem,
+  PROMPT_CLASS_AMBIENTE,
+  isPromptClassAmbiente,
   normalizeFolderLibraryItems,
   normalizeFolderLibraryFilterTab,
   normalizeLibraryOwnerKind,
@@ -47,12 +51,50 @@ describe("folderLibrary normalize", () => {
     });
     expect(item?.category).toBe("auto");
     expect(item?.mediaUrl).toBeNull();
+    expect(item?.loop).toBe(false);
+    expect(item?.promptClass).toBeNull();
   });
 
-  it("normalizeDoc always includes libraryItems array", () => {
+  it("normalizes loop and promptClass", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "x",
+      tag: "barrio",
+      category: "image",
+      loop: true,
+      promptClass: "characters",
+    });
+    expect(item?.loop).toBe(true);
+    expect(item?.promptClass).toBe("characters");
+  });
+
+  it("migrates legacy imageRole into promptClass", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "x",
+      tag: "plaza",
+      category: "image",
+      imageRole: "location",
+    });
+    expect(item?.promptClass).toBe("location");
+    expect(item?.imageRole).toBeUndefined();
+  });
+
+  it("recognizes the built-in ambiente class", () => {
+    expect(isPromptClassAmbiente("Ambiente")).toBe(true);
+    expect(isPromptClassAmbiente("characters")).toBe(false);
+    const item = normalizeFolderLibraryItem({
+      id: "x",
+      tag: "park",
+      category: "image",
+      promptClass: PROMPT_CLASS_AMBIENTE,
+    });
+    expect(item?.promptClass).toBe("ambiente");
+  });
+
+  it("normalizeDoc always includes libraryItems and promptClasses", () => {
     const doc = normalizeDoc({ id: "f1", title: "Folder" });
     expect(Array.isArray(doc.libraryItems)).toBe(true);
     expect(doc.libraryItems).toEqual([]);
+    expect(doc.promptClasses).toEqual([]);
   });
 
   it("normalizeDoc preserves libraryItems", () => {
@@ -167,6 +209,36 @@ describe("folderLibrary CRUD", () => {
     expect(createFolderLibraryItem("folder1", { tag: "  " })).toBeNull();
     expect(listFolderLibraryItems("folder1")).toHaveLength(0);
   });
+
+  it("folder create defaults loop on and keeps promptClass", () => {
+    const created = createFolderLibraryItem("folder1", {
+      tag: "hero",
+      category: "image",
+      promptClass: "characters",
+    });
+    expect(created?.loop).toBe(true);
+    expect(created?.promptClass).toBe("characters");
+  });
+
+  it("folder create honors explicit loop off", () => {
+    const created = createFolderLibraryItem("folder1", {
+      tag: "once",
+      category: "image",
+      loop: false,
+    });
+    expect(created?.loop).toBe(false);
+    const updated = updateFolderLibraryItem("folder1", created.id, { loop: true });
+    expect(updated?.loop).toBe(true);
+  });
+
+  it("folder can still create attachments", () => {
+    const created = createFolderLibraryItem("folder1", {
+      tag: "brief_zip",
+      category: "skill",
+    });
+    expect(created?.category).toBe("skill");
+    expect(listFolderLibraryItems("folder1")).toHaveLength(1);
+  });
 });
 
 describe("document library CRUD", () => {
@@ -232,7 +304,7 @@ describe("document library CRUD", () => {
 
     createLibraryItem("document", "node1", {
       tag: "script_v1",
-      category: "skill",
+      category: "image",
     });
     const groups = listDocumentLibraryGroups("folder1");
     expect(groups).toHaveLength(1);
@@ -245,6 +317,48 @@ describe("document library CRUD", () => {
     createFolderLibraryItem("folder1", { tag: "shared_sheet", category: "image" });
     expect(listDocumentLibraryGroups("folder1")).toEqual([]);
     expect(listFolderLibraryItems("folder1")).toHaveLength(1);
+  });
+
+  it("rejects skill create on a document", () => {
+    expect(createLibraryItem("document", "node1", {
+      tag: "brief_pdf",
+      category: "skill",
+    })).toBeNull();
+    expect(listLibraryItems("document", "node1")).toHaveLength(0);
+  });
+
+  it("does not list a document group that only has leftover attachments", () => {
+    useNodesStore.setState({
+      nodes: {
+        node1: {
+          id: "node1",
+          title: "Brief",
+          sourceQuery: "Launch brief",
+          parentDocId: "folder1",
+          libraryItems: [
+            {
+              id: "LIBSKILL",
+              tag: "old_zip",
+              category: "skill",
+              description: "",
+              mediaUrl: null,
+              mediaKind: null,
+              attachmentUrl: "https://example.com/a.zip",
+              attachmentName: "a.zip",
+              attachmentKind: "zip",
+              wallColor: null,
+              setId: null,
+              loop: false,
+              promptClass: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+          librarySets: [],
+        },
+      },
+    });
+    expect(listDocumentLibraryGroups("folder1")).toEqual([]);
   });
 });
 
@@ -330,6 +444,19 @@ describe("document library sets", () => {
     expect(listLibraryItems("document", "node1")).toHaveLength(2);
     expect(listLibraryItems("document", "node1").find((item) => item.id === source.id)?.setId).toBeNull();
     expect(listLibrarySetItems("document", "node1", set.id)).toHaveLength(1);
+    expect(cloned?.loop).toBe(false);
+    expect(cloned?.promptClass).toBeNull();
+  });
+
+  it("clones promptClass with the ficha", () => {
+    const set = createLibrarySet("document", "node1", { tag: "orlando" });
+    const source = createLibraryItem("document", "node1", {
+      tag: "wardrobe",
+      category: "image",
+      promptClass: "element",
+    });
+    const cloned = cloneLibraryItemIntoSet("node1", source, set.id);
+    expect(cloned?.promptClass).toBe("element");
   });
 
   it("unassigns fichas when a set is removed", () => {
@@ -339,5 +466,50 @@ describe("document library sets", () => {
     expect(removeLibrarySet("document", "node1", set.id)).toBe(true);
     expect(listLibrarySets("document", "node1")).toEqual([]);
     expect(listLibraryItems("document", "node1")[0].setId).toBeNull();
+  });
+});
+
+describe("prompt classes", () => {
+  beforeEach(() => {
+    useDocsStore.setState({
+      docs: {
+        folder1: normalizeDoc({
+          id: "folder1",
+          title: "Project",
+          nodeIds: ["node1"],
+          libraryItems: [],
+          promptClasses: [],
+        }),
+      },
+    });
+    useNodesStore.setState({
+      nodes: {
+        node1: {
+          id: "node1",
+          title: "Brief",
+          parentDocId: "folder1",
+          libraryItems: [],
+          librarySets: [],
+          promptClasses: [],
+        },
+      },
+    });
+  });
+
+  it("adds a class and lists stored plus used names", () => {
+    expect(addPromptClass("folder", "folder1", " Characters ")).toBe("Characters");
+    expect(addPromptClass("folder", "folder1", "characters")).toBe("Characters");
+    createFolderLibraryItem("folder1", {
+      tag: "lamp",
+      category: "image",
+      promptClass: "element",
+    });
+    expect(listPromptClasses("folder", "folder1")).toEqual(["Characters", "element"]);
+  });
+
+  it("stores classes on the document owner", () => {
+    expect(addPromptClass("document", "node1", "wardrobe")).toBe("wardrobe");
+    expect(listPromptClasses("document", "node1")).toEqual(["wardrobe"]);
+    expect(listPromptClasses("folder", "folder1")).toEqual([]);
   });
 });

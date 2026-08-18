@@ -4,6 +4,7 @@ import {
   normalizeFolderLibraryItems,
   normalizeLibraryOwnerKind,
   normalizeLibrarySets,
+  normalizePromptClasses,
 } from "../lib/folderLibrary.js";
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
@@ -39,6 +40,25 @@ export function useLibrarySets(ownerKind, ownerId) {
     () => (kind === "document" ? normalizeLibrarySets(nodeSets) : []),
     [kind, nodeSets],
   );
+}
+
+/**
+ * User-created Prompt classifications for a folder or document.
+ * @param {string} [ownerKind]
+ * @param {string} [ownerId]
+ * @returns {string[]}
+ */
+export function usePromptClasses(ownerKind, ownerId) {
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  const id = String(ownerId || "").trim();
+  const folderClasses = useDocsStore((s) => (kind === "folder" ? s.docs?.[id]?.promptClasses : undefined));
+  const nodeClasses = useNodesStore((s) => (kind === "document" ? s.nodes?.[id]?.promptClasses : undefined));
+  const items = useLibraryItems(kind, id);
+  return useMemo(() => {
+    const stored = kind === "document" ? nodeClasses : folderClasses;
+    const used = items.map((item) => item.promptClass).filter(Boolean);
+    return normalizePromptClasses([...(stored || []), ...used]);
+  }, [folderClasses, items, kind, nodeClasses]);
 }
 
 /**

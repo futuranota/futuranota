@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
@@ -10,7 +10,9 @@ import { generateId } from "../../lib/ids.js";
 import {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
+  PROMPT_CLASS_AMBIENTE,
   createLibraryItem,
+  isPromptClassAmbiente,
   normalizeFolderLibraryCategory,
   normalizeLibraryOwnerKind,
   normalizeWallColor,
@@ -26,6 +28,11 @@ const CATEGORY_LABEL_KEYS = {
   video: "doc.library.categoryVideo",
 };
 
+function initialPromptClass(item, defaultPromptClass) {
+  if (item?.promptClass) return item.promptClass;
+  return String(defaultPromptClass || "").trim();
+}
+
 /**
  * New / edit library ficha modal — image (WebP) or skill (attachment).
  */
@@ -37,11 +44,15 @@ export function FolderLibraryElementModal({
   defaultCategory = "auto",
   /** When true, category select is hidden (chosen via [+] menu). */
   lockCategory = false,
+  promptClasses = [],
+  defaultPromptClass = "",
   onClose,
   onSaved,
 }) {
   const { t } = useI18n();
   const fileInputRef = useRef(null);
+  const promptInfoId = useId();
+  const [promptInfoOpen, setPromptInfoOpen] = useState(false);
   const kind = normalizeLibraryOwnerKind(ownerKind);
   const resolvedOwnerId = String(ownerId || folderId || "").trim();
   const uploadScopeId = resolvedOwnerId || (kind === "document" ? "doc-lib" : "folder-lib");
@@ -62,6 +73,15 @@ export function FolderLibraryElementModal({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [loop, setLoop] = useState(() => (
+    item ? Boolean(item.loop) : kind === "folder"
+  ));
+  const [promptClass, setPromptClass] = useState(
+    () => initialPromptClass(item, defaultPromptClass),
+  );
+  const [classesOpen, setClassesOpen] = useState(
+    () => Boolean(initialPromptClass(item, defaultPromptClass)),
+  );
 
   const isSkillLike = category === "skill" || category === "pdf";
   const isVideoLike = category === "video";
@@ -197,6 +217,8 @@ export function FolderLibraryElementModal({
         attachmentName: isSkillLike ? attachmentName : (item?.attachmentName || null),
         attachmentKind: isSkillLike ? attachmentKind : (item?.attachmentKind || null),
         wallColor: showWallColor ? wallColor : null,
+        loop: Boolean(loop),
+        promptClass: isSkillLike ? null : (promptClass || null),
       };
       if (isSkillLike) {
         payload.mediaUrl = null;
@@ -234,6 +256,19 @@ export function FolderLibraryElementModal({
 
   const hasUploadPreview = isSkillLike ? Boolean(attachmentUrl) : Boolean(mediaUrl);
   const isImageLike = category === "image" || (!isSkillLike && !isVideoLike);
+  const classOptions = [];
+  const seenClasses = new Set();
+  const pushClass = (name, label) => {
+    const key = String(name || "").trim();
+    if (!key) return;
+    const id = key.toLowerCase();
+    if (seenClasses.has(id)) return;
+    seenClasses.add(id);
+    classOptions.push({ name: key, label: label || key });
+  };
+  pushClass(PROMPT_CLASS_AMBIENTE, t("doc.library.promptClassAmbiente"));
+  for (const name of promptClasses) pushClass(name);
+  pushClass(promptClass);
   const fileAccept = isSkillLike
     ? undefined
     : isVideoLike
@@ -293,12 +328,47 @@ export function FolderLibraryElementModal({
               />
             </label>
 
-            <label className="folder-library-element-modal__field">
-              <span className="folder-library-element-modal__label">
-                {isSkillLike
-                  ? t("doc.library.skillDescriptionLabel")
-                  : t("doc.library.promptLabel")}
-              </span>
+            <div className="folder-library-element-modal__field">
+              {isSkillLike ? (
+                <span className="folder-library-element-modal__label">
+                  {t("doc.library.skillDescriptionLabel")}
+                </span>
+              ) : (
+                <div className="library-asset-prompt-label">
+                  <span className="folder-library-element-modal__label library-asset-prompt-label__text">
+                    {t("doc.library.promptLabel")}
+                  </span>
+                  <span className="library-asset-prompt-label__info-wrap">
+                    <button
+                      type="button"
+                      className="library-asset-prompt-label__info"
+                      aria-label={t("doc.library.promptFieldInfoAria")}
+                      aria-expanded={promptInfoOpen}
+                      aria-describedby={promptInfoOpen ? promptInfoId : undefined}
+                      onClick={() => setPromptInfoOpen((value) => !value)}
+                      onBlur={(event) => {
+                        if (!event.currentTarget.parentElement?.contains(event.relatedTarget)) {
+                          setPromptInfoOpen(false);
+                        }
+                      }}
+                    >
+                      <img
+                        src="/uploads/Info%201.svg"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                      />
+                    </button>
+                    <span
+                      id={promptInfoId}
+                      role="tooltip"
+                      className={"library-asset-prompt-label__tip" + (promptInfoOpen ? " is-open" : "")}
+                    >
+                      {t("doc.library.promptFieldInfo")}
+                    </span>
+                  </span>
+                </div>
+              )}
               <textarea
                 className="folder-library-element-modal__textarea"
                 value={description}
@@ -306,51 +376,80 @@ export function FolderLibraryElementModal({
                 rows={5}
                 onChange={(e) => setDescription(e.target.value)}
               />
-            </label>
+            </div>
 
-            {showWallColor ? (
-              <div className="folder-library-element-modal__field">
-                <span className="folder-library-element-modal__label">
-                  {t("doc.library.wallColorLabel")}
-                </span>
-                <div className="folder-library-element-modal__wall-row">
-                  <input
-                    type="color"
-                    className="folder-library-element-modal__wall-swatch"
-                    value={wallPreview}
-                    aria-label={t("doc.library.wallColorLabel")}
-                    onChange={(e) => {
-                      const next = normalizeWallColor(e.target.value);
-                      setWallHexDraft(next || FOLDER_LIBRARY_DEFAULT_WALL);
-                      setWallColor(next);
-                      setError("");
-                    }}
-                  />
-                  <input
-                    className="folder-library-element-modal__input folder-library-element-modal__wall-hex"
-                    type="text"
-                    value={wallHexDraft}
-                    placeholder={t("doc.library.wallColorPlaceholder")}
-                    spellCheck={false}
-                    onChange={(e) => setWallHexDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleApplyWall();
-                      }
-                    }}
-                  />
+            {isImageLike ? (
+              <div className="folder-library-element-modal__flag-block">
+                <div className="folder-library-element-modal__flags">
                   <button
                     type="button"
-                    className="folder-library-element-modal__wall-apply"
-                    onClick={handleApplyWall}
+                    className={
+                      "folder-library-element-modal__flag"
+                      + (loop ? " is-active" : "")
+                    }
+                    aria-pressed={loop}
+                    aria-label={t("doc.library.imageLoop")}
+                    title={t("doc.library.imageLoop")}
+                    onClick={() => setLoop((value) => !value)}
                   >
-                    {t("doc.library.wallColorApply")}
+                    <img src="/uploads/RepeatOnce.svg" alt="" aria-hidden draggable={false} />
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      "folder-library-element-modal__flag"
+                      + (classesOpen || promptClass ? " is-active" : "")
+                    }
+                    aria-pressed={classesOpen}
+                    aria-label={t("doc.library.promptClassAria")}
+                    title={t("doc.library.promptClassAria")}
+                    onClick={() => setClassesOpen((value) => !value)}
+                  >
+                    <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
                   </button>
                 </div>
-                <span className="folder-library-element-modal__wall-hint">
-                  {t("doc.library.wallColorHint")}
-                </span>
+                {classesOpen ? (
+                  <div
+                    className="folder-library-element-modal__classes"
+                    role="listbox"
+                    aria-label={t("doc.library.promptClassAria")}
+                  >
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={!promptClass}
+                      className={
+                        "folder-library-element-modal__class"
+                        + (!promptClass ? " is-active" : "")
+                      }
+                      onClick={() => setPromptClass("")}
+                    >
+                      {t("doc.library.promptClassNone")}
+                    </button>
+                    {classOptions.map((entry) => (
+                      <button
+                        key={entry.name}
+                        type="button"
+                        role="option"
+                        aria-selected={
+                          String(promptClass || "").toLowerCase() === entry.name.toLowerCase()
+                        }
+                        className={
+                          "folder-library-element-modal__class"
+                          + (String(promptClass || "").toLowerCase() === entry.name.toLowerCase()
+                            ? " is-active"
+                            : "")
+                        }
+                        onClick={() => setPromptClass(entry.name)}
+                      >
+                        {isPromptClassAmbiente(entry.name) ? (
+                          <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
+                        ) : null}
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -456,6 +555,51 @@ export function FolderLibraryElementModal({
                 </>
               )}
             </button>
+            {showWallColor ? (
+              <div className="folder-library-element-modal__field folder-library-element-modal__field--wall">
+                <span className="folder-library-element-modal__label">
+                  {t("doc.library.wallColorLabel")}
+                </span>
+                <div className="folder-library-element-modal__wall-row">
+                  <input
+                    type="color"
+                    className="folder-library-element-modal__wall-swatch"
+                    value={wallPreview}
+                    aria-label={t("doc.library.wallColorLabel")}
+                    onChange={(e) => {
+                      const next = normalizeWallColor(e.target.value);
+                      setWallHexDraft(next || FOLDER_LIBRARY_DEFAULT_WALL);
+                      setWallColor(next);
+                      setError("");
+                    }}
+                  />
+                  <input
+                    className="folder-library-element-modal__input folder-library-element-modal__wall-hex"
+                    type="text"
+                    value={wallHexDraft}
+                    placeholder={t("doc.library.wallColorPlaceholder")}
+                    spellCheck={false}
+                    onChange={(e) => setWallHexDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleApplyWall();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="folder-library-element-modal__wall-apply"
+                    onClick={handleApplyWall}
+                  >
+                    {t("doc.library.wallColorApply")}
+                  </button>
+                </div>
+                <span className="folder-library-element-modal__wall-hint">
+                  {t("doc.library.wallColorHint")}
+                </span>
+              </div>
+            ) : null}
             {isSkillLike && attachmentUrl ? (
               <button
                 type="button"

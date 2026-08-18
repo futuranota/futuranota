@@ -15,6 +15,8 @@ import { generateId } from "./ids.js";
  * @property {string|null} attachmentKind
  * @property {string|null} wallColor Preview wall / production hex behind image or video (`#RRGGBB`)
  * @property {string|null} setId Document library set this ficha belongs to (`null` = loose)
+ * @property {boolean} loop Document Prompts: copy into assets instead of moving. Folder fichas always loop.
+ * @property {string|null} promptClass User classification (`ambiente`, or legacy custom names)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -29,6 +31,9 @@ import { generateId } from "./ids.js";
  */
 
 export const FOLDER_LIBRARY_DEFAULT_WALL = "#151515";
+
+/** Built-in Prompt classification (Environment / Ambiente). */
+export const PROMPT_CLASS_AMBIENTE = "ambiente";
 
 export const FOLDER_LIBRARY_CATEGORIES = /** @type {const} */ ([
   "auto",
@@ -75,6 +80,57 @@ export function normalizeWallColor(value) {
 export function resolveWallColor(wallColor) {
   return normalizeWallColor(wallColor) || FOLDER_LIBRARY_DEFAULT_WALL;
 }
+
+/**
+ * Classification name for Prompt fichas (`characters`, `element`, …).
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function normalizePromptClass(value) {
+  const raw = String(value || "").trim().slice(0, 48);
+  return raw || null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function isPromptClassAmbiente(value) {
+  return String(value || "").trim().toLowerCase() === PROMPT_CLASS_AMBIENTE;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+export function normalizePromptClasses(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const entry of value) {
+    const name = normalizePromptClass(
+      typeof entry === "string" ? entry : (entry?.tag || entry?.name),
+    );
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * Folder fichas always loop. Document fichas loop only when marked.
+ * @param {string} [ownerKind]
+ * @param {{ loop?: boolean, sourceKind?: string }|null|undefined} item
+ */
+export function libraryItemLoops(ownerKind, item) {
+  if (item?.sourceKind === "folder") return true;
+  if (String(ownerKind || "").trim().toLowerCase() === "folder") return true;
+  return Boolean(item?.loop);
+}
+
 /**
  * @param {unknown} value
  * @returns {FolderLibraryCategory}
@@ -171,6 +227,9 @@ export function normalizeFolderLibraryItem(raw) {
     : null;
   const wallColor = normalizeWallColor(raw.wallColor);
   const setId = normalizeLibrarySetId(raw.setId);
+  const loop = Boolean(raw.loop);
+  const promptClass = normalizePromptClass(raw.promptClass)
+    || normalizePromptClass(raw.imageRole);
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -189,6 +248,8 @@ export function normalizeFolderLibraryItem(raw) {
     attachmentKind,
     wallColor,
     setId,
+    loop,
+    promptClass,
     createdAt,
     updatedAt,
   };
@@ -223,6 +284,8 @@ export function normalizeFolderLibraryItems(value) {
  *   attachmentKind?: string|null,
  *   wallColor?: string|null,
  *   setId?: string|null,
+ *   loop?: boolean,
+ *   promptClass?: string|null,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -258,6 +321,8 @@ export function buildFolderLibraryItem(input = {}) {
     attachmentKind,
     wallColor,
     setId: normalizeLibrarySetId(input.setId),
+    loop: Boolean(input.loop),
+    promptClass: normalizePromptClass(input.promptClass),
     createdAt: now,
     updatedAt: now,
   };

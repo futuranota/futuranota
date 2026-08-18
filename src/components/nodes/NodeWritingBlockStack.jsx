@@ -16,8 +16,8 @@ import {
 } from "../../lib/docLibraryNameRefs.js";
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
-import { mergeAssignFiles } from "../../lib/libraryAssignPath.js";
-import { cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
+import { mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
+import { assignLibraryItemToSet, cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
@@ -296,6 +296,7 @@ export function NodeWritingBlockStack({
   const [promptCapture, setPromptCapture] = useState(null);
   const [savedPromptItemId, setSavedPromptItemId] = useState(null);
   const [savedPromptAssetId, setSavedPromptAssetId] = useState(null);
+  const [pendingAssignClone, setPendingAssignClone] = useState(null);
 
   const snapshotWritingCaret = useCallback((blockIndex, el) => {
     if (!writingCaretRef) return;
@@ -322,41 +323,70 @@ export function NodeWritingBlockStack({
   }, [companyObjectId, urlTableEntries, urlTables]);
   const libraryNameCandidates = useMemo(() => {
     if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
-    return libraryItems
-      .filter((item) => item?.category === "image" && String(item.tag || "").trim())
-      .map((item) => ({
+    const seen = new Set();
+    const out = [];
+    const sources = [
+      ...libraryItems.filter((item) => !item?.setId),
+      ...folderLibraryItems,
+    ];
+    for (const item of sources) {
+      if (item?.category !== "image") continue;
+      const tag = String(item.tag || "").trim();
+      if (!tag) continue;
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
         id: item.id,
-        tag: String(item.tag).trim(),
-        name: String(item.tag).trim(),
+        tag,
+        name: tag,
         description: String(item.description || ""),
         setId: item.setId ?? null,
-      }));
-  }, [libraryItems, libraryOwnerId, libraryOwnerKind]);
+      });
+    }
+    return out;
+  }, [folderLibraryItems, libraryItems, libraryOwnerId, libraryOwnerKind]);
   const libraryAssignFiles = useMemo(() => {
     if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
     const tagged = (items) => items.filter((item) => String(item?.tag || "").trim());
-    return mergeAssignFiles(tagged(libraryItems), tagged(folderLibraryItems));
+    return mergeAssignFiles(
+      tagged(libraryItems.filter((item) => !item?.setId)),
+      tagged(folderLibraryItems),
+    );
   }, [folderLibraryItems, libraryItems, libraryOwnerId, libraryOwnerKind]);
   const libraryAssignAssets = useMemo(() => {
     if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
     return librarySets.filter((set) => String(set?.tag || "").trim());
   }, [libraryOwnerId, libraryOwnerKind, librarySets]);
 
-  const handleLibraryAssignSelect = useCallback(async (file, asset) => {
-    if (libraryOwnerKind !== "document" || !libraryOwnerId || !file || !asset) return;
-    const fileTag = String(file.tag || "").trim();
-    const assetTag = String(asset.tag || "").trim();
-    const ok = await askConfirm({
-      title: t("doc.library.assignPathTitle"),
-      message: t("doc.library.assignPathMessage", { file: fileTag, asset: assetTag }),
-      confirmLabel: t("doc.library.assignPathConfirm"),
-      cancelLabel: t("common.cancel"),
-      tone: "default",
-    });
-    if (!ok) return;
-    cloneLibraryItemIntoSet(libraryOwnerId, file, asset.id);
-    if (asset.id) setSavedPromptAssetId(asset.id);
-  }, [askConfirm, libraryOwnerId, libraryOwnerKind, t]);
+  const handleLibraryAssignSelect = useCallback((file, asset) => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId || !file || !asset?.id) return;
+    setPendingAssignClone({ file, assetId: asset.id });
+    setSavedPromptAssetId(asset.id);
+  }, [libraryOwnerId, libraryOwnerKind]);
+
+  const handleCloseAssetDetail = useCallback(() => {
+    setSavedPromptAssetId(null);
+    setPendingAssignClone(null);
+  }, []);
+
+  const handleSavePendingAssignClone = useCallback(() => {
+    if (!pendingAssignClone?.file || !libraryOwnerId) return;
+    const file = pendingAssignClone.file;
+    if (shouldCloneLibraryAssign(file)) {
+      cloneLibraryItemIntoSet(libraryOwnerId, file, pendingAssignClone.assetId);
+    } else if (file.id) {
+      assignLibraryItemToSet("document", libraryOwnerId, file.id, pendingAssignClone.assetId);
+    }
+    setPendingAssignClone(null);
+  }, [libraryOwnerId, pendingAssignClone]);
+
+  const handleOpenAssetItem = useCallback((item) => {
+    if (!item?.id) return;
+    if (item.category === "image") {
+      setSavedPromptItemId(item.id);
+    }
+  }, []);
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
@@ -1562,7 +1592,14 @@ export function NodeWritingBlockStack({
         ownerKind={libraryOwnerKind}
         ownerId={libraryOwnerId}
         assetId={savedPromptAssetId}
-        onClose={() => setSavedPromptAssetId(null)}
+        pendingClone={
+          pendingAssignClone?.assetId === savedPromptAssetId
+            ? pendingAssignClone.file
+            : null
+        }
+        onSavePendingClone={handleSavePendingAssignClone}
+        onOpenItem={handleOpenAssetItem}
+        onClose={handleCloseAssetDetail}
       />
     ) : null}
     {savedPromptItemId && libraryOwnerId ? (

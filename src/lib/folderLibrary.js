@@ -6,6 +6,8 @@ import {
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryItems,
+  normalizePromptClass,
+  normalizePromptClasses,
   normalizeLibrarySetId,
   normalizeLibrarySets,
   normalizeWallColor,
@@ -15,14 +17,19 @@ export {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
   FOLDER_LIBRARY_FILTER_TABS,
+  PROMPT_CLASS_AMBIENTE,
   buildFolderLibraryItem,
   buildLibrarySet,
   folderLibraryItemMatchesFilter,
   inferAttachmentKind,
+  isPromptClassAmbiente,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryFilterTab,
+  libraryItemLoops,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizePromptClass,
+  normalizePromptClasses,
   normalizeLibrarySet,
   normalizeLibrarySetId,
   normalizeLibrarySets,
@@ -106,6 +113,75 @@ function writeLibraryItems(ownerKind, ownerId, items) {
   return true;
 }
 
+function readPromptClasses(ownerKind, ownerId) {
+  const id = String(ownerId || "").trim();
+  if (!id) return [];
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  if (kind === "document") {
+    const node = useNodesStore.getState().getNode?.(id)
+      ?? useNodesStore.getState().nodes?.[id]
+      ?? null;
+    return normalizePromptClasses(node?.promptClasses);
+  }
+  const doc = useDocsStore.getState().getDoc?.(id)
+    ?? useDocsStore.getState().docs?.[id]
+    ?? null;
+  return normalizePromptClasses(doc?.promptClasses);
+}
+
+function writePromptClasses(ownerKind, ownerId, names) {
+  const id = String(ownerId || "").trim();
+  if (!id) return false;
+  const kind = normalizeLibraryOwnerKind(ownerKind);
+  const next = normalizePromptClasses(names);
+  if (kind === "document") {
+    const node = useNodesStore.getState().getNode?.(id)
+      ?? useNodesStore.getState().nodes?.[id]
+      ?? null;
+    if (!node) return false;
+    useNodesStore.getState().updateNode(id, { promptClasses: next });
+    return true;
+  }
+  const doc = useDocsStore.getState().getDoc?.(id)
+    ?? useDocsStore.getState().docs?.[id]
+    ?? null;
+  if (!doc) return false;
+  useDocsStore.getState().updateDoc(id, { promptClasses: next });
+  return true;
+}
+
+/**
+ * Stored class names plus any classes already used on fichas.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @returns {string[]}
+ */
+export function listPromptClasses(ownerKind, ownerId) {
+  const stored = readPromptClasses(ownerKind, ownerId);
+  const used = listLibraryItems(ownerKind, ownerId)
+    .map((item) => item.promptClass)
+    .filter(Boolean);
+  return normalizePromptClasses([...stored, ...used]);
+}
+
+/**
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} name
+ * @returns {string|null} canonical name or null
+ */
+export function addPromptClass(ownerKind, ownerId, name) {
+  const nextName = normalizePromptClass(name);
+  if (!nextName) return null;
+  const prev = listPromptClasses(ownerKind, ownerId);
+  const exists = prev.some((entry) => entry.toLowerCase() === nextName.toLowerCase());
+  if (exists) return prev.find((entry) => entry.toLowerCase() === nextName.toLowerCase()) || nextName;
+  if (!writePromptClasses(ownerKind, ownerId, [...readPromptClasses(ownerKind, ownerId), nextName])) {
+    return null;
+  }
+  return nextName;
+}
+
 /**
  * @param {LibraryOwnerKind|string} ownerKind
  * @param {string} ownerId
@@ -113,12 +189,18 @@ function writeLibraryItems(ownerKind, ownerId, items) {
  * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
  */
 export function createLibraryItem(ownerKind, ownerId, input = {}) {
+  const kind = normalizeLibraryOwnerKind(ownerKind);
   const id = String(ownerId || "").trim();
   if (!id) return null;
-  const item = buildFolderLibraryItem(input);
+  const category = normalizeFolderLibraryCategory(input.category);
+  if (kind === "document" && (category === "skill" || category === "pdf")) return null;
+  const item = buildFolderLibraryItem({
+    ...input,
+    loop: input.loop !== undefined ? Boolean(input.loop) : kind === "folder",
+  });
   if (!item) return null;
-  const prev = listLibraryItems(ownerKind, id);
-  if (!writeLibraryItems(ownerKind, id, [...prev, item])) return null;
+  const prev = listLibraryItems(kind, id);
+  if (!writeLibraryItems(kind, id, [...prev, item])) return null;
   return item;
 }
 
@@ -178,6 +260,11 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? normalizeLibrarySetId(patch.setId)
     : current.setId;
 
+  const loop = patch.loop !== undefined ? Boolean(patch.loop) : Boolean(current.loop);
+  const promptClass = patch.promptClass !== undefined
+    ? normalizePromptClass(patch.promptClass)
+    : current.promptClass;
+
   return {
     ...current,
     tag: nextTag,
@@ -194,6 +281,8 @@ function applyLibraryItemPatch(current, patch = {}) {
     attachmentKind,
     wallColor,
     setId,
+    loop,
+    promptClass,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -274,7 +363,8 @@ export function listDocumentLibraryGroups(folderId) {
   const groups = [];
   for (const node of children) {
     if (!node?.id) continue;
-    const items = normalizeFolderLibraryItems(node.libraryItems);
+    const items = normalizeFolderLibraryItems(node.libraryItems)
+      .filter((item) => item.category !== "skill" && item.category !== "pdf");
     if (!items.length) continue;
     groups.push({
       documentId: node.id,
@@ -478,5 +568,7 @@ export function cloneLibraryItemIntoSet(ownerId, source, setId) {
     attachmentKind: source.attachmentKind,
     wallColor: source.wallColor,
     setId: nextSetId,
+    loop: false,
+    promptClass: source.promptClass,
   });
 }

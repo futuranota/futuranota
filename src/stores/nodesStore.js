@@ -233,6 +233,7 @@ export const useNodesStore = create(
               canvasNodeId: null,
               libraryItems: Array.isArray(extra.libraryItems) ? extra.libraryItems : [],
               librarySets: Array.isArray(extra.librarySets) ? extra.librarySets : [],
+              promptClasses: Array.isArray(extra.promptClasses) ? extra.promptClasses : [],
               createdAt,
               updatedAt: now,
             },

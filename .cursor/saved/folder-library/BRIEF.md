@@ -1,6 +1,6 @@
 # Folder library — product memory
 
-Saved: 2026-08-15 (updated 2026-08-17: document assets `#i` `#o`, Assets tab). Scope: folder + document libraries.
+Saved: 2026-08-15 (updated 2026-08-18: Attachments header, Prompt fijo). Scope: folder + document libraries.
 
 ## Problem Futura solves
 
@@ -16,12 +16,12 @@ Anything we build in the library is also **signal for Gina**. She should be able
 Workspace (later: index view only)
   └── Folder library          ← live
         ├── fichas shared by all docs in the folder
-        └── Document sub-library — live: Image + Attachments local to one doc
+        └── Document sub-library — live: Prompt + assets local to one doc
 ```
 
 Folder overlay shows **Folder | Docs** only when at least one child document already has fichas. Docs view = subfolder per document (title + count). Create from the document editor (`NodeQueryModal` Library) or by opening that subfolder.
 
-Document / folder `[+]` = Image + Attachments. Video create retired.
+Document `[+]` = Prompt (or asset on Assets). Folder `[+]` = Prompt, or attachment when Attachments is open. Video create retired. Attachments live **only on the folder**.
 
 The folder **groups** document fichas; it does not copy them.
 
@@ -30,15 +30,16 @@ The folder **groups** document fichas; it does not copy them.
 Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose clones a ficha into a document asset (`ficha.asset`); the story keeps only the Name.
 
 - **`#i`** — Name + **Prompt**. Right pane = 4 static **IMG** SVG cards (no upload). Saves `createLibrarySet` only.
-- Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds an Image ficha into the set.
+- Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds a Prompt ficha into the set.
 - **`#o`** — action: opens document Library on tab **Assets**.
-- Document library tabs: **Assets | Images | Attachments** (Assets replaces All). Folder library: **Images | Attachments** only.
+- Document library: **Assets** + **Prompt** (fixed label + class chips). No Attachments. Internal category remains `image`.
+- Folder library: header **Attachments** (`attachment.svg` + name) visualizes files; Prompt row is `Prompt [all] [classes] [+]`.
 - Assets tab: `assets.svg` + “Assets”. Rows = assets with `Folders.svg` + name + count.
-- Images / Attachments = **loose** fichas (`setId` null). `[+]` on Assets creates an asset; `[+]` while the asset detail is open adds Image into it.
+- Prompt = **loose** fichas (`setId` null). `[+]` on Assets creates an asset; `[+]` while the asset detail is open adds Prompt into it.
 - Unsaved document → same message as `-- --` capture.
 - Out of this slice: reuse folder→doc as a dedicated flow, `--script--`.
-- **Name invoke (live):** typing a prefix of an image ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
-- **Dotted assign path (live):** `ficha.asset` in the document body. Autocomplete only existing names. Files = document library + folder library (document tag wins). Destination = document assets only. Enter → confirm → **clone** the ficha into that asset (source stays; same wardrobe in another park). Prose keeps only the ficha **Name** as a slight bold ref — the `.asset` path is discarded. Does **not** clone a card named after the asset.
+- **Name invoke (live):** typing a prefix of a Prompt ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
+- **Dotted assign path (live):** `ficha.asset` in the document body. Enter opens the asset; prose keeps only the ficha **Name** bold. **Guardar** applies the insert. **Folder** fichas always **loop** (copy; source stays). **Document Prompts:** default = **move once** into that asset; **Loop** in the create/edit modal = copy and stay in Prompt. Autocomplete lists unique Names from loose Prompt + folder, not copies inside assets.
 
 ```
 librarySets: [{ id, tag, description, createdAt, updatedAt }]  // UI: assets
@@ -47,28 +48,28 @@ libraryItems[].setId  // null = loose
 
 Icons: scope `folder-main.svg` · `docs-main.svg` · tabs `assets.svg` · `img.svg` · `attachment.svg` · `FolderDashed.svg` (`#i`) · `Folders.svg` (`#o` rows).
 
-## [+] create menu (segment types)
+## [+] create (contextual)
 
-`[+]` does **not** create a generic ficha into the current tab blindly. It opens a **type chooser**:
-
-```
-[ + ]
-  ├── Attachments   → skill/pdf ficha — downloadable file
-  └── Image         → image ficha — WebP preview
-```
-
-Each type has its own create fields and open behavior.
-
-## Section tabs (filter the grid)
+`[+]` creates for the active view — no type chooser:
 
 ```
-[ Images | Attachments ]               ← folder library
-[ Assets | Images | Attachments ]      ← document library (Assets replaces All)
+Folder Prompt view        → Prompt ficha
+Folder Attachments view   → attachment (skill/pdf)
+Document Assets           → asset
+Document Prompt / asset   → Prompt ficha
+```
+
+## Section chrome
+
+```
+Folder header:  [Attachments icon+name]  [+]
+Folder row:     Prompt  [all]  [classes]  [+]
+Document row:   [Assets]  Prompt  [all]  [classes]  [+]
 ```
 
 - **Assets** — assets / subfolders created with `#i` (document only)
-- **Images** — `category === image` (loose on the document)
-- **Attachments** — `category === skill` (and `pdf`)
+- **Prompt** — `category === image` (loose on the document). Fixed label; suffixes: **All** | user classes | **[+]**
+- **Attachments** — folder only (`category === skill` / `pdf`). Header visualizes; `[+]` creates.
 
 Remember last tab per folder (`sessionStorage`). Video tab retired.
 
@@ -84,13 +85,17 @@ Remember last tab per folder (`sessionStorage`). Video tab retired.
 | **attachmentName** | Original filename for download |
 | **attachmentKind** | Format badge (zip, md, pdf, code, …) — FileCard labels |
 | **setId** | Document set this ficha belongs to (`null` = loose). Folder fichas stay unset. |
+| **loop** | Create/edit modal toggle. Document Prompts: copy into assets instead of moving. Folder defaults on (assign from a folder source still clones). |
+| **promptClass** | Optional classification from the objects toggle list in create/edit (`ambiente` plus named overlay classes). Overlay chips still filter. |
 
-### Image (live)
+Owner-level **`promptClasses`**: named chips for the Prompt tab (`campaigns.prompt_classes` / `nodes.prompt_classes`). Empty classes persist until the user adds fichas.
 
-- Create: tag + **Prompt** (copy) + optional upload **image → WebP**
+### Prompt (live)
+
+- Create/edit: tag + **Prompt** (copy) + optional upload **reference image → WebP** + Loop toggle + objects toggle (class chips)
 - Open: detail — tag, Prompt \| Image switch, copy prompt, download WebP
 - Capture from document body: `--prompt text--` → name modal → ficha without image
-- Grid: real thumb or IMG badge
+- Grid: real thumb or IMG badge; optional class label. Filter chips classify the same grid (not folders).
 
 ### Attachments (live; category `skill`)
 
@@ -103,32 +108,33 @@ Remember last tab per folder (`sessionStorage`). Video tab retired.
 
 Legacy video fichas no longer appear in folder tabs (create/filter retired).
 
-## Image card UX (live)
+## Prompt card UX (live)
 
-- Edit on cell + detail header → `FolderLibraryElementModal`
+- Edit on cell + detail header → `FolderLibraryElementModal` (Loop on/off = RepeatOnce.svg; objects.svg opens class chips)
 - Detail: tag, Prompt \| Image, copy prompt, download WebP
-- Placeholders EN/ES for prompt: describe the image you want to generate
-- `--text--` in the document editor opens name + prompt capture. Destination group: **Prompt & Image** (loose image ficha) or **Asset** (double-click existing to insert without Name; **Insert new** reveals Name and `createLibrarySet`). Copy on the captured prompt. Save / double-click opens Image or Asset detail.
+- Placeholders EN/ES for prompt: write the prompt you’ll take to the engine
+- `--text--` in the document editor opens name + prompt capture. Destination group: **Prompt & Image** (loose prompt ficha) or **Asset** (double-click existing to insert without Name; **Insert new** reveals Name and `createLibrarySet`). Copy on the captured prompt. Save / double-click opens Prompt or Asset detail.
 
 ## Atelier / wall color (Image + Video live)
 
 - Field `wallColor` (`#RRGGBB`) on the ficha — production wall behind the asset.
-- **Edit:** hex + color picker + **Apply**; live behind upload preview.
+- **Create/edit:** hex + color picker + **Apply** sits **under the image** in the media column; live behind upload preview.
 - **Open Image/Video:** preview pane uses `resolveWallColor(wallColor)` (default `#151515`).
 - Does not recolor the media pixels.
 - FN does not generate images/video.
 
 ## Persistence
 
-- Metadatos: `campaigns.library_items` jsonb (folder) · `nodes.library_items` jsonb (document) · `nodes.library_sets` jsonb (document sets)
+- Metadatos: `campaigns.library_items` jsonb (folder) · `campaigns.prompt_classes` jsonb · `nodes.library_items` jsonb (document) · `nodes.library_sets` jsonb (document sets) · `nodes.prompt_classes` jsonb
 - Bytes: `doc-images` (WebP for images; raw attachments for skills); `scopeId` = folderId or nodeId
-- SQL ops: `supabase_campaign_library_items.sql`; `supabase_node_library_items.sql`; `supabase_node_library_sets.sql`
+- SQL ops: `supabase_campaign_library_items.sql`; `supabase_node_library_items.sql`; `supabase_node_library_sets.sql`; `supabase_prompt_classes.sql`
 
 ## Live today (code)
 
-- Grid + type filter Images / Attachments (folder) · Assets / Images / Attachments (document)
-- Image create/open + wallColor; Attachments create/open
-- Persist `campaigns.library_items` + `nodes.library_items` + `nodes.library_sets`
+- Grid: folder Prompt row + header Attachments · document Assets + Prompt (no Attachments)
+- Prompt class chips beside Prompt (`All` / user names / `[+]`) + Loop/class toggles in the create/edit modal
+- Prompt create/open + wallColor; Attachments create/open
+- Persist `campaigns.library_items` + `campaigns.prompt_classes` + `nodes.library_items` + `nodes.library_sets` + `nodes.prompt_classes`
 - Document Library button in `NodeQueryModal`; Folder | Docs toggle + subfolders when docs have fichas
 - Document assets: `#i` create (metadata + image queue) · `#o` opens Assets tab · Folders.svg rows
 - Video create retired from `[+]` / tabs

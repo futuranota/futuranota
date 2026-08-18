@@ -5,6 +5,7 @@ import {
   listLibraryAssignMenuItems,
   mergeAssignFiles,
   replaceLibraryAssignPathToken,
+  shouldCloneLibraryAssign,
 } from "./libraryAssignPath.js";
 
 const files = [
@@ -75,5 +76,11 @@ describe("libraryAssignPath", () => {
     const next = replaceLibraryAssignPathToken("go recordatorio.sc", path, "recordatorio.scene01");
     expect(next.text).toBe("go recordatorio.scene01");
     expect(next.caret).toBe("go recordatorio.scene01".length);
+  });
+
+  it("clones folder and looped document files; moves the rest", () => {
+    expect(shouldCloneLibraryAssign({ sourceKind: "folder" })).toBe(true);
+    expect(shouldCloneLibraryAssign({ sourceKind: "document", loop: true })).toBe(true);
+    expect(shouldCloneLibraryAssign({ sourceKind: "document", loop: false })).toBe(false);
   });
 });

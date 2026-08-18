@@ -19,6 +19,8 @@ export function FolderLibraryAssetDetail({
   onClose,
   onEdit,
   onOpenItem,
+  pendingClone = null,
+  onSavePendingClone = null,
   escapeEnabled = true,
 }) {
   const { t } = useI18n();
@@ -32,6 +34,8 @@ export function FolderLibraryAssetDetail({
     () => items.filter((item) => item.setId === assetId && item.category === "image"),
     [items, assetId],
   );
+  const pendingTag = String(pendingClone?.tag || "").trim();
+  const hasPendingClone = Boolean(pendingTag);
   const downloadable = imageItems.filter((item) => String(item.mediaUrl || "").trim());
   const [downloading, setDownloading] = useState(false);
 
@@ -151,6 +155,15 @@ export function FolderLibraryAssetDetail({
                 ? t("doc.library.downloading")
                 : t("doc.library.assetDownload")}
             </button>
+            {hasPendingClone ? (
+              <button
+                type="button"
+                className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
+                onClick={() => onSavePendingClone?.()}
+              >
+                {t("doc.library.save")}
+              </button>
+            ) : null}
           </div>
         </footer>
       </div>

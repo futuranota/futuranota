@@ -1,7 +1,7 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { resolveSyncUserId } from "../../lib/resolveSyncUserId.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
-import { normalizeFolderLibraryItems, normalizeLibrarySets } from "../../lib/folderLibraryNormalize.js";
+import { normalizeFolderLibraryItems, normalizeLibrarySets, normalizePromptClasses } from "../../lib/folderLibraryNormalize.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
@@ -1250,6 +1250,7 @@ export function initPersistenceMiddleware(stores) {
             ...node,
             libraryItems: normalizeFolderLibraryItems(node.libraryItems),
             librarySets: normalizeLibrarySets(node.librarySets),
+            promptClasses: normalizePromptClasses(node.promptClasses),
           }
         : node;
     }
@@ -1499,6 +1500,7 @@ export function initPersistenceMiddleware(stores) {
           viewMode: camp.view_mode === "quick" ? "quick" : "story",
           knowledgeImport: stripKnowledgeImportSidecar(camp.knowledge_import),
           libraryItems: normalizeFolderLibraryItems(camp.library_items),
+          promptClasses: normalizePromptClasses(camp.prompt_classes ?? camp.promptClasses),
         };
         if (camp.company_id && objects[camp.company_id]) {
           objects[camp.company_id].children.push(camp.id);
@@ -1561,6 +1563,11 @@ export function initPersistenceMiddleware(stores) {
             node.library_sets !== undefined
               ? node.library_sets
               : reference.librarySets,
+          ),
+          promptClasses: normalizePromptClasses(
+            node.prompt_classes !== undefined
+              ? node.prompt_classes
+              : reference.promptClasses,
           ),
           createdAt: node.created_at,
           updatedAt: node.updated_at,
@@ -1899,6 +1906,7 @@ export function initPersistenceMiddleware(stores) {
         view_mode: doc.viewMode === "quick" ? "quick" : "story",
         knowledge_import: knowledgeImportWithTimelineSource(doc),
         library_items: normalizeFolderLibraryItems(doc.libraryItems),
+        prompt_classes: normalizePromptClasses(doc.promptClasses),
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,
       }));
@@ -1967,6 +1975,7 @@ export function initPersistenceMiddleware(stores) {
         canvas_node_id: node.canvasNodeId || null,
         library_items: normalizeFolderLibraryItems(node.libraryItems),
         library_sets: normalizeLibrarySets(node.librarySets),
+        prompt_classes: normalizePromptClasses(node.promptClasses),
         created_at: node.createdAt || now,
         updated_at: node.updatedAt || now,
       }));
