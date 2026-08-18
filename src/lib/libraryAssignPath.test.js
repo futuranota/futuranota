@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   filterAssignByTag,
   getLibraryAssignPathAtCaret,
+  isLibraryAssignPromptFile,
+  libraryAssignMenuEmptyReason,
   listLibraryAssignMenuItems,
   mergeAssignFiles,
   replaceLibraryAssignPathToken,
@@ -43,9 +45,10 @@ describe("libraryAssignPath", () => {
     ]);
     const pathQ = getLibraryAssignPathAtCaret("recordatorio.sc", 15);
     expect(listLibraryAssignMenuItems(pathQ, files, assets).map((row) => row.tag)).toEqual([
-      "recordatorio.scene01",
-      "recordatorio.scene02",
+      "scene01",
+      "scene02",
     ]);
+    expect(listLibraryAssignMenuItems(pathQ, files, assets).every((row) => row.kind === "asset")).toBe(true);
   });
 
   it("prefers document files over folder duplicates", () => {
@@ -66,8 +69,8 @@ describe("libraryAssignPath", () => {
   it("lists every asset when the asset query is empty", () => {
     const pathQ = getLibraryAssignPathAtCaret("recordatorio.", 13);
     expect(listLibraryAssignMenuItems(pathQ, files, assets).map((row) => row.tag)).toEqual([
-      "recordatorio.scene01",
-      "recordatorio.scene02",
+      "scene01",
+      "scene02",
     ]);
   });
 
@@ -82,5 +85,79 @@ describe("libraryAssignPath", () => {
     expect(shouldCloneLibraryAssign({ sourceKind: "folder" })).toBe(true);
     expect(shouldCloneLibraryAssign({ sourceKind: "document", loop: true })).toBe(true);
     expect(shouldCloneLibraryAssign({ sourceKind: "document", loop: false })).toBe(false);
+  });
+
+  it("resolves spaced names when files are passed", () => {
+    const spaced = [{ id: "f3", tag: "Art in Life" }];
+    const text = "Art in Life.scene";
+    expect(getLibraryAssignPathAtCaret(text, text.length, spaced)).toMatchObject({
+      fileQuery: "Art in Life",
+      assetQuery: "scene",
+      hasDot: true,
+    });
+    expect(getLibraryAssignPathAtCaret(text, text.length)?.fileQuery).toBe("Life");
+    const dotted = getLibraryAssignPathAtCaret("Art in Life.", 12, spaced);
+    expect(listLibraryAssignMenuItems(dotted, spaced, assets).map((row) => row.tag)).toEqual([
+      "scene01",
+      "scene02",
+    ]);
+  });
+
+  it("lists matching prompt names when the dotted prefix is not unique", () => {
+    const prefixFiles = [
+      { id: "a", tag: "recordatorio" },
+      { id: "b", tag: "recuerdo" },
+    ];
+    const pathQ = getLibraryAssignPathAtCaret("rec.", 4);
+    expect(listLibraryAssignMenuItems(pathQ, prefixFiles, assets).map((row) => row.kind)).toEqual([
+      "file",
+      "file",
+    ]);
+    expect(listLibraryAssignMenuItems(pathQ, prefixFiles, assets).map((row) => row.tag)).toEqual([
+      "recordatorio",
+      "recuerdo",
+    ]);
+    expect(libraryAssignMenuEmptyReason(pathQ, prefixFiles, assets)).toBeNull();
+  });
+
+  it("returns no rows and noAsset when the file is unique but there are no assets", () => {
+    const pathQ = getLibraryAssignPathAtCaret("recordatorio.", 13);
+    expect(listLibraryAssignMenuItems(pathQ, files, [])).toEqual([]);
+    expect(libraryAssignMenuEmptyReason(pathQ, files, [])).toBe("noAsset");
+  });
+
+  it("returns noFile when the name matches nothing", () => {
+    const pathQ = getLibraryAssignPathAtCaret("zzzz.", 5);
+    expect(listLibraryAssignMenuItems(pathQ, files, assets)).toEqual([]);
+    expect(libraryAssignMenuEmptyReason(pathQ, files, assets)).toBe("noFile");
+  });
+
+  it("returns noAssetMatch when the unique file has assets but the query misses", () => {
+    const pathQ = getLibraryAssignPathAtCaret("recordatorio.zzz", 16);
+    expect(listLibraryAssignMenuItems(pathQ, files, assets)).toEqual([]);
+    expect(libraryAssignMenuEmptyReason(pathQ, files, assets)).toBe("noAssetMatch");
+  });
+
+  it("keeps a spaced asset query after a known prompt name", () => {
+    const dest = [{ id: "a3", tag: "scene 01" }];
+    const text = "recordatorio.scene 01";
+    expect(getLibraryAssignPathAtCaret(text, text.length, files)).toMatchObject({
+      fileQuery: "recordatorio",
+      assetQuery: "scene 01",
+      hasDot: true,
+    });
+    expect(listLibraryAssignMenuItems(
+      getLibraryAssignPathAtCaret(text, text.length, files),
+      files,
+      dest,
+    ).map((row) => row.tag)).toEqual(["scene 01"]);
+    expect(getLibraryAssignPathAtCaret("Hello. World", 12, files)?.hasDot).toBeFalsy();
+  });
+
+  it("keeps only loose image and auto prompts", () => {
+    expect(isLibraryAssignPromptFile({ category: "image", tag: "a" })).toBe(true);
+    expect(isLibraryAssignPromptFile({ category: "auto", tag: "a" })).toBe(true);
+    expect(isLibraryAssignPromptFile({ category: "image", setId: "s1", tag: "a" })).toBe(false);
+    expect(isLibraryAssignPromptFile({ category: "pdf", tag: "a" })).toBe(false);
   });
 });

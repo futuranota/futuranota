@@ -13,61 +13,127 @@ const MIN_FILE = 2;
  * @property {boolean} hasDot
  */
 
+function canBeginTokenAt(str, start) {
+  if (start <= 0) return true;
+  const prev = str[start - 1];
+  if (prev === "#" || prev === "/" || prev === "@") return false;
+  return /\s/.test(prev);
+}
+
+function scanTokenEndingAt(str, end) {
+  let start = end;
+  for (let i = end - 1; i >= 0; i -= 1) {
+    if (!TOKEN_CHAR.test(str[i])) break;
+    start = i;
+  }
+  if (end - start < MIN_FILE) return null;
+  if (!canBeginTokenAt(str, start)) return null;
+  return { start, fileQuery: str.slice(start, end) };
+}
+
+function matchLongestFileTagEndingAt(str, end, files) {
+  if (!Array.isArray(files) || files.length === 0 || end <= 0) return null;
+  let best = null;
+  for (const item of files) {
+    const tag = String(item?.tag || item?.name || "").trim();
+    if (tag.length < MIN_FILE) continue;
+    const start = end - tag.length;
+    if (start < 0) continue;
+    if (normalizeLibraryNameKey(str.slice(start, end)) !== normalizeLibraryNameKey(tag)) {
+      continue;
+    }
+    if (!canBeginTokenAt(str, start)) continue;
+    if (!best || tag.length > best.fileQuery.length) {
+      best = { start, fileQuery: str.slice(start, end) };
+    }
+  }
+  return best;
+}
+
+/**
+ * Loose Prompt fichas (image / auto) that can be assigned into an asset.
+ * @param {{ category?: string, setId?: string|null }|null|undefined} item
+ */
+export function isLibraryAssignPromptFile(item) {
+  if (!item || item.setId) return false;
+  const cat = String(item.category || "").trim().toLowerCase();
+  return cat === "image" || cat === "auto";
+}
+
 /**
  * `recordatorio.scene01` token at the caret (file, then optional `.asset`).
+ * Pass `files` so Names with spaces (`Art in Life.scene`) resolve to the full tag.
  * @param {unknown} text
  * @param {number} caret
+ * @param {{ tag?: string, name?: string }[]} [files]
  * @returns {LibraryAssignPathQuery|null}
  */
-export function getLibraryAssignPathAtCaret(text, caret) {
+export function getLibraryAssignPathAtCaret(text, caret, files = []) {
   const str = String(text ?? "");
   const pos = Math.max(0, Math.min(str.length, Number(caret) || 0));
   if (pos === 0) return null;
 
-  let start = pos;
-  let dots = 0;
+  let foundDot = false;
+  let dotIndex = -1;
   for (let i = pos - 1; i >= 0; i -= 1) {
     const ch = str[i];
-    if (TOKEN_CHAR.test(ch)) {
-      start = i;
-      continue;
+    if (ch === ".") {
+      foundDot = true;
+      dotIndex = i;
+      break;
     }
-    if (ch === "." && dots === 0) {
-      dots += 1;
-      start = i;
-      continue;
-    }
-    break;
-  }
-  if (start === pos) return null;
-  if (start > 0) {
-    const prev = str[start - 1];
-    if (prev === "#" || prev === "/" || prev === "@") return null;
-    if (!/\s/.test(prev)) return null;
+    if (!TOKEN_CHAR.test(ch)) break;
   }
 
-  const raw = str.slice(start, pos);
-  const dot = raw.indexOf(".");
-  if (dot < 0) {
-    if (raw.length < MIN_FILE) return null;
+  // Known Prompt tag + last "." on this line: asset names may include spaces
+  // (`recordatorio.scene 01`). A space right after the dot is prose (`Hello. World`).
+  let lineDot = -1;
+  for (let i = pos - 1; i >= 0; i -= 1) {
+    const ch = str[i];
+    if (ch === "\n") break;
+    if (ch === ".") {
+      lineDot = i;
+      break;
+    }
+  }
+  if (lineDot >= 0) {
+    const tagged = matchLongestFileTagEndingAt(str, lineDot, files);
+    const assetQuery = str.slice(lineDot + 1, pos);
+    if (tagged && !/^\s/.test(assetQuery)) {
+      return {
+        start: tagged.start,
+        end: pos,
+        raw: str.slice(tagged.start, pos),
+        fileQuery: tagged.fileQuery,
+        assetQuery,
+        hasDot: true,
+      };
+    }
+  }
+
+  if (foundDot) {
+    const filePart = matchLongestFileTagEndingAt(str, dotIndex, files)
+      || scanTokenEndingAt(str, dotIndex);
+    if (!filePart) return null;
     return {
-      start,
+      start: filePart.start,
       end: pos,
-      raw,
-      fileQuery: raw,
-      assetQuery: "",
-      hasDot: false,
+      raw: str.slice(filePart.start, pos),
+      fileQuery: filePart.fileQuery,
+      assetQuery: str.slice(dotIndex + 1, pos),
+      hasDot: true,
     };
   }
-  const fileQuery = raw.slice(0, dot);
-  if (fileQuery.length < MIN_FILE) return null;
+
+  const filePart = scanTokenEndingAt(str, pos);
+  if (!filePart) return null;
   return {
-    start,
+    start: filePart.start,
     end: pos,
-    raw,
-    fileQuery,
-    assetQuery: raw.slice(dot + 1),
-    hasDot: true,
+    raw: filePart.fileQuery,
+    fileQuery: filePart.fileQuery,
+    assetQuery: "",
+    hasDot: false,
   };
 }
 
@@ -127,8 +193,34 @@ export function shouldCloneLibraryAssign(file) {
   return Boolean(file.loop);
 }
 
+function fileMenuRow(file) {
+  return {
+    id: `file:${file.id}`,
+    kind: "file",
+    tag: file.tag,
+    name: file.tag,
+    description: file.description || "",
+    file,
+  };
+}
+
+/**
+ * Exact tag, or a single prefix match.
+ * @param {{ tag?: string }[]} files
+ * @param {string} fileQuery
+ */
+function resolveUniqueAssignFile(files, fileQuery) {
+  const fileMatches = filterAssignByTag(files, fileQuery);
+  const exact = fileMatches.filter(
+    (file) => normalizeLibraryNameKey(file.tag) === normalizeLibraryNameKey(fileQuery),
+  );
+  const file = exact[0] || (fileMatches.length === 1 ? fileMatches[0] : null);
+  return { fileMatches, file };
+}
+
 /**
  * Autocomplete rows for a path query.
+ * With a dot: unique Prompt → Assets; otherwise list matching Names.
  * @returns {Array<{ id: string, kind: "file"|"asset", tag: string, name: string, description?: string, file?: object, asset?: object }>}
  */
 export function listLibraryAssignMenuItems(path, files = [], assets = [], limit = 8) {
@@ -136,37 +228,38 @@ export function listLibraryAssignMenuItems(path, files = [], assets = [], limit 
   if (!path.hasDot) {
     return filterAssignByTag(files, path.fileQuery)
       .slice(0, limit)
-      .map((file) => ({
-        id: `file:${file.id}`,
-        kind: "file",
-        tag: file.tag,
-        name: file.tag,
-        description: file.description || "",
-        file,
-      }));
+      .map(fileMenuRow);
   }
 
-  const fileMatches = filterAssignByTag(files, path.fileQuery);
-  const exact = fileMatches.filter(
-    (file) => normalizeLibraryNameKey(file.tag) === normalizeLibraryNameKey(path.fileQuery),
-  );
-  const file = (exact[0] || (fileMatches.length === 1 ? fileMatches[0] : null));
-  if (!file) return [];
+  const { fileMatches, file } = resolveUniqueAssignFile(files, path.fileQuery);
+  if (!file) {
+    return fileMatches.slice(0, limit).map(fileMenuRow);
+  }
 
   return filterAssignByTag(assets, path.assetQuery || "")
     .slice(0, limit)
-    .map((asset) => {
-      const label = `${file.tag}.${asset.tag}`;
-      return {
-        id: `path:${file.id}:${asset.id}`,
-        kind: "asset",
-        tag: label,
-        name: label,
-        description: asset.description || "",
-        file,
-        asset,
-      };
-    });
+    .map((asset) => ({
+      id: `path:${file.id}:${asset.id}`,
+      kind: "asset",
+      tag: asset.tag,
+      name: asset.tag,
+      description: asset.description || "",
+      file,
+      asset,
+    }));
+}
+
+/**
+ * Why the dotted assign menu has no rows.
+ * @returns {"noFile"|"noAsset"|"noAssetMatch"|null}
+ */
+export function libraryAssignMenuEmptyReason(path, files = [], assets = []) {
+  if (!path?.hasDot) return null;
+  if (listLibraryAssignMenuItems(path, files, assets).length > 0) return null;
+  const { file } = resolveUniqueAssignFile(files, path.fileQuery);
+  if (!file) return "noFile";
+  if (!Array.isArray(assets) || assets.length === 0) return "noAsset";
+  return "noAssetMatch";
 }
 
 /**

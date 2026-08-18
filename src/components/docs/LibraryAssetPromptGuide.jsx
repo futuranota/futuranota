@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 
-/** Prompt label + info icon (#i / #o usage). */
+/** Script label + info icon (#i / #o usage). */
 export function LibraryAssetPromptLabel() {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);

@@ -16,7 +16,7 @@ import {
 } from "../../lib/docLibraryNameRefs.js";
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
-import { mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
+import { isLibraryAssignPromptFile, mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
 import { assignLibraryItemToSet, cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
@@ -348,10 +348,12 @@ export function NodeWritingBlockStack({
   }, [folderLibraryItems, libraryItems, libraryOwnerId, libraryOwnerKind]);
   const libraryAssignFiles = useMemo(() => {
     if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
-    const tagged = (items) => items.filter((item) => String(item?.tag || "").trim());
+    const taggedPrompts = (items) => items.filter(
+      (item) => isLibraryAssignPromptFile(item) && String(item?.tag || "").trim(),
+    );
     return mergeAssignFiles(
-      tagged(libraryItems.filter((item) => !item?.setId)),
-      tagged(folderLibraryItems),
+      taggedPrompts(libraryItems),
+      taggedPrompts(folderLibraryItems),
     );
   }, [folderLibraryItems, libraryItems, libraryOwnerId, libraryOwnerKind]);
   const libraryAssignAssets = useMemo(() => {

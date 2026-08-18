@@ -9,6 +9,7 @@ export function DocLibraryNameMenu({
   items = [],
   activeIndex = 0,
   anchor = null,
+  emptyLabel = "",
   onHoverIndex,
   onSelect,
   onClose,
@@ -34,6 +35,7 @@ export function DocLibraryNameMenu({
   }, [activeIndex, open]);
 
   if (!open || !anchor || typeof document === "undefined") return null;
+  if (items.length === 0 && !emptyLabel) return null;
 
   return createPortal(
     <div
@@ -48,7 +50,9 @@ export function DocLibraryNameMenu({
         zIndex: 10060,
       }}
     >
-      {items.length === 0 ? null : items.map((item, index) => {
+      {items.length === 0 ? (
+        <p className="doc-mention-menu__empty">{emptyLabel}</p>
+      ) : items.map((item, index) => {
         const name = String(item.tag || item.name || "").trim();
         const prompt = String(item.description || "").trim();
         const preview = prompt

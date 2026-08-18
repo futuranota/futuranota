@@ -41,11 +41,13 @@ import {
 } from "../../../lib/docLibraryNameRefs.js";
 import {
   getLibraryAssignPathAtCaret,
+  libraryAssignMenuEmptyReason,
   listLibraryAssignMenuItems,
   replaceLibraryAssignPathToken,
 } from "../../../lib/libraryAssignPath.js";
 import { filterTagCandidates } from "../../../lib/urlTableTags.js";
 import { openUrlTableForMention } from "../../../lib/docMentionActions.js";
+import { useI18n } from "../../../i18n/useI18n.js";
 import {
   copyTextareaTypography,
   getCaretClientRect,
@@ -271,6 +273,7 @@ export function SlashAwareTextarea({
   libraryAssignAssets = null,
   onLibraryAssignSelect = null,
 }) {
+  const { t } = useI18n();
   const internalRef = useRef(null);
   const wrapRef = useRef(null);
   const mirrorRef = useRef(null);
@@ -430,11 +433,27 @@ export function SlashAwareTextarea({
     );
   }, [activeAssignPath, libraryAssignAssets, libraryAssignEnabled, libraryAssignFiles]);
 
+  const assignPathEmptyReason = useMemo(() => {
+    if (!libraryAssignEnabled || !activeAssignPath?.hasDot) return null;
+    return libraryAssignMenuEmptyReason(
+      activeAssignPath,
+      libraryAssignFiles,
+      libraryAssignAssets,
+    );
+  }, [activeAssignPath, libraryAssignAssets, libraryAssignEnabled, libraryAssignFiles]);
+
+  const assignPathEmptyLabel = assignPathEmptyReason === "noFile"
+    ? t("doc.library.assignPathEmptyFile")
+    : assignPathEmptyReason === "noAsset"
+      ? t("doc.library.assignPathEmptyAsset")
+      : assignPathEmptyReason === "noAssetMatch"
+        ? t("doc.library.assignPathEmptyAssetMatch")
+        : "";
+
   const showAssignPathMenu = Boolean(
     focused
     && libraryAssignEnabled
     && activeAssignPath?.hasDot
-    && filteredAssignPathItems.length > 0
     && !showGhost
     && !activeQuery
     && !activeTagRefQuery,
@@ -644,7 +663,7 @@ export function SlashAwareTextarea({
     setTagRefMenuAnchor(null);
 
     if (libraryAssignEnabled) {
-      const assignPath = getLibraryAssignPathAtCaret(el.value, caret);
+      const assignPath = getLibraryAssignPathAtCaret(el.value, caret, libraryAssignFiles);
       if (assignPath?.hasDot) {
         setActiveAssignPath(assignPath);
         setActiveLibraryNameQuery(null);
@@ -690,6 +709,7 @@ export function SlashAwareTextarea({
     hasCandidateSource,
     hasTagRefSource,
     libraryAssignEnabled,
+    libraryAssignFiles,
     libraryNameInvokeEnabled,
     normalizedLibraryNameRefs,
     normalizedMentions,
@@ -1433,6 +1453,56 @@ export function SlashAwareTextarea({
 
   const insertLibraryNameCandidate = useCallback((candidate) => {
     if (!candidate || !activeLibraryNameQuery) return;
+    const tag = String(candidate.tag || candidate.name || "").trim();
+    const continueToAssets = Boolean(
+      libraryAssignEnabled
+      && tag
+      && Array.isArray(libraryAssignAssets)
+      && libraryAssignAssets.length > 0
+    );
+    if (continueToAssets) {
+      const replaced = replaceLibraryAssignPathToken(
+        value,
+        {
+          start: activeLibraryNameQuery.start,
+          end: activeLibraryNameQuery.end,
+        },
+        `${tag}.`,
+      );
+      const nextMentions = mentionsEnabled
+        ? applyTextEditToMentions(value, replaced.text, normalizedMentions)
+        : [];
+      const nextMarkers = markersEnabled
+        ? applyTextEditToMarkerRanges(value, replaced.text, normalizedMarkers)
+        : [];
+      const nextBolds = boldEnabled
+        ? applyTextEditToBoldRanges(value, replaced.text, normalizedBolds)
+        : [];
+      const nextTagRefs = tagRefsEnabled
+        ? applyTextEditToTagRefs(value, replaced.text, normalizedTagRefs)
+        : [];
+      const nextLibraryNames = libraryNameRefsEnabled
+        ? applyTextEditToLibraryNameRefs(value, replaced.text, normalizedLibraryNameRefs)
+        : [];
+      emitChange(
+        replaced.text,
+        nextMentions,
+        nextMarkers,
+        nextBolds,
+        nextTagRefs,
+        nextLibraryNames,
+      );
+      setActiveLibraryNameQuery(null);
+      setLibraryNameMenuAnchor(null);
+      requestAnimationFrame(() => {
+        const field = textareaRef.current;
+        if (!field || !("setSelectionRange" in field)) return;
+        field.focus({ preventScroll: true });
+        field.setSelectionRange(replaced.caret, replaced.caret);
+        syncMentionQuery();
+      });
+      return;
+    }
     const result = insertLibraryNameRefAtQuery(
       value,
       normalizedLibraryNameRefs,
@@ -1472,6 +1542,9 @@ export function SlashAwareTextarea({
     activeLibraryNameQuery,
     boldEnabled,
     emitChange,
+    libraryAssignAssets,
+    libraryAssignEnabled,
+    libraryNameRefsEnabled,
     markersEnabled,
     mentionsEnabled,
     normalizedBolds,
@@ -1901,6 +1974,7 @@ export function SlashAwareTextarea({
         items={filteredAssignPathItems}
         activeIndex={assignPathMenuIndex}
         anchor={assignPathMenuAnchor}
+        emptyLabel={assignPathEmptyLabel}
         onHoverIndex={setAssignPathMenuIndex}
         onSelect={insertAssignPathCandidate}
         onClose={() => {

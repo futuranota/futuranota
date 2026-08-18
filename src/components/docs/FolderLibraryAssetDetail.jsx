@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
 import {
+  libraryAssetHasPack,
   triggerBlobDownload,
   zipLibraryAssetImages,
 } from "../../lib/libraryAssetZip.js";
@@ -10,7 +11,7 @@ import { LibraryAssetMetadataGrid } from "./LibraryAssetMetadataGrid.jsx";
 import { LibraryAssetReadonlyField } from "./LibraryAssetReadonlyField.jsx";
 
 /**
- * Document asset detail — modal layout: Name + Prompt (copy) | metadata grid.
+ * Document asset detail — modal layout: Name + Script (copy) | metadata grid.
  */
 export function FolderLibraryAssetDetail({
   ownerKind = "document",
@@ -36,7 +37,7 @@ export function FolderLibraryAssetDetail({
   );
   const pendingTag = String(pendingClone?.tag || "").trim();
   const hasPendingClone = Boolean(pendingTag);
-  const downloadable = imageItems.filter((item) => String(item.mediaUrl || "").trim());
+  const canDownload = libraryAssetHasPack(asset, imageItems);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -58,10 +59,10 @@ export function FolderLibraryAssetDetail({
   if (!asset) return null;
 
   const handleDownload = async () => {
-    if (!downloadable.length || downloading) return;
+    if (!canDownload || downloading) return;
     setDownloading(true);
     try {
-      const pack = await zipLibraryAssetImages(asset, downloadable);
+      const pack = await zipLibraryAssetImages(asset, imageItems);
       if (!pack) return;
       triggerBlobDownload(pack.blob, pack.filename);
     } finally {
@@ -149,7 +150,7 @@ export function FolderLibraryAssetDetail({
               type="button"
               className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
               onClick={handleDownload}
-              disabled={!downloadable.length || downloading}
+              disabled={!canDownload || downloading}
             >
               {downloading
                 ? t("doc.library.downloading")
