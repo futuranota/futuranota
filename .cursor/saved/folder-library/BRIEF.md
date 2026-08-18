@@ -107,7 +107,7 @@ Legacy video fichas no longer appear in folder tabs (create/filter retired).
 - Edit on cell + detail header → `FolderLibraryElementModal`
 - Detail: tag, Prompt \| Image, copy prompt, download WebP
 - Placeholders EN/ES for prompt: describe the image you want to generate
-- `--text--` in the document editor opens name + prompt capture. Destination group: **Prompt & Image** (loose image ficha) or **Asset** (pick an existing set, empty first). Copy on the captured prompt. Save opens Image detail or Asset detail.
+- `--text--` in the document editor opens name + prompt capture. Destination group: **Prompt & Image** (loose image ficha) or **Asset** (double-click existing to insert without Name; **Insert new** reveals Name and `createLibrarySet`). Copy on the captured prompt. Save / double-click opens Image or Asset detail.
 
 ## Atelier / wall color (Image + Video live)
 

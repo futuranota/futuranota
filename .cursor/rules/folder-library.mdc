@@ -14,7 +14,7 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 - **`[+]` menu (folder + document):** Attachments · Image (not blind create into current tab). Assets tab `[+]` creates an **asset**.
 - **Tabs:** folder Images · Attachments. **Document:** Assets · Images · Attachments.
 - **Image:** tag + **Prompt** + optional WebP; detail switch + copy prompt + download; **wallColor** on preview pane.
-- **`--prompt--` capture** in the document editor: name the ficha, choose **Prompt & Image** (loose) or an existing **Asset**, save, then open that detail.
+- **`--prompt--` capture** in the document editor: name the ficha, choose **Prompt & Image** (loose) or **Asset** (double-click existing, or Insert new). Save opens that detail.
 - **Attachments** (category `skill` / `pdf`): tag + description + downloadable file; open → Download.
 - **Video create retired** — no Video in `[+]` or tabs (legacy `video` fichas may still open from All).
 - **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle only if a child doc has fichas (subfolder per doc).

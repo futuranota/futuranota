@@ -18891,6 +18891,28 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.library-capture-insert {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.library-capture-insert:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+.library-capture-insert.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
 @media (max-width: 640px) {
   .folder-library-element-modal__body {
     grid-template-columns: 1fr;
