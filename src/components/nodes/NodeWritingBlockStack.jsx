@@ -15,7 +15,9 @@ import {
   mergeLibraryNameRefBlocks,
 } from "../../lib/docLibraryNameRefs.js";
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
-import { useLibraryItems } from "../../hooks/useLibraryItems.js";
+import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
+import { mergeAssignFiles } from "../../lib/libraryAssignPath.js";
+import { assignLibraryItemToSet, createLibraryItem } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
@@ -281,6 +283,7 @@ export function NodeWritingBlockStack({
   slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
   libraryOwnerKind = "document",
   libraryOwnerId = "",
+  folderLibraryId = "",
   onLibrarySlashAction = null,
 }) {
   const { t } = useI18n();
@@ -303,6 +306,8 @@ export function NodeWritingBlockStack({
   const urlTableEntries = useUrlTableStore((s) => s.entries);
   const urlTables = useUrlTablesStore((s) => s.tables);
   const libraryItems = useLibraryItems(libraryOwnerKind, libraryOwnerId);
+  const folderLibraryItems = useLibraryItems("folder", folderLibraryId);
+  const librarySets = useLibrarySets(libraryOwnerKind, libraryOwnerId);
   const mentionCandidates = useMemo(() => {
     if (!companyObjectId) return null;
     const titleById = new Map(
@@ -327,6 +332,46 @@ export function NodeWritingBlockStack({
         setId: item.setId ?? null,
       }));
   }, [libraryItems, libraryOwnerId, libraryOwnerKind]);
+  const libraryAssignFiles = useMemo(() => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
+    const tagged = (items) => items.filter((item) => String(item?.tag || "").trim());
+    return mergeAssignFiles(tagged(libraryItems), tagged(folderLibraryItems));
+  }, [folderLibraryItems, libraryItems, libraryOwnerId, libraryOwnerKind]);
+  const libraryAssignAssets = useMemo(() => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId) return null;
+    return librarySets.filter((set) => String(set?.tag || "").trim());
+  }, [libraryOwnerId, libraryOwnerKind, librarySets]);
+
+  const handleLibraryAssignSelect = useCallback(async (file, asset) => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId || !file || !asset) return;
+    const fileTag = String(file.tag || "").trim();
+    const assetTag = String(asset.tag || "").trim();
+    const ok = await askConfirm({
+      title: t("doc.library.assignPathTitle"),
+      message: t("doc.library.assignPathMessage", { file: fileTag, asset: assetTag }),
+      confirmLabel: t("doc.library.assignPathConfirm"),
+      cancelLabel: t("common.cancel"),
+      tone: "default",
+    });
+    if (!ok) return;
+    if (file.sourceKind === "folder") {
+      createLibraryItem("document", libraryOwnerId, {
+        tag: fileTag,
+        description: file.description || "",
+        category: file.category,
+        mediaUrl: file.mediaUrl,
+        attachmentUrl: file.attachmentUrl,
+        attachmentName: file.attachmentName,
+        attachmentKind: file.attachmentKind,
+        wallColor: file.wallColor,
+        setId: asset.id,
+      });
+    } else if (file.id) {
+      assignLibraryItemToSet("document", libraryOwnerId, file.id, asset.id);
+    }
+    if (asset.id) setSavedPromptAssetId(asset.id);
+  }, [askConfirm, libraryOwnerId, libraryOwnerKind, t]);
+
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
   }, [onBlocksChange]);
@@ -1404,6 +1449,9 @@ export function NodeWritingBlockStack({
                 tagRefs={block.tagRefs || []}
                 libraryNameRefs={block.libraryNameRefs || []}
                 libraryNameCandidates={libraryNameCandidates}
+                libraryAssignFiles={libraryAssignFiles}
+                libraryAssignAssets={libraryAssignAssets}
+                onLibraryAssignSelect={handleLibraryAssignSelect}
                 mentionCandidates={mentionCandidates}
                 companyObjectId={companyObjectId}
                 markerRanges={block.markerRanges || []}
@@ -1460,6 +1508,9 @@ export function NodeWritingBlockStack({
                   tagRefs={block.tagRefs || []}
                   libraryNameRefs={block.libraryNameRefs || []}
                   libraryNameCandidates={libraryNameCandidates}
+                  libraryAssignFiles={libraryAssignFiles}
+                  libraryAssignAssets={libraryAssignAssets}
+                  onLibraryAssignSelect={handleLibraryAssignSelect}
                   mentionCandidates={mentionCandidates}
                   companyObjectId={companyObjectId}
                   markerRanges={block.markerRanges || []}

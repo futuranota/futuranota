@@ -18,7 +18,7 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 - **Attachments** (category `skill` / `pdf`): tag + description + downloadable file; open → Download.
 - **Video create retired** — no Video in `[+]` or tabs (legacy `video` fichas may still open from All).
 - **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle only if a child doc has fichas (subfolder per doc).
-- **Document assets (live):** `#i` creates an asset (name + **Prompt**, metadata grid preview). Open asset = modal read-only (Name/Prompt copy + adaptive metadata cards, no thumbs). Zip download of image set. `#o` opens Library on **Assets**. `[+]` while an asset is open adds an Image ficha into it. Images/Attachments = loose fichas. Story = document body. Image **Name** invoke in prose is live (autocomplete + slight bold, not a link). Dotted `name.folder` is later. Moodboard `#` tags in writing are retired so `#` is reserved for I/O.
+- **Document assets (live):** `#i` creates an asset (name + **Prompt**, metadata grid preview). Open asset = modal read-only (Name/Prompt copy + adaptive metadata cards, no thumbs). Zip download of image set. `#o` opens Library on **Assets**. `[+]` while an asset is open adds an Image ficha into it. Images/Attachments = loose fichas. Story = document body. Image **Name** invoke in prose is live (autocomplete + slight bold, not a link). Dotted `ficha.asset` assigns an existing ficha into a document asset (confirm; folder fichas are copied). Moodboard `#` tags in writing are retired so `#` is reserved for I/O.
 - Bytes → `doc-images`. Metadatos → `campaigns.library_items` (folder) · `nodes.library_items` + `nodes.library_sets` (document).
 
 ## Gina
@@ -29,7 +29,6 @@ Live corpus — remember/show fichas in day chat. LIVE CORPUS ONLY.
 
 - Convert skill/attachment uploads to WebP
 - Port AI Multi-Modal generation
-- Mix folder fichas into a document owner (group, don’t copy)
+- Mix folder fichas into a document owner without an explicit copy (dotted assign copies folder → document)
 - Reintroduce Video create unless product asks again
 - Put assets/sets on the folder, or treat `#i` `#o` as heading/image blocks
-- Wire `.asset-name` dotted path (`name.folder`) in the document body until that slice is scheduled

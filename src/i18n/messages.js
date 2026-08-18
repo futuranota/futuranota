@@ -316,6 +316,9 @@ export const messages = {
         assetOpenAria: "Open asset {title}",
         assetCount: "{count} items",
         assetBack: "Back",
+        assignPathTitle: "Insert into asset",
+        assignPathMessage: "Insert “{file}” into “{asset}”?",
+        assignPathConfirm: "Insert",
       },
       blockDelete: {
         title: "Delete block",
@@ -1788,6 +1791,9 @@ export const messages = {
         assetOpenAria: "Abrir asset {title}",
         assetCount: "{count} elementos",
         assetBack: "Volver",
+        assignPathTitle: "Insertar en asset",
+        assignPathMessage: "¿Insertar “{file}” en “{asset}”?",
+        assignPathConfirm: "Insertar",
       },
       blockDelete: {
         title: "Eliminar bloque",

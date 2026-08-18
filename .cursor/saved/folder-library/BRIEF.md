@@ -27,7 +27,7 @@ The folder **groups** document fichas; it does not copy them.
 
 ## Document assets (`#i` input · `#o` output) — live
 
-Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose = later.
+Assets live **only on the document** (node), not on the folder. Copy: **assets** (internal `librarySets` / `setId`). The **story** is the document body — not a field on the asset. Invoking `.asset-name` in prose assigns a ficha into a document asset (`ficha.asset`).
 
 - **`#i`** — Name + **Prompt**. Right pane = 4 static **IMG** SVG cards (no upload). Saves `createLibrarySet` only.
 - Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds an Image ficha into the set.
@@ -36,8 +36,9 @@ Assets live **only on the document** (node), not on the folder. Copy: **assets**
 - Assets tab: `assets.svg` + “Assets”. Rows = assets with `Folders.svg` + name + count.
 - Images / Attachments = **loose** fichas (`setId` null). `[+]` on Assets creates an asset; `[+]` while the asset detail is open adds Image into it.
 - Unsaved document → same message as `-- --` capture.
-- Out of this slice: `.asset-name` dotted path (`name.folder`), reuse folder→doc, `--script--`.
+- Out of this slice: reuse folder→doc as a dedicated flow, `--script--`.
 - **Name invoke (live):** typing a prefix of an image ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
+- **Dotted assign path (live):** `ficha.asset` in the document body. Autocomplete only existing names. Files = document library + folder library (document tag wins). Destination = document assets only. Enter → confirm → assign `setId` (folder fichas are **copied** onto the document). Does **not** clone a card named after the asset.
 
 ```
 librarySets: [{ id, tag, description, createdAt, updatedAt }]  // UI: assets
@@ -148,5 +149,5 @@ Legacy video fichas no longer appear in folder tabs (create/filter retired).
 6. PDF-specific polish / FileCard thumbs polish
 7. ~~Document sub-library (overlay + Folder/Docs toggle)~~
 8. ~~Document sets `/i` `/o`~~ → **assets** + `#i` `#o` + Assets tab (create queue live)
-9. later: invoke `.asset-name` dotted path · reuse main · `--script--` · mini strip · Atelier extras · Gina library tools · @tag
-   Name invoke in prose (bold + autocomplete of image Names) is live.  
+9. later: reuse main · `--script--` · mini strip · Atelier extras · Gina library tools · @tag
+   Name invoke in prose (bold + autocomplete of image Names) is live. Dotted `ficha.asset` assign is live.  
