@@ -63,9 +63,17 @@ function formatBadge(item) {
   if (item.attachmentKind) return String(item.attachmentKind).toUpperCase().slice(0, 6);
   if (item.category === "pdf") return "PDF";
   if (item.category === "skill") return "FILE";
-  if (item.category === "image") return "IMG";
+  if (item.category === "image") return "TXT";
   if (item.category === "video") return "VIDEO";
   return "FILE";
+}
+
+function isPromptFicha(item) {
+  return item?.category === "image" || item?.category === "auto";
+}
+
+function promptPreviewText(item) {
+  return String(item?.description || "").trim();
 }
 
 /**
@@ -364,7 +372,11 @@ export function FolderLibraryOverlay({
               onClick={() => openItem(item)}
               title={item.tag}
             >
-              {item.mediaUrl && item.category === "image" ? (
+              {isPromptFicha(item) ? (
+                <span className="folder-library-overlay__cell-prompt">
+                  {promptPreviewText(item)}
+                </span>
+              ) : item.mediaUrl && item.category === "video" ? (
                 <img
                   className="folder-library-overlay__cell-img"
                   src={item.mediaUrl}
@@ -549,6 +561,15 @@ export function FolderLibraryOverlay({
                         {t("doc.library.subfolderCount").replace("{count}", String(group.items.length))}
                       </span>
                     </span>
+                    {group.items.filter(isPromptFicha).length > 0 ? (
+                      <span className="folder-library-overlay__subfolder-previews" aria-hidden>
+                        {group.items.filter(isPromptFicha).slice(0, 3).map((item) => (
+                          <span key={item.id} className="folder-library-overlay__mini-prompt">
+                            {promptPreviewText(item)}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </button>
                 </li>
               ))}

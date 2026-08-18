@@ -10,9 +10,7 @@ import { generateId } from "../../lib/ids.js";
 import {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
-  PROMPT_CLASS_AMBIENTE,
   createLibraryItem,
-  isPromptClassAmbiente,
   normalizeFolderLibraryCategory,
   normalizeLibraryOwnerKind,
   normalizeWallColor,
@@ -52,7 +50,10 @@ export function FolderLibraryElementModal({
   const { t } = useI18n();
   const fileInputRef = useRef(null);
   const promptInfoId = useId();
+  const wallInfoId = useId();
+  const loopTipId = useId();
   const [promptInfoOpen, setPromptInfoOpen] = useState(false);
+  const [wallInfoOpen, setWallInfoOpen] = useState(false);
   const kind = normalizeLibraryOwnerKind(ownerKind);
   const resolvedOwnerId = String(ownerId || folderId || "").trim();
   const uploadScopeId = resolvedOwnerId || (kind === "document" ? "doc-lib" : "folder-lib");
@@ -82,7 +83,6 @@ export function FolderLibraryElementModal({
   const [classesOpen, setClassesOpen] = useState(
     () => Boolean(initialPromptClass(item, defaultPromptClass)),
   );
-
   const isSkillLike = category === "skill" || category === "pdf";
   const isVideoLike = category === "video";
   const showWallColor = category === "image" || category === "video" || category === "auto";
@@ -266,14 +266,16 @@ export function FolderLibraryElementModal({
     seenClasses.add(id);
     classOptions.push({ name: key, label: label || key });
   };
-  pushClass(PROMPT_CLASS_AMBIENTE, t("doc.library.promptClassAmbiente"));
   for (const name of promptClasses) pushClass(name);
-  pushClass(promptClass);
   const fileAccept = isSkillLike
     ? undefined
     : isVideoLike
       ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
       : "image/*";
+  const showMediaPanel = isSkillLike || isVideoLike || Boolean(mediaUrl);
+  const openReferenceUpload = () => {
+    fileInputRef.current?.click();
+  };
 
   return createPortal(
     <div
@@ -292,6 +294,8 @@ export function FolderLibraryElementModal({
         className={
           "folder-library-element-modal"
           + (isVideoLike ? " folder-library-element-modal--video" : "")
+          + (isImageLike && !isSkillLike ? " folder-library-element-modal--prompt" : "")
+          + (isImageLike && !isSkillLike && mediaUrl ? " folder-library-element-modal--with-media" : "")
         }
       >
         <header className="folder-library-element-modal__head">
@@ -381,19 +385,28 @@ export function FolderLibraryElementModal({
             {isImageLike ? (
               <div className="folder-library-element-modal__flag-block">
                 <div className="folder-library-element-modal__flags">
-                  <button
-                    type="button"
-                    className={
-                      "folder-library-element-modal__flag"
-                      + (loop ? " is-active" : "")
-                    }
-                    aria-pressed={loop}
-                    aria-label={t("doc.library.imageLoop")}
-                    title={t("doc.library.imageLoop")}
-                    onClick={() => setLoop((value) => !value)}
-                  >
-                    <img src="/uploads/RepeatOnce.svg" alt="" aria-hidden draggable={false} />
-                  </button>
+                  <span className="folder-library-element-modal__flag-tip-wrap">
+                    <button
+                      type="button"
+                      className={
+                        "folder-library-element-modal__flag folder-library-element-modal__flag--loop"
+                        + (loop ? " is-active" : "")
+                      }
+                      aria-pressed={loop}
+                      aria-label={t("doc.library.imageLoop")}
+                      aria-describedby={loopTipId}
+                      onClick={() => setLoop((value) => !value)}
+                    >
+                      <img src="/uploads/RepeatOnce.svg" alt="" aria-hidden draggable={false} />
+                    </button>
+                    <span
+                      id={loopTipId}
+                      role="tooltip"
+                      className="library-asset-prompt-label__tip folder-library-element-modal__flag-tip"
+                    >
+                      {t("doc.library.imageLoopInfo")}
+                    </span>
+                  </span>
                   <button
                     type="button"
                     className={
@@ -406,6 +419,24 @@ export function FolderLibraryElementModal({
                     onClick={() => setClassesOpen((value) => !value)}
                   >
                     <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      "folder-library-element-modal__flag folder-library-element-modal__flag--image"
+                      + (mediaUrl ? " is-active" : "")
+                    }
+                    aria-pressed={Boolean(mediaUrl)}
+                    aria-label={t("doc.library.addReferenceImage")}
+                    title={t("doc.library.addReferenceImage")}
+                    onClick={openReferenceUpload}
+                    disabled={saving || uploading}
+                  >
+                    <svg viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+                      <rect x="32" y="48" width="192" height="160" rx="16" fill="none" stroke="currentColor" strokeWidth="16" />
+                      <circle cx="92" cy="108" r="20" fill="currentColor" />
+                      <path d="M32 176l52-52 36 36 40-56 64 80" fill="none" stroke="currentColor" strokeWidth="16" strokeLinejoin="round" />
+                    </svg>
                   </button>
                 </div>
                 {classesOpen ? (
@@ -442,9 +473,7 @@ export function FolderLibraryElementModal({
                         }
                         onClick={() => setPromptClass(entry.name)}
                       >
-                        {isPromptClassAmbiente(entry.name) ? (
-                          <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
-                        ) : null}
+                        <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
                         {entry.label}
                       </button>
                     ))}
@@ -471,7 +500,11 @@ export function FolderLibraryElementModal({
             ) : null}
           </div>
 
-          <div className="folder-library-element-modal__media">
+          {showMediaPanel ? (
+          <div className={
+            "folder-library-element-modal__media"
+            + (isImageLike && !isSkillLike ? " folder-library-element-modal__media--ref" : "")
+          }>
             <button
               type="button"
               className={
@@ -557,9 +590,43 @@ export function FolderLibraryElementModal({
             </button>
             {showWallColor ? (
               <div className="folder-library-element-modal__field folder-library-element-modal__field--wall">
-                <span className="folder-library-element-modal__label">
-                  {t("doc.library.wallColorLabel")}
-                </span>
+                <div className="library-asset-prompt-label">
+                  <span className="folder-library-element-modal__label library-asset-prompt-label__text">
+                    {t("doc.library.wallColorLabel")}
+                  </span>
+                  <span className="library-asset-prompt-label__info-wrap">
+                    <button
+                      type="button"
+                      className="library-asset-prompt-label__info"
+                      aria-label={t("doc.library.wallColorInfoAria")}
+                      aria-expanded={wallInfoOpen}
+                      aria-describedby={wallInfoOpen ? wallInfoId : undefined}
+                      onClick={() => setWallInfoOpen((value) => !value)}
+                      onBlur={(event) => {
+                        if (!event.currentTarget.parentElement?.contains(event.relatedTarget)) {
+                          setWallInfoOpen(false);
+                        }
+                      }}
+                    >
+                      <img
+                        src="/uploads/Info%201.svg"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                      />
+                    </button>
+                    <span
+                      id={wallInfoId}
+                      role="tooltip"
+                      className={
+                        "library-asset-prompt-label__tip library-asset-prompt-label__tip--sm"
+                        + (wallInfoOpen ? " is-open" : "")
+                      }
+                    >
+                      {t("doc.library.wallColorHint")}
+                    </span>
+                  </span>
+                </div>
                 <div className="folder-library-element-modal__wall-row">
                   <input
                     type="color"
@@ -595,9 +662,6 @@ export function FolderLibraryElementModal({
                     {t("doc.library.wallColorApply")}
                   </button>
                 </div>
-                <span className="folder-library-element-modal__wall-hint">
-                  {t("doc.library.wallColorHint")}
-                </span>
               </div>
             ) : null}
             {isSkillLike && attachmentUrl ? (
@@ -622,6 +686,8 @@ export function FolderLibraryElementModal({
                 {isVideoLike ? t("doc.library.removeVideo") : t("doc.library.removeMedia")}
               </button>
             ) : null}
+          </div>
+          ) : null}
             <input
               ref={fileInputRef}
               type="file"
@@ -629,7 +695,6 @@ export function FolderLibraryElementModal({
               hidden
               onChange={(e) => handleFiles(e.target.files)}
             />
-          </div>
         </div>
 
         {error ? (

@@ -92,7 +92,7 @@ Owner-level **`promptClasses`**: named chips for the Prompt tab (`campaigns.prom
 
 ### Prompt (live)
 
-- Create/edit: tag + **Prompt** (copy) + optional upload **reference image → WebP** + Loop toggle + objects toggle (class chips)
+- Create/edit: tag + **Prompt** (copy) + optional reference image via bottom image button (not a side column) + Loop toggle + objects toggle (class chips). Grid / Docs files illustrate the prompt text.
 - Open: detail — tag, Prompt \| Image switch, copy prompt, download WebP
 - Capture from document body: `--prompt text--` → name modal → ficha without image
 - Grid: real thumb or IMG badge; optional class label. Filter chips classify the same grid (not folders).
