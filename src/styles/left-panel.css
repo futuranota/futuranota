@@ -17331,6 +17331,10 @@ body.doc-content-resizing * {
 }
 
 .folder-library-overlay__scope-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
   border-radius: 7px;
   padding: 7px 10px;
@@ -17339,6 +17343,18 @@ body.doc-content-resizing * {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.folder-library-overlay__scope-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: brightness(0) invert(0.55);
+}
+
+.folder-library-overlay__scope-btn.is-active .folder-library-overlay__scope-icon {
+  filter: brightness(0) invert(0.95);
 }
 
 .folder-library-overlay__scope-btn:hover {
@@ -17431,7 +17447,7 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.folder-library-overlay__tab--documents {
+.folder-library-overlay__tab--with-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -17448,14 +17464,6 @@ body.doc-content-resizing * {
 
 .folder-library-overlay__tab.is-active .folder-library-overlay__tab-icon {
   filter: brightness(0) invert(0.95);
-}
-
-.folder-library-overlay__tab-info {
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
-  object-fit: contain;
-  opacity: 0.75;
 }
 
 .folder-library-overlay__empty {
@@ -18143,6 +18151,39 @@ body.doc-content-resizing * {
   cursor: default;
 }
 
+.folder-library-asset-detail {
+  z-index: 1214;
+}
+
+.folder-library-asset-detail__image {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.folder-library-asset-detail__queue {
+  min-height: 0;
+}
+
+.library-asset-queue__slot--hit {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.folder-library-asset-detail__thumb {
+  display: block;
+  width: 100%;
+  height: 88px;
+  object-fit: cover;
+}
+
 .folder-library-video-detail {
   position: fixed;
   inset: 0;
@@ -18822,12 +18863,11 @@ body.doc-content-resizing * {
   border: 1px dashed rgba(255, 255, 255, 0.16);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
 }
 
-.library-asset-queue.is-dragover {
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.08);
+.library-asset-queue--preview {
+  pointer-events: none;
+  user-select: none;
 }
 
 .library-asset-queue__slot {
@@ -18841,6 +18881,15 @@ body.doc-content-resizing * {
 
 .library-asset-queue__slot .folder-library-overlay__cell-badge {
   padding-bottom: 18px;
+  justify-content: space-between;
+}
+
+.library-asset-queue__mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .library-asset-queue__thumb {

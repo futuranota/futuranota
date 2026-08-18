@@ -120,11 +120,12 @@ describe("folderLibrary normalize", () => {
     expect(sets[0].description).toBe("Story");
   });
 
-  it("normalizeFolderLibraryFilterTab maps documents and legacy all", () => {
+  it("normalizeFolderLibraryFilterTab maps documents and legacy all to image", () => {
     expect(normalizeFolderLibraryFilterTab("documents")).toBe("documents");
     expect(normalizeFolderLibraryFilterTab("docs")).toBe("documents");
     expect(normalizeFolderLibraryFilterTab("image")).toBe("image");
-    expect(normalizeFolderLibraryFilterTab("all")).toBe("all");
+    expect(normalizeFolderLibraryFilterTab("all")).toBe("image");
+    expect(normalizeFolderLibraryFilterTab("video")).toBe("image");
   });
 });
 
