@@ -539,40 +539,49 @@ export function FolderLibraryOverlay({
           ) : null}
 
           {showingDocsIndex ? (
-            <ul className="folder-library-overlay__subfolders">
-              {docGroups.map((group) => (
-                <li key={group.documentId}>
-                  <button
-                    type="button"
-                    className="folder-library-overlay__subfolder"
-                    onClick={() => setFocusedDocumentId(group.documentId)}
-                    aria-label={t("doc.library.openDocAria").replace("{title}", group.title)}
-                  >
-                    <img
-                      className="folder-library-overlay__subfolder-icon"
-                      src="/uploads/File.svg"
-                      alt=""
-                      aria-hidden
-                      draggable={false}
-                    />
-                    <span className="folder-library-overlay__subfolder-meta">
-                      <span className="folder-library-overlay__subfolder-title">{group.title}</span>
-                      <span className="folder-library-overlay__subfolder-count">
-                        {t("doc.library.subfolderCount").replace("{count}", String(group.items.length))}
+            <ul className="folder-library-overlay__grid">
+              {docGroups.map((group) => {
+                const previews = group.items.filter(isPromptFicha).slice(0, 4);
+                return (
+                  <li key={group.documentId} className="folder-library-overlay__cell folder-library-overlay__cell--doc">
+                    <button
+                      type="button"
+                      className="folder-library-overlay__cell-main"
+                      onClick={() => setFocusedDocumentId(group.documentId)}
+                      aria-label={t("doc.library.openDocAria").replace("{title}", group.title)}
+                    >
+                      <span
+                        className={
+                          "folder-library-overlay__doc-square"
+                          + (previews.length === 0 ? " is-empty" : "")
+                        }
+                        aria-hidden
+                      >
+                        {previews.length > 0 ? (
+                          previews.map((item) => (
+                            <span key={item.id} className="folder-library-overlay__mini-prompt">
+                              {promptPreviewText(item)}
+                            </span>
+                          ))
+                        ) : (
+                          <img
+                            className="folder-library-overlay__doc-square-icon"
+                            src="/uploads/File.svg"
+                            alt=""
+                            draggable={false}
+                          />
+                        )}
                       </span>
-                    </span>
-                    {group.items.filter(isPromptFicha).length > 0 ? (
-                      <span className="folder-library-overlay__subfolder-previews" aria-hidden>
-                        {group.items.filter(isPromptFicha).slice(0, 3).map((item) => (
-                          <span key={item.id} className="folder-library-overlay__mini-prompt">
-                            {promptPreviewText(item)}
-                          </span>
-                        ))}
+                      <span className="folder-library-overlay__cell-meta">
+                        <span className="folder-library-overlay__cell-tag">{group.title}</span>
+                        <span className="folder-library-overlay__cell-class">
+                          {t("doc.library.subfolderCount").replace("{count}", String(group.items.length))}
+                        </span>
                       </span>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <>
@@ -588,12 +597,19 @@ export function FolderLibraryOverlay({
                       role="tab"
                       aria-selected={filterTab === "documents"}
                       className={
-                        "folder-library-overlay__tab"
+                        "folder-library-overlay__tab folder-library-overlay__tab--with-icon"
                         + (filterTab === "documents" ? " is-active" : "")
                       }
                       onClick={() => setFilter("documents")}
                     >
-                      {t("doc.library.tabDocuments")}
+                      <img
+                        className="folder-library-overlay__tab-icon"
+                        src="/uploads/TreeStructure.svg"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                      />
+                      <span>{t("doc.library.tabDocuments")}</span>
                     </button>
                   ) : null}
                   <button

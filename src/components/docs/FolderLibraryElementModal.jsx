@@ -411,14 +411,22 @@ export function FolderLibraryElementModal({
                     type="button"
                     className={
                       "folder-library-element-modal__flag"
+                      + (promptClass ? " folder-library-element-modal__flag--class" : "")
                       + (classesOpen || promptClass ? " is-active" : "")
                     }
                     aria-pressed={classesOpen}
-                    aria-label={t("doc.library.promptClassAria")}
-                    title={t("doc.library.promptClassAria")}
+                    aria-label={
+                      promptClass
+                        ? `${t("doc.library.promptClassAria")}: ${promptClass}`
+                        : t("doc.library.promptClassAria")
+                    }
+                    title={promptClass || t("doc.library.promptClassAria")}
                     onClick={() => setClassesOpen((value) => !value)}
                   >
                     <img src="/uploads/objects.svg" alt="" aria-hidden draggable={false} />
+                    {promptClass ? (
+                      <span className="folder-library-element-modal__flag-name">{promptClass}</span>
+                    ) : null}
                   </button>
                   <button
                     type="button"
