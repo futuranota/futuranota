@@ -1,5 +1,10 @@
 import { categoriesMatch } from "./docListGrouping.js";
 import { sortDocsBySidebarOrder } from "./folderSidebarOrder.js";
+import {
+  DOC_BLOCK_TYPES,
+  docBlocksFromBody,
+  normalizeDocBlocks,
+} from "./docBlocks.js";
 
 /** Document kind: product, content/campaign, global knowledge corpus, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
@@ -31,6 +36,15 @@ export function isTemplateDoc(doc) {
 
 export function isKnowledgeDoc(doc) {
   return doc?.docKind === DOC_KIND_KNOWLEDGE;
+}
+
+/** Dedicated Step by step library doc — one step_sequence block, not a folder. */
+export function isDedicatedStepPlaybookDoc(doc) {
+  if (!doc) return false;
+  const blocks = Array.isArray(doc.blocks) && doc.blocks.length
+    ? normalizeDocBlocks(doc.blocks)
+    : docBlocksFromBody(doc.body || doc.content || "");
+  return blocks.length === 1 && blocks[0]?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE;
 }
 
 export function isProductDoc(doc) {
@@ -117,6 +131,7 @@ function siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
   return Object.values(allDocs || {})
     .filter((doc) => doc.parentObjectId === parentObjectId)
     .filter((doc) => !isTemplateDoc(doc))
+    .filter((doc) => !isDedicatedStepPlaybookDoc(doc))
     .filter((doc) => doc.id !== excludeDocId);
 }
 

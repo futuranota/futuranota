@@ -10,7 +10,7 @@ import {
   removeBlockAt,
   stepEntryHasContent,
 } from "./docBlocks.js";
-import { resolveDocKind } from "./templateDoc.js";
+import { isDedicatedStepPlaybookDoc, resolveDocKind } from "./templateDoc.js";
 
 const PREVIEW_MAX = 120;
 
@@ -151,8 +151,7 @@ export function removeStepPlaybookFromDoc(playbook, doc, updateDoc, deleteDoc) {
   const blockIndex = blocks.findIndex((block) => block.id === playbook.blockId);
   if (blockIndex < 0) return { docRemoved: false };
 
-  const isDedicatedDoc = blocks.length === 1
-    && blocks[0]?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE;
+  const isDedicatedDoc = isDedicatedStepPlaybookDoc(doc);
 
   if (isDedicatedDoc) {
     deleteDoc(doc.id);
