@@ -879,23 +879,6 @@
   overflow: visible;
 }
 
-.step-playbook-dashboard-overlay__body .doc-step-recipe__meta-text,
-.step-playbook-dashboard-overlay__body .doc-step-recipe__textarea--meta {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: #e8e4dc;
-}
-
-.step-playbook-dashboard-overlay__body .doc-step-recipe__prompt-text,
-.step-playbook-dashboard-overlay__body .doc-step-recipe__textarea--prompt,
-.step-playbook-dashboard-overlay__body .doc-step-recipe__md {
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.4;
-  color: rgba(232, 220, 200, 0.5);
-}
-
 .step-playbook-dashboard-overlay__body .doc-step-sequence__step-badge {
   padding: 0;
   border: none;

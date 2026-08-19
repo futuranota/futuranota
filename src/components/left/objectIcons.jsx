@@ -35,7 +35,7 @@ export function createPlaceholderImage({
 }
 
 export const OBJECT_THUMB_SRC = "/uploads/new-company.svg";
-export const OBJECT_GUEST_THUMB_SRC = "/uploads/botones/object.svg";
+export const OBJECT_GUEST_THUMB_SRC = "/uploads/box-closed.svg";
 
 export function ObjectIcon({ variant = "md", className = "" }) {
   const src = variant === "sm" ? CUBE_SMALL_SRC : CUBE_M_SRC;

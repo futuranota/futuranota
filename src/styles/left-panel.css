@@ -7807,7 +7807,7 @@ body.doc-content-resizing * {
 
 .doc-step-recipe {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(0, calc(40% + 20px)) minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
   min-height: 280px;
@@ -8089,7 +8089,7 @@ body.doc-content-resizing * {
 }
 
 .doc-step-recipe__field-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -8168,16 +8168,18 @@ body.doc-content-resizing * {
 .doc-step-recipe__textarea--prompt {
   min-height: 140px;
   padding: 36px 12px 40px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.48);
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: rgba(232, 220, 200, 0.78);
 }
 
 .doc-step-recipe__textarea {
   resize: none;
   font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.5;
   padding: 10px 12px;
 }
 
@@ -8189,9 +8191,9 @@ body.doc-content-resizing * {
   background: transparent;
   padding-left: 0;
   padding-right: 0;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.5;
   color: #e8e4dc;
 }
 
@@ -8211,28 +8213,31 @@ body.doc-content-resizing * {
   border: none;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
+  font-family: var(--sans);
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.5;
   color: #e8e4dc;
 }
 
 .doc-step-recipe__prompt-text,
 .doc-step-recipe__md {
   overflow: auto;
-  font-size: 12px;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
   padding: 36px 12px 40px;
   min-height: 140px;
   height: 100%;
   max-height: none;
-  color: rgba(255, 255, 255, 0.48);
+  color: rgba(232, 220, 200, 0.78);
 }
 
 .doc-step-recipe__prompt-text {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .doc-step-recipe__error {
