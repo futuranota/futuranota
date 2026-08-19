@@ -30,7 +30,7 @@ describe("libraryImageCardPick", () => {
       libraryOwnerKind: "folder",
       libraryPrompt: "Gina comienza a caminar por el pasillo",
       libraryTag: "gina_hall",
-      mediaFace: "image",
+      mediaFace: "prompt",
       imageSaved: true,
     });
     expect(patch.body).toBeUndefined();
@@ -49,6 +49,18 @@ describe("libraryImageCardPick", () => {
     expect(patch.mediaFace).toBe("prompt");
     expect(patch.libraryPrompt).toBe("invitation gesture");
     expect(imageSplitHasFill(patch)).toBe(true);
+  });
+
+  it("photo-only fichas land on the Image face so Prompt can be written", () => {
+    const patch = libraryItemToImageSplitPatch({
+      id: "lib3",
+      tag: "still",
+      category: "image",
+      mediaUrl: "/still.webp",
+    }, "document");
+    expect(patch.mediaFace).toBe("image");
+    expect(patch.libraryPrompt).toBe("");
+    expect(patch.imageSaved).toBe(true);
   });
 
   it("empty card is not filled", () => {

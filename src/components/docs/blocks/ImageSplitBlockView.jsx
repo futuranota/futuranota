@@ -187,7 +187,6 @@ export function ImageSplitBlockView({
   onSave,
   onEdit,
   onDelete,
-  onConvertLayout,
   onBodyKeyDown,
   onBodyFocus,
   autoFocusBody = false,
@@ -230,12 +229,12 @@ export function ImageSplitBlockView({
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const libraryPrompt = String(block?.libraryPrompt || "");
   const hasLibraryPrompt = Boolean(libraryPrompt.trim());
-  const mediaFace = block?.mediaFace === "prompt" && hasLibraryPrompt
+  const mediaFace = block?.mediaFace === "prompt" && (hasLibraryPrompt || imageSaved)
     ? "prompt"
     : (imageSaved ? "image" : (hasLibraryPrompt ? "prompt" : "image"));
-  const showFaceSwitch = imageSaved && hasLibraryPrompt;
+  const showFaceSwitch = imageSaved;
   const showingImage = mediaFace === "image" && imageSaved;
-  const showingPrompt = mediaFace === "prompt" && hasLibraryPrompt;
+  const showingPrompt = mediaFace === "prompt" && (hasLibraryPrompt || imageSaved);
   const cardFilled = imageSplitHasFill(block);
   const splitSaved = Boolean(block?.splitSaved && cardFilled);
   const isEdit = !splitSaved;
@@ -931,6 +930,64 @@ export function ImageSplitBlockView({
     );
   };
 
+  const renderMediaBar = ({ showSources = true } = {}) => (
+    <div className="doc-image-split__media-actions">
+      {isEdit ? (
+        <button
+          type="button"
+          className="doc-image-split__media-btn doc-image-split__media-btn--save"
+          disabled={!canSave}
+          onClick={() => {
+            if (!canSave) return;
+            onSave?.();
+          }}
+        >
+          {t("doc.imageSplit.save")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="doc-image-split__media-btn"
+          onClick={() => onEdit?.()}
+        >
+          {t("doc.imageSplit.edit")}
+        </button>
+      )}
+      <div className="doc-image-split__media-actions-end">
+        {isEdit && showSources ? (
+          <>
+            <button
+              type="button"
+              className="doc-image-split__media-btn"
+              onClick={() => setLibraryPickerOpen(true)}
+              disabled={uploading}
+            >
+              {t("doc.imageSplit.pickLibrary")}
+            </button>
+            <button
+              type="button"
+              className="doc-image-split__media-btn"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? t("doc.imageBlock.uploading") : t("doc.imageSplit.pickComputer")}
+            </button>
+          </>
+        ) : null}
+        {isEdit && onDelete ? (
+          <button
+            type="button"
+            className="doc-image-split__media-btn"
+            onClick={handleRemoveBlock}
+            disabled={uploading}
+          >
+            {t("doc.imageBlock.remove")}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <div className={"doc-image-split" + (splitSaved ? " doc-image-split--saved" : "")}>
       <input
@@ -946,7 +1003,11 @@ export function ImageSplitBlockView({
           {showingImage ? (
             <div className="doc-image-split__media">
               {showFaceSwitch ? (
-                <div className="doc-image-split__face-switch" role="tablist" aria-label={t("doc.library.viewSwitchAria")}>
+                <div
+                  className="doc-image-split__face-switch doc-image-split__face-switch--on-image"
+                  role="tablist"
+                  aria-label={t("doc.library.viewSwitchAria")}
+                >
                   <button
                     type="button"
                     role="tab"
@@ -975,41 +1036,16 @@ export function ImageSplitBlockView({
                 height={block.height || undefined}
                 draggable={false}
               />
-              {isEdit ? (
-                <div className="doc-image-split__media-actions">
-                  <button
-                    type="button"
-                    className="doc-image-split__media-btn"
-                    onClick={() => setLibraryPickerOpen(true)}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageSplit.pickLibrary")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-image-split__media-btn"
-                    onClick={() => inputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageSplit.pickComputer")}
-                  </button>
-                  {onDelete ? (
-                    <button
-                      type="button"
-                      className="doc-image-split__media-btn"
-                      onClick={handleRemoveBlock}
-                      disabled={uploading}
-                    >
-                      {t("doc.imageBlock.remove")}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              {renderMediaBar()}
             </div>
           ) : showingPrompt ? (
             <div className="doc-image-split__media doc-image-split__media--prompt">
               {showFaceSwitch ? (
-                <div className="doc-image-split__face-switch" role="tablist" aria-label={t("doc.library.viewSwitchAria")}>
+                <div
+                  className="doc-image-split__face-switch doc-image-split__face-switch--ghost"
+                  role="tablist"
+                  aria-label={t("doc.library.viewSwitchAria")}
+                >
                   <button
                     type="button"
                     role="tab"
@@ -1047,36 +1083,7 @@ export function ImageSplitBlockView({
                   {libraryPrompt}
                 </div>
               )}
-              {isEdit ? (
-                <div className="doc-image-split__media-actions">
-                  <button
-                    type="button"
-                    className="doc-image-split__media-btn"
-                    onClick={() => setLibraryPickerOpen(true)}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageSplit.pickLibrary")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-image-split__media-btn"
-                    onClick={() => inputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageSplit.pickComputer")}
-                  </button>
-                  {onDelete ? (
-                    <button
-                      type="button"
-                      className="doc-image-split__media-btn"
-                      onClick={handleRemoveBlock}
-                      disabled={uploading}
-                    >
-                      {t("doc.imageBlock.remove")}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              {renderMediaBar()}
             </div>
           ) : (
             <div className="doc-image-split__media doc-image-split__media--empty">
@@ -1132,53 +1139,9 @@ export function ImageSplitBlockView({
                   {t("doc.imageBlock.uploadHint")}
                 </span>
               </div>
-              {isEdit && onDelete ? (
-                <div className="doc-image-split__media-actions">
-                  <button
-                    type="button"
-                    className="doc-image-split__media-btn"
-                    onClick={handleRemoveBlock}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageBlock.remove")}
-                  </button>
-                </div>
-              ) : null}
+              {renderMediaBar({ showSources: false })}
             </div>
           )}
-
-          <div className="doc-image-split__float-actions">
-            {isEdit ? (
-              <button
-                type="button"
-                className="doc-image-split__save"
-                disabled={!canSave}
-                onClick={() => {
-                  if (!canSave) return;
-                  onSave?.();
-                }}
-              >
-                {t("doc.imageSplit.save")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="doc-image-split__edit"
-                onClick={() => onEdit?.()}
-              >
-                {t("doc.imageSplit.edit")}
-              </button>
-            )}
-            {onConvertLayout ? (
-              <button
-                type="button"
-                className="doc-image-split__switch"
-                onClick={() => onConvertLayout("moodboard")}
-              >
-                {t("doc.layoutSwitch.moodboard")}
-              </button>
-            ) : null}
-          </div>
         </div>
 
         <div className="doc-image-split__side" style={columnStyle}>

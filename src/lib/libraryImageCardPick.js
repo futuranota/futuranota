@@ -51,7 +51,7 @@ export function libraryItemToImageSplitPatch(item, ownerKind = "document") {
     libraryOwnerKind: kind,
     libraryPrompt,
     libraryTag: tag,
-    mediaFace: src ? "image" : "prompt",
+    mediaFace: libraryPrompt.trim() ? "prompt" : "image",
     openFilePicker: false,
     splitSaved: false,
   };
