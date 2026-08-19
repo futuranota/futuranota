@@ -7466,54 +7466,6 @@ body.doc-content-resizing * {
   letter-spacing: 0.04em;
 }
 
-.doc-step-sequence__progress {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-}
-
-.doc-step-sequence__header-aside .doc-step-sequence__progress {
-  margin-right: 2px;
-}
-
-.doc-step-sequence__progress-pill {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--hairline) 80%, transparent);
-  background: transparent;
-  color: var(--dim);
-  font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.doc-step-sequence__progress-pill--visited {
-  border-color: color-mix(in oklab, var(--hud) 25%, var(--hairline));
-  color: var(--text);
-}
-
-.doc-step-sequence__progress-pill--active {
-  border-color: color-mix(in oklab, var(--hud) 45%, var(--glass-border));
-  background: color-mix(in oklab, var(--hud) 16%, var(--panel-2));
-  color: var(--text);
-}
-
-.doc-step-sequence__progress-pill:hover {
-  border-color: color-mix(in oklab, var(--hud) 35%, var(--glass-border));
-}
-
 .doc-step-sequence__hover-actions {
   opacity: 0;
   pointer-events: none;

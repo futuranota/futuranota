@@ -13,8 +13,6 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import { StepRecipeCard } from "./StepRecipeCard.jsx";
 import { StepStepBlocksEditor } from "./StepStepBlocksEditor.jsx";
 
-const BLOCK_LABEL = "Step by step";
-
 const stepVariants = {
   enter: { opacity: 0, x: 40 },
   center: { opacity: 1, x: 0 },
@@ -29,6 +27,7 @@ function StepTitleField({
   blockId = "default",
   inHeader = false,
 }) {
+  const { t } = useI18n();
   const inputRef = useRef(null);
   const inputId = `step-seq-title-${blockId}`;
 
@@ -49,7 +48,7 @@ function StepTitleField({
       inHeader ? "doc-step-sequence__title-wrap--header" : "",
     ].filter(Boolean).join(" ")}>
       <label className="doc-step-sequence__title-label" htmlFor={inputId}>
-        Title
+        {t("doc.stepRecipe.blockLabel")}
       </label>
       <input
         ref={inputRef}
@@ -57,7 +56,7 @@ function StepTitleField({
         type="text"
         className="doc-step-sequence__title-input"
         value={title}
-        placeholder="Untitled guide"
+        placeholder={t("doc.stepRecipe.titlePlaceholder")}
         spellCheck
         onChange={(e) => onTitleChange?.(e.target.value)}
         onKeyDown={stopBubble}
@@ -79,10 +78,11 @@ function StepSequenceHeader({
   onEditRequest,
   displayTitle = "",
 }) {
+  const { t } = useI18n();
   return (
     <div className="doc-step-sequence__header">
       <div className="doc-step-sequence__heading">
-        <span className="doc-step-sequence__label">{BLOCK_LABEL}</span>
+        <span className="doc-step-sequence__label">{t("doc.stepRecipe.blockLabel")}</span>
         {onTitleChange ? (
           <StepTitleField
             title={title}
@@ -107,9 +107,9 @@ function StepSequenceHeader({
                 type="button"
                 className="doc-step-sequence__edit"
                 onClick={onEditRequest}
-                aria-label={`Editar bloque ${BLOCK_LABEL}`}
+                aria-label={t("doc.stepRecipe.edit")}
               >
-                Editar
+                {t("doc.stepRecipe.edit")}
               </button>
             ) : null}
             {onDeleteBlock ? (
@@ -117,9 +117,9 @@ function StepSequenceHeader({
                 type="button"
                 className="doc-step-sequence__delete"
                 onClick={onDeleteBlock}
-                aria-label={`Eliminar bloque ${BLOCK_LABEL}`}
+                aria-label={t("doc.stepRecipe.delete")}
               >
-                Eliminar
+                {t("doc.stepRecipe.delete")}
               </button>
             ) : null}
           </div>
@@ -190,7 +190,6 @@ function SavedStepSequenceView({
                 step={step}
                 readOnly
                 compact={compact}
-                stepNumber={stepNumber}
               />
             ) : (
               <>
@@ -254,15 +253,10 @@ export function StepSequenceBlockView({
   const safeSteps = steps.length ? steps : [createStepEntry()];
   const total = safeSteps.length;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
 
   const stepNumber = Math.min(activeIndex, total - 1) + 1;
   const activeStep = safeSteps[Math.min(activeIndex, total - 1)] ?? safeSteps[0];
   const isLastStep = activeIndex >= total - 1;
-
-  useEffect(() => {
-    setMaxVisitedIndex((prev) => Math.max(prev, activeIndex));
-  }, [activeIndex]);
 
   useEffect(() => {
     if (activeIndex >= total) {
@@ -335,14 +329,6 @@ export function StepSequenceBlockView({
     }
   }, [goNext, handleSave, isLastStep]);
 
-  const goToStep = useCallback((index) => {
-    if (index < 0 || index >= total) return;
-    if (index > 0) {
-      onStepsChange?.(applyTemplateToStep(safeSteps, index));
-    }
-    setActiveIndex(index);
-  }, [applyTemplateToStep, onStepsChange, safeSteps, total]);
-
   if (saved) {
     return (
       <SavedStepSequenceView
@@ -389,14 +375,13 @@ export function StepSequenceBlockView({
                 onChange={updateActiveStepPatch}
                 compact={compact}
                 allowSecondImage
-                stepNumber={stepNumber}
               />
             ) : (
               <>
                 <span className="doc-step-sequence__step-badge">
-                  Step {stepNumber}
+                  {t("doc.stepRecipe.stepOf", { n: stepNumber, total })}
                 </span>
-                <span className="doc-step-sequence__field-label">Instructions</span>
+                <span className="doc-step-sequence__field-label">{t("doc.stepRecipe.instructions")}</span>
                 <StepStepBlocksEditor
                   blocks={activeStep?.blocks}
                   onBlocksChange={updateActiveStepBlocks}
