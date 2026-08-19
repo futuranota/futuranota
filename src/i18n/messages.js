@@ -337,6 +337,9 @@ export const messages = {
         promptClassAdd: "New class",
         promptClassPlaceholder: "classification",
         promptClassAmbiente: "Environment",
+        promptClassDeleteTitle: "Delete classification",
+        promptClassDeleteConfirm: "Delete classification “{name}”? Prompts using it will have no class.",
+        promptClassDeleteAria: "Delete {name}",
       },
       blockDelete: {
         title: "Delete block",
@@ -1830,6 +1833,9 @@ export const messages = {
         promptClassAdd: "Nueva clase",
         promptClassPlaceholder: "clasificacion",
         promptClassAmbiente: "Ambiente",
+        promptClassDeleteTitle: "Eliminar clasificación",
+        promptClassDeleteConfirm: "¿Eliminar la clasificación “{name}”? Los prompts de esta clase quedarán sin clasificar.",
+        promptClassDeleteAria: "Eliminar {name}",
       },
       blockDelete: {
         title: "Eliminar bloque",

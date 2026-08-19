@@ -14,6 +14,7 @@ import {
   listLibrarySets,
   listLooseLibraryItems,
   listPromptClasses,
+  removePromptClass,
   normalizeFolderLibraryItem,
   PROMPT_CLASS_AMBIENTE,
   isPromptClassAmbiente,
@@ -511,5 +512,17 @@ describe("prompt classes", () => {
     expect(addPromptClass("document", "node1", "wardrobe")).toBe("wardrobe");
     expect(listPromptClasses("document", "node1")).toEqual(["wardrobe"]);
     expect(listPromptClasses("folder", "folder1")).toEqual([]);
+  });
+
+  it("removes a class and clears it from fichas", () => {
+    addPromptClass("folder", "folder1", "location");
+    const item = createFolderLibraryItem("folder1", {
+      tag: "set",
+      category: "image",
+      promptClass: "location",
+    });
+    expect(removePromptClass("folder", "folder1", "location")).toBe(true);
+    expect(listPromptClasses("folder", "folder1")).toEqual([]);
+    expect(listFolderLibraryItems("folder1").find((entry) => entry.id === item.id)?.promptClass).toBeNull();
   });
 });

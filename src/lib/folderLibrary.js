@@ -183,6 +183,73 @@ export function addPromptClass(ownerKind, ownerId, name) {
 }
 
 /**
+ * Remove a classification and clear it from fichas that used it.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function removePromptClass(ownerKind, ownerId, name) {
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return false;
+  const stored = readPromptClasses(ownerKind, ownerId).filter(
+    (entry) => entry.toLowerCase() !== target,
+  );
+  const wrote = writePromptClasses(ownerKind, ownerId, stored);
+  const items = listLibraryItems(ownerKind, ownerId);
+  let cleared = false;
+  for (const item of items) {
+    if (String(item.promptClass || "").toLowerCase() !== target) continue;
+    if (updateLibraryItem(ownerKind, ownerId, item.id, { promptClass: null })) {
+      cleared = true;
+    }
+  }
+  return wrote || cleared;
+}
+
+/**
+ * Rename a classification and retarget fichas that used the old name.
+ * @param {LibraryOwnerKind|string} ownerKind
+ * @param {string} ownerId
+ * @param {string} fromName
+ * @param {string} toName
+ * @returns {string|null}
+ */
+export function renamePromptClass(ownerKind, ownerId, fromName, toName) {
+  const fromKey = String(fromName || "").trim().toLowerCase();
+  const nextName = normalizePromptClass(toName);
+  if (!fromKey || !nextName) return null;
+
+  const stored = readPromptClasses(ownerKind, ownerId);
+  const nextStored = [];
+  const seen = new Set();
+  const push = (name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    nextStored.push(name);
+  };
+  let replaced = false;
+  for (const entry of stored) {
+    if (entry.toLowerCase() === fromKey) {
+      push(nextName);
+      replaced = true;
+      continue;
+    }
+    push(entry);
+  }
+  if (!replaced) push(nextName);
+  writePromptClasses(ownerKind, ownerId, nextStored);
+
+  for (const item of listLibraryItems(ownerKind, ownerId)) {
+    if (String(item.promptClass || "").toLowerCase() !== fromKey) continue;
+    if (item.promptClass === nextName) continue;
+    updateLibraryItem(ownerKind, ownerId, item.id, { promptClass: nextName });
+  }
+  return nextName;
+}
+
+/**
  * @param {LibraryOwnerKind|string} ownerKind
  * @param {string} ownerId
  * @param {object} input

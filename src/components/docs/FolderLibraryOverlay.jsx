@@ -16,6 +16,8 @@ import {
   normalizeLibraryOwnerKind,
   removeLibraryItem,
   removeLibrarySet,
+  removePromptClass,
+  renamePromptClass,
 } from "../../lib/folderLibrary.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
@@ -131,7 +133,10 @@ export function FolderLibraryOverlay({
   const [promptClassFilter, setPromptClassFilter] = useState("");
   const [classDraftOpen, setClassDraftOpen] = useState(false);
   const [classDraft, setClassDraft] = useState("");
+  const [editingClass, setEditingClass] = useState("");
+  const [classEditDraft, setClassEditDraft] = useState("");
   const classDraftRef = useRef(null);
+  const classEditRef = useRef(null);
 
   useEffect(() => {
     if (requestedTab) {
@@ -303,6 +308,25 @@ export function FolderLibraryOverlay({
     setClassDraftOpen(false);
     setClassDraft("");
     if (created) setPromptClassFilter(created);
+  };
+
+  const handleDeleteClass = async (name, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const label = String(name || "").trim();
+    if (!label) return;
+    const ok = await askConfirm({
+      title: t("doc.library.promptClassDeleteTitle"),
+      message: t("doc.library.promptClassDeleteConfirm", { name: label }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+      tone: "danger",
+    });
+    if (!ok) return;
+    removePromptClass(activeKind, activeId, label);
+    if (promptClassFilter.toLowerCase() === label.toLowerCase()) {
+      setPromptClassFilter("");
+    }
   };
 
   const handleScope = (next) => {
@@ -639,19 +663,29 @@ export function FolderLibraryOverlay({
                         {t("doc.library.tabAll")}
                       </button>
                       {promptClasses.map((name) => (
-                        <button
-                          key={name}
-                          type="button"
-                          role="tab"
-                          aria-selected={promptClassFilter.toLowerCase() === name.toLowerCase()}
-                          className={
-                            "folder-library-overlay__prompt-class"
-                            + (promptClassFilter.toLowerCase() === name.toLowerCase() ? " is-active" : "")
-                          }
-                          onClick={() => setPromptClassFilter(name)}
-                        >
-                          {name}
-                        </button>
+                        <span key={name} className="folder-library-overlay__prompt-class-wrap">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={promptClassFilter.toLowerCase() === name.toLowerCase()}
+                            className={
+                              "folder-library-overlay__prompt-class"
+                              + (promptClassFilter.toLowerCase() === name.toLowerCase() ? " is-active" : "")
+                            }
+                            onClick={() => setPromptClassFilter(name)}
+                          >
+                            {name}
+                          </button>
+                          <button
+                            type="button"
+                            className="folder-library-overlay__prompt-class-delete"
+                            aria-label={t("doc.library.promptClassDeleteAria", { name })}
+                            title={t("doc.library.promptClassDeleteAria", { name })}
+                            onClick={(event) => handleDeleteClass(name, event)}
+                          >
+                            ×
+                          </button>
+                        </span>
                       ))}
                       {classDraftOpen ? (
                         <input

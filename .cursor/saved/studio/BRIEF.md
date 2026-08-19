@@ -36,7 +36,7 @@ Intel tabs:  News | YouTube | Studio | Campaign | …
 - **Visualize never scrolls:** stage + mockup use `overflow: hidden`; frames must fit in view.
 - Defaults: Cine wall `#151515`; Redes wall `#000000`, video stroke `#191A1C` (editable).
 - **CTA:** button **Vimeo** → `https://vimeo.com/join`.
-- **No credits.** No notes. Session draft includes `phase`, `mockupId`, `frameStroke`, identity + text color.
+- **No credits.** No notes. Draft lives in `sessionStorage` while Studio is open. **Closing the panel** (X, backdrop, Esc, leaving the Studio tab) **clears** the draft so the next open starts empty. **Resetear stage** also clears.
 - Later: mockup **position** step; more networks; low-def social chrome variants.
 
 ## Data (v1 session)

@@ -20,6 +20,7 @@ import {
   resolveStudioFrameStroke,
   resolveStudioTextColor,
   saveStudioSessionDraft,
+  clearStudioSessionDraft,
   studioAspectCss,
   studioAspectLabelKey,
   studioFrameSizeClass,
@@ -93,7 +94,16 @@ export function StudioWorkspace({ onClose }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const persistEnabledRef = useRef(true);
+
+  const dismissStudio = useCallback(() => {
+    persistEnabledRef.current = false;
+    clearStudioSessionDraft();
+    onClose?.();
+  }, [onClose]);
+
   useEffect(() => {
+    if (!persistEnabledRef.current) return;
     saveStudioSessionDraft(draft);
   }, [draft]);
 
@@ -112,11 +122,11 @@ export function StudioWorkspace({ onClose }) {
         setDraft((prev) => ({ ...prev, phase: "wall" }));
         return;
       }
-      onClose?.();
+      dismissStudio();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isView, onClose]);
+  }, [isView, dismissStudio]);
 
   const wallPreview = resolveWallColor(draft.wallColor);
   const strokePreview = resolveStudioFrameStroke(draft.frameStroke, mockupId);
@@ -152,7 +162,7 @@ export function StudioWorkspace({ onClose }) {
       goPhase("embed");
       return;
     }
-    onClose?.();
+    dismissStudio();
   };
 
   const handleCommitEmbed = async () => {
@@ -271,7 +281,9 @@ export function StudioWorkspace({ onClose }) {
   };
 
   const handleResetSession = () => {
+    persistEnabledRef.current = true;
     const empty = emptyStudioSessionDraft();
+    clearStudioSessionDraft();
     setDraft(empty);
     setUrlDraft("");
     setWallHexDraft("");
@@ -352,7 +364,7 @@ export function StudioWorkspace({ onClose }) {
         <button
           type="button"
           className="studio-workspace__close"
-          onClick={onClose}
+          onClick={dismissStudio}
           aria-label={t("studio.close")}
         >
           ×

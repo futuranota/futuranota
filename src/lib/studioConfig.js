@@ -325,3 +325,13 @@ export function saveStudioSessionDraft(draft) {
     // quota / private mode — ignore
   }
 }
+
+/** Drop the tab draft so the next open starts empty. */
+export function clearStudioSessionDraft() {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.removeItem(STUDIO_SESSION_KEY);
+  } catch {
+    // private mode — ignore
+  }
+}

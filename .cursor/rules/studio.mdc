@@ -27,7 +27,7 @@ Canonical brief: `.cursor/saved/studio/BRIEF.md`.
 - **Cine View:** video frame on wall. **Redes View:** logo + name + **Ad** on media + description + sidebars. No tabs.
 - Ratio stays user-chosen (not forced by mockup).
 - CTA **Vimeo** → `https://vimeo.com/join`.
-- No credits, no NoteTaker. Session draft includes `phase`, `mockupId`, `frameStroke`, identity fields.
+- No credits, no NoteTaker. Draft is `sessionStorage` while the panel is open; **close Studio → clear draft** (fresh embed next time).
 
 ## Rules
 

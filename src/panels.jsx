@@ -28,6 +28,7 @@ import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.js
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
 import { IntelRateLimitBadge } from './components/intel/IntelRateLimitBadge.jsx';
 import { formatRateLimitClock } from './lib/intelRateLimitCooldown.js';
+import { clearStudioSessionDraft } from './lib/studioConfig.js';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
@@ -897,6 +898,7 @@ function IntelPanel({
   useEffect(() => {
     if (!intelLocked) return;
     setYoutubePanelOpen(false);
+    clearStudioSessionDraft();
     setStudioPanelOpen(false);
     if (tab === "youtube" || tab === "studio") setTab("news");
   }, [intelLocked, tab]);
@@ -1001,6 +1003,7 @@ function IntelPanel({
     if (nextTab === "youtube") {
       setTab("youtube");
       setYoutubePanelOpen(true);
+      clearStudioSessionDraft();
       setStudioPanelOpen(false);
       return;
     }
@@ -1011,6 +1014,7 @@ function IntelPanel({
       return;
     }
     setYoutubePanelOpen(false);
+    clearStudioSessionDraft();
     setStudioPanelOpen(false);
     setTab(nextTab);
   };
@@ -1021,6 +1025,7 @@ function IntelPanel({
   };
 
   const handleStudioPanelClose = () => {
+    clearStudioSessionDraft();
     setStudioPanelOpen(false);
     setTab("news");
   };

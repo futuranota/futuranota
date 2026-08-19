@@ -17677,6 +17677,47 @@ body.doc-content-resizing * {
   border-color: rgba(255, 255, 255, 0.22);
 }
 
+.folder-library-overlay__prompt-class-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.folder-library-overlay__prompt-class-wrap .folder-library-overlay__prompt-class {
+  padding-right: 22px;
+}
+
+.folder-library-overlay__prompt-class-delete {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.folder-library-overlay__prompt-class-wrap:hover .folder-library-overlay__prompt-class-delete,
+.folder-library-overlay__prompt-class-wrap:focus-within .folder-library-overlay__prompt-class-delete {
+  opacity: 1;
+}
+
+.folder-library-overlay__prompt-class-delete:hover {
+  color: #fff;
+  background: rgba(180, 40, 40, 0.85);
+}
+
 .folder-library-overlay__prompt-class-add {
   min-width: 28px;
   padding: 5px 8px;
