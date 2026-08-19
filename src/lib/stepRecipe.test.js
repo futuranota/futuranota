@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   createStepEntry,
   finalizeStepSequence,
-  normalizeStepVariantImages,
+  normalizeStepImages,
   stepEntryHasContent,
   stepUsesRecipeLayout,
 } from "./docBlocks.js";
 
 describe("step recipe fields", () => {
-  it("caps variant images at 2", () => {
-    const images = normalizeStepVariantImages([
+  it("caps images at 2", () => {
+    const images = normalizeStepImages([
       { src: "https://a/1.webp" },
       { src: "https://a/2.webp" },
       { src: "https://a/3.webp" },
@@ -20,15 +20,29 @@ describe("step recipe fields", () => {
     expect(images[1].src).toContain("2.webp");
   });
 
-  it("drops empty image objects", () => {
-    expect(normalizeStepVariantImages([{ src: "  " }, { name: "x" }])).toEqual([]);
-    expect(createStepEntry({ refImage: { src: "" } }).refImage).toBeNull();
+  it("migrates refImage + variantImages into images", () => {
+    const step = createStepEntry({
+      refImage: { src: "https://a/ref.webp", caption: "before" },
+      variantImages: [
+        { src: "https://a/v1.webp" },
+        { src: "https://a/v2.webp" },
+      ],
+    });
+    expect(step.images).toHaveLength(2);
+    expect(step.images[0].caption).toBe("before");
+    expect(step.images[1].src).toContain("v1.webp");
+    expect(step.refImage).toBeUndefined();
   });
 
-  it("has content with only a prompt or only a ref image", () => {
+  it("drops empty image objects", () => {
+    expect(normalizeStepImages([{ src: "  " }, { name: "x" }])).toEqual([]);
+    expect(createStepEntry({ images: [{ src: "" }] }).images).toEqual([]);
+  });
+
+  it("has content with only a prompt or only one image", () => {
     expect(stepEntryHasContent(createStepEntry({ prompt: "a cinematic car" }))).toBe(true);
     expect(stepEntryHasContent(createStepEntry({
-      refImage: { src: "https://cdn.example/ref.webp", width: 10, height: 10 },
+      images: [{ src: "https://cdn.example/ref.webp", width: 10, height: 10 }],
     }))).toBe(true);
     expect(stepEntryHasContent(createStepEntry())).toBe(false);
   });

@@ -1,48 +1,33 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
+import { copyToClipboard } from "../../../lib/copyToClipboard.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { MarkdownPreview } from "./MarkdownPreview.jsx";
 
-async function copyTextToClipboard(text) {
-  if (!text) return false;
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      return ok;
-    } catch {
-      return false;
-    }
-  }
+const ICON_CLOSE = "/uploads/closed-tab.svg";
+
+function RecipeIco({ src, className = "" }) {
+  return <img className={`doc-step-recipe__ico ${className}`.trim()} src={src} alt="" aria-hidden draggable={false} />;
 }
 
 function RecipeImageSlot({
-  label,
   image,
-  optional = false,
+  caption,
+  onCaptionChange,
   readOnly = false,
   uploading = false,
   onPick,
   onClear,
   inputRef,
   onFiles,
+  fill = false,
 }) {
   const { t } = useI18n();
   const src = image?.src;
   const [dragOver, setDragOver] = useState(false);
 
   return (
-    <div className="doc-step-recipe__slot">
-      <span className="doc-step-recipe__slot-label">{label}</span>
+    <div className={`doc-step-recipe__slot${fill ? " doc-step-recipe__slot--fill" : ""}`}>
       <input
         ref={inputRef}
         type="file"
@@ -59,27 +44,42 @@ function RecipeImageSlot({
           <img
             className="doc-step-recipe__img"
             src={src}
-            alt={image.alt || image.name || label}
+            alt={caption || image.alt || image.name || t("doc.stepRecipe.upload")}
             width={image.width || undefined}
             height={image.height || undefined}
             draggable={false}
           />
-          {!readOnly ? (
-            <div className="doc-step-recipe__preview-actions">
-              <button type="button" className="doc-step-recipe__mini" onClick={onPick} disabled={uploading}>
-                {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
+          {readOnly ? (
+            caption ? (
+              <div className="doc-step-recipe__film">
+                <span className="doc-step-recipe__caption-read">{caption}</span>
+              </div>
+            ) : null
+          ) : (
+            <>
+              <button
+                type="button"
+                className="doc-step-recipe__close"
+                onClick={onClear}
+                disabled={uploading}
+                title={t("doc.imageBlock.remove")}
+                aria-label={t("doc.imageBlock.remove")}
+              >
+                <RecipeIco src={ICON_CLOSE} />
               </button>
-              <button type="button" className="doc-step-recipe__mini" onClick={onClear} disabled={uploading}>
-                {t("doc.imageBlock.remove")}
-              </button>
-            </div>
-          ) : null}
+              <div className="doc-step-recipe__film">
+                <input
+                  type="text"
+                  className="doc-step-recipe__caption"
+                  value={caption}
+                  placeholder={t("doc.stepRecipe.captionPlaceholder")}
+                  onChange={(event) => onCaptionChange?.(event.target.value)}
+                />
+              </div>
+            </>
+          )}
         </div>
-      ) : readOnly ? (
-        <div className={`doc-step-recipe__empty${optional ? " doc-step-recipe__empty--optional" : ""}`}>
-          {optional ? "—" : label}
-        </div>
-      ) : (
+      ) : readOnly ? null : (
         <button
           type="button"
           className={
@@ -107,35 +107,46 @@ function RecipeImageSlot({
             onFiles?.(event.dataTransfer?.files);
           }}
         >
-          {uploading ? t("doc.imageBlock.uploading") : (optional ? `${label} (optional)` : label)}
+          <span className="doc-step-recipe__plus" aria-hidden>+</span>
+          <span className="doc-step-recipe__drop-label">
+            {uploading ? t("doc.imageBlock.uploading") : t("doc.stepRecipe.upload")}
+          </span>
         </button>
       )}
     </div>
   );
 }
 
-/**
- * Visual recipe card for one step: ref + up to 2 variants + meta + prompt.
- */
 export function StepRecipeCard({
   step,
   onChange,
   readOnly = false,
   compact = false,
+  allowSecondImage = false,
 }) {
   const { t } = useI18n();
-  const refInputRef = useRef(null);
-  const variant0Ref = useRef(null);
-  const variant1Ref = useRef(null);
+  const firstInputRef = useRef(null);
+  const secondInputRef = useRef(null);
+  const metaRef = useRef(null);
   const [busyKey, setBusyKey] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [addingSecond, setAddingSecond] = useState(false);
 
   const interactive = Boolean(onChange) && !readOnly;
   const prompt = step?.prompt || "";
   const meta = step?.meta || "";
+  const promptMd = Boolean(step?.promptMd);
   const promptSaved = Boolean(step?.promptSaved && prompt.trim());
-  const variants = Array.isArray(step?.variantImages) ? step.variantImages : [];
+  const images = Array.isArray(step?.images) ? step.images : [];
+  const showPlus = interactive && allowSecondImage && images.length === 1 && !addingSecond;
+
+  useEffect(() => {
+    const el = metaRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.max(el.scrollHeight, 44)}px`;
+  }, [meta, interactive]);
 
   const patchStep = useCallback((patch) => {
     onChange?.({
@@ -167,28 +178,22 @@ export function StepRecipeCard({
         alt: (file.name || "image").replace(/\.[^/.]+$/, ""),
         width: converted.width,
         height: converted.height,
+        caption: "",
       });
     } catch (err) {
       setError(err?.message || t("doc.imageBlock.convertFailed"));
     }
   }, [step?.id, t]);
 
-  const handleRefFiles = async (files) => {
-    setBusyKey("ref");
-    try {
-      await uploadTo(files, (image) => patchStep({ refImage: image }));
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleVariantFiles = async (index, files) => {
-    setBusyKey(`v${index}`);
+  const handleImageFiles = async (index, files) => {
+    setBusyKey(String(index));
     try {
       await uploadTo(files, (image) => {
-        const next = [...variants];
-        next[index] = image;
-        patchStep({ variantImages: next.filter(Boolean).slice(0, 2) });
+        const next = [...images];
+        const prevCaption = next[index]?.caption || "";
+        next[index] = { ...image, caption: prevCaption };
+        patchStep({ images: next.filter((item) => item?.src).slice(0, 2) });
+        setAddingSecond(false);
       });
     } finally {
       setBusyKey(null);
@@ -196,108 +201,125 @@ export function StepRecipeCard({
   };
 
   const handleCopy = async () => {
-    const ok = await copyTextToClipboard(prompt.trim());
+    const ok = await copyToClipboard(prompt.trim());
     if (!ok) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   };
 
-  const showCopy = readOnly || promptSaved;
-  const showPromptSave = interactive && prompt.trim() && !promptSaved;
+  const showCopy = Boolean(prompt.trim());
+  const renderMarkdown = promptMd && (readOnly || promptSaved) && prompt.trim();
 
   return (
     <div className={`doc-step-recipe${compact ? " doc-step-recipe--compact" : ""}${readOnly ? " doc-step-recipe--saved" : ""}`}>
-      <div className="doc-step-recipe__images">
-        <RecipeImageSlot
-          label="Original"
-          image={step?.refImage}
-          readOnly={!interactive}
-          uploading={busyKey === "ref"}
-          inputRef={refInputRef}
-          onPick={() => refInputRef.current?.click()}
-          onClear={() => patchStep({ refImage: null })}
-          onFiles={handleRefFiles}
-        />
-        <div className="doc-step-recipe__variants">
+      <div className="doc-step-recipe__col doc-step-recipe__col--media">
+        {(images[0] || interactive) ? (
           <RecipeImageSlot
-            label="Variation 1"
-            image={variants[0] || null}
+            image={images[0] || null}
+            caption={images[0]?.caption || ""}
+            onCaptionChange={(caption) => {
+              if (!images[0]) return;
+              const next = [...images];
+              next[0] = { ...next[0], caption };
+              patchStep({ images: next });
+            }}
             readOnly={!interactive}
-            uploading={busyKey === "v0"}
-            inputRef={variant0Ref}
-            onPick={() => variant0Ref.current?.click()}
-            onClear={() => patchStep({ variantImages: variants.slice(1) })}
-            onFiles={(files) => handleVariantFiles(0, files)}
+            uploading={busyKey === "0"}
+            inputRef={firstInputRef}
+            onPick={() => firstInputRef.current?.click()}
+            onClear={() => {
+              setAddingSecond(false);
+              patchStep({ images: images.slice(1) });
+            }}
+            onFiles={(files) => handleImageFiles(0, files)}
+            fill={!images[1] && !addingSecond}
           />
+        ) : null}
+        {images[1] || (interactive && addingSecond) ? (
           <RecipeImageSlot
-            label="Variation 2"
-            image={variants[1] || null}
-            optional
+            image={images[1] || null}
+            caption={images[1]?.caption || ""}
+            onCaptionChange={(caption) => {
+              if (!images[1]) return;
+              const next = [...images];
+              next[1] = { ...next[1], caption };
+              patchStep({ images: next });
+            }}
             readOnly={!interactive}
-            uploading={busyKey === "v1"}
-            inputRef={variant1Ref}
-            onPick={() => variant1Ref.current?.click()}
-            onClear={() => patchStep({ variantImages: variants.slice(0, 1) })}
-            onFiles={(files) => handleVariantFiles(1, files)}
+            uploading={busyKey === "1"}
+            inputRef={secondInputRef}
+            onPick={() => secondInputRef.current?.click()}
+            onClear={() => {
+              setAddingSecond(false);
+              patchStep({ images: images.slice(0, 1) });
+            }}
+            onFiles={(files) => handleImageFiles(1, files)}
           />
-        </div>
+        ) : null}
+        {showPlus ? (
+          <button
+            type="button"
+            className="doc-step-recipe__add"
+            aria-label={t("doc.stepRecipe.addImage")}
+            onClick={() => setAddingSecond(true)}
+          >
+            {t("doc.stepRecipe.addImage")}
+          </button>
+        ) : null}
       </div>
 
-      <label className="doc-step-recipe__field">
-        <span className="doc-step-recipe__field-label">Meta</span>
-        {interactive ? (
-          <textarea
-            className="doc-step-recipe__textarea doc-step-recipe__textarea--meta"
-            value={meta}
-            rows={2}
-            placeholder="Short explanation of this step"
-            spellCheck
-            onChange={(event) => patchStep({ meta: event.target.value })}
-          />
-        ) : (
-          <p className="doc-step-recipe__meta-text">{meta.trim() || "—"}</p>
-        )}
-      </label>
+      <div className="doc-step-recipe__col doc-step-recipe__col--copy">
+        <label className="doc-step-recipe__field doc-step-recipe__field--meta">
+          <span className="doc-step-recipe__field-label">{t("doc.stepRecipe.metaLabel")}</span>
+          {interactive ? (
+            <textarea
+              ref={metaRef}
+              className="doc-step-recipe__textarea doc-step-recipe__textarea--meta"
+              value={meta}
+              rows={2}
+              placeholder={t("doc.stepRecipe.metaPlaceholder")}
+              spellCheck
+              onChange={(event) => patchStep({ meta: event.target.value })}
+            />
+          ) : (
+            <div className="doc-step-recipe__meta-box">
+              <p className="doc-step-recipe__meta-text">{meta.trim() || "—"}</p>
+            </div>
+          )}
+        </label>
 
-      <div className="doc-step-recipe__field">
-        <div className="doc-step-recipe__prompt-head">
-          <span className="doc-step-recipe__field-label">Prompt</span>
-          {showCopy && prompt.trim() ? (
-            <button type="button" className="doc-step-recipe__copy" onClick={() => { void handleCopy(); }}>
-              {copied ? "Copied" : "Copy"}
-            </button>
-          ) : null}
-          {showPromptSave ? (
-            <button
-              type="button"
-              className="doc-step-recipe__copy"
-              onClick={() => patchStep({ promptSaved: true })}
-            >
-              Save prompt
-            </button>
-          ) : null}
-          {interactive && promptSaved ? (
-            <button
-              type="button"
-              className="doc-step-recipe__copy"
-              onClick={() => patchStep({ promptSaved: false })}
-            >
-              Edit prompt
-            </button>
-          ) : null}
+        <div className="doc-step-recipe__field doc-step-recipe__field--prompt">
+          <span className="doc-step-recipe__field-label">{t("doc.stepRecipe.promptLabel")}</span>
+          <div className="doc-step-recipe__prompt-box">
+            {interactive ? (
+              <textarea
+                className="doc-step-recipe__textarea doc-step-recipe__textarea--prompt"
+                value={prompt}
+                rows={6}
+                placeholder={t("doc.stepRecipe.promptPlaceholder")}
+                spellCheck
+                onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
+              />
+            ) : renderMarkdown ? (
+              <div className="doc-step-recipe__md">
+                <MarkdownPreview source={prompt} />
+              </div>
+            ) : (
+              <pre className="doc-step-recipe__prompt-text">{prompt.trim() || "—"}</pre>
+            )}
+            {showCopy ? (
+              <button
+                type="button"
+                className="library-asset-field-readonly__copy"
+                onClick={() => { void handleCopy(); }}
+                title={copied ? t("doc.stepRecipe.copied") : t("doc.stepRecipe.copy")}
+                aria-label={copied ? t("doc.stepRecipe.copied") : t("doc.stepRecipe.copy")}
+              >
+                {copied ? "✓" : "⧉"}
+              </button>
+            ) : null}
+          </div>
         </div>
-        {interactive && !promptSaved ? (
-          <textarea
-            className="doc-step-recipe__textarea doc-step-recipe__textarea--prompt"
-            value={prompt}
-            rows={5}
-            placeholder="Paste the prompt to copy later"
-            spellCheck
-            onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
-          />
-        ) : (
-          <pre className="doc-step-recipe__prompt-text">{prompt.trim() || "—"}</pre>
-        )}
       </div>
       {error ? <p className="doc-step-recipe__error" role="alert">{error}</p> : null}
     </div>

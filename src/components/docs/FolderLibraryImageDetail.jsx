@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { copyToClipboard } from "../../lib/copyToClipboard.js";
 import { resolveWallColor } from "../../lib/folderLibrary.js";
+import { libraryFichaDetailMode } from "../../lib/libraryFichaPreview.js";
 
 /**
  * @param {string} tag
@@ -43,21 +44,21 @@ export function FolderLibraryImageDetail({
   const hasImage = Boolean(item?.mediaUrl);
   const showSwitch = hasRef && hasImage;
 
-  const [mode, setMode] = useState(() => {
-    if (hasImage && !hasRef) return "image";
-    return "ref";
-  });
+  const [mode, setMode] = useState(() => libraryFichaDetailMode(ownerKind, {
+    hasImage,
+    hasRef,
+  }));
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
+    if (!itemId) return;
     if (!item) {
-      onClose?.();
+      if (items.length > 0) onClose?.();
       return;
     }
-    if (showSwitch) return;
-    setMode(hasImage && !hasRef ? "image" : "ref");
-  }, [item, showSwitch, hasImage, hasRef, onClose]);
+    setMode(libraryFichaDetailMode(ownerKind, { hasImage, hasRef }));
+  }, [item, itemId, items.length, ownerKind, hasImage, hasRef, onClose]);
 
   useEffect(() => {
     if (!escapeEnabled) return undefined;
@@ -73,7 +74,9 @@ export function FolderLibraryImageDetail({
 
   if (!item) return null;
 
-  const activeMode = showSwitch ? mode : (hasImage && !hasRef ? "image" : "ref");
+  const activeMode = showSwitch
+    ? mode
+    : libraryFichaDetailMode(ownerKind, { hasImage, hasRef });
 
   const handleCopy = async () => {
     const text = item.description?.trim();

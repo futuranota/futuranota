@@ -20,9 +20,12 @@ import {
   renamePromptClass,
 } from "../../lib/folderLibrary.js";
 import {
+  LIBRARY_MEDIA_BADGE_SRC,
+  fichaShowsMediaBadge,
   pickDocLibraryPreviews,
   promptPreviewText,
   resolveFichaPreviewKind,
+  libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
@@ -75,14 +78,30 @@ function formatBadge(item) {
   return "FILE";
 }
 
+function MediaBadge({ item, prefer }) {
+  if (!fichaShowsMediaBadge(item, prefer)) return null;
+  return (
+    <img
+      className="folder-library-overlay__cell-media-badge"
+      src={LIBRARY_MEDIA_BADGE_SRC}
+      alt=""
+      aria-hidden
+      draggable={false}
+    />
+  );
+}
+
 function renderFichaFace(item, prefer) {
   const isAttachment = item?.category === "skill" || item?.category === "pdf";
   const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer);
   if (kind === "prompt") {
     return (
-      <span className="folder-library-overlay__cell-prompt">
-        {promptPreviewText(item)}
-      </span>
+      <>
+        <span className="folder-library-overlay__cell-prompt">
+          {promptPreviewText(item)}
+        </span>
+        <MediaBadge item={item} prefer={prefer} />
+      </>
     );
   }
   if (kind === "image") {
@@ -115,7 +134,12 @@ function renderMiniFichaFace(item, prefer) {
   if (kind === "image") {
     return <img src={item.mediaUrl} alt="" />;
   }
-  return promptPreviewText(item);
+  return (
+    <>
+      {promptPreviewText(item)}
+      <MediaBadge item={item} prefer={prefer} />
+    </>
+  );
 }
 
 function miniFichaClass(item, prefer) {
@@ -479,7 +503,7 @@ export function FolderLibraryOverlay({
               onClick={() => openItem(item)}
               title={item.tag}
             >
-              {renderFichaFace(item, showingDocumentGrid ? "prompt" : "image")}
+              {renderFichaFace(item, libraryTilePrefer("folder"))}
               <span className="folder-library-overlay__cell-meta">
                 <span className="folder-library-overlay__cell-tag">{item.tag}</span>
                 {item.promptClass ? (
@@ -643,8 +667,8 @@ export function FolderLibraryOverlay({
                       >
                         {previews.length > 0 ? (
                           previews.map((item) => (
-                            <span key={item.id} className={miniFichaClass(item, "prompt")}>
-                              {renderMiniFichaFace(item, "prompt")}
+                            <span key={item.id} className={miniFichaClass(item, libraryTilePrefer("document"))}>
+                              {renderMiniFichaFace(item, libraryTilePrefer("document"))}
                             </span>
                           ))
                         ) : (
@@ -869,8 +893,8 @@ export function FolderLibraryOverlay({
                           {previews.length > 0 ? (
                             <span className="folder-library-overlay__subfolder-previews" aria-hidden>
                               {previews.map((item) => (
-                                <span key={item.id} className={miniFichaClass(item, "image")}>
-                                  {renderMiniFichaFace(item, "image")}
+                                <span key={item.id} className={miniFichaClass(item, libraryTilePrefer("folder"))}>
+                                  {renderMiniFichaFace(item, libraryTilePrefer("folder"))}
                                 </span>
                               ))}
                             </span>

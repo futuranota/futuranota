@@ -2,11 +2,12 @@ import { createPortal } from "react-dom";
 import { useMemo } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
-import { fichaHasVisual, promptPreviewText, resolveFichaPreviewKind } from "../../lib/libraryFichaPreview.js";
+import { fichaHasVisual, libraryTilePrefer, LIBRARY_MEDIA_BADGE_SRC, fichaShowsMediaBadge, promptPreviewText, resolveFichaPreviewKind } from "../../lib/libraryFichaPreview.js";
 import { isImageCardLibraryPick } from "../../lib/libraryImageCardPick.js";
 
 function renderPickFace(item) {
-  const kind = resolveFichaPreviewKind(item, "image");
+  const prefer = libraryTilePrefer("folder");
+  const kind = resolveFichaPreviewKind(item, prefer);
   if (kind === "image" && fichaHasVisual(item)) {
     return (
       <img
@@ -17,9 +18,20 @@ function renderPickFace(item) {
     );
   }
   return (
-    <span className="folder-library-overlay__cell-prompt">
-      {promptPreviewText(item)}
-    </span>
+    <>
+      <span className="folder-library-overlay__cell-prompt">
+        {promptPreviewText(item)}
+      </span>
+      {fichaShowsMediaBadge(item, prefer) ? (
+        <img
+          className="folder-library-overlay__cell-media-badge"
+          src={LIBRARY_MEDIA_BADGE_SRC}
+          alt=""
+          aria-hidden
+          draggable={false}
+        />
+      ) : null}
+    </>
   );
 }
 

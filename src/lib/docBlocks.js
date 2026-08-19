@@ -111,7 +111,7 @@ export function normalizeStepBlocks(blocks) {
   return normalized.length ? normalized : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
 }
 
-const STEP_VARIANT_IMAGE_MAX = 2;
+const STEP_IMAGE_MAX = 2;
 
 export function normalizeStepImage(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -123,20 +123,40 @@ export function normalizeStepImage(raw) {
     src,
     name: String(raw.name ?? "").trim(),
     alt: String(raw.alt ?? "").trim(),
+    caption: String(raw.caption ?? "").trim(),
     width: Number.isFinite(width) && width > 0 ? width : 0,
     height: Number.isFinite(height) && height > 0 ? height : 0,
   };
 }
 
-export function normalizeStepVariantImages(raw) {
-  const list = Array.isArray(raw) ? raw : [];
-  const images = [];
+function pushStepImages(target, rawList) {
+  const list = Array.isArray(rawList) ? rawList : [];
   for (const item of list) {
     const image = normalizeStepImage(item);
     if (!image) continue;
-    images.push(image);
-    if (images.length >= STEP_VARIANT_IMAGE_MAX) break;
+    target.push(image);
+    if (target.length >= STEP_IMAGE_MAX) break;
   }
+}
+
+/** Max 2. Migrates legacy refImage + variantImages when `images` is empty. */
+export function normalizeStepImages(raw, legacy = {}) {
+  const images = [];
+  if (Array.isArray(raw) && raw.length) {
+    pushStepImages(images, raw);
+    return images;
+  }
+  const ref = normalizeStepImage(legacy.refImage);
+  if (ref) images.push(ref);
+  if (images.length < STEP_IMAGE_MAX) {
+    pushStepImages(images, legacy.variantImages);
+  }
+  return images;
+}
+
+export function normalizeStepVariantImages(raw) {
+  const images = [];
+  pushStepImages(images, raw);
   return images;
 }
 
@@ -154,8 +174,7 @@ export function stepEntryHasRecipeFields(step) {
   const meta = String(step?.meta ?? "").trim();
   const prompt = String(step?.prompt ?? "").trim();
   if (meta || prompt || Boolean(step?.promptSaved && prompt)) return true;
-  if (normalizeStepImage(step?.refImage)) return true;
-  return normalizeStepVariantImages(step?.variantImages).length > 0;
+  return normalizeStepImages(step?.images, step).length > 0;
 }
 
 /** New / recipe steps use the visual card; old playbooks with only blocks keep the editor. */
@@ -168,11 +187,11 @@ export function createStepEntry(patch = {}) {
   const prompt = String(patch.prompt ?? "");
   return {
     id: patch.id || generateId("STEP"),
-    refImage: normalizeStepImage(patch.refImage),
-    variantImages: normalizeStepVariantImages(patch.variantImages),
+    images: normalizeStepImages(patch.images, patch),
     meta: String(patch.meta ?? ""),
     prompt,
     promptSaved: Boolean(patch.promptSaved) && Boolean(prompt.trim()),
+    promptMd: Boolean(patch.promptMd),
     blocks: normalizeStepBlocks(migrateLegacyStepToBlocks(patch)),
   };
 }

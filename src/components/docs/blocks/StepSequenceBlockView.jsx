@@ -9,6 +9,7 @@ import {
   propagateStepCodeTemplate,
   stepUsesRecipeLayout,
 } from "../../../lib/docBlocks.js";
+import { useI18n } from "../../../i18n/useI18n.js";
 import { StepRecipeCard } from "./StepRecipeCard.jsx";
 import { StepStepBlocksEditor } from "./StepStepBlocksEditor.jsx";
 
@@ -130,62 +131,103 @@ function StepSequenceHeader({
 
 function SavedStepSequenceView({
   blockId,
+  title = "",
   steps,
   compact,
   onStepsChange,
   onDeleteBlock,
   onEditRequest,
 }) {
-  const updateStepBlocks = useCallback((stepIndex, blocks) => {
-    const next = steps.map((step, index) => (
-      index === stepIndex ? { ...step, blocks } : step
+  const { t } = useI18n();
+  const total = steps.length;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const safeIndex = Math.min(activeIndex, Math.max(0, total - 1));
+  const step = steps[safeIndex];
+  const stepNumber = safeIndex + 1;
+
+  useEffect(() => {
+    if (activeIndex >= total) {
+      setActiveIndex(Math.max(0, total - 1));
+    }
+  }, [activeIndex, total]);
+
+  const updateStepBlocks = useCallback((blocks) => {
+    const next = steps.map((entry, index) => (
+      index === safeIndex ? { ...entry, blocks } : entry
     ));
     onStepsChange?.(next);
-  }, [onStepsChange, steps]);
+  }, [onStepsChange, safeIndex, steps]);
 
   return (
     <div
       className={`doc-step-sequence doc-step-sequence--saved${compact ? " doc-step-sequence--compact" : ""}`}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      {/* Saved view: the guide title now lives at the top of the document
-          (doc title). Keep only the styled "Step by step" label + counter here
-          so the title is not duplicated inside the block. */}
       <StepSequenceHeader
         blockId={blockId}
         title=""
         onTitleChange={undefined}
         compact={compact}
-        counter={`${steps.length} ${steps.length === 1 ? "step" : "steps"}`}
+        counter={t("doc.stepRecipe.stepOf", { n: stepNumber, total })}
         onEditRequest={onEditRequest}
         onDeleteBlock={onDeleteBlock}
-        displayTitle=""
+        displayTitle={title}
       />
 
-      <div className="doc-step-sequence__card doc-step-sequence__card--saved">
-        <div className="doc-step-sequence__saved-list scroll-match-bg">
-          {steps.map((step, index) => (
-            <article key={step.id} className="doc-step-sequence__saved-step">
-              <span className="doc-step-sequence__step-badge">
-                Step {index + 1}
-              </span>
-              {stepUsesRecipeLayout(step) ? (
-                <StepRecipeCard
-                  step={step}
-                  readOnly
-                  compact={compact}
-                />
-              ) : (
+      <div className="doc-step-sequence__card">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step?.id ?? safeIndex}
+            className="doc-step-sequence__panel doc-step-sequence__panel--blocks"
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.28 }}
+          >
+            {stepUsesRecipeLayout(step) ? (
+              <StepRecipeCard
+                step={step}
+                readOnly
+                compact={compact}
+                stepNumber={stepNumber}
+              />
+            ) : (
+              <>
+                <span className="doc-step-sequence__step-badge">
+                  {t("doc.stepRecipe.stepOf", { n: stepNumber, total })}
+                </span>
                 <StepStepBlocksEditor
-                  blocks={step.blocks}
-                  onBlocksChange={(blocks) => updateStepBlocks(index, blocks)}
+                  blocks={step?.blocks}
+                  onBlocksChange={updateStepBlocks}
                   readOnly
                   compact={compact}
-                  stepId={step.id}
+                  stepId={step?.id}
                 />
-              )}
-            </article>
-          ))}
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        <div className="doc-step-sequence__nav">
+          <button
+            type="button"
+            className="doc-step-sequence__nav-btn doc-step-sequence__nav-btn--back"
+            onClick={() => setActiveIndex((prev) => Math.max(0, prev - 1))}
+            disabled={safeIndex <= 0}
+          >
+            {t("common.back")}
+          </button>
+          <div className="doc-step-sequence__nav-actions">
+            <button
+              type="button"
+              className="doc-step-sequence__nav-btn doc-step-sequence__nav-btn--next"
+              onClick={() => setActiveIndex((prev) => Math.min(total - 1, prev + 1))}
+              disabled={safeIndex >= total - 1}
+            >
+              {t("doc.stepRecipe.next")}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -193,7 +235,7 @@ function SavedStepSequenceView({
 }
 
 /**
- * Step by step — wizard while drafting; full stacked view after Save.
+ * Step by step — wizard while drafting; one step at a time after Save.
  */
 export function StepSequenceBlockView({
   blockId = "default",
@@ -208,6 +250,7 @@ export function StepSequenceBlockView({
   compact = false,
   autoFocus = false,
 }) {
+  const { t } = useI18n();
   const safeSteps = steps.length ? steps : [createStepEntry()];
   const total = safeSteps.length;
   const [activeIndex, setActiveIndex] = useState(0);
@@ -304,6 +347,7 @@ export function StepSequenceBlockView({
     return (
       <SavedStepSequenceView
         blockId={blockId}
+        title={title}
         steps={safeSteps}
         compact={compact}
         onStepsChange={onStepsChange}
@@ -324,39 +368,9 @@ export function StepSequenceBlockView({
         onTitleChange={onTitleChange}
         compact={compact}
         autoFocusTitle={autoFocus && !(title || "").trim()}
-        counter={`Step ${stepNumber} of ${total}`}
+        counter={t("doc.stepRecipe.stepOf", { n: stepNumber, total })}
         onDeleteBlock={onDeleteBlock}
       />
-
-      <div className="doc-step-sequence__progress" aria-label="Steps">
-        {safeSteps.map((step, index) => {
-          const isActive = index === activeIndex;
-          const isVisited = index <= maxVisitedIndex;
-          return (
-            <span
-              key={step.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Step ${index + 1}`}
-              aria-current={isActive ? "step" : undefined}
-              className={[
-                "doc-step-sequence__progress-pill",
-                isActive ? "doc-step-sequence__progress-pill--active" : "",
-                isVisited ? "doc-step-sequence__progress-pill--visited" : "",
-              ].filter(Boolean).join(" ")}
-              onClick={() => goToStep(index)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  goToStep(index);
-                }
-              }}
-            >
-              {index + 1}
-            </span>
-          );
-        })}
-      </div>
 
       <div className="doc-step-sequence__card">
         <AnimatePresence mode="wait">
@@ -369,17 +383,19 @@ export function StepSequenceBlockView({
             exit="exit"
             transition={{ duration: 0.28 }}
           >
-            <span className="doc-step-sequence__step-badge">
-              Step {stepNumber}
-            </span>
             {stepUsesRecipeLayout(activeStep) ? (
               <StepRecipeCard
                 step={activeStep}
                 onChange={updateActiveStepPatch}
                 compact={compact}
+                allowSecondImage
+                stepNumber={stepNumber}
               />
             ) : (
               <>
+                <span className="doc-step-sequence__step-badge">
+                  Step {stepNumber}
+                </span>
                 <span className="doc-step-sequence__field-label">Instructions</span>
                 <StepStepBlocksEditor
                   blocks={activeStep?.blocks}
@@ -401,7 +417,7 @@ export function StepSequenceBlockView({
             onClick={goBack}
             disabled={activeIndex <= 0}
           >
-            Back
+            {t("common.back")}
           </button>
           <div className="doc-step-sequence__nav-actions">
             <button
@@ -409,14 +425,14 @@ export function StepSequenceBlockView({
               className="doc-step-sequence__nav-btn doc-step-sequence__nav-btn--save"
               onClick={handleSave}
             >
-              Save
+              {t("common.save")}
             </button>
             <button
               type="button"
               className="doc-step-sequence__nav-btn doc-step-sequence__nav-btn--next"
               onClick={goNext}
             >
-              Next
+              {t("doc.stepRecipe.next")}
             </button>
           </div>
         </div>

@@ -31,6 +31,7 @@ import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
+import { useConfirmStore } from './stores/confirmStore.js';
 import { useNavigate } from 'react-router-dom';
 import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { useProCheckoutAbandonPrompt } from './lib/useProCheckoutAbandonPrompt.js';
@@ -240,6 +241,7 @@ function Dashboard({ company, onBack }) {
   const [expandedNodeContentFocus, setExpandedNodeContentFocus] = useState(false);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const locale = useLocaleStore((s) => s.locale);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
   const openGinaDashboardFromFab = useCallback(() => {
@@ -1205,17 +1207,20 @@ useEffect(() => {
     });
   }, []);
 
-  const handleStepPlaybookSessionClose = useCallback(() => {
-    setActiveStepPlaybookSession((current) => {
-      if (!current) return null;
-      if (!current.saved && stepPlaybookSessionHasContent(current)) {
-        if (!window.confirm(t('stepsLibrary.discardDraftConfirm'))) {
-          return current;
-        }
-      }
-      return null;
-    });
-  }, [t]);
+  const handleStepPlaybookSessionClose = useCallback(async () => {
+    const current = activeStepPlaybookSessionRef.current;
+    if (!current) return;
+    if (!current.saved && stepPlaybookSessionHasContent(current)) {
+      const confirmed = await askConfirm({
+        title: t('stepsLibrary.discardDraftTitle'),
+        message: t('stepsLibrary.discardDraftConfirm'),
+        confirmLabel: t('stepsLibrary.discardDraftAction'),
+        cancelLabel: t('common.cancel'),
+      });
+      if (!confirmed) return;
+    }
+    setActiveStepPlaybookSession(null);
+  }, [askConfirm, t]);
 
   const handleStepPlaybookSessionSaved = useCallback((finalizedSteps) => {
     if (stepPlaybookSaveLockRef.current) return;

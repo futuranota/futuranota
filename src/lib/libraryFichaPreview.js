@@ -2,7 +2,35 @@
  * How a library ficha should fill a card / mini / asset slot.
  * @typedef {"image"|"prompt"|"badge"} FichaPreviewKind
  * @typedef {"image"|"prompt"} FichaPreviewPrefer
+ * @typedef {"folder"|"document"} LibraryTileOwnerKind
  */
+
+/** Small cue on prompt-first tiles that the ficha also has a reference photo. */
+export const LIBRARY_MEDIA_BADGE_SRC = "/uploads/img.svg";
+
+/**
+ * Folder Library / Assets / Library Prompt grid fill the photo.
+ * Compact Docs index squares fill the written prompt (+ img.svg if there is a photo).
+ * @param {string} [ownerKind]
+ * @returns {FichaPreviewPrefer}
+ */
+export function libraryTilePrefer(ownerKind) {
+  return String(ownerKind || "").trim().toLowerCase() === "document"
+    ? "prompt"
+    : "image";
+}
+
+/**
+ * Opening face of a Prompt ficha detail from Library (visual first).
+ * Photo when it exists; otherwise Ref.
+ * @param {string} [_ownerKind]
+ * @param {{ hasImage?: boolean, hasRef?: boolean }} [flags]
+ * @returns {"image"|"ref"}
+ */
+export function libraryFichaDetailMode(_ownerKind, { hasImage = false, hasRef = false } = {}) {
+  if (hasImage) return "image";
+  return hasRef ? "ref" : "image";
+}
 
 /**
  * @param {{ description?: string|null }|null|undefined} item
@@ -41,6 +69,15 @@ export function resolveFichaPreviewKind(item, prefer = "prompt") {
   if (hasPrompt) return "prompt";
   if (hasVisual) return "image";
   return "badge";
+}
+
+/**
+ * Prompt-first tile that still has a photo — show img.svg, not the photo.
+ * @param {{ description?: string|null, mediaUrl?: string|null, category?: string }|null|undefined} item
+ * @param {FichaPreviewPrefer} [prefer]
+ */
+export function fichaShowsMediaBadge(item, prefer = "prompt") {
+  return resolveFichaPreviewKind(item, prefer) === "prompt" && fichaHasVisual(item);
 }
 
 /**
