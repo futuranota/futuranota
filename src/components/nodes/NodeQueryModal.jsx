@@ -33,6 +33,7 @@ import {
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
+import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
 } from "../../lib/nodeTodoContent.js";
@@ -1336,8 +1337,12 @@ export function NodeQueryModal({
       discardWithoutSave();
       return;
     }
+    writeImageSplitPromptsFromBlocks(writingBlocks, {
+      folderId: entityNodeId ? (resolvedParentDocId || "") : "",
+      documentId: entityNodeId || "",
+    });
     onSave();
-  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave]);
+  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave, writingBlocks, entityNodeId, resolvedParentDocId]);
 
   const requestDismiss = useCallback(async () => {
     const gate = await ensureChildScheduleOrRemind();
@@ -1534,11 +1539,11 @@ export function NodeQueryModal({
       const isSaveShortcut = e.key === "Enter" && (e.metaKey || e.ctrlKey);
       if (!isSaveShortcut) return;
       e.preventDefault();
-      onSave();
+      handleFooterSave();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [contentFocusMode, requestDismiss, onSave]);
+  }, [contentFocusMode, requestDismiss, onSave, handleFooterSave]);
 
   const handleSearchClick = () => {
     const queryText = (displayQuery || "").trim() || displayQuery;
@@ -2271,6 +2276,10 @@ export function NodeQueryModal({
                     discardWithoutSave();
                     return;
                   }
+                  writeImageSplitPromptsFromBlocks(writingBlocks, {
+                    folderId: entityNodeId ? (resolvedParentDocId || "") : "",
+                    documentId: entityNodeId || "",
+                  });
                   onSave?.();
                   // onSave (flush/handleSave) closes the modal; do not dismiss-without-save after.
                 }}

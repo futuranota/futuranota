@@ -10834,8 +10834,8 @@ body.doc-content-resizing * {
 }
 
 .doc-image-split__face-switch--on-image {
+  border: none;
   background: rgba(58, 111, 122, 0.32);
-  border-color: rgba(22, 26, 29, 0.22);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset;
 }
 

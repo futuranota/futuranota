@@ -88,6 +88,52 @@ export function listFolderLibraryItems(folderId) {
 }
 
 /**
+ * @param {{ ownerKind?: string, ownerId?: string, folderId?: string, documentId?: string }} [hints]
+ * @returns {Array<{ ownerKind: LibraryOwnerKind, ownerId: string, items: import("./folderLibraryNormalize.js").FolderLibraryItem[] }>}
+ */
+export function listHintedLibraryCatalogs(hints = {}) {
+  const catalogs = [];
+  const seen = new Set();
+  const push = (ownerKind, ownerId) => {
+    const kind = String(ownerKind || "").trim() === "document" ? "document" : "folder";
+    const id = String(ownerId || "").trim();
+    if (!id) return;
+    const key = `${kind}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    catalogs.push({ ownerKind: kind, ownerId: id, items: listLibraryItems(kind, id) });
+  };
+  if (hints.ownerKind && hints.ownerId) push(hints.ownerKind, hints.ownerId);
+  push("folder", hints.folderId);
+  push("document", hints.documentId);
+  return catalogs;
+}
+
+/**
+ * All folder + document libraries (used when an Image card is missing owner ids).
+ * @returns {Array<{ ownerKind: LibraryOwnerKind, ownerId: string, items: import("./folderLibraryNormalize.js").FolderLibraryItem[] }>}
+ */
+export function listAllLibraryCatalogs() {
+  const catalogs = listHintedLibraryCatalogs();
+  const seen = new Set(catalogs.map((entry) => `${entry.ownerKind}:${entry.ownerId}`));
+  const push = (ownerKind, ownerId) => {
+    const id = String(ownerId || "").trim();
+    if (!id) return;
+    const key = `${ownerKind}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    catalogs.push({ ownerKind, ownerId: id, items: listLibraryItems(ownerKind, id) });
+  };
+  for (const id of Object.keys(useDocsStore.getState().docs || {})) {
+    push("folder", id);
+  }
+  for (const id of Object.keys(useNodesStore.getState().nodes || {})) {
+    push("document", id);
+  }
+  return catalogs;
+}
+
+/**
  * @param {LibraryOwnerKind|string} ownerKind
  * @param {string} ownerId
  * @param {import("./folderLibraryNormalize.js").FolderLibraryItem[]} items

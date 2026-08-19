@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   BANNER_HEADLINE_MAX,
   createTodoItem,
@@ -10,6 +9,7 @@ import {
 import { useI18n } from "../../../i18n/useI18n.js";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { imageSplitHasFill, libraryItemToImageSplitPatch } from "../../../lib/libraryImageCardPick.js";
+import { writeImageSplitPromptToLibrary } from "../../../lib/libraryImageCardSync.js";
 import {
   findMaxFittingPrefixLength,
   resolveLineFitHeight,
@@ -196,7 +196,6 @@ export function ImageSplitBlockView({
   folderLibraryId = "",
 }) {
   const { t } = useI18n();
-  const inputRef = useRef(null);
   const cardRef = useRef(null);
   const rowRef = useRef(null);
   const headlineRef = useRef(null);
@@ -206,6 +205,8 @@ export function ImageSplitBlockView({
   const bodyBelowWrapRef = useRef(null);
   const todoInputRefs = useRef({});
   const bodyLimitTimerRef = useRef(null);
+  const libraryPromptSyncTimerRef = useRef(null);
+  const libraryPromptRef = useRef("");
   const sideHeightRef = useRef(null);
   const sideFitHeightRef = useRef(null);
   const columnHeightRef = useRef(null);
@@ -215,9 +216,7 @@ export function ImageSplitBlockView({
   const sideTextRef = useRef(String(block?.body || ""));
   const belowTextRef = useRef("");
 
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const [dragOver, setDragOver] = useState(false);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
   const [columnHeight, setColumnHeight] = useState(null);
@@ -228,6 +227,7 @@ export function ImageSplitBlockView({
 
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const libraryPrompt = String(block?.libraryPrompt || "");
+  libraryPromptRef.current = libraryPrompt;
   const hasLibraryPrompt = Boolean(libraryPrompt.trim());
   const mediaFace = block?.mediaFace === "prompt" && (hasLibraryPrompt || imageSaved)
     ? "prompt"
@@ -242,6 +242,12 @@ export function ImageSplitBlockView({
     ? (libraryOwnerId || folderLibraryId)
     : folderLibraryId;
   const pickerDocumentId = libraryOwnerKind === "document" ? libraryOwnerId : "";
+  const libraryHints = {
+    ownerKind: block?.libraryOwnerKind || libraryOwnerKind,
+    ownerId: block?.libraryOwnerId || (block?.libraryOwnerKind === "folder" ? pickerFolderId : pickerDocumentId),
+    folderId: pickerFolderId,
+    documentId: pickerDocumentId,
+  };
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
     : IMAGE_SPLIT_BODY_MODE.TEXT;
@@ -262,12 +268,14 @@ export function ImageSplitBlockView({
 
   useEffect(() => () => {
     if (bodyLimitTimerRef.current) window.clearTimeout(bodyLimitTimerRef.current);
+    if (libraryPromptSyncTimerRef.current) window.clearTimeout(libraryPromptSyncTimerRef.current);
   }, []);
 
   useEffect(() => {
-    if (!isEdit || !block?.openFilePicker || cardFilled || uploading) return;
+    if (!isEdit || !block?.openFilePicker || cardFilled) return;
+    setLibraryPickerOpen(true);
     onChange?.({ openFilePicker: false });
-  }, [block?.openFilePicker, block?.id, cardFilled, uploading, onChange, isEdit]);
+  }, [block?.openFilePicker, block?.id, cardFilled, onChange, isEdit]);
 
   const applySplitResult = useCallback((result) => {
     splitIndexRef.current = result.split;
@@ -515,50 +523,6 @@ export function ImageSplitBlockView({
     });
   }, [autoFocusBody, isEdit, isTodoBody, block?.id]);
 
-  const handleFiles = async (files) => {
-    if (!isEdit) return;
-    const file = files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError(t("doc.imageBlock.invalidType"));
-      return;
-    }
-
-    setUploading(true);
-    setError(null);
-
-    try {
-      const converted = await convertAndUploadDocImage(file, {
-        idPrefix: "SPLIMG",
-        scopeId: block?.id,
-      });
-      if (!converted) {
-        setError(t("doc.imageBlock.convertFailed"));
-        return;
-      }
-
-      onChange?.({
-        src: converted.src,
-        name: converted.name,
-        alt: (file.name || "image").replace(/\.[^/.]+$/, ""),
-        width: converted.width,
-        height: converted.height,
-        imageSaved: true,
-        libraryItemId: "",
-        libraryOwnerKind: "",
-        mediaFace: hasLibraryPrompt ? mediaFace : "image",
-        openFilePicker: false,
-        splitSaved: false,
-      });
-    } catch (err) {
-      setError(err?.message || t("doc.imageBlock.convertFailed"));
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
   const handleClearImage = () => {
     if (!isEdit) return;
     onChange?.({
@@ -570,6 +534,7 @@ export function ImageSplitBlockView({
       imageSaved: false,
       libraryItemId: "",
       libraryOwnerKind: "",
+      libraryOwnerId: "",
       libraryPrompt: "",
       libraryTag: "",
       mediaFace: "image",
@@ -579,13 +544,55 @@ export function ImageSplitBlockView({
     setError(null);
   };
 
-  const handlePickLibraryItem = (item, ownerKind) => {
+  const handlePickLibraryItem = (item, ownerKind, ownerId) => {
     if (!isEdit) return;
-    const patch = libraryItemToImageSplitPatch(item, ownerKind);
+    const resolvedOwnerId = String(ownerId || "").trim()
+      || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
+    const patch = libraryItemToImageSplitPatch(item, ownerKind, resolvedOwnerId);
     if (!patch) return;
+    libraryPromptRef.current = patch.libraryPrompt || "";
     onChange?.(patch);
     setLibraryPickerOpen(false);
     setError(null);
+  };
+
+  const writeLinkedLibraryPrompt = (nextBlock) => {
+    const target = writeImageSplitPromptToLibrary(nextBlock, libraryHints);
+    if (!target) return;
+    const sameLink = String(nextBlock?.libraryItemId || "").trim() === target.itemId
+      && String(nextBlock?.libraryOwnerId || "").trim() === target.ownerId
+      && nextBlock?.libraryOwnerKind === target.ownerKind;
+    if (sameLink) return;
+    onChange?.({
+      libraryItemId: target.itemId,
+      libraryOwnerKind: target.ownerKind,
+      libraryOwnerId: target.ownerId,
+    });
+  };
+
+  const latestLibraryBlock = () => ({
+    ...block,
+    libraryPrompt: libraryPromptRef.current,
+  });
+
+  const flushLibraryPrompt = (nextBlock = latestLibraryBlock()) => {
+    if (libraryPromptSyncTimerRef.current) {
+      window.clearTimeout(libraryPromptSyncTimerRef.current);
+      libraryPromptSyncTimerRef.current = null;
+    }
+    writeLinkedLibraryPrompt(nextBlock);
+  };
+
+  const scheduleLibraryPromptSync = (nextPrompt) => {
+    libraryPromptRef.current = nextPrompt;
+    const nextBlock = { ...block, libraryPrompt: nextPrompt };
+    if (libraryPromptSyncTimerRef.current) {
+      window.clearTimeout(libraryPromptSyncTimerRef.current);
+    }
+    libraryPromptSyncTimerRef.current = window.setTimeout(() => {
+      libraryPromptSyncTimerRef.current = null;
+      writeLinkedLibraryPrompt(nextBlock);
+    }, 400);
   };
 
   const handleRemoveBlock = () => {
@@ -891,7 +898,7 @@ export function ImageSplitBlockView({
     if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
   };
 
-  const canSave = cardFilled && !uploading;
+  const canSave = cardFilled;
   const columnStyle = columnHeight ? {
     height: `${columnHeight}px`,
     maxHeight: `${columnHeight}px`,
@@ -939,6 +946,7 @@ export function ImageSplitBlockView({
           disabled={!canSave}
           onClick={() => {
             if (!canSave) return;
+            flushLibraryPrompt(latestLibraryBlock());
             onSave?.();
           }}
         >
@@ -960,17 +968,8 @@ export function ImageSplitBlockView({
               type="button"
               className="doc-image-split__media-btn"
               onClick={() => setLibraryPickerOpen(true)}
-              disabled={uploading}
             >
               {t("doc.imageSplit.pickLibrary")}
-            </button>
-            <button
-              type="button"
-              className="doc-image-split__media-btn"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? t("doc.imageBlock.uploading") : t("doc.imageSplit.pickComputer")}
             </button>
           </>
         ) : null}
@@ -979,7 +978,6 @@ export function ImageSplitBlockView({
             type="button"
             className="doc-image-split__media-btn"
             onClick={handleRemoveBlock}
-            disabled={uploading}
           >
             {t("doc.imageBlock.remove")}
           </button>
@@ -990,14 +988,6 @@ export function ImageSplitBlockView({
 
   return (
     <div className={"doc-image-split" + (splitSaved ? " doc-image-split--saved" : "")}>
-      <input
-        ref={inputRef}
-        type="file"
-        className="doc-image-split__input"
-        accept="image/*"
-        onChange={(event) => handleFiles(event.target.files)}
-      />
-
       <div className="doc-image-split__row" ref={rowRef}>
         <div className="doc-image-split__card" ref={cardRef}>
           {showingImage ? (
@@ -1074,9 +1064,13 @@ export function ImageSplitBlockView({
                   placeholder={t("doc.imageSplit.promptPlaceholder")}
                   aria-label={t("doc.imageSplit.promptPlaceholder")}
                   spellCheck={false}
-                  onChange={(event) => handleFieldChange({
-                    libraryPrompt: event.target.value.slice(0, BANNER_HEADLINE_MAX),
-                  })}
+                  onChange={(event) => {
+                    const next = event.target.value.slice(0, BANNER_HEADLINE_MAX);
+                    libraryPromptRef.current = next;
+                    handleFieldChange({ libraryPrompt: next });
+                    scheduleLibraryPromptSync(next);
+                  }}
+                  onBlur={() => flushLibraryPrompt(latestLibraryBlock())}
                 />
               ) : (
                 <div className="doc-image-split__prompt doc-image-split__prompt--static">
@@ -1087,58 +1081,19 @@ export function ImageSplitBlockView({
             </div>
           ) : (
             <div className="doc-image-split__media doc-image-split__media--empty">
-              <div
-                className={
-                  "doc-image-split__dropzone"
-                  + (dragOver ? " doc-image-split__dropzone--active" : "")
-                  + (uploading ? " doc-image-split__dropzone--busy" : "")
-                }
-                onDragEnter={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragOver={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={(event) => {
-                  event.preventDefault();
-                  setDragOver(false);
-                }}
-                onDrop={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOver(false);
-                  handleFiles(event.dataTransfer?.files);
-                }}
+              <button
+                type="button"
+                className="doc-image-split__dropzone"
+                disabled={!isEdit}
+                onClick={() => isEdit && setLibraryPickerOpen(true)}
               >
                 <span className="doc-image-split__dropzone-title">
-                  {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
-                </span>
-                <span className="doc-image-split__source-row" aria-label={t("doc.imageSplit.pickSourceAria")}>
-                  <button
-                    type="button"
-                    className="doc-image-split__source-btn"
-                    disabled={uploading || !isEdit}
-                    onClick={() => isEdit && setLibraryPickerOpen(true)}
-                  >
-                    {t("doc.imageSplit.pickLibrary")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-image-split__source-btn"
-                    disabled={uploading || !isEdit}
-                    onClick={() => isEdit && inputRef.current?.click()}
-                  >
-                    {t("doc.imageSplit.pickComputer")}
-                  </button>
+                  {t("doc.imageSplit.pickLibrary")}
                 </span>
                 <span className="doc-image-split__dropzone-hint">
-                  {t("doc.imageBlock.uploadHint")}
+                  {t("doc.imageSplit.libraryDropHint")}
                 </span>
-              </div>
+              </button>
               {renderMediaBar({ showSources: false })}
             </div>
           )}

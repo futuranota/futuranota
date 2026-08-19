@@ -3,6 +3,8 @@ import {
   imageSplitHasFill,
   isImageCardLibraryPick,
   libraryItemToImageSplitPatch,
+  resolveImageSplitLibraryLink,
+  syncImageSplitPromptToLibrary,
 } from "./libraryImageCardPick.js";
 
 describe("libraryImageCardPick", () => {
@@ -23,11 +25,13 @@ describe("libraryImageCardPick", () => {
         mediaUrl: "/gina.webp",
       },
       "folder",
+      "folder1",
     );
     expect(patch).toMatchObject({
       src: "/gina.webp",
       libraryItemId: "lib1",
       libraryOwnerKind: "folder",
+      libraryOwnerId: "folder1",
       libraryPrompt: "Gina comienza a caminar por el pasillo",
       libraryTag: "gina_hall",
       mediaFace: "prompt",
@@ -65,5 +69,45 @@ describe("libraryImageCardPick", () => {
 
   it("empty card is not filled", () => {
     expect(imageSplitHasFill({ src: "", libraryPrompt: "  " })).toBe(false);
+  });
+
+  it("does not rewrite a library ficha without a matching catalog", () => {
+    expect(syncImageSplitPromptToLibrary({
+      libraryItemId: "lib1",
+      libraryPrompt: "new text",
+    })).toBeNull();
+  });
+
+  it("overwrites prompt using stored library ids", () => {
+    expect(syncImageSplitPromptToLibrary({
+      libraryItemId: "lib1",
+      libraryOwnerKind: "folder",
+      libraryOwnerId: "folder1",
+      libraryPrompt: "new text from card",
+    }, [{
+      ownerKind: "folder",
+      ownerId: "folder1",
+      items: [{ id: "lib1", mediaUrl: "/gina.webp" }],
+    }])).toEqual({
+      ownerKind: "folder",
+      ownerId: "folder1",
+      itemId: "lib1",
+      description: "new text from card",
+    });
+  });
+
+  it("finds the ficha by photo when owner ids were never stored", () => {
+    expect(resolveImageSplitLibraryLink({
+      src: "/gina.webp",
+      libraryPrompt: "added later",
+    }, [{
+      ownerKind: "folder",
+      ownerId: "folder1",
+      items: [{ id: "lib1", mediaUrl: "/gina.webp" }],
+    }])).toEqual({
+      ownerKind: "folder",
+      ownerId: "folder1",
+      itemId: "lib1",
+    });
   });
 });

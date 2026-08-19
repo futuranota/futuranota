@@ -1,5 +1,7 @@
-import { BANNER_HEADLINE_MAX } from "./docBlocks.js";
 import { fichaHasVisual, promptPreviewText } from "./libraryFichaPreview.js";
+
+/** Keep in sync with BANNER_HEADLINE_MAX in docBlocks.js (avoid importing that module here). */
+const LIBRARY_PROMPT_MAX = 280;
 
 /**
  * Prompt fichas that can fill an Image card (photo and/or written prompt).
@@ -16,7 +18,7 @@ export function isImageCardLibraryPick(item) {
  * @param {unknown} value
  */
 export function normalizeImageSplitLibraryPrompt(value) {
-  return String(value ?? "").slice(0, BANNER_HEADLINE_MAX);
+  return String(value ?? "").slice(0, LIBRARY_PROMPT_MAX);
 }
 
 /**
@@ -33,8 +35,9 @@ export function imageSplitHasFill(block) {
  * Does not touch Story / body on the right.
  * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} item
  * @param {"folder"|"document"|string} [ownerKind]
+ * @param {string} [ownerId]
  */
-export function libraryItemToImageSplitPatch(item, ownerKind = "document") {
+export function libraryItemToImageSplitPatch(item, ownerKind = "document", ownerId = "") {
   if (!item || !isImageCardLibraryPick(item)) return null;
   const src = fichaHasVisual(item) ? String(item.mediaUrl).trim() : "";
   const libraryPrompt = normalizeImageSplitLibraryPrompt(promptPreviewText(item));
@@ -49,10 +52,85 @@ export function libraryItemToImageSplitPatch(item, ownerKind = "document") {
     imageSaved: Boolean(src),
     libraryItemId: String(item.id || "").trim(),
     libraryOwnerKind: kind,
+    libraryOwnerId: String(ownerId || "").trim(),
     libraryPrompt,
     libraryTag: tag,
     mediaFace: libraryPrompt.trim() ? "prompt" : "image",
     openFilePicker: false,
     splitSaved: false,
+  };
+}
+
+/**
+ * @typedef {{ ownerKind: "folder"|"document", ownerId: string, items: Array<{ id?: string, mediaUrl?: string|null }> }} LibraryCatalog
+ */
+
+function mediaUrlOf(item) {
+  return String(item?.mediaUrl || "").trim();
+}
+
+/**
+ * Find the library ficha this Image card should overwrite.
+ * Prefers stored item id; falls back to matching the photo URL (older cards).
+ * @param {{ libraryItemId?: string, libraryOwnerKind?: string, libraryOwnerId?: string, src?: string }|null|undefined} block
+ * @param {LibraryCatalog[]} catalogs
+ * @returns {{ ownerKind: "folder"|"document", ownerId: string, itemId: string }|null}
+ */
+export function resolveImageSplitLibraryLink(block, catalogs = []) {
+  const itemId = String(block?.libraryItemId || "").trim();
+  const src = String(block?.src || "").trim();
+  const list = Array.isArray(catalogs) ? catalogs : [];
+
+  const hintKind = block?.libraryOwnerKind === "folder"
+    ? "folder"
+    : (block?.libraryOwnerKind === "document" ? "document" : "");
+  const hintOwnerId = String(block?.libraryOwnerId || "").trim();
+  const ordered = [...list].sort((a, b) => {
+    const aHint = a.ownerKind === hintKind && a.ownerId === hintOwnerId ? 0 : 1;
+    const bHint = b.ownerKind === hintKind && b.ownerId === hintOwnerId ? 0 : 1;
+    return aHint - bHint;
+  });
+
+  if (itemId) {
+    for (const catalog of ordered) {
+      const hit = (catalog.items || []).find((item) => String(item?.id || "").trim() === itemId);
+      if (hit) {
+        return {
+          ownerKind: catalog.ownerKind,
+          ownerId: catalog.ownerId,
+          itemId,
+        };
+      }
+    }
+  }
+
+  if (src) {
+    for (const catalog of ordered) {
+      const hit = (catalog.items || []).find((item) => mediaUrlOf(item) === src);
+      if (hit?.id) {
+        return {
+          ownerKind: catalog.ownerKind,
+          ownerId: catalog.ownerId,
+          itemId: String(hit.id).trim(),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Payload to write the Image card Prompt back onto the linked library ficha.
+ * @param {{ libraryItemId?: string, libraryOwnerKind?: string, libraryOwnerId?: string, libraryPrompt?: string, src?: string }|null|undefined} block
+ * @param {LibraryCatalog[]} [catalogs]
+ * @returns {{ ownerKind: "folder"|"document", ownerId: string, itemId: string, description: string }|null}
+ */
+export function syncImageSplitPromptToLibrary(block, catalogs) {
+  const link = resolveImageSplitLibraryLink(block, catalogs);
+  if (!link) return null;
+  return {
+    ...link,
+    description: normalizeImageSplitLibraryPrompt(block?.libraryPrompt),
   };
 }

@@ -23,7 +23,7 @@ function renderPickFace(item) {
   );
 }
 
-function PickSection({ title, items, ownerKind, onPick }) {
+function PickSection({ title, items, ownerKind, ownerId, onPick }) {
   if (!items.length) return null;
   return (
     <section className="library-image-card-picker__section">
@@ -36,7 +36,7 @@ function PickSection({ title, items, ownerKind, onPick }) {
             <button
               type="button"
               className="folder-library-overlay__cell-main"
-              onClick={() => onPick(item, ownerKind)}
+              onClick={() => onPick(item, ownerKind, ownerId)}
             >
               {renderPickFace(item)}
               <span className="folder-library-overlay__cell-tag">{item.tag}</span>
@@ -108,12 +108,14 @@ export function LibraryImageCardPicker({
               title={showFolderLabel ? t("doc.imageSplit.libraryPickerFolder") : ""}
               items={folderPicks}
               ownerKind="folder"
+              ownerId={folderId}
               onPick={onPick}
             />
             <PickSection
               title={showFolderLabel || documentId ? t("doc.imageSplit.libraryPickerDocument") : ""}
               items={documentPicks}
               ownerKind="document"
+              ownerId={documentId}
               onPick={onPick}
             />
           </div>
