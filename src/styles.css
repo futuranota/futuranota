@@ -7310,6 +7310,18 @@ textarea.note-form-field {
   box-sizing: border-box;
 }
 
+/* TEMP test: folder Assistance — fill overlay so bottom pad matches the 20px top. */
+.doc-overlay-global:has(.doc-new-inner--content-focus.doc-new-inner--pad-test) {
+  padding: 20px;
+  align-items: stretch;
+}
+
+.doc-overlay-global-card:has(.doc-new-inner--content-focus.doc-new-inner--pad-test) {
+  height: calc(100vh - 40px);
+  min-height: calc(100vh - 40px);
+  max-height: calc(100vh - 40px);
+}
+
 .doc-overlay-global-card:has(.doc-new-content-box--manual-height) {
   height: auto;
   min-height: 0;

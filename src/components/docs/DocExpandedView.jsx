@@ -2646,6 +2646,7 @@ export function DocExpandedView({
             if (id) updateNode(id, { sourceId: v ?? null });
           }}
           parentDocLabel={parentDocLabel}
+          parentDocId={doc.id}
           parentObjectId={draftParentId || null}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}

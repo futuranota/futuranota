@@ -1,4 +1,5 @@
 import { getAssetGridLayout } from "../../lib/libraryAssetGridLayout.js";
+import { resolveFichaPreviewKind, promptPreviewText } from "../../lib/libraryFichaPreview.js";
 import { LibraryAssetImgMark } from "./LibraryAssetImgMark.jsx";
 
 function LibraryAssetEmptySlot() {
@@ -13,8 +14,19 @@ function LibraryAssetEmptySlot() {
 }
 
 function MetadataCardBody({ item }) {
+  const kind = resolveFichaPreviewKind(item, "image");
+  if (kind === "image") {
+    return (
+      <img
+        className="library-asset-metadata-card__img"
+        src={item.mediaUrl}
+        alt=""
+      />
+    );
+  }
+
   const tag = String(item?.tag || "").trim() || "—";
-  const description = String(item?.description || "").trim();
+  const description = promptPreviewText(item);
 
   return (
     <>
@@ -33,8 +45,15 @@ function MetadataCardBody({ item }) {
   );
 }
 
+function assetCardClass(item) {
+  const media = resolveFichaPreviewKind(item, "image") === "image"
+    ? " library-asset-metadata-card--media"
+    : "";
+  return `library-asset-queue__slot library-asset-metadata-card${media}`;
+}
+
 /**
- * Adaptive metadata grid for document assets (no thumbnails — tag + prompt only).
+ * Adaptive asset grid: image when the ficha has media, otherwise tag + prompt.
  * @param {{ items?: import("../../lib/folderLibrary.js").FolderLibraryItem[], onOpenItem?: (item: object) => void, interactive?: boolean }} props
  */
 export function LibraryAssetMetadataGrid({
@@ -62,7 +81,7 @@ export function LibraryAssetMetadataGrid({
             <button
               key={item.id}
               type="button"
-              className="library-asset-queue__slot library-asset-metadata-card library-asset-queue__slot--hit"
+              className={`${assetCardClass(item)} library-asset-queue__slot--hit`}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -77,7 +96,7 @@ export function LibraryAssetMetadataGrid({
         return (
           <div
             key={item.id}
-            className="library-asset-queue__slot library-asset-metadata-card"
+            className={assetCardClass(item)}
           >
             <MetadataCardBody item={item} />
           </div>

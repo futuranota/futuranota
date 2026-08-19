@@ -629,23 +629,45 @@ export function convertImageLayoutBlock(block, targetType) {
   return null;
 }
 
+function normalizeImageSplitLibraryOwnerKind(value) {
+  const raw = String(value || "").trim();
+  return raw === "folder" || raw === "document" ? raw : "";
+}
+
+function normalizeImageSplitMediaFace(block, hasSrc, hasPrompt) {
+  const raw = String(block?.mediaFace || "").trim();
+  if (raw === "prompt" && hasPrompt) return "prompt";
+  if (raw === "image" && hasSrc) return "image";
+  if (!hasSrc && hasPrompt) return "prompt";
+  return "image";
+}
+
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
   const description = String(block?.overlayDescription ?? block?.description ?? "")
     .slice(0, IMAGE_SPLIT_DESC_MAX);
-  const imageSaved = Boolean(block?.imageSaved && block?.src);
+  const src = block?.src || "";
+  const imageSaved = Boolean(block?.imageSaved && src);
+  const libraryPrompt = String(block?.libraryPrompt ?? "").slice(0, BANNER_HEADLINE_MAX);
+  const hasPrompt = Boolean(libraryPrompt.trim());
+  const filled = imageSaved || hasPrompt;
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
     : IMAGE_SPLIT_BODY_MODE.TEXT;
   return {
     overlayTitle: title,
     overlayDescription: description,
-    src: block?.src || "",
+    src,
     name: block?.name || "",
     alt: block?.alt || "",
     width: Number.isFinite(block?.width) ? block.width : 0,
     height: Number.isFinite(block?.height) ? block.height : 0,
     imageSaved,
+    libraryItemId: String(block?.libraryItemId || "").trim(),
+    libraryOwnerKind: normalizeImageSplitLibraryOwnerKind(block?.libraryOwnerKind),
+    libraryPrompt,
+    libraryTag: String(block?.libraryTag || "").trim().slice(0, IMAGE_SPLIT_TITLE_MAX),
+    mediaFace: normalizeImageSplitMediaFace(block, imageSaved, hasPrompt),
     openFilePicker: Boolean(block?.openFilePicker),
     body: String(block?.body ?? ""),
     bodyMode,
@@ -655,7 +677,7 @@ function normalizeImageSplitBlock(block) {
       : Array.isArray(block?.todoItems)
         ? normalizeEmbeddedTodoItems(block.todoItems)
         : [],
-    splitSaved: Boolean(block?.splitSaved) && imageSaved,
+    splitSaved: Boolean(block?.splitSaved) && filled,
   };
 }
 
@@ -1477,6 +1499,7 @@ export function docBlockHasContent(block) {
       );
     return Boolean((block.src || "").trim())
       || Boolean(block.imageSaved)
+      || Boolean((block.libraryPrompt || "").trim())
       || Boolean(block.splitSaved)
       || Boolean((block.overlayTitle || "").trim())
       || Boolean((block.overlayDescription || "").trim())
@@ -2013,6 +2036,11 @@ export function docBlocksToBody(blocks) {
           width: normalized.width,
           height: normalized.height,
           imageSaved: normalized.imageSaved,
+          libraryItemId: normalized.libraryItemId,
+          libraryOwnerKind: normalized.libraryOwnerKind,
+          libraryPrompt: normalized.libraryPrompt,
+          libraryTag: normalized.libraryTag,
+          mediaFace: normalized.mediaFace,
           body: normalized.body,
           bodyMode: normalized.bodyMode,
           todoListTitle: normalized.todoListTitle,

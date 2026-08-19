@@ -74,6 +74,7 @@ import {
   WIDGET_SNAPSHOT_KIND,
 } from "../../../lib/captureWidgetSnapshot.js";
 import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../../lib/textareaSelectionRect.js";
+import { imageSplitHasFill } from "../../../lib/libraryImageCardPick.js";
 import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
 import {
   replaceProseSegmentInBlocks,
@@ -195,6 +196,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   folderViewMode = null,
   folderIndexMode = false,
   allowShredDrag = false,
+  libraryOwnerKind = "folder",
+  libraryOwnerId = "",
+  folderLibraryId = "",
 }, ref) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -1900,27 +1904,30 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT ? (
-            <ImageSplitBlockView
-              block={block}
-              autoFocusBody={focusBlockId === block.id && Boolean(block.imageSaved) && !block.splitSaved}
-              focusTodoItemId={
-                focusBlockId === block.id && block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
-                  ? todoFocusItemId
-                  : null
-              }
-              onBodyFocus={() => onFocusBlock?.(block.id)}
-              onChange={(patch) => {
+              <ImageSplitBlockView
+                block={block}
+                autoFocusBody={focusBlockId === block.id && imageSplitHasFill(block) && !block.splitSaved}
+                focusTodoItemId={
+                  focusBlockId === block.id && block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+                    ? todoFocusItemId
+                    : null
+                }
+                onBodyFocus={() => onFocusBlock?.(block.id)}
+                libraryOwnerKind={libraryOwnerKind}
+                libraryOwnerId={libraryOwnerId}
+                folderLibraryId={folderLibraryId}
+                onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
-                if (patch.imageSaved && patch.src) {
+                if (imageSplitHasFill({ ...block, ...patch })) {
                   next = ensureEmptyTextBlockAfter(next, index);
                 }
                 setBlocks(next);
-                if (patch.imageSaved && patch.src) {
+                if (imageSplitHasFill({ ...block, ...patch })) {
                   requestContentGrow();
                 }
               }}
               onSave={() => {
-                if (!(block.imageSaved && block.src)) return;
+                if (!imageSplitHasFill(block)) return;
                 let next = updateBlockAt(blocksRef.current, index, { splitSaved: true });
                 next = ensureEmptyTextBlockAfter(next, index);
                 setBlocks(next);

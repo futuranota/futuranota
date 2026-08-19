@@ -17,6 +17,7 @@ import {
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
 import { isLibraryAssignPromptFile, mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
+import { imageSplitHasFill } from "../../lib/libraryImageCardPick.js";
 import { assignLibraryItemToSet, cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
@@ -1245,6 +1246,9 @@ export function NodeWritingBlockStack({
             >
               <ImageSplitBlockView
                 block={block}
+                libraryOwnerKind={libraryOwnerKind}
+                libraryOwnerId={libraryOwnerId}
+                folderLibraryId={folderLibraryId}
                 onChange={(patch) => {
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
@@ -1252,13 +1256,13 @@ export function NodeWritingBlockStack({
                       ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.IMAGE_SPLIT }
                       : entry
                   ));
-                  if (patch.imageSaved && patch.src) {
+                  if (imageSplitHasFill({ ...block, ...patch })) {
                     next = ensureEmptyTextBlockAfterNode(next, blockIndex);
                   }
                   updateBlocks(next);
                 }}
                 onSave={() => {
-                  if (!(block.imageSaved && block.src)) return;
+                  if (!imageSplitHasFill(block)) return;
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex

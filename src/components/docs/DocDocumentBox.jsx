@@ -44,6 +44,14 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
+/** TEMP: taller content expand + equal overlay pad — folder Assistance only. */
+function isAssistanceFolderExpandPadTest(title, category) {
+  const names = [title, category].map((value) =>
+    String(value || "").trim().toLowerCase().replace(/\s+/g, " "),
+  );
+  return names.some((name) => name === "assistance" || name === "asistance");
+}
+
 /** Long enough for the Mark write cycle to read while saving. */
 const SAVE_LOADING_MIN_MS = 700;
 const FOLDER_EMPTY_ROOM_SRC = "/uploads/rooms.svg";
@@ -653,12 +661,15 @@ export function DocDocumentBox({
     onBodyKeyDown?.(e);
   };
 
+  const padTestFolder = isAssistanceFolderExpandPadTest(title, category);
+
   return (
     <div
       className={
         "doc-new-inner"
         + (isKnowledgeMode ? " doc-new-inner--knowledge" : "")
         + (contentFocusMode ? " doc-new-inner--content-focus" : "")
+        + (padTestFolder ? " doc-new-inner--pad-test" : "")
       }
     >
       {contentFocusMode ? (
@@ -963,6 +974,9 @@ export function DocDocumentBox({
               folderViewMode={folderViewMode}
               folderIndexMode={isFolderSlashSurface}
               allowShredDrag={isFolderSlashSurface && contentFocusMode}
+              libraryOwnerKind="folder"
+              libraryOwnerId={docId || ""}
+              folderLibraryId={docId || ""}
             />
           ) : !isFolderSlashSurface ? (
             <div

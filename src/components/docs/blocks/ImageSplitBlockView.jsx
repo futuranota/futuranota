@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
+  BANNER_HEADLINE_MAX,
   createTodoItem,
   IMAGE_SPLIT_BODY_MAX_LINES,
   IMAGE_SPLIT_BODY_MODE,
   IMAGE_SPLIT_TITLE_MAX,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
+import { imageSplitHasFill, libraryItemToImageSplitPatch } from "../../../lib/libraryImageCardPick.js";
 import {
   findMaxFittingPrefixLength,
   resolveLineFitHeight,
@@ -189,6 +192,9 @@ export function ImageSplitBlockView({
   onBodyFocus,
   autoFocusBody = false,
   focusTodoItemId = null,
+  libraryOwnerKind = "document",
+  libraryOwnerId = "",
+  folderLibraryId = "",
 }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
@@ -213,6 +219,7 @@ export function ImageSplitBlockView({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
   const [columnHeight, setColumnHeight] = useState(null);
   const [sideHeight, setSideHeight] = useState(null);
@@ -221,8 +228,21 @@ export function ImageSplitBlockView({
   const [belowFocused, setBelowFocused] = useState(false);
 
   const imageSaved = Boolean(block?.imageSaved && block?.src);
-  const splitSaved = Boolean(block?.splitSaved && imageSaved);
+  const libraryPrompt = String(block?.libraryPrompt || "");
+  const hasLibraryPrompt = Boolean(libraryPrompt.trim());
+  const mediaFace = block?.mediaFace === "prompt" && hasLibraryPrompt
+    ? "prompt"
+    : (imageSaved ? "image" : (hasLibraryPrompt ? "prompt" : "image"));
+  const showFaceSwitch = imageSaved && hasLibraryPrompt;
+  const showingImage = mediaFace === "image" && imageSaved;
+  const showingPrompt = mediaFace === "prompt" && hasLibraryPrompt;
+  const cardFilled = imageSplitHasFill(block);
+  const splitSaved = Boolean(block?.splitSaved && cardFilled);
   const isEdit = !splitSaved;
+  const pickerFolderId = libraryOwnerKind === "folder"
+    ? (libraryOwnerId || folderLibraryId)
+    : folderLibraryId;
+  const pickerDocumentId = libraryOwnerKind === "document" ? libraryOwnerId : "";
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
     : IMAGE_SPLIT_BODY_MODE.TEXT;
@@ -246,13 +266,9 @@ export function ImageSplitBlockView({
   }, []);
 
   useEffect(() => {
-    if (!isEdit || !block?.openFilePicker || imageSaved || uploading) return;
-    const timer = window.setTimeout(() => {
-      inputRef.current?.click();
-      onChange?.({ openFilePicker: false });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [block?.openFilePicker, block?.id, imageSaved, uploading, onChange, isEdit]);
+    if (!isEdit || !block?.openFilePicker || cardFilled || uploading) return;
+    onChange?.({ openFilePicker: false });
+  }, [block?.openFilePicker, block?.id, cardFilled, uploading, onChange, isEdit]);
 
   const applySplitResult = useCallback((result) => {
     splitIndexRef.current = result.split;
@@ -398,7 +414,7 @@ export function ImageSplitBlockView({
       const imgEl = card.querySelector("img.doc-image-split__img");
       const iw = Number(block?.width) || imgEl?.naturalWidth || 0;
       const ih = Number(block?.height) || imgEl?.naturalHeight || 0;
-      const ratio = (imageSaved && iw > 0 && ih > 0)
+      const ratio = (showingImage && iw > 0 && ih > 0)
         ? (ih / iw)
         : IMAGE_SPLIT_EMPTY_ASPECT;
       const naturalCardH = Math.round(innerW * ratio + padTotal);
@@ -446,7 +462,7 @@ export function ImageSplitBlockView({
       card.style.minHeight = "";
       card.style.maxHeight = "";
     };
-  }, [imageSaved, splitSaved, isTodoBody, headlineValue, block?.src, block?.width, block?.height]);
+  }, [showingImage, splitSaved, isTodoBody, headlineValue, block?.src, block?.width, block?.height, mediaFace]);
 
   // Reflow side/below whenever body or side height changes.
   useLayoutEffect(() => {
@@ -530,6 +546,9 @@ export function ImageSplitBlockView({
         width: converted.width,
         height: converted.height,
         imageSaved: true,
+        libraryItemId: "",
+        libraryOwnerKind: "",
+        mediaFace: hasLibraryPrompt ? mediaFace : "image",
         openFilePicker: false,
         splitSaved: false,
       });
@@ -550,9 +569,23 @@ export function ImageSplitBlockView({
       width: 0,
       height: 0,
       imageSaved: false,
+      libraryItemId: "",
+      libraryOwnerKind: "",
+      libraryPrompt: "",
+      libraryTag: "",
+      mediaFace: "image",
       openFilePicker: false,
       splitSaved: false,
     });
+    setError(null);
+  };
+
+  const handlePickLibraryItem = (item, ownerKind) => {
+    if (!isEdit) return;
+    const patch = libraryItemToImageSplitPatch(item, ownerKind);
+    if (!patch) return;
+    onChange?.(patch);
+    setLibraryPickerOpen(false);
     setError(null);
   };
 
@@ -567,6 +600,10 @@ export function ImageSplitBlockView({
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
     onChange?.({ ...patch, splitSaved: false });
+  };
+
+  const handleFaceChange = (face) => {
+    onChange?.({ mediaFace: face });
   };
 
   const handleTodoPatch = (patch, { keepSaved = false } = {}) => {
@@ -855,7 +892,7 @@ export function ImageSplitBlockView({
     if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
   };
 
-  const canSave = imageSaved && !uploading;
+  const canSave = cardFilled && !uploading;
   const columnStyle = columnHeight ? {
     height: `${columnHeight}px`,
     maxHeight: `${columnHeight}px`,
@@ -906,8 +943,30 @@ export function ImageSplitBlockView({
 
       <div className="doc-image-split__row" ref={rowRef}>
         <div className="doc-image-split__card" ref={cardRef}>
-          {imageSaved ? (
+          {showingImage ? (
             <div className="doc-image-split__media">
+              {showFaceSwitch ? (
+                <div className="doc-image-split__face-switch" role="tablist" aria-label={t("doc.library.viewSwitchAria")}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={false}
+                    className="doc-image-split__face-switch-btn"
+                    onClick={() => handleFaceChange("prompt")}
+                  >
+                    {t("doc.library.viewRef")}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected
+                    className="doc-image-split__face-switch-btn is-active"
+                    onClick={() => handleFaceChange("image")}
+                  >
+                    {t("doc.library.viewImage")}
+                  </button>
+                </div>
+              ) : null}
               <img
                 className="doc-image-split__img"
                 src={block.src}
@@ -921,10 +980,90 @@ export function ImageSplitBlockView({
                   <button
                     type="button"
                     className="doc-image-split__media-btn"
+                    onClick={() => setLibraryPickerOpen(true)}
+                    disabled={uploading}
+                  >
+                    {t("doc.imageSplit.pickLibrary")}
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-image-split__media-btn"
                     onClick={() => inputRef.current?.click()}
                     disabled={uploading}
                   >
-                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
+                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageSplit.pickComputer")}
+                  </button>
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      className="doc-image-split__media-btn"
+                      onClick={handleRemoveBlock}
+                      disabled={uploading}
+                    >
+                      {t("doc.imageBlock.remove")}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : showingPrompt ? (
+            <div className="doc-image-split__media doc-image-split__media--prompt">
+              {showFaceSwitch ? (
+                <div className="doc-image-split__face-switch" role="tablist" aria-label={t("doc.library.viewSwitchAria")}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected
+                    className="doc-image-split__face-switch-btn is-active"
+                    onClick={() => handleFaceChange("prompt")}
+                  >
+                    {t("doc.library.viewRef")}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={false}
+                    className="doc-image-split__face-switch-btn"
+                    onClick={() => handleFaceChange("image")}
+                  >
+                    {t("doc.library.viewImage")}
+                  </button>
+                </div>
+              ) : null}
+              {isEdit ? (
+                <textarea
+                  className="doc-image-split__prompt"
+                  value={libraryPrompt}
+                  maxLength={BANNER_HEADLINE_MAX}
+                  placeholder={t("doc.imageSplit.promptPlaceholder")}
+                  aria-label={t("doc.imageSplit.promptPlaceholder")}
+                  spellCheck={false}
+                  onChange={(event) => handleFieldChange({
+                    libraryPrompt: event.target.value.slice(0, BANNER_HEADLINE_MAX),
+                  })}
+                />
+              ) : (
+                <div className="doc-image-split__prompt doc-image-split__prompt--static">
+                  {libraryPrompt}
+                </div>
+              )}
+              {isEdit ? (
+                <div className="doc-image-split__media-actions">
+                  <button
+                    type="button"
+                    className="doc-image-split__media-btn"
+                    onClick={() => setLibraryPickerOpen(true)}
+                    disabled={uploading}
+                  >
+                    {t("doc.imageSplit.pickLibrary")}
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-image-split__media-btn"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {t("doc.imageSplit.pickComputer")}
                   </button>
                   {onDelete ? (
                     <button
@@ -941,15 +1080,12 @@ export function ImageSplitBlockView({
             </div>
           ) : (
             <div className="doc-image-split__media doc-image-split__media--empty">
-              <button
-                type="button"
+              <div
                 className={
                   "doc-image-split__dropzone"
                   + (dragOver ? " doc-image-split__dropzone--active" : "")
                   + (uploading ? " doc-image-split__dropzone--busy" : "")
                 }
-                disabled={uploading || !isEdit}
-                onClick={() => isEdit && inputRef.current?.click()}
                 onDragEnter={(event) => {
                   if (!isEdit) return;
                   event.preventDefault();
@@ -974,10 +1110,28 @@ export function ImageSplitBlockView({
                 <span className="doc-image-split__dropzone-title">
                   {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
                 </span>
+                <span className="doc-image-split__source-row" aria-label={t("doc.imageSplit.pickSourceAria")}>
+                  <button
+                    type="button"
+                    className="doc-image-split__source-btn"
+                    disabled={uploading || !isEdit}
+                    onClick={() => isEdit && setLibraryPickerOpen(true)}
+                  >
+                    {t("doc.imageSplit.pickLibrary")}
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-image-split__source-btn"
+                    disabled={uploading || !isEdit}
+                    onClick={() => isEdit && inputRef.current?.click()}
+                  >
+                    {t("doc.imageSplit.pickComputer")}
+                  </button>
+                </span>
                 <span className="doc-image-split__dropzone-hint">
                   {t("doc.imageBlock.uploadHint")}
                 </span>
-              </button>
+              </div>
               {isEdit && onDelete ? (
                 <div className="doc-image-split__media-actions">
                   <button
@@ -1167,6 +1321,15 @@ export function ImageSplitBlockView({
       ) : null}
 
       {error ? <p className="doc-image-split__error" role="alert">{error}</p> : null}
+
+      {libraryPickerOpen ? (
+        <LibraryImageCardPicker
+          folderId={pickerFolderId}
+          documentId={pickerDocumentId}
+          onPick={handlePickLibraryItem}
+          onClose={() => setLibraryPickerOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

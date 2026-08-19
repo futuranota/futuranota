@@ -19,6 +19,11 @@ import {
   removePromptClass,
   renamePromptClass,
 } from "../../lib/folderLibrary.js";
+import {
+  pickDocLibraryPreviews,
+  promptPreviewText,
+  resolveFichaPreviewKind,
+} from "../../lib/libraryFichaPreview.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
@@ -70,12 +75,53 @@ function formatBadge(item) {
   return "FILE";
 }
 
-function isPromptFicha(item) {
-  return item?.category === "image" || item?.category === "auto";
+function renderFichaFace(item, prefer) {
+  const isAttachment = item?.category === "skill" || item?.category === "pdf";
+  const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer);
+  if (kind === "prompt") {
+    return (
+      <span className="folder-library-overlay__cell-prompt">
+        {promptPreviewText(item)}
+      </span>
+    );
+  }
+  if (kind === "image") {
+    return (
+      <img
+        className="folder-library-overlay__cell-img"
+        src={item.mediaUrl}
+        alt=""
+      />
+    );
+  }
+  return (
+    <span
+      className={
+        "folder-library-overlay__cell-badge"
+        + ` folder-library-overlay__cell-badge--${item.category}`
+      }
+      aria-hidden
+    >
+      <span className="folder-library-overlay__cell-badge-lines" />
+      <span className="folder-library-overlay__cell-badge-fmt">
+        {formatBadge(item)}
+      </span>
+    </span>
+  );
 }
 
-function promptPreviewText(item) {
-  return String(item?.description || "").trim();
+function renderMiniFichaFace(item, prefer) {
+  const kind = resolveFichaPreviewKind(item, prefer);
+  if (kind === "image") {
+    return <img src={item.mediaUrl} alt="" />;
+  }
+  return promptPreviewText(item);
+}
+
+function miniFichaClass(item, prefer) {
+  const kind = resolveFichaPreviewKind(item, prefer);
+  return "folder-library-overlay__mini-prompt"
+    + (kind === "image" ? " folder-library-overlay__mini-prompt--media" : "");
 }
 
 /**
@@ -151,12 +197,20 @@ export function FolderLibraryOverlay({
     setPromptClassFilter("");
     setClassDraftOpen(false);
     setClassDraft("");
+    setEditingClass("");
+    setClassEditDraft("");
   }, [filterKey]);
 
   useEffect(() => {
     if (!classDraftOpen) return;
     classDraftRef.current?.focus();
   }, [classDraftOpen]);
+
+  useEffect(() => {
+    if (!editingClass) return;
+    classEditRef.current?.focus();
+    classEditRef.current?.select();
+  }, [editingClass]);
 
   useEffect(() => {
     const allowed = new Set(
@@ -310,6 +364,32 @@ export function FolderLibraryOverlay({
     if (created) setPromptClassFilter(created);
   };
 
+  const startClassEdit = (name) => {
+    setClassDraftOpen(false);
+    setClassDraft("");
+    setEditingClass(name);
+    setClassEditDraft(name);
+    setPromptClassFilter(name);
+  };
+
+  const cancelClassEdit = () => {
+    setEditingClass("");
+    setClassEditDraft("");
+  };
+
+  const commitClassEdit = () => {
+    const fromName = editingClass;
+    if (!fromName) return;
+    const next = String(classEditDraft || "").trim();
+    if (!next) {
+      cancelClassEdit();
+      return;
+    }
+    const renamed = renamePromptClass(activeKind, activeId, fromName, next);
+    cancelClassEdit();
+    if (renamed) setPromptClassFilter(renamed);
+  };
+
   const handleDeleteClass = async (name, event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -324,6 +404,9 @@ export function FolderLibraryOverlay({
     });
     if (!ok) return;
     removePromptClass(activeKind, activeId, label);
+    if (editingClass.toLowerCase() === label.toLowerCase()) {
+      cancelClassEdit();
+    }
     if (promptClassFilter.toLowerCase() === label.toLowerCase()) {
       setPromptClassFilter("");
     }
@@ -396,30 +479,7 @@ export function FolderLibraryOverlay({
               onClick={() => openItem(item)}
               title={item.tag}
             >
-              {isPromptFicha(item) ? (
-                <span className="folder-library-overlay__cell-prompt">
-                  {promptPreviewText(item)}
-                </span>
-              ) : item.mediaUrl && item.category === "video" ? (
-                <img
-                  className="folder-library-overlay__cell-img"
-                  src={item.mediaUrl}
-                  alt=""
-                />
-              ) : (
-                <span
-                  className={
-                    "folder-library-overlay__cell-badge"
-                    + ` folder-library-overlay__cell-badge--${item.category}`
-                  }
-                  aria-hidden
-                >
-                  <span className="folder-library-overlay__cell-badge-lines" />
-                  <span className="folder-library-overlay__cell-badge-fmt">
-                    {formatBadge(item)}
-                  </span>
-                </span>
-              )}
+              {renderFichaFace(item, showingDocumentGrid ? "prompt" : "image")}
               <span className="folder-library-overlay__cell-meta">
                 <span className="folder-library-overlay__cell-tag">{item.tag}</span>
                 {item.promptClass ? (
@@ -565,7 +625,7 @@ export function FolderLibraryOverlay({
           {showingDocsIndex ? (
             <ul className="folder-library-overlay__grid">
               {docGroups.map((group) => {
-                const previews = group.items.filter(isPromptFicha).slice(0, 4);
+                const previews = pickDocLibraryPreviews(group.items, 4);
                 return (
                   <li key={group.documentId} className="folder-library-overlay__cell folder-library-overlay__cell--doc">
                     <button
@@ -583,8 +643,8 @@ export function FolderLibraryOverlay({
                       >
                         {previews.length > 0 ? (
                           previews.map((item) => (
-                            <span key={item.id} className="folder-library-overlay__mini-prompt">
-                              {promptPreviewText(item)}
+                            <span key={item.id} className={miniFichaClass(item, "prompt")}>
+                              {renderMiniFichaFace(item, "prompt")}
                             </span>
                           ))
                         ) : (
@@ -663,29 +723,60 @@ export function FolderLibraryOverlay({
                         {t("doc.library.tabAll")}
                       </button>
                       {promptClasses.map((name) => (
-                        <span key={name} className="folder-library-overlay__prompt-class-wrap">
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={promptClassFilter.toLowerCase() === name.toLowerCase()}
-                            className={
-                              "folder-library-overlay__prompt-class"
-                              + (promptClassFilter.toLowerCase() === name.toLowerCase() ? " is-active" : "")
-                            }
-                            onClick={() => setPromptClassFilter(name)}
-                          >
-                            {name}
-                          </button>
-                          <button
-                            type="button"
-                            className="folder-library-overlay__prompt-class-delete"
-                            aria-label={t("doc.library.promptClassDeleteAria", { name })}
-                            title={t("doc.library.promptClassDeleteAria", { name })}
-                            onClick={(event) => handleDeleteClass(name, event)}
-                          >
-                            ×
-                          </button>
-                        </span>
+                        editingClass.toLowerCase() === name.toLowerCase() ? (
+                          <input
+                            key={name}
+                            ref={classEditRef}
+                            className="folder-library-overlay__prompt-class-input"
+                            value={classEditDraft}
+                            placeholder={t("doc.library.promptClassPlaceholder")}
+                            aria-label={t("doc.library.promptClassPlaceholder")}
+                            onChange={(event) => setClassEditDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitClassEdit();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelClassEdit();
+                              }
+                            }}
+                            onBlur={commitClassEdit}
+                          />
+                        ) : (
+                          <span key={name} className="folder-library-overlay__prompt-class-wrap">
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={promptClassFilter.toLowerCase() === name.toLowerCase()}
+                              className={
+                                "folder-library-overlay__prompt-class"
+                                + (promptClassFilter.toLowerCase() === name.toLowerCase() ? " is-active" : "")
+                              }
+                              onClick={() => {
+                                setClassDraftOpen(false);
+                                setClassDraft("");
+                                setPromptClassFilter(name);
+                              }}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                startClassEdit(name);
+                              }}
+                            >
+                              {name}
+                            </button>
+                            <button
+                              type="button"
+                              className="folder-library-overlay__prompt-class-delete"
+                              aria-label={t("doc.library.promptClassDeleteAria", { name })}
+                              title={t("doc.library.promptClassDeleteAria", { name })}
+                              onClick={(event) => handleDeleteClass(name, event)}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        )
                       ))}
                       {classDraftOpen ? (
                         <input
@@ -718,7 +809,10 @@ export function FolderLibraryOverlay({
                         <button
                           type="button"
                           className="folder-library-overlay__prompt-class-add"
-                          onClick={() => setClassDraftOpen(true)}
+                          onClick={() => {
+                            cancelClassEdit();
+                            setClassDraftOpen(true);
+                          }}
                           aria-label={t("doc.library.promptClassAdd")}
                           title={t("doc.library.promptClassAdd")}
                         >
@@ -744,7 +838,11 @@ export function FolderLibraryOverlay({
                   </div>
                 ) : (
                   <ul className="folder-library-overlay__subfolders">
-                    {assets.map((asset) => (
+                    {assets.map((asset) => {
+                      const previews = items
+                        .filter((item) => item.setId === asset.id)
+                        .slice(0, 4);
+                      return (
                       <li key={asset.id} className="folder-library-overlay__subfolder-wrap">
                         <button
                           type="button"
@@ -768,6 +866,15 @@ export function FolderLibraryOverlay({
                               )}
                             </span>
                           </span>
+                          {previews.length > 0 ? (
+                            <span className="folder-library-overlay__subfolder-previews" aria-hidden>
+                              {previews.map((item) => (
+                                <span key={item.id} className={miniFichaClass(item, "image")}>
+                                  {renderMiniFichaFace(item, "image")}
+                                </span>
+                              ))}
+                            </span>
+                          ) : null}
                         </button>
                         <button
                           type="button"
@@ -778,7 +885,8 @@ export function FolderLibraryOverlay({
                           ×
                         </button>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )
               ) : (
