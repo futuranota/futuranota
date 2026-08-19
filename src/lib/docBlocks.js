@@ -111,9 +111,68 @@ export function normalizeStepBlocks(blocks) {
   return normalized.length ? normalized : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
 }
 
+const STEP_VARIANT_IMAGE_MAX = 2;
+
+export function normalizeStepImage(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const src = String(raw.src ?? "").trim();
+  if (!src) return null;
+  const width = Number(raw.width);
+  const height = Number(raw.height);
+  return {
+    src,
+    name: String(raw.name ?? "").trim(),
+    alt: String(raw.alt ?? "").trim(),
+    width: Number.isFinite(width) && width > 0 ? width : 0,
+    height: Number.isFinite(height) && height > 0 ? height : 0,
+  };
+}
+
+export function normalizeStepVariantImages(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const images = [];
+  for (const item of list) {
+    const image = normalizeStepImage(item);
+    if (!image) continue;
+    images.push(image);
+    if (images.length >= STEP_VARIANT_IMAGE_MAX) break;
+  }
+  return images;
+}
+
+function stepBlocksHaveContent(blocks) {
+  return normalizeStepBlocks(blocks).some((block) => {
+    if (block.type === DOC_BLOCK_TYPES.TEXT) return Boolean((block.text || "").trim());
+    if (block.type === DOC_BLOCK_TYPES.CODE) {
+      return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
+    }
+    return false;
+  });
+}
+
+export function stepEntryHasRecipeFields(step) {
+  const meta = String(step?.meta ?? "").trim();
+  const prompt = String(step?.prompt ?? "").trim();
+  if (meta || prompt || Boolean(step?.promptSaved && prompt)) return true;
+  if (normalizeStepImage(step?.refImage)) return true;
+  return normalizeStepVariantImages(step?.variantImages).length > 0;
+}
+
+/** New / recipe steps use the visual card; old playbooks with only blocks keep the editor. */
+export function stepUsesRecipeLayout(step) {
+  if (stepEntryHasRecipeFields(step)) return true;
+  return !stepBlocksHaveContent(step?.blocks);
+}
+
 export function createStepEntry(patch = {}) {
+  const prompt = String(patch.prompt ?? "");
   return {
     id: patch.id || generateId("STEP"),
+    refImage: normalizeStepImage(patch.refImage),
+    variantImages: normalizeStepVariantImages(patch.variantImages),
+    meta: String(patch.meta ?? ""),
+    prompt,
+    promptSaved: Boolean(patch.promptSaved) && Boolean(prompt.trim()),
     blocks: normalizeStepBlocks(migrateLegacyStepToBlocks(patch)),
   };
 }
@@ -191,17 +250,13 @@ export function propagateStepCodeTemplate(steps) {
 }
 
 export function stepEntryHasContent(step) {
-  const blocks = normalizeStepBlocks(step?.blocks);
-  return blocks.some((block) => {
-    if (block.type === DOC_BLOCK_TYPES.TEXT) return Boolean((block.text || "").trim());
-    if (block.type === DOC_BLOCK_TYPES.CODE) {
-      return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
-    }
-    return false;
-  });
+  if (stepEntryHasRecipeFields(step)) return true;
+  return stepBlocksHaveContent(step?.blocks);
 }
 
 export function getStepPreviewText(step) {
+  const meta = String(step?.meta ?? "").trim();
+  if (meta) return meta;
   const blocks = normalizeStepBlocks(step?.blocks);
   for (const block of blocks) {
     if (block.type === DOC_BLOCK_TYPES.TEXT && (block.text || "").trim()) {
@@ -222,6 +277,8 @@ export function getStepCodePreview(step) {
 }
 
 export function getStepPlaybookPreview(step) {
+  const prompt = String(step?.prompt ?? "").trim();
+  if (prompt) return prompt.split("\n")[0];
   return getStepPreviewText(step) || getStepCodePreview(step);
 }
 
@@ -257,6 +314,7 @@ function normalizeStepSequenceBlock(block) {
 export function finalizeStepSequence(steps) {
   const normalized = normalizeStepSequenceSteps(steps).map((step) => ({
     ...step,
+    promptSaved: Boolean((step.prompt || "").trim()) || Boolean(step.promptSaved),
     blocks: finalizeStepBlocks(step.blocks),
   }));
   let end = normalized.length;

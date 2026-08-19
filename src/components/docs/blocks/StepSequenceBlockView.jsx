@@ -7,7 +7,9 @@ import {
   finalizeStepSequence,
   getStepCodeTemplateShells,
   propagateStepCodeTemplate,
+  stepUsesRecipeLayout,
 } from "../../../lib/docBlocks.js";
+import { StepRecipeCard } from "./StepRecipeCard.jsx";
 import { StepStepBlocksEditor } from "./StepStepBlocksEditor.jsx";
 
 const BLOCK_LABEL = "Step by step";
@@ -167,13 +169,21 @@ function SavedStepSequenceView({
               <span className="doc-step-sequence__step-badge">
                 Step {index + 1}
               </span>
-              <StepStepBlocksEditor
-                blocks={step.blocks}
-                onBlocksChange={(blocks) => updateStepBlocks(index, blocks)}
-                readOnly
-                compact={compact}
-                stepId={step.id}
-              />
+              {stepUsesRecipeLayout(step) ? (
+                <StepRecipeCard
+                  step={step}
+                  readOnly
+                  compact={compact}
+                />
+              ) : (
+                <StepStepBlocksEditor
+                  blocks={step.blocks}
+                  onBlocksChange={(blocks) => updateStepBlocks(index, blocks)}
+                  readOnly
+                  compact={compact}
+                  stepId={step.id}
+                />
+              )}
             </article>
           ))}
         </div>
@@ -226,6 +236,13 @@ export function StepSequenceBlockView({
       next = propagateStepCodeTemplate(next);
     }
     onStepsChange?.(next);
+  }, [activeIndex, onStepsChange, safeSteps]);
+
+  const updateActiveStepPatch = useCallback((patch) => {
+    const index = Math.min(activeIndex, safeSteps.length - 1);
+    onStepsChange?.(safeSteps.map((step, i) => (
+      i === index ? createStepEntry({ ...step, ...patch }) : step
+    )));
   }, [activeIndex, onStepsChange, safeSteps]);
 
   const applyTemplateToStep = useCallback((steps, targetIndex) => {
@@ -355,15 +372,25 @@ export function StepSequenceBlockView({
             <span className="doc-step-sequence__step-badge">
               Step {stepNumber}
             </span>
-            <span className="doc-step-sequence__field-label">Instructions</span>
-            <StepStepBlocksEditor
-              blocks={activeStep?.blocks}
-              onBlocksChange={updateActiveStepBlocks}
-              compact={compact}
-              autoFocus={autoFocus}
-              stepId={activeStep?.id}
-              onOuterKeyDown={handleWizardKeyDown}
-            />
+            {stepUsesRecipeLayout(activeStep) ? (
+              <StepRecipeCard
+                step={activeStep}
+                onChange={updateActiveStepPatch}
+                compact={compact}
+              />
+            ) : (
+              <>
+                <span className="doc-step-sequence__field-label">Instructions</span>
+                <StepStepBlocksEditor
+                  blocks={activeStep?.blocks}
+                  onBlocksChange={updateActiveStepBlocks}
+                  compact={compact}
+                  autoFocus={autoFocus}
+                  stepId={activeStep?.id}
+                  onOuterKeyDown={handleWizardKeyDown}
+                />
+              </>
+            )}
           </motion.div>
         </AnimatePresence>
 

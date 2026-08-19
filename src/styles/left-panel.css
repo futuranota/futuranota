@@ -7830,6 +7830,205 @@ body.doc-content-resizing * {
   font-size: 12px;
 }
 
+.doc-step-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #151515;
+  border-radius: 10px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.doc-step-recipe__images {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.doc-step-recipe__variants {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.doc-step-recipe__slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.doc-step-recipe__slot-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.doc-step-recipe__file {
+  display: none;
+}
+
+.doc-step-recipe__preview,
+.doc-step-recipe__drop,
+.doc-step-recipe__empty {
+  position: relative;
+  min-height: 112px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-step-recipe__img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.doc-step-recipe__preview-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+}
+
+.doc-step-recipe__mini,
+.doc-step-recipe__copy {
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.doc-step-recipe__mini:hover,
+.doc-step-recipe__copy:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.doc-step-recipe__drop,
+.doc-step-recipe__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.doc-step-recipe__empty {
+  cursor: default;
+}
+
+.doc-step-recipe__empty--optional {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.doc-step-recipe__drop--active,
+.doc-step-recipe__drop:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.doc-step-recipe__drop--busy {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.doc-step-recipe__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-step-recipe__field-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.doc-step-recipe__prompt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-step-recipe__prompt-head .doc-step-recipe__field-label {
+  flex: 1;
+}
+
+.doc-step-recipe__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #111111;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+}
+
+.doc-step-recipe__textarea--prompt {
+  min-height: 96px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.doc-step-recipe__textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.doc-step-recipe__meta-text,
+.doc-step-recipe__prompt-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.doc-step-recipe__prompt-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  background: #111111;
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.doc-step-recipe__error {
+  margin: 0;
+  color: #f0a0a0;
+  font-size: 12px;
+}
+
+.doc-step-recipe--compact .doc-step-recipe__img {
+  height: 96px;
+}
+
+@media (max-width: 720px) {
+  .doc-step-recipe__images,
+  .doc-step-recipe__variants {
+    grid-template-columns: 1fr;
+  }
+}
+
 .doc-step-sequence__panel {
   display: flex;
   flex-direction: column;
