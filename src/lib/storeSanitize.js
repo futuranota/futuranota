@@ -106,6 +106,9 @@ export function sanitizePersistedSnapshot(parsed) {
   if (Array.isArray(parsed.deletedNodeIds)) {
     snapshot.deletedNodeIds = parsed.deletedNodeIds.filter(Boolean);
   }
+  if (Array.isArray(parsed.deletedCompanyIds)) {
+    snapshot.deletedCompanyIds = parsed.deletedCompanyIds.filter(Boolean);
+  }
 
   if (typeof parsed.lastSyncedAt === "string" && parsed.lastSyncedAt.trim()) {
     snapshot.lastSyncedAt = parsed.lastSyncedAt.trim();

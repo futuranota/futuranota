@@ -8,6 +8,10 @@ import {
   resolveDefaultObjectColor,
 } from "../lib/objectColors.js";
 import { useDocsStore } from "./docsStore.js";
+import {
+  flushPersistenceSync,
+  markCompaniesDeletedForSync,
+} from "./middleware/persistenceMiddleware.js";
 
 export const useObjectsStore = create(
   devtools(
@@ -74,12 +78,17 @@ export const useObjectsStore = create(
           };
         }),
 
-      deleteObject: (id) =>
+      deleteObject: (id) => {
+        markCompaniesDeletedForSync(id);
         set((state) => {
           const next = { ...state.objects };
           delete next[id];
           return { objects: next };
-        }),
+        });
+        flushPersistenceSync().catch((err) => {
+          console.warn("Flush after corpus delete failed:", err);
+        });
+      },
 
       addChildDoc: (objectId, docId) =>
         set((state) => {
