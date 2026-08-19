@@ -79,25 +79,27 @@ export function VideoWorkspace({
         + (embedded ? " video-workspace--embedded" : "")
       }
     >
-      <VideoScreen
-        title={draftTitle}
-        titlePlaceholder={DEFAULT_VIDEO_TITLE}
-        titleEditable
-        autoFocusTitle={!resolvedTitle.trim()}
-        onTitleChange={handleTitleChange}
-        onTitleBlur={handleTitleBlur}
-        embedSrc={activeEmbed?.embedSrc || ""}
-        provider={activeEmbed?.provider || "youtube"}
-        embedded={embedded}
-        onBack={embedded ? undefined : onClose}
-      />
-      {showEmbedBar ? (
-        <VideoEmbedBar
-          nodeId={nodeId}
-          activeEmbedSrc={activeEmbed?.embedSrc || ""}
-          onEmbedChange={handleEmbedLoaded}
+      <div className="video-workspace__player">
+        <VideoScreen
+          title={draftTitle}
+          titlePlaceholder={DEFAULT_VIDEO_TITLE}
+          titleEditable
+          autoFocusTitle={!resolvedTitle.trim()}
+          onTitleChange={handleTitleChange}
+          onTitleBlur={handleTitleBlur}
+          embedSrc={activeEmbed?.embedSrc || ""}
+          provider={activeEmbed?.provider || "youtube"}
+          embedded={embedded}
+          onBack={embedded ? undefined : onClose}
         />
-      ) : null}
+        {showEmbedBar ? (
+          <VideoEmbedBar
+            nodeId={nodeId}
+            activeEmbedSrc={activeEmbed?.embedSrc || ""}
+            onEmbedChange={handleEmbedLoaded}
+          />
+        ) : null}
+      </div>
       <NoteTaker
         nodeId={nodeId}
         parentDocId={parentDocId}
@@ -109,6 +111,8 @@ export function VideoWorkspace({
         draftTitle={draftTitle}
         onDraftTitleChange={handleTitleChange}
         onDraftTitleBlur={handleTitleBlur}
+        requireTargetFolder={!embedded}
+        videoEmbed={activeEmbed}
       />
     </div>
   );

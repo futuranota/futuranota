@@ -27,6 +27,7 @@ import {
   resolveFichaPreviewKind,
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
+import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
@@ -197,6 +198,7 @@ export function FolderLibraryOverlay({
   const [editingAsset, setEditingAsset] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [createCategory, setCreateCategory] = useState("image");
+  const [createMediaUrl, setCreateMediaUrl] = useState("");
   const [lockCategory, setLockCategory] = useState(false);
   const [detailItemId, setDetailItemId] = useState(null);
   const [detailKind, setDetailKind] = useState(null);
@@ -207,6 +209,7 @@ export function FolderLibraryOverlay({
   const [classEditDraft, setClassEditDraft] = useState("");
   const classDraftRef = useRef(null);
   const classEditRef = useRef(null);
+  const libraryImageInputRef = useRef(null);
 
   useEffect(() => {
     if (requestedTab) {
@@ -319,6 +322,11 @@ export function FolderLibraryOverlay({
     setCreateCategory(category);
     setLockCategory(true);
     setModalOpen(true);
+  };
+
+  const openCreatePrompt = () => {
+    setCreateMediaUrl("");
+    openCreate("image");
   };
 
   const openEdit = (item) => {
@@ -458,8 +466,15 @@ export function FolderLibraryOverlay({
   const showingAttachments = canUseAttachments && filterTab === "skill";
   const showingPromptRow = !showingDocsIndex;
   const gridItems = filteredItems;
+  const promptGridEmpty = !showingAttachments && !showingDocumentsTab && !showingDocsIndex
+    && gridItems.length === 0;
+  const showHeaderPlus = showCreate && !promptGridEmpty;
 
   const handleHeaderCreate = () => {
+    if (!showingAttachments && !createOpensAsset && !showingDocsIndex && !focusedAssetId) {
+      libraryImageInputRef.current?.click();
+      return;
+    }
     if (focusedAssetId) {
       openCreate("image");
       return;
@@ -475,22 +490,41 @@ export function FolderLibraryOverlay({
     openCreate("image");
   };
 
+  const handleQuickFolderImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!String(file.type || "").startsWith("image/")) return;
+    try {
+      const converted = await convertAndUploadDocImage(file, {
+        idPrefix: "LIBIMG",
+        scopeId: activeId || "folder-lib",
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.88,
+      });
+      if (!converted?.src) return;
+      setCreateMediaUrl(converted.src);
+      openCreate("image");
+    } catch {
+      /* keep the picker silent; user can retry */
+    }
+  };
+
   const emptyGridKey = showingAttachments
     ? "doc.library.emptyFilteredSkill"
-    : showingDocumentGrid
-      ? "doc.library.emptyFilteredDoc"
-      : "doc.library.emptyFiltered";
+    : "doc.library.emptyPromptStart";
 
   const renderItemGrid = (list, emptyKey) => (
     list.length === 0 ? (
       <div className="folder-library-overlay__empty">
-        <p>{t(emptyKey)}</p>
+        <p>{showingAttachments ? t(emptyKey) : t("doc.library.emptyPromptStart")}</p>
         <button
           type="button"
           className="folder-library-overlay__empty-add"
-          onClick={handleHeaderCreate}
+          onClick={showingAttachments ? handleHeaderCreate : openCreatePrompt}
         >
-          {t("doc.library.add")}
+          {showingAttachments ? t("doc.library.add") : t("doc.library.addPrompt")}
         </button>
       </div>
     ) : (
@@ -593,17 +627,24 @@ export function FolderLibraryOverlay({
                   <span>{t("doc.library.tabSkills")}</span>
                 </button>
               ) : null}
-              {showCreate ? (
+              {showHeaderPlus ? (
                 <button
                   type="button"
                   className="folder-library-overlay__add"
                   onClick={handleHeaderCreate}
-                  title={t("doc.library.add")}
-                  aria-label={t("doc.library.add")}
+                  title={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.addImageFromComputer")}
+                  aria-label={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.addImageFromComputer")}
                 >
                   +
                 </button>
               ) : null}
+              <input
+                ref={libraryImageInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleQuickFolderImage}
+              />
               <button
                 type="button"
                 className="folder-library-overlay__close"
@@ -991,9 +1032,11 @@ export function FolderLibraryOverlay({
           lockCategory={lockCategory && !editingItem}
           defaultPromptClass={editingItem ? undefined : promptClassFilter}
           promptClasses={promptClasses}
+          initialMediaUrl={editingItem ? "" : createMediaUrl}
           onClose={() => {
             setModalOpen(false);
             setEditingItem(null);
+            setCreateMediaUrl("");
             setLockCategory(false);
           }}
           onSaved={(saved) => {
@@ -1002,6 +1045,7 @@ export function FolderLibraryOverlay({
             }
             setModalOpen(false);
             setEditingItem(null);
+            setCreateMediaUrl("");
             setLockCategory(false);
           }}
         />

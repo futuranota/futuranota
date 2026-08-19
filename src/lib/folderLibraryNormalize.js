@@ -160,7 +160,7 @@ export function normalizeFolderLibraryFilterTab(value) {
 export function folderLibraryItemMatchesFilter(item, tab) {
   if (!item) return false;
   if (tab === "documents") return true;
-  if (tab === "image") return item.category === "image";
+  if (tab === "image") return item.category === "image" || item.category === "auto";
   if (tab === "skill") return item.category === "skill" || item.category === "pdf";
   return true;
 }

@@ -140,25 +140,27 @@ export function VideoScreen({
       </header>
 
       <div className="video-screen__stage">
-        {hasVideo ? (
-          <iframe
-            ref={iframeRef}
-            key={playbackSrc}
-            className="video-screen__iframe"
-            src={playbackSrc}
-            title={displayTitle || "Embedded video"}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        ) : (
-          <p className="video-screen__empty" role="status">
-            Paste a YouTube or Vimeo link below to load the video.
-          </p>
-        )}
-        {hasVideo && provider ? (
-          <span className="video-screen__provider">{provider}</span>
-        ) : null}
+        <div className="video-screen__frame">
+          {hasVideo ? (
+            <iframe
+              ref={iframeRef}
+              key={playbackSrc}
+              className="video-screen__iframe"
+              src={playbackSrc}
+              title={displayTitle || "Embedded video"}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          ) : (
+            <p className="video-screen__empty" role="status">
+              Paste a YouTube or Vimeo link below to load the video.
+            </p>
+          )}
+          {hasVideo && provider ? (
+            <span className="video-screen__provider">{provider}</span>
+          ) : null}
+        </div>
       </div>
     </section>
   );

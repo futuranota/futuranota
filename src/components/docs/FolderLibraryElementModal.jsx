@@ -44,6 +44,8 @@ export function FolderLibraryElementModal({
   lockCategory = false,
   promptClasses = [],
   defaultPromptClass = "",
+  /** Prefill photo when creating from the header + file picker. */
+  initialMediaUrl = "",
   onClose,
   onSaved,
 }) {
@@ -59,12 +61,12 @@ export function FolderLibraryElementModal({
   const uploadScopeId = resolvedOwnerId || (kind === "document" ? "doc-lib" : "folder-lib");
   const editing = Boolean(item?.id);
   const initialCategory = item?.category
-    || normalizeFolderLibraryCategory(defaultCategory);
+    || (String(initialMediaUrl || "").trim() ? "image" : normalizeFolderLibraryCategory(defaultCategory));
 
   const [tag, setTag] = useState(item?.tag || "");
   const [description, setDescription] = useState(item?.description || "");
   const [category, setCategory] = useState(initialCategory);
-  const [mediaUrl, setMediaUrl] = useState(item?.mediaUrl || null);
+  const [mediaUrl, setMediaUrl] = useState(item?.mediaUrl || String(initialMediaUrl || "").trim() || null);
   const [attachmentUrl, setAttachmentUrl] = useState(item?.attachmentUrl || null);
   const [attachmentName, setAttachmentName] = useState(item?.attachmentName || null);
   const [attachmentKind, setAttachmentKind] = useState(item?.attachmentKind || null);

@@ -28,6 +28,16 @@ import {
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
+import { useI18n } from "../../i18n/useI18n.js";
+import {
+  listAdoptableDocs,
+  resolveAdoptableDocLabel,
+} from "../../lib/nodeParentAdoption.js";
+import {
+  resolveValidYoutubeTargetFolderId,
+  setYoutubeTargetFolderId,
+} from "../../lib/youtubeTargetFolder.js";
+import { YoutubeFolderPicker } from "./YoutubeFolderPicker.jsx";
 
 const NOTE_PANEL_ICON = "/uploads/botones/PencilCircle.svg";
 const UNTITLED_LABEL = "Untitled";
@@ -70,7 +80,10 @@ export function NoteTaker({
   draftTitle,
   onDraftTitleChange,
   onDraftTitleBlur,
+  requireTargetFolder = false,
+  videoEmbed = null,
 }) {
+  const { t } = useI18n();
   const addNode = useNodesStore((s) => s.addNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const updateNode = useNodesStore((s) => s.updateNode);
@@ -90,6 +103,8 @@ export function NoteTaker({
   const [saving, setSaving] = useState(false);
   const typographyStorageKey = resolvedNodeId ? `node:${resolvedNodeId}` : "note-taker";
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
+  const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
+  const docsById = useDocsStore((s) => s.docs);
   const parentDoc = useDocsStore((s) => (parentDocId ? s.docs[parentDocId] : null));
   const nodeLinkedDoc = useDocsStore((s) => {
     const docId = node?.parentDocId;
@@ -100,6 +115,41 @@ export function NoteTaker({
     ?? nodeLinkedDoc?.parentObjectId
     ?? activeCorpusObjectId
     ?? null;
+  const lockedFolderId = node?.parentDocId
+    || (parentDocId && typeof blockIndex === "number" ? parentDocId : null)
+    || null;
+  const folderLocked = Boolean(lockedFolderId);
+  const [pickedFolderId, setPickedFolderId] = useState(() => (
+    requireTargetFolder
+      ? resolveValidYoutubeTargetFolderId(
+        companyObjectIdProp
+          ?? useUIStateStore.getState().selectedObjectId
+          ?? useUIStateStore.getState().filterObjectId
+          ?? null,
+        useDocsStore.getState().docs,
+      )
+      : null
+  ));
+
+  const adoptableFolders = requireTargetFolder
+    ? listAdoptableDocs(docsById, { parentObjectId: companyObjectId }).map((doc) => ({
+      id: doc.id,
+      label: resolveAdoptableDocLabel(doc),
+    }))
+    : [];
+
+  useEffect(() => {
+    if (!requireTargetFolder || folderLocked) return;
+    const valid = resolveValidYoutubeTargetFolderId(companyObjectId, docsById);
+    setPickedFolderId(valid);
+  }, [requireTargetFolder, folderLocked, companyObjectId, docsById]);
+
+  const targetFolderId = requireTargetFolder
+    ? (lockedFolderId || pickedFolderId)
+    : (parentDocId || node?.parentDocId || null);
+  const targetFolderLabel = targetFolderId
+    ? resolveAdoptableDocLabel(docsById[targetFolderId])
+    : "";
 
   useEffect(() => {
     setResolvedNodeId(nodeIdProp);
@@ -136,14 +186,14 @@ export function NoteTaker({
     if (dataType === NODE_DATA_TYPES.VIDEO) {
       const base = existingNode?.dataType === NODE_DATA_TYPES.VIDEO && existingNode.content
         ? existingNode.content
-        : buildVideoNodeContent(null);
+        : buildVideoNodeContent(videoEmbed);
       return hasStructuredContent
         ? mergeVideoNodeContent(base, { writing: serialized })
         : mergeVideoNodeContent(base, { notes: plainText });
     }
 
     return textPayload;
-  }, [inlineTodosEnabled]);
+  }, [inlineTodosEnabled, videoEmbed]);
 
   // Sync draft when the panel target identity changes — not on every content
   // mutation (e.g. Load embed), which would wipe in-progress notes.
@@ -162,7 +212,7 @@ export function NoteTaker({
     ? draftTitle
     : displayTitle;
   const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
-  const saveEnabled = hasContent && !saving;
+  const saveEnabled = hasContent && !saving && (!requireTargetFolder || Boolean(targetFolderId));
   const showInlineWritingTools = inlineTodosEnabled || node?.dataType === NODE_DATA_TYPES.TEXT;
 
   const handleWritingBlocksChange = useCallback((blocks) => {
@@ -246,7 +296,18 @@ export function NoteTaker({
 
   const createIntelNode = useCallback(
     (draftBody) => {
-      if (parentDocId && typeof blockIndex === "number") {
+      const saveParentId = requireTargetFolder
+        ? targetFolderId
+        : (parentDocId || null);
+      if (requireTargetFolder && !saveParentId) return null;
+
+      const useExistingBlock = Boolean(
+        parentDocId
+        && typeof blockIndex === "number"
+        && (!requireTargetFolder || lockedFolderId === parentDocId),
+      );
+
+      if (useExistingBlock) {
         const doc = useDocsStore.getState().getDoc(parentDocId);
         const block = doc?.blocks?.[blockIndex];
         if (block?.id) {
@@ -283,16 +344,16 @@ export function NoteTaker({
             ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
               || UNTITLED_NODE_TITLE)
             : UNTITLED_NODE_TITLE);
-      const dataType = linkedNode?.dataType || NODE_DATA_TYPES.TEXT;
+      const dataType = linkedNode?.dataType
+        || ((requireTargetFolder || videoEmbed) ? NODE_DATA_TYPES.VIDEO : NODE_DATA_TYPES.TEXT);
       const nodeContent = buildNodeContentPayload(draftBody, dataType, linkedNode);
 
-      // Parentless YouTube/Intel notes belong in Independent Documents — need corpus objectId.
       const corpusObjectId = companyObjectId || linkedNode?.objectId || null;
       const newId = addNode(
         nodeTitle,
         dataType,
         nodeContent,
-        parentDocId || null,
+        saveParentId || null,
         {
           sourceQuery: nodeTitle,
           sourceBlockId: linkedNode?.sourceBlockId || undefined,
@@ -301,8 +362,8 @@ export function NoteTaker({
       );
       setResolvedNodeId(newId);
       useUIStateStore.getState().patchIntelSearchNodeId(newId);
-      if (parentDocId) {
-        syncNodeToParentDoc(newId, parentDocId);
+      if (saveParentId) {
+        syncNodeToParentDoc(newId, saveParentId);
       }
       return newId;
     },
@@ -312,12 +373,16 @@ export function NoteTaker({
       buildNodeContentPayload,
       companyObjectId,
       createOrUpdateNodeFromDocBlock,
+      lockedFolderId,
       parentDocId,
+      requireTargetFolder,
       resolveTargetNodeId,
       syncNodeToParentDoc,
       draftTitle,
       fixedTitle,
+      targetFolderId,
       titleEditable,
+      videoEmbed,
     ],
   );
 
@@ -335,6 +400,11 @@ export function NoteTaker({
         return false;
       }
 
+      if (requireTargetFolder && !targetFolderId) {
+        showToast(t("intel.youtubeNeedFolder"), "info");
+        return false;
+      }
+
       const startedAt = Date.now();
       setSaving(true);
 
@@ -345,6 +415,10 @@ export function NoteTaker({
         if (!liveNode) {
           if (!allowCreate) {
             showToast("Escribe texto y pulsa save", "info");
+            return false;
+          }
+          if (requireTargetFolder && !targetFolderId) {
+            showToast(t("intel.youtubeNeedFolder"), "info");
             return false;
           }
           targetNodeId = createIntelNode(draftBody);
@@ -379,19 +453,29 @@ export function NoteTaker({
           ? buildNodeContentPayload(draftBody, NODE_DATA_TYPES.VIDEO, liveNode)
           : contentPayload;
 
-        const parentId = liveNode.parentDocId || parentDocId || null;
+        const parentId = liveNode.parentDocId
+          || (requireTargetFolder ? targetFolderId : parentDocId)
+          || null;
         const corpusObjectId = companyObjectId || liveNode.objectId || null;
+        const assignParent = Boolean(
+          requireTargetFolder
+          && targetFolderId
+          && !liveNode.parentDocId,
+        );
 
         updateNode(targetNodeId, {
           content: nextContent,
-          ...(parentDocId && !liveNode.parentDocId
-            ? { parentDocId, linkedToDoc: true }
+          ...(assignParent || (parentDocId && !liveNode.parentDocId)
+            ? { parentDocId: parentId, linkedToDoc: true }
             : {}),
-          // Keep parentless notes scoped so they appear under Independent Documents.
           ...(!parentId && corpusObjectId && liveNode.objectId !== corpusObjectId
             ? { objectId: corpusObjectId }
             : {}),
         });
+
+        if (assignParent && parentId) {
+          addNodeToDoc(parentId, targetNodeId);
+        }
 
         if (parentId) {
           syncNodeToParentDoc(targetNodeId, parentId);
@@ -402,8 +486,20 @@ export function NoteTaker({
           await wait(SAVE_MIN_MS - elapsed);
         }
 
+        if (requireTargetFolder && !parentId) {
+          showToast(t("intel.youtubeNeedFolder"), "info");
+          return false;
+        }
+
+        const folderLabel = parentId
+          ? resolveAdoptableDocLabel(useDocsStore.getState().docs[parentId])
+          : "";
         showToast(
-          parentId ? "Guardado en el documento" : "Guardado en Independent Documents",
+          requireTargetFolder && folderLabel
+            ? t("intel.youtubeSavedIn", { folder: folderLabel })
+            : parentId
+              ? "Guardado en el documento"
+              : "Guardado en Independent Documents",
           "success",
         );
         if (closeAfter) onClose?.();
@@ -416,6 +512,7 @@ export function NoteTaker({
       }
     },
     [
+      addNodeToDoc,
       buildNodeContentPayload,
       companyObjectId,
       createIntelNode,
@@ -424,9 +521,12 @@ export function NoteTaker({
       inlineTodosEnabled,
       onClose,
       parentDocId,
+      requireTargetFolder,
       resolveTargetNodeId,
       showToast,
       syncNodeToParentDoc,
+      t,
+      targetFolderId,
       titleEditable,
       updateNode,
     ],
@@ -455,6 +555,7 @@ export function NoteTaker({
       || e.target.closest(".note-taker__input")
       || e.target.closest(".note-taker__writing-stack")
       || e.target.closest(".note-taker__save")
+      || e.target.closest(".note-taker__folder")
       || e.target.closest(".note-taker__content-box")
       || e.target.closest(".note-taker__content-scroll")
       || e.target.closest(".note-taker__title-input")
@@ -545,19 +646,33 @@ export function NoteTaker({
         ) : (
           <span aria-hidden />
         )}
-        <button
-          type="button"
-          className={
-            "note-taker__save"
-            + (saving ? " note-taker__save--loading" : "")
-          }
-          disabled={!saveEnabled}
-          aria-busy={saving}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={handleSave}
-        >
-          {saving ? "Saving…" : "save"}
-        </button>
+        <div className="note-taker__footer-actions">
+          {requireTargetFolder ? (
+            <YoutubeFolderPicker
+              folders={adoptableFolders}
+              selectedId={targetFolderId}
+              selectedLabel={targetFolderLabel}
+              locked={folderLocked}
+              onSelect={(folderId) => {
+                setPickedFolderId(folderId);
+                setYoutubeTargetFolderId(companyObjectId, folderId);
+              }}
+            />
+          ) : null}
+          <button
+            type="button"
+            className={
+              "note-taker__save"
+              + (saving ? " note-taker__save--loading" : "")
+            }
+            disabled={!saveEnabled}
+            aria-busy={saving}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleSave}
+          >
+            {saving ? "Saving…" : "save"}
+          </button>
+        </div>
       </div>
     </section>
   );
