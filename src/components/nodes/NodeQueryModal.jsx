@@ -33,7 +33,8 @@ import {
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
-import { applyOrganizeToWritingBlocks } from "../../lib/organizeDocPaste.js";
+import { measureWritingCellCapacities } from "../../lib/organizeDocCellCapacity.js";
+import { planOrganizeWritingBlocks } from "../../lib/organizeDocPaste.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
@@ -227,7 +228,9 @@ export function NodeQueryModal({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [librarySlashAction, setLibrarySlashAction] = useState(null);
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
+  const [organizingWriting, setOrganizingWriting] = useState(false);
   const writingCaretRef = useRef(null);
+  const organizeRunIdRef = useRef(0);
 
   useEffect(() => {
     if (librarySlashAction !== LIBRARY_SLASH_ACTIONS.OUTPUT) return;
@@ -1392,11 +1395,47 @@ export function NodeQueryModal({
     onContentChange(serializeNodeWritingBody({ blocks }));
   }, [onContentChange]);
 
-  const handleOrganizeWritingText = useCallback(() => {
-    const { blocks: next, changed } = applyOrganizeToWritingBlocks(writingBlocks);
-    if (!changed) return;
-    updateWritingBlocks(next);
-  }, [writingBlocks, updateWritingBlocks]);
+  const handleOrganizeWritingText = useCallback(async () => {
+    if (organizingWriting) return;
+    const cellCapacities = measureWritingCellCapacities(contentScrollRef.current);
+    const plan = planOrganizeWritingBlocks(writingBlocks, { cellCapacities });
+    if (!plan.changed || !plan.steps.length) return;
+
+    const runId = organizeRunIdRef.current + 1;
+    organizeRunIdRef.current = runId;
+    setOrganizingWriting(true);
+
+    const sleep = (ms) => new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+
+    try {
+      // Brief "reading" beat before the first visual change.
+      await sleep(520);
+      if (organizeRunIdRef.current !== runId) return;
+
+      const stepMs = plan.steps.length > 14 ? 280 : 420;
+      for (const snapshot of plan.steps) {
+        if (organizeRunIdRef.current !== runId) return;
+        updateWritingBlocks(snapshot);
+        await sleep(stepMs);
+      }
+    } finally {
+      if (organizeRunIdRef.current === runId) {
+        setOrganizingWriting(false);
+      }
+    }
+  }, [organizingWriting, writingBlocks, updateWritingBlocks]);
+
+  useEffect(() => () => {
+    organizeRunIdRef.current += 1;
+  }, []);
+
+  useEffect(() => {
+    if (contentFocusMode || !organizingWriting) return;
+    organizeRunIdRef.current += 1;
+    setOrganizingWriting(false);
+  }, [contentFocusMode, organizingWriting]);
 
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
@@ -2135,6 +2174,33 @@ export function NodeQueryModal({
           >
             <span className="doc-new-content-expand-btn__icon" aria-hidden />
           </button>
+          {contentFocusMode && isTextWritingMode ? (
+            <button
+              type="button"
+              className={
+                "node-query-modal__organize-float"
+                + (organizingWriting ? " is-loading" : "")
+              }
+              onClick={handleOrganizeWritingText}
+              disabled={organizingWriting}
+              aria-busy={organizingWriting}
+              aria-label={
+                organizingWriting
+                  ? t("docs.organizeTextLoading")
+                  : t("docs.organizeText")
+              }
+              title={t("docs.organizeTextTitle")}
+            >
+              {organizingWriting ? (
+                <span className="node-query-modal__organize-float-spinner" aria-hidden />
+              ) : null}
+              <span className="node-query-modal__organize-float-label">
+                {organizingWriting
+                  ? t("docs.organizeTextLoading")
+                  : t("docs.organizeText")}
+              </span>
+            </button>
+          ) : null}
           <div
             ref={contentScrollRef}
             tabIndex={-1}
@@ -2304,19 +2370,6 @@ export function NodeQueryModal({
                 typographyId={typographyId}
                 onTypographyChange={setTypographyId}
               />
-            ) : null}
-            {isTextWritingMode ? (
-              <button
-                type="button"
-                className="doc-content-text-size-controls__btn node-query-modal__footer-organize"
-                onClick={handleOrganizeWritingText}
-                aria-label={t("docs.organizeText")}
-                title={t("docs.organizeTextTitle")}
-              >
-                <span className="node-query-modal__footer-organize-label">
-                  {t("docs.organizeText")}
-                </span>
-              </button>
             ) : null}
           </div>
           <div className="node-query-modal__footer-search">

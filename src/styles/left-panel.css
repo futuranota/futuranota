@@ -10294,6 +10294,69 @@ body.doc-content-resizing * {
   white-space: nowrap;
 }
 
+/* Floating Organize — only in expanded content panel */
+.node-query-modal__organize-float {
+  position: absolute;
+  right: 14px;
+  bottom: 16px;
+  z-index: 14;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(21, 21, 21, 0.92);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+.node-query-modal__organize-float:hover,
+.node-query-modal__organize-float:focus-visible {
+  color: #fff;
+  background: rgba(32, 32, 32, 0.96);
+  border-color: rgba(255, 255, 255, 0.22);
+  outline: none;
+}
+
+.node-query-modal__organize-float:disabled,
+.node-query-modal__organize-float.is-loading {
+  cursor: progress;
+  opacity: 0.92;
+}
+
+.node-query-modal__organize-float-label {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.node-query-modal__organize-float-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: node-query-organize-spin 0.7s linear infinite;
+}
+
+@keyframes node-query-organize-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.node-query-modal--content-focus .node-query-modal__organize-float {
+  bottom: 20px;
+  right: 18px;
+}
+
 .node-query-modal__footer-search {
   display: flex;
   align-items: center;

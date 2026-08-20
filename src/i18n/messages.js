@@ -398,7 +398,8 @@ export const messages = {
     },
     docs: {
       organizeText: "Organize",
-      organizeTextTitle: "Clean pasted text into H1 / H2 / H3 + paragraphs (#i and #o stay as Library)",
+      organizeTextLoading: "Organizing…",
+      organizeTextTitle: "Read the document, place H1 / H2 / H3, and fill empty writing cells (#i and #o stay Library)",
     },
     meta: {
       corpus: "Corpus",
@@ -1979,7 +1980,8 @@ export const messages = {
     },
     docs: {
       organizeText: "Organizar",
-      organizeTextTitle: "Limpia texto pegado en H1 / H2 / H3 + párrafos (#i y #o siguen siendo Library)",
+      organizeTextLoading: "Organizando…",
+      organizeTextTitle: "Lee el documento, coloca H1 / H2 / H3 y rellena las celdas vacías (#i y #o siguen siendo Library)",
     },
     meta: {
       /* Folder meta strip stays English for product consistency. */
