@@ -139,23 +139,6 @@ export function FolderLibraryAssetDetail({
             {t("doc.library.cancel")}
           </button>
           <div className="folder-library-asset-detail__footer-actions">
-            <button
-              type="button"
-              className="folder-library-element-modal__btn folder-library-element-modal__btn--cancel"
-              onClick={() => onEdit?.(asset)}
-            >
-              {t("doc.library.edit")}
-            </button>
-            <button
-              type="button"
-              className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
-              onClick={handleDownload}
-              disabled={!canDownload || downloading}
-            >
-              {downloading
-                ? t("doc.library.downloading")
-                : t("doc.library.assetDownload")}
-            </button>
             {hasPendingClone ? (
               <button
                 type="button"
@@ -164,7 +147,27 @@ export function FolderLibraryAssetDetail({
               >
                 {t("doc.library.save")}
               </button>
-            ) : null}
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="folder-library-element-modal__btn folder-library-element-modal__btn--cancel"
+                  onClick={() => onEdit?.(asset)}
+                >
+                  {t("doc.library.edit")}
+                </button>
+                <button
+                  type="button"
+                  className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
+                  onClick={handleDownload}
+                  disabled={!canDownload || downloading}
+                >
+                  {downloading
+                    ? t("doc.library.downloading")
+                    : t("doc.library.assetDownload")}
+                </button>
+              </>
+            )}
           </div>
         </footer>
       </div>
