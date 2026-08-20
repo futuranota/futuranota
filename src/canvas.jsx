@@ -199,7 +199,7 @@ function resolveCanvasParentDocTag(node, nodeEntitiesById = {}, docsById = {}) {
   if (!docId) return null;
   const doc = docsById[docId];
   return {
-    kind: "Document",
+    kind: "Folder",
     name: (doc?.title || "Untitled").trim(),
   };
 }
@@ -518,7 +518,7 @@ function CanvasNode({
         <CanvasNodeTags
           parentTag={parentTag}
           scheduleLabel={scheduleLabel}
-          parentTitle="Parent document"
+          parentTitle="Parent folder"
           tagFamily={tagFamily}
         />
       );

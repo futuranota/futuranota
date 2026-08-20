@@ -1733,7 +1733,7 @@ function DocCreateModal({
       version: version.trim(),
       category: finalCategory,
       icon: createMode === "content" ? (icon || "") : "",
-      departmentId: isContentMode && !isCampaignMode ? departmentId : null,
+      departmentId: isContentMode ? departmentId : null,
       launchAt,
       scheduleStartAt,
       scheduleFinishAt,
@@ -1759,6 +1759,8 @@ function DocCreateModal({
               ? t("sidebar.productName")
               : isKnowledgeMode
                 ? t("sidebar.documentTitle")
+                : isCampaignMode
+                  ? t("sidebar.campaignFolderTitlePlaceholder")
                 : isContentMode
                   ? t("sidebar.folderTitlePlaceholder")
                   : t("sidebar.writeDescription")
@@ -1773,19 +1775,19 @@ function DocCreateModal({
           onVersionCommit={handleVersionCommit}
           category={category}
           onCategoryChange={handleCategoryChange}
-          departmentId={isContentMode && !isCampaignMode ? departmentId : null}
-          onDepartmentIdChange={isContentMode && !isCampaignMode ? (id) => {
+          departmentId={isContentMode ? departmentId : null}
+          onDepartmentIdChange={isContentMode ? (id) => {
             setDepartmentId(id);
             setCategory("");
           } : undefined}
-          departments={isContentMode && !isCampaignMode ? departments : []}
+          departments={isContentMode ? departments : []}
           departmentOfLabel={
-            isContentMode && !isCampaignMode
+            isContentMode
               ? formatDepartmentOfLabel(findDepartmentById(departments, departmentId))
               : ""
           }
           departmentName={
-            isContentMode && !isCampaignMode
+            isContentMode
               ? (findDepartmentById(departments, departmentId)?.category || "")
               : ""
           }

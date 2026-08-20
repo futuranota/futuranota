@@ -9,6 +9,7 @@ describe("docMetaBar campaign source child", () => {
   const today = new Date(2026, 6, 19, 12, 0, 0);
   const folder = {
     id: "folder-1",
+    title: "iPhone",
     campaignActive: true,
     category: "Beer",
     parentObjectId: "obj-1",
@@ -27,6 +28,7 @@ describe("docMetaBar campaign source child", () => {
       launchAt: "2026-08-02T15:00:00.000Z",
       windowStartAt: "2026-08-02T15:00:00.000Z",
       windowEndAt: "2026-08-11T15:00:00.000Z",
+      subcategory: "iPhone 18",
     },
   };
 
@@ -41,6 +43,7 @@ describe("docMetaBar campaign source child", () => {
     expect(meta.corpus).toBe("Futura nota");
     expect(meta.brand).toBe("Admin");
     expect(meta.product).toBe("Beer");
+    expect(meta.subcategories).toBe("iPhone 18");
     expect(meta.campaign).toBe("active");
     expect(meta.launch).toMatch(/08/);
     expect(meta.window).toBe("9 days");
@@ -108,5 +111,58 @@ describe("docMetaBar campaign source child", () => {
     expect(
       resolveCampaignFolderFromTimelineQueue(["folder-other"], docs, "obj-1"),
     ).toBeNull();
+  });
+
+  it("fills MetaBar from selected campaign child canvas node", () => {
+    const docs = { "folder-1": { ...folder, timelineSourceNodeId: null } };
+    const canvasNodes = [
+      {
+        id: "cn-child",
+        noteId: "node-d",
+        dataType: "text",
+        title: "Guion de la Parte 01",
+      },
+    ];
+    const meta = buildMetaBarFromCanvas({
+      selection: ["cn-child"],
+      canvasNodes,
+      docs,
+      objectsById,
+      selectedObjectId: "obj-1",
+      nodeEntitiesById: nodes,
+      today,
+    });
+    expect(meta.product).toBe("Beer");
+    expect(meta.subcategories).toBe("iPhone 18");
+    expect(meta.campaign).toBe("active");
+    expect(meta.launch).toMatch(/08/);
+    expect(meta.window).toBe("9 days");
+  });
+
+  it("fills MetaBar from selected Launch canvas node via sourceNodeId", () => {
+    const docs = { "folder-1": { ...folder, timelineSourceNodeId: null } };
+    const canvasNodes = [
+      {
+        id: "cn-launch",
+        canvasKind: "launch",
+        parentDocId: "folder-1",
+        sourceNodeId: "node-d",
+        dataType: "date",
+        title: "Launch",
+      },
+    ];
+    const meta = buildMetaBarFromCanvas({
+      selection: ["cn-launch"],
+      canvasNodes,
+      docs,
+      objectsById,
+      selectedObjectId: "obj-1",
+      nodeEntitiesById: nodes,
+      today,
+    });
+    expect(meta.product).toBe("Beer");
+    expect(meta.subcategories).toBe("iPhone 18");
+    expect(meta.campaign).toBe("active");
+    expect(meta.launch).toBeTruthy();
   });
 });

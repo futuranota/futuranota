@@ -21,6 +21,7 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
+import { buildCampaignChildScheduleFields } from "../../lib/campaignDates.js";
 import {
   DOC_WORK_STATUS,
   defaultStatusAfterScheduleSave,
@@ -345,6 +346,8 @@ export function DocExpandedView({
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
     CAMPAIGN_DOC_STATUS_INACTIVE,
   );
+  const [nodeDraftAnnounceDate, setNodeDraftAnnounceDate] = useState("");
+  const [nodeDraftSubcategory, setNodeDraftSubcategory] = useState("");
   const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
@@ -1447,6 +1450,8 @@ export function DocExpandedView({
     setNodeDraftCompleted(false);
     setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
+    setNodeDraftAnnounceDate("");
+    setNodeDraftSubcategory("");
     setNodeDraftSourceId(null);
     setNodeInitialSnapshot(null);
     nodeInitialSnapshotRef.current = null;
@@ -1469,6 +1474,8 @@ export function DocExpandedView({
       || (nodeDraftAnchorFinishTime || "") !== (nodeInitialSnapshot.anchorFinishTime || "")
       || normalizeCampaignDocStatus(nodeDraftCampaignStatus)
         !== normalizeCampaignDocStatus(nodeInitialSnapshot.campaignStatus)
+      || (nodeDraftAnnounceDate || "") !== (nodeInitialSnapshot.announceDate || "")
+      || (nodeDraftSubcategory || "") !== (nodeInitialSnapshot.subcategory || "")
       || (nodeDraftSourceId || null) !== (nodeInitialSnapshot.sourceId || null)
     );
   };
@@ -1617,6 +1624,24 @@ export function DocExpandedView({
       resetNodeModalState();
       return;
     }
+    if (draftCampaignActive) {
+      const child = buildCampaignChildScheduleFields({
+        announceDate: nodeDraftAnnounceDate,
+        launchDate: nodeDraftAnchorDate,
+        launchTime: nodeDraftAnchorTime,
+        subcategory: nodeDraftSubcategory,
+      });
+      if (!child.ok) {
+        await askConfirm({
+          title: t("sidebar.campaignDocDateStart"),
+          message: t("sidebar.campaignDateStartAfterLaunch"),
+          confirmLabel: t("common.ok"),
+          tone: "default",
+          hideCancel: true,
+        });
+        return;
+      }
+    }
 
     const runFlush = () => {
       if (nodeAutosaveTimerRef.current) {
@@ -1643,7 +1668,10 @@ export function DocExpandedView({
           nodeDraftAnchorDate,
           nodeDraftAnchorTime,
         nodeDraftAnchorFinishTime,
-          { commitSchedule: Boolean(String(nodeDraftAnchorDate || "").trim()) },
+          {
+            commitSchedule: draftCampaignActive
+              || Boolean(String(nodeDraftAnchorDate || "").trim()),
+          },
         );
         const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
         onAfterDocSave?.(doc.id, savedBlocks);
@@ -1959,17 +1987,23 @@ export function DocExpandedView({
     }
 
     if (draftCampaignActive && savedNodeId) {
-      const launchAt = commitSchedule && supportsScheduleAnchor(dataType)
-        ? (String(anchorDate || "").trim()
-          ? isoFromAnchorFields(anchorDate, anchorTime)
-          : null)
-        : undefined;
+      const child = buildCampaignChildScheduleFields({
+        announceDate: nodeDraftAnnounceDate,
+        launchDate: String(anchorDate || "").trim(),
+        launchTime: anchorTime,
+        subcategory: nodeDraftSubcategory,
+      });
       updateNode(savedNodeId, {
         campaignStatus: normalizeCampaignDocStatus(nodeDraftCampaignStatus),
         completed: false,
         status: null,
-        ...(launchAt !== undefined
-          ? { launchAt, windowEndAt: launchAt }
+        ...(commitSchedule && child.ok
+          ? {
+            windowStartAt: child.windowStartAt,
+            launchAt: child.launchAt,
+            windowEndAt: child.windowEndAt,
+            subcategory: child.subcategory,
+          }
           : {}),
       });
     }
@@ -2031,7 +2065,10 @@ export function DocExpandedView({
         anchorFinishTime: anchorFinishTime || "",
         completed: Boolean(nodeDraftCompleted),
         status: nodeDraftStatus || null,
+        campaignStatus: nodeDraftCampaignStatus,
         sourceId: nodeDraftSourceId || null,
+        announceDate: nodeDraftAnnounceDate || "",
+        subcategory: nodeDraftSubcategory || "",
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -2231,8 +2268,14 @@ export function DocExpandedView({
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
     setNodeDraftSourceId(existing?.sourceId ?? null);
-    // Campaign docs: Launch lives on node.launchAt. Content docs: Schedule on anchorAt.
     const campaignChild = Boolean(draftCampaignActive);
+    setNodeDraftSubcategory(
+      typeof existing?.subcategory === "string"
+        ? existing.subcategory
+        : (typeof existing?.category === "string" ? existing.category : ""),
+    );
+    setNodeDraftAnnounceDate(campaignChild ? launchDateInputFromIso(existing?.windowStartAt) : "");
+    // Campaign docs: Launch lives on node.launchAt. Content docs: Schedule on anchorAt.
     const launchOrAnchorIso = campaignChild
       ? (existing?.launchAt || null)
       : (existing?.anchorAt || null);
@@ -2254,6 +2297,10 @@ export function DocExpandedView({
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
         sourceId: existing?.sourceId ?? null,
+        announceDate: campaignChild ? launchDateInputFromIso(existing?.windowStartAt) : "",
+        subcategory: typeof existing?.subcategory === "string"
+          ? existing.subcategory
+          : (typeof existing?.category === "string" ? existing.category : ""),
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -2274,6 +2321,10 @@ export function DocExpandedView({
         status: openedStatus,
         campaignStatus: CAMPAIGN_DOC_STATUS_INACTIVE,
         sourceId: existing?.sourceId ?? null,
+        announceDate: campaignChild ? launchDateInputFromIso(existing?.windowStartAt) : "",
+        subcategory: typeof existing?.subcategory === "string"
+          ? existing.subcategory
+          : (typeof existing?.category === "string" ? existing.category : ""),
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -2293,6 +2344,10 @@ export function DocExpandedView({
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
         sourceId: existing?.sourceId ?? null,
+        announceDate: campaignChild ? launchDateInputFromIso(existing?.windowStartAt) : "",
+        subcategory: typeof existing?.subcategory === "string"
+          ? existing.subcategory
+          : (typeof existing?.category === "string" ? existing.category : ""),
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -2439,6 +2494,8 @@ export function DocExpandedView({
               ? "Product's name"
               : isKnowledgeMode
                 ? "Document title"
+                : draftCampaignActive
+                  ? t("sidebar.campaignFolderTitlePlaceholder")
                 : isContentMode
                   ? "Describe Folder"
                   : "Write your description"
@@ -2639,6 +2696,10 @@ export function DocExpandedView({
               if (id) updateNode(id, { campaignStatus: next, completed: false, status: null });
             }
             : undefined}
+          announceDate={nodeDraftAnnounceDate}
+          onAnnounceDateChange={draftCampaignActive ? setNodeDraftAnnounceDate : undefined}
+          subcategory={nodeDraftSubcategory}
+          onSubcategoryChange={draftCampaignActive ? setNodeDraftSubcategory : undefined}
           sourceId={nodeDraftSourceId}
           onSourceIdChange={(v) => {
             setNodeDraftSourceId(v);

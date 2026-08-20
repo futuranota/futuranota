@@ -129,8 +129,11 @@ export function buildMetaBarFromDoc({
   let campaign = null;
   let launch = null;
   let windowLabel = null;
+  let product = resolveMetaBarCategory(normalized);
+  let subcategories = subcategoriesDisplay;
 
   if (normalized.campaignActive) {
+    product = String(normalized.category || "").trim() || product;
     // Container folder: status + dates live on the source child document.
     const source = resolveCampaignSourceNode(normalized, nodeEntitiesById)
       || (normalized.timelineSourceNodeId
@@ -141,6 +144,8 @@ export function buildMetaBarFromDoc({
       const launchDate = parseLaunchDate(source.launchAt);
       launch = launchDate ? formatMmDdYy(launchDate) : null;
       windowLabel = formatSourceWindowDays(today, source);
+      const childSubcategory = String(source.subcategory || source.category || "").trim();
+      if (childSubcategory) subcategories = childSubcategory;
     }
   } else {
     // Non-campaign folders may still surface their own launch (content schedule mirror).
@@ -153,9 +158,9 @@ export function buildMetaBarFromDoc({
   return {
     corpus,
     brand: brandFromSelection || brandFromDoc,
-    product: resolveMetaBarCategory(normalized),
+    product,
     campaign,
-    subcategories: subcategoriesDisplay,
+    subcategories,
     launch,
     window: windowLabel,
   };
@@ -175,16 +180,52 @@ export function mergeDocWithCanvasNodeMetadata(doc, node) {
   });
 }
 
-export function resolveActiveDocFromCanvas(selection, canvasNodes, docs) {
+/**
+ * Resolve MetaBar folder from canvas selection.
+ * Prefers folder cards; also maps a selected campaign child (or its Launch node)
+ * to the parent campaign folder, pinning timelineSourceNodeId to that child.
+ *
+ * @param {string[]} selection
+ * @param {object[]} canvasNodes
+ * @param {Record<string, object>} docs
+ * @param {Record<string, object>} [nodeEntitiesById]
+ * @returns {object|null}
+ */
+export function resolveActiveDocFromCanvas(
+  selection,
+  canvasNodes,
+  docs,
+  nodeEntitiesById = {},
+) {
   if (!Array.isArray(selection) || !selection.length) return null;
   const nodeById = new Map((canvasNodes || []).map((n) => [n.id, n]));
   for (const id of selection) {
     const node = nodeById.get(id);
-    if (!node || node.canvasKind !== "document") continue;
-    const docId = node.docId || node.noteId;
-    if (!docId) continue;
-    const doc = docs[docId];
-    if (doc) return mergeDocWithCanvasNodeMetadata(doc, node);
+    if (!node) continue;
+
+    if (node.canvasKind === "document") {
+      const docId = node.docId || node.noteId;
+      if (!docId) continue;
+      const doc = docs[docId];
+      if (doc) return mergeDocWithCanvasNodeMetadata(doc, node);
+      continue;
+    }
+
+    // Launch date child spawned beside a campaign document.
+    const entityId = node.canvasKind === "launch"
+      ? (node.sourceNodeId || null)
+      : (node.noteId || null);
+    if (!entityId) continue;
+    const entity = nodeEntitiesById[entityId];
+    const parentId = entity?.parentDocId || (node.canvasKind === "launch" ? node.parentDocId : null);
+    if (!parentId) continue;
+    const folder = docs[parentId];
+    if (!folder?.campaignActive) continue;
+    return normalizeDoc({
+      ...normalizeDoc(folder),
+      // Prefer the selected child so MetaBar shows its subcategory / dates.
+      timelineSourceNodeId: entityId,
+    });
   }
   return null;
 }
@@ -233,7 +274,7 @@ export function buildMetaBarFromCanvas({
       doc = normalizeDoc({ ...doc, ...activeDocMetaDraft });
     }
   } else {
-    doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs);
+    doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs, nodeEntitiesById);
   }
 
   if (!doc) {

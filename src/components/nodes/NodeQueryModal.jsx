@@ -64,6 +64,8 @@ import {
   syncDocWorkStatusFields,
 } from "../../lib/docWorkStatus.js";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
+import { ProductCategoryField } from "../docs/ProductCategoryField.jsx";
+import { listSiblingNodeSubcategories } from "../../lib/campaignDocSource.js";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
@@ -177,6 +179,10 @@ export function NodeQueryModal({
   campaignMode = false,
   campaignStatus = "inactive",
   onCampaignStatusChange,
+  announceDate = "",
+  onAnnounceDateChange,
+  subcategory = "",
+  onSubcategoryChange,
   sourceId = null,
   onSourceIdChange,
   parentDocLabel,
@@ -282,6 +288,10 @@ export function NodeQueryModal({
   const workStatusLabel = docWorkStatusLabel(workStatus, t);
   const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
   const isCampaignActive = campaignStatus === "active";
+  const siblingSubcategories = showCampaignStatus
+    ? listSiblingNodeSubcategories(nodesMap, parentDocId, entityNodeId)
+    : [];
+  const announceEditable = Boolean(onAnnounceDateChange);
   const [statusMetaExpanded, setStatusMetaExpanded] = useState(false);
   const handleDismiss = onBackToDocument || onClose;
   /** Same × pill as folder DocDocumentBox (also when opened from a folder). */
@@ -1780,12 +1790,21 @@ export function NodeQueryModal({
             >
               <div className="doc-meta-strip__summary">
                 <div className="doc-meta-strip__chips" role="list">
-                  <div className="doc-meta-chip" title={createdDate || "Created"}>
-                    <span className="doc-meta-chip-k">Created</span>
-                    <span className="doc-meta-chip-v tone-muted">
-                      {formatMmDdYy(createdDate) || "—"}
-                    </span>
-                  </div>
+                  {showCampaignStatus ? (
+                    <div className="doc-meta-chip" title={announceDate || t("sidebar.campaignDocDateStart")}>
+                      <span className="doc-meta-chip-k">{t("sidebar.campaignDocDateStart")}</span>
+                      <span className="doc-meta-chip-v tone-muted">
+                        {formatMmDdYy(announceDate) || "—"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="doc-meta-chip" title={createdDate || "Created"}>
+                      <span className="doc-meta-chip-k">Created</span>
+                      <span className="doc-meta-chip-v tone-muted">
+                        {formatMmDdYy(createdDate) || "—"}
+                      </span>
+                    </div>
+                  )}
                   {showCampaignStatus ? (
                     <div
                       className={
@@ -1834,6 +1853,14 @@ export function NodeQueryModal({
                       </span>
                     </div>
                   ) : null}
+                  {showCampaignStatus && String(subcategory || "").trim() ? (
+                    <div className="doc-meta-chip" title={subcategory.trim()}>
+                      <span className="doc-meta-chip-k">{t("sidebar.campaignDocSubcategory")}</span>
+                      <span className="doc-product-category-tag doc-product-category-tag--summary doc-product-category-tag--campaign-sub">
+                        {subcategory.trim()}
+                      </span>
+                    </div>
+                  ) : null}
                   {sourceOption ? (
                     <div
                       className="doc-meta-chip doc-meta-chip--source-only"
@@ -1863,21 +1890,43 @@ export function NodeQueryModal({
               </div>
 
               <div className="doc-meta-strip__drawer" aria-hidden={!statusMetaExpanded}>
-                <div className="doc-meta-strip__fields">
-                  <label className="doc-meta-field">
-                    <span className="doc-meta-field-k">Created</span>
-                    <input
-                      type="date"
-                      className="doc-new-date doc-meta-field-input"
-                      value={createdDate}
-                      readOnly={!dateEditable}
-                      tabIndex={dateEditable ? 0 : -1}
-                      aria-readonly={!dateEditable}
-                      onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
-                      onClick={dateEditable ? openDatePicker : undefined}
-                      onFocus={dateEditable ? openDatePicker : undefined}
-                    />
-                  </label>
+                <div
+                  className={
+                    "doc-meta-strip__fields"
+                    + (showCampaignStatus ? " doc-meta-strip__fields--campaign-child" : "")
+                  }
+                >
+                  {showCampaignStatus ? (
+                    <label className="doc-meta-field">
+                      <span className="doc-meta-field-k">{t("sidebar.campaignDocDateStart")}</span>
+                      <input
+                        type="date"
+                        className="doc-new-date doc-meta-field-input"
+                        value={announceDate}
+                        readOnly={!announceEditable}
+                        tabIndex={announceEditable ? 0 : -1}
+                        aria-readonly={!announceEditable}
+                        onChange={announceEditable ? (e) => onAnnounceDateChange(e.target.value) : undefined}
+                        onClick={announceEditable ? openDatePicker : undefined}
+                        onFocus={announceEditable ? openDatePicker : undefined}
+                      />
+                    </label>
+                  ) : (
+                    <label className="doc-meta-field">
+                      <span className="doc-meta-field-k">Created</span>
+                      <input
+                        type="date"
+                        className="doc-new-date doc-meta-field-input"
+                        value={createdDate}
+                        readOnly={!dateEditable}
+                        tabIndex={dateEditable ? 0 : -1}
+                        aria-readonly={!dateEditable}
+                        onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
+                        onClick={dateEditable ? openDatePicker : undefined}
+                        onFocus={dateEditable ? openDatePicker : undefined}
+                      />
+                    </label>
+                  )}
                   <div className="doc-meta-field">
                     <span className="doc-meta-field-k">
                       {showCampaignStatus ? t("sidebar.campaignDocStatus") : "Status"}
@@ -2008,6 +2057,16 @@ export function NodeQueryModal({
                         onAnchorTimeChange={onAnchorTimeChange}
                       />
                     </div>
+                  ) : null}
+                  {showCampaignStatus && onSubcategoryChange ? (
+                    <ProductCategoryField
+                      value={subcategory}
+                      onChange={onSubcategoryChange}
+                      label={t("sidebar.campaignDocSubcategory")}
+                      placeholder={t("sidebar.campaignDocSubcategoryPlaceholder")}
+                      optionsOverride={siblingSubcategories}
+                      className="doc-meta-field--campaign-sub"
+                    />
                   ) : null}
                   <div className="doc-meta-field doc-meta-field--source">
                     <span className="doc-meta-field-k">Source</span>

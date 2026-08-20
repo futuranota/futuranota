@@ -13,6 +13,9 @@ export function ProductCategoryField({
   allDocs = null,
   docId = null,
   knowledgeMode = false,
+  label = "Category",
+  optionsOverride = null,
+  className = "",
 }) {
   const inputRef = useRef(null);
   const wrapRef = useRef(null);
@@ -20,6 +23,7 @@ export function ProductCategoryField({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const options = useMemo(() => {
+    if (Array.isArray(optionsOverride)) return optionsOverride;
     if (!allDocs) return [];
     const pool = Object.values(allDocs).filter((doc) => {
       if (docId && doc.id === docId) return false;
@@ -28,7 +32,7 @@ export function ProductCategoryField({
       return doc.parentObjectId === parentId;
     });
     return listUniqueCategoriesFromDocs(pool);
-  }, [allDocs, docId, knowledgeMode, parentId]);
+  }, [allDocs, docId, knowledgeMode, optionsOverride, parentId]);
 
   const filteredOptions = useMemo(() => {
     const query = value.trim().toLowerCase();
@@ -79,8 +83,8 @@ export function ProductCategoryField({
   const canPick = filteredOptions.length > 0;
 
   return (
-    <div className="doc-meta-field">
-      <span className="doc-meta-field-k">Category</span>
+    <div className={"doc-meta-field" + (className ? ` ${className}` : "")}>
+      <span className="doc-meta-field-k">{label}</span>
       <div
         ref={wrapRef}
         className={

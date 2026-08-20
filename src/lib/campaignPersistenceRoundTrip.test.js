@@ -7,17 +7,7 @@ import { migrateCampaignWorkspaceDocs } from "./campaignWorkspaceMigration.js";
  * normalize + migrate path that applyStateToStores runs after fetch.
  */
 describe("campaign persistence round-trip fields", () => {
-  it("hydrates activate_at / campaign_completed from DB-shaped rows", () => {
-    const hydrated = normalizeDoc({
-      id: "c1",
-      title: "Campaign",
-      campaignActive: true,
-      launch_at: "2026-08-01T12:00:00.000Z",
-      activate_at: "2026-07-20T09:30:00.000Z",
-      campaign_completed: true,
-      launchAt: "2026-08-01T12:00:00.000Z",
-    });
-    // normalize prefers camelCase; snake_case activate is accepted as fallback.
+  it("does not map folder activate_at — Date start lives on the child document", () => {
     const fromSnake = normalizeDoc({
       id: "c2",
       campaignActive: true,
@@ -25,9 +15,8 @@ describe("campaign persistence round-trip fields", () => {
       activate_at: "2026-07-20T09:30:00.000Z",
       campaign_completed: true,
     });
-    expect(fromSnake.campaignActivateAt).toBe("2026-07-20T09:30:00.000Z");
-    expect(fromSnake.campaignCompleted).toBe(true);
-    expect(hydrated.campaignCompleted).toBe(true);
+    expect(fromSnake.campaignActivateAt).toBeUndefined();
+    expect(fromSnake.launchAt).toBe("2026-08-01T12:00:00.000Z");
   });
 
   it("keeps schedule null for campaigns after migrate + normalize", () => {

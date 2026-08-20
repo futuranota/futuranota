@@ -616,6 +616,15 @@ export function DocMetaStrip({
                     ) : null}
                   </div>
                 </>
+              ) : deferCampaignStatusToChildren ? (
+                onFolderViewModeChange ? (
+                  <div className="doc-meta-field doc-meta-field--folder-view">
+                    <FolderViewModeSettings
+                      viewMode={folderViewMode}
+                      onViewModeChange={onFolderViewModeChange}
+                    />
+                  </div>
+                ) : null
               ) : (
                 <>
                   <label className="doc-meta-field">
@@ -706,13 +715,23 @@ export function DocMetaStrip({
                   </div>
                 </div>
               ) : null}
-              <ProductCategoryField
-                value={category}
-                onChange={onCategoryChange}
-                parentId={parentId}
-                allDocs={allDocs}
-                docId={docId}
-              />
+              {deferCampaignStatusToChildren ? (
+                <DepartmentCategoryField
+                  value={category}
+                  departmentId={departmentId}
+                  onChange={onCategoryChange}
+                  departments={departments}
+                  placeholder={t("sidebar.departmentSubPlaceholder")}
+                />
+              ) : (
+                <ProductCategoryField
+                  value={category}
+                  onChange={onCategoryChange}
+                  parentId={parentId}
+                  allDocs={allDocs}
+                  docId={docId}
+                />
+              )}
               {showFolderCampaignStatus ? (
                 <label className="doc-meta-field">
                   <span className="doc-meta-field-k">Launch</span>

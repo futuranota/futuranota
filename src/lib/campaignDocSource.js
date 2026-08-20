@@ -72,11 +72,33 @@ export function resolveCampaignFolderSourceDate(folderDoc, nodesById = {}) {
 }
 
 /**
- * Full title of the campaign folder's timeline source document.
- * @param {object|null|undefined} folderDoc
- * @param {Record<string, object>} [nodesById]
- * @returns {string}
+ * Unique subcategory labels from sibling campaign documents in a folder.
+ * @param {Record<string, object>|object[]|null|undefined} nodes
+ * @param {string} parentDocId
+ * @param {string|null} [excludeNodeId]
+ * @returns {string[]}
  */
+export function listSiblingNodeSubcategories(nodes, parentDocId, excludeNodeId = null) {
+  const parent = String(parentDocId || "").trim();
+  if (!parent) return [];
+  const list = Array.isArray(nodes)
+    ? nodes
+    : Object.values(nodes && typeof nodes === "object" ? nodes : {});
+  const seen = new Set();
+  const out = [];
+  for (const node of list) {
+    if (!node || node.parentDocId !== parent) continue;
+    if (excludeNodeId && node.id === excludeNodeId) continue;
+    const label = String(node.subcategory || node.category || "").trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 export function resolveCampaignSourceTitle(folderDoc, nodesById = {}) {
   const source = resolveCampaignSourceNode(folderDoc, nodesById);
   if (!source) return "";

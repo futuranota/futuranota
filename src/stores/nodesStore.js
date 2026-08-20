@@ -226,6 +226,9 @@ export const useNodesStore = create(
               launchAt: extra.launchAt ?? null,
               windowStartAt: extra.windowStartAt ?? null,
               windowEndAt: extra.windowEndAt ?? null,
+              subcategory: typeof extra.subcategory === "string"
+                ? extra.subcategory.trim()
+                : (typeof extra.category === "string" ? extra.category.trim() : ""),
               sourceId: extra.sourceId ?? null,
               canvasConnections: [],
               linkedToCanvas: false,
@@ -817,6 +820,17 @@ export const useNodesStore = create(
         const nextUpdates = { ...updates };
         if (Object.prototype.hasOwnProperty.call(nextUpdates, "campaignStatus")) {
           nextUpdates.campaignStatus = normalizeCampaignDocStatus(nextUpdates.campaignStatus);
+        }
+        if (Object.prototype.hasOwnProperty.call(nextUpdates, "subcategory")) {
+          nextUpdates.subcategory = typeof nextUpdates.subcategory === "string"
+            ? nextUpdates.subcategory.trim()
+            : "";
+        }
+        if (Object.prototype.hasOwnProperty.call(nextUpdates, "category")) {
+          nextUpdates.subcategory = typeof nextUpdates.category === "string"
+            ? nextUpdates.category.trim()
+            : "";
+          delete nextUpdates.category;
         }
         if (
           Object.prototype.hasOwnProperty.call(nextUpdates, "status")

@@ -45,8 +45,8 @@ function MetaBar({ metadata }) {
     { k: t('meta.corpus'), v: metadata.corpus, corpus: true },
     { k: t('meta.brand'), v: metadata.brand },
     { k: t('meta.category'), v: metadata.product },
-    { k: t('meta.campaign'), v: metadata.campaign, source: metadata.campaignSource },
     { k: t('meta.subcategories'), v: metadata.subcategories },
+    { k: t('meta.campaign'), v: metadata.campaign, source: metadata.campaignSource },
     { k: t('meta.launch'), v: metadata.launch, accent: true },
     { k: t('meta.window'), v: metadata.window, warm: true },
   ];

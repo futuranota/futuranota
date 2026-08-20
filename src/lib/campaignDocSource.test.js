@@ -6,6 +6,7 @@ import {
   isCampaignSourceLaunchDateNode,
   isCampaignTimelineFileInsert,
   replaceCampaignFoldersInTimelineQueue,
+  listSiblingNodeSubcategories,
   resolveCampaignFolderSourceDate,
   resolveCampaignSourceMicroLabel,
   resolveCampaignSourceNode,
@@ -131,5 +132,18 @@ describe("campaignDocSource", () => {
       { id: launchA, canvasKind: "launch", sourceNodeId: "node-a" },
       folder,
     )).toBe(false);
+  });
+
+  it("lists unique sibling subcategories", () => {
+    const withCats = {
+      ...nodes,
+      "node-d": { ...nodes["node-d"], subcategory: "iPhone 18" },
+      "node-c": { ...nodes["node-c"], subcategory: "iPhone 17" },
+      "node-a": { ...nodes["node-a"], subcategory: "iPhone 18" },
+    };
+    expect(listSiblingNodeSubcategories(withCats, "folder-1", "node-d")).toEqual([
+      "iPhone 17",
+      "iPhone 18",
+    ]);
   });
 });

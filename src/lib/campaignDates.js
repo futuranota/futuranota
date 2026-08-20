@@ -1,4 +1,5 @@
 import { isoFromAnchorFields } from "./nodeAnchor.js";
+import { isoFromDateInput } from "./docDates.js";
 
 /**
  * Campaign Activate At / Target Launch ordering.
@@ -42,4 +43,43 @@ export function validateCampaignIsoOrder(activateAt, launchAt) {
   if (Number.isNaN(a) || Number.isNaN(l)) return { ok: false, code: "invalid" };
   if (a > l) return { ok: false, code: "activateAfterLaunch" };
   return { ok: true };
+}
+
+/**
+ * Persist Date start + Launch + product category on a campaign child document.
+ * Empty dates are allowed. Does not copy Created or launch into Date start.
+ *
+ * @param {{
+ *   announceDate?: string,
+ *   launchDate?: string,
+ *   launchTime?: string,
+ *   subcategory?: string,
+ * }} fields
+ * @returns {{
+ *   ok: true,
+ *   windowStartAt: string|null,
+ *   launchAt: string|null,
+ *   windowEndAt: string|null,
+ *   subcategory: string,
+ * } | { ok: false, code: "invalid" | "activateAfterLaunch" }}
+ */
+export function buildCampaignChildScheduleFields({
+  announceDate = "",
+  launchDate = "",
+  launchTime = "",
+  subcategory = "",
+} = {}) {
+  const start = String(announceDate || "").trim();
+  const launch = String(launchDate || "").trim();
+  const time = String(launchTime || "").trim();
+  const check = validateCampaignDatetimes(start, "", launch, time);
+  if (!check.ok) return check;
+  const launchAt = launch ? isoFromAnchorFields(launch, time) : null;
+  return {
+    ok: true,
+    windowStartAt: start ? isoFromDateInput(start) : null,
+    launchAt,
+    windowEndAt: launchAt,
+    subcategory: String(subcategory || "").trim(),
+  };
 }

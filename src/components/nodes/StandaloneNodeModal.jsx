@@ -14,6 +14,7 @@ import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.j
 import {
   dateInputFromIso,
   isoFromDateInput,
+  launchDateInputFromIso,
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
@@ -43,6 +44,7 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
+import { buildCampaignChildScheduleFields } from "../../lib/campaignDates.js";
 import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
 import {
   DOC_WORK_STATUS,
@@ -266,6 +268,14 @@ export function StandaloneNodeModal({
   const [campaignStatus, setCampaignStatus] = useState(() =>
     normalizeCampaignDocStatus(node?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
   );
+  const [announceDate, setAnnounceDate] = useState(() =>
+    launchDateInputFromIso(node?.windowStartAt),
+  );
+  const [subcategory, setSubcategory] = useState(() =>
+    typeof node?.subcategory === "string"
+      ? node.subcategory
+      : (typeof node?.category === "string" ? node.category : ""),
+  );
   const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const openSnapshotRef = useRef({
@@ -402,12 +412,24 @@ export function StandaloneNodeModal({
     const anchorFinishAt = persistSchedule
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorFinishTime) : null)
       : null;
-    const launchAt = (campaignDocMode && supportsSchedule)
-      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
+    const campaignChild = campaignDocMode
+      ? buildCampaignChildScheduleFields({
+        announceDate,
+        launchDate: supportsSchedule ? scheduleDate : "",
+        launchTime: supportsSchedule ? anchorTime : "",
+        subcategory,
+      })
+      : { ok: true };
+    if (!campaignChild.ok) {
+      window.alert(t("sidebar.campaignDateStartAfterLaunch"));
+      return;
+    }
+    const launchAt = campaignDocMode
+      ? campaignChild.launchAt
       : (node?.launchAt ?? null);
-    const windowEndAt = campaignDocMode ? (launchAt || null) : (node?.windowEndAt ?? null);
+    const windowEndAt = campaignDocMode ? (campaignChild.windowEndAt || null) : (node?.windowEndAt ?? null);
     const windowStartAt = campaignDocMode
-      ? (node?.windowStartAt ?? null)
+      ? campaignChild.windowStartAt
       : (node?.windowStartAt ?? null);
 
     const corpusObjectId = parentId
@@ -428,6 +450,7 @@ export function StandaloneNodeModal({
           launchAt,
           windowStartAt,
           windowEndAt,
+          subcategory: campaignChild.subcategory,
           completed: false,
           status: null,
         }
@@ -614,6 +637,10 @@ export function StandaloneNodeModal({
         campaignMode={campaignDocMode}
         campaignStatus={campaignStatus}
         onCampaignStatusChange={campaignDocMode ? handleCampaignStatusChange : undefined}
+        announceDate={announceDate}
+        onAnnounceDateChange={campaignDocMode ? setAnnounceDate : undefined}
+        subcategory={subcategory}
+        onSubcategoryChange={campaignDocMode ? setSubcategory : undefined}
         sourceId={sourceId}
         onSourceIdChange={handleSourceIdChange}
         parentDocId={parentDocId}

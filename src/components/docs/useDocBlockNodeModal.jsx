@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
-import { isoFromDateInput } from "../../lib/docDates.js";
+import { isoFromDateInput, launchDateInputFromIso } from "../../lib/docDates.js";
 import {
   DOC_BLOCK_TYPES,
   docBlocksToBody,
@@ -28,6 +28,7 @@ import {
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import { buildCampaignChildScheduleFields } from "../../lib/campaignDates.js";
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { nodeDraftContentForStorage } from "../../lib/nodeInlineContent.js";
@@ -87,6 +88,8 @@ export function useDocBlockNodeModal({
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
     CAMPAIGN_DOC_STATUS_INACTIVE,
   );
+  const [nodeDraftAnnounceDate, setNodeDraftAnnounceDate] = useState("");
+  const [nodeDraftSubcategory, setNodeDraftSubcategory] = useState("");
   const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const nodeAutosaveTimerRef = useRef(null);
 
@@ -250,14 +253,24 @@ export function useDocBlockNodeModal({
     }
 
     if (campaignDocMode && savedNodeId) {
-      const launchAt = commitSchedule && supportsScheduleAnchor(dataType)
-        ? (scheduleDate ? isoFromAnchorFields(anchorDate, anchorTime) : null)
-        : undefined;
+      const child = buildCampaignChildScheduleFields({
+        announceDate: nodeDraftAnnounceDate,
+        launchDate: scheduleDate,
+        launchTime: anchorTime,
+        subcategory: nodeDraftSubcategory,
+      });
       updateNode(savedNodeId, {
         campaignStatus: normalizeCampaignDocStatus(nodeDraftCampaignStatus),
         completed: false,
         status: null,
-        ...(launchAt !== undefined ? { launchAt, windowEndAt: launchAt } : {}),
+        ...(commitSchedule && child.ok
+          ? {
+            windowStartAt: child.windowStartAt,
+            launchAt: child.launchAt,
+            windowEndAt: child.windowEndAt,
+                subcategory: child.subcategory,
+          }
+          : {}),
       });
     }
 
@@ -477,6 +490,12 @@ export function useDocBlockNodeModal({
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
     setNodeDraftSourceId(existing?.sourceId ?? null);
+    setNodeDraftSubcategory(
+      typeof existing?.subcategory === "string"
+        ? existing.subcategory
+        : (typeof existing?.category === "string" ? existing.category : ""),
+    );
+    setNodeDraftAnnounceDate(campaignDocMode ? launchDateInputFromIso(existing?.windowStartAt) : "");
     // Campaign: Launch on launchAt. Content: Schedule on anchorAt only when
     // the parent folder has a reservation — never invent from Created.
     const launchOrAnchorIso = campaignDocMode
@@ -515,6 +534,8 @@ export function useDocBlockNodeModal({
     setNodeDraftCompleted(false);
     setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
+    setNodeDraftAnnounceDate("");
+    setNodeDraftSubcategory("");
     setNodeDraftSourceId(null);
   };
 
@@ -522,6 +543,18 @@ export function useDocBlockNodeModal({
     if (!activeNodeContext) {
       resetNodeModal();
       return;
+    }
+    if (campaignDocMode) {
+      const child = buildCampaignChildScheduleFields({
+        announceDate: nodeDraftAnnounceDate,
+        launchDate: nodeDraftAnchorDate,
+        launchTime: nodeDraftAnchorTime,
+        subcategory: nodeDraftSubcategory,
+      });
+      if (!child.ok) {
+        window.alert(t("sidebar.campaignDateStartAfterLaunch"));
+        return;
+      }
     }
     if (nodeAutosaveTimerRef.current) {
       clearTimeout(nodeAutosaveTimerRef.current);
@@ -683,6 +716,10 @@ export function useDocBlockNodeModal({
           if (id) updateNode(id, { campaignStatus: next, completed: false, status: null });
         }
         : undefined}
+      announceDate={nodeDraftAnnounceDate}
+      onAnnounceDateChange={campaignDocMode ? setNodeDraftAnnounceDate : undefined}
+      subcategory={nodeDraftSubcategory}
+      onSubcategoryChange={campaignDocMode ? setNodeDraftSubcategory : undefined}
       sourceId={nodeDraftSourceId}
       onSourceIdChange={(v) => {
         setNodeDraftSourceId(v);
@@ -690,6 +727,7 @@ export function useDocBlockNodeModal({
         if (id) updateNode(id, { sourceId: v ?? null });
       }}
       parentDocLabel={docTitle.trim() || "New document"}
+      parentDocId={docId || ""}
       parentObjectId={parentObjectId}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}

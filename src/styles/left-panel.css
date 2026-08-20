@@ -3307,6 +3307,18 @@
   color: #7e7a76;
 }
 
+.lp-doc-nodes-block__node-dates {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .lp-doc-nodes-block__node.is-campaign-active .lp-doc-nodes-block__node-title {
   color: var(--text);
 }
@@ -16956,22 +16968,108 @@ body.doc-content-resizing * {
   grid-column: 1 / -1;
 }
 
+/* Campaign child meta: Date start | Status, Launch | Subcategoría (stable 2-col). */
+.node-query-modal__doc-meta .doc-meta-strip__fields--campaign-child {
+  align-items: start;
+  padding-left: 8px;
+}
+
+.node-query-modal__doc-meta .doc-meta-strip__fields--campaign-child .doc-meta-field--launch {
+  padding-left: 0;
+}
+
+.node-query-modal__doc-meta .doc-meta-strip__fields--campaign-child .doc-new-date::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.78;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.node-query-modal__doc-meta .doc-meta-strip__fields {
+  align-items: start;
+}
+
 .node-query-modal__doc-meta .doc-meta-field--launch {
   align-items: flex-start;
-  grid-column: 1 / -1;
+  grid-column: auto;
+  min-width: 0;
 }
 
 .node-query-modal__launch-in-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
+  /* Override .doc-block-anchor padding-left: 36px — sit flush left under the label */
+  margin-top: 0;
+  padding-left: 0;
 }
 
 .node-query-modal__launch-in-meta .doc-block-anchor__date,
 .node-query-modal__launch-in-meta .doc-block-anchor__time {
   font-size: 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+  color-scheme: dark;
+}
+
+/* Clear calendar/clock icons as visual reference on Launch date. */
+.node-query-modal__launch-in-meta .doc-block-anchor__date::-webkit-calendar-picker-indicator,
+.node-query-modal__launch-in-meta .doc-block-anchor__time::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.72;
+  cursor: pointer;
+  margin: 0 0 0 4px;
+  padding: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.node-query-modal__launch-in-meta .doc-block-anchor__date:not(.is-empty)::-webkit-calendar-picker-indicator,
+.node-query-modal__launch-in-meta .doc-block-anchor__time:not(.is-empty)::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.88;
+}
+
+/* Campaign subcategory: gray chip like hour-picker slots (modal zone only). */
+.node-query-modal__doc-meta .doc-product-category-tag--campaign-sub {
+  color: rgba(216, 216, 216, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+  border-radius: 5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+
+.node-query-modal__doc-meta .doc-product-category-tag--campaign-sub:hover {
+  filter: none;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.node-query-modal__doc-meta .doc-meta-field--campaign-sub .doc-product-category-input,
+.node-query-modal__doc-meta .doc-meta-field--campaign-sub .doc-new-meta-input {
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.node-query-modal__doc-meta .doc-meta-field--campaign-sub .doc-product-category-input::placeholder,
+.node-query-modal__doc-meta .doc-meta-field--campaign-sub .doc-new-meta-input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+  font-weight: 400;
+}
+
+.node-query-modal__doc-meta .doc-meta-field--campaign-sub .doc-product-category-wrap--pickable {
+  border-radius: 5px;
 }
 
 .node-query-modal__source-grid {
@@ -17854,7 +17952,7 @@ body.doc-content-resizing * {
 .node-query-modal__schedule .doc-block-anchor__date::-webkit-calendar-picker-indicator,
 .node-query-modal__schedule .doc-block-anchor__time::-webkit-calendar-picker-indicator {
   filter: brightness(0) invert(1) !important;
-  opacity: 0.16 !important;
+  opacity: 0.72 !important;
   cursor: pointer;
   margin: 0 0 0 2px;
   padding: 0;
@@ -17864,9 +17962,9 @@ body.doc-content-resizing * {
 
 .node-query-modal__schedule .doc-block-anchor__date:not(.is-empty)::-webkit-calendar-picker-indicator,
 .node-query-modal__schedule .doc-block-anchor__time:not(.is-empty)::-webkit-calendar-picker-indicator {
-  /* Match .node-query-modal__node-icon */
-  filter: brightness(0) invert(0.85) !important;
-  opacity: 0.55 !important;
+  /* Clear reference icons when date/time is filled */
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.88 !important;
 }
 
 /* —— Folder library (v1) —— */

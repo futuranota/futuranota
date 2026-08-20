@@ -111,6 +111,15 @@ function referenceWithNodeMeta(node) {
   if (windowEndAt) base.windowEndAt = windowEndAt;
   else delete base.windowEndAt;
 
+  const subcategory = typeof node?.subcategory === "string"
+    ? node.subcategory.trim()
+    : (typeof node?.category === "string" ? node.category.trim() : "");
+  if (subcategory) base.subcategory = subcategory;
+  else {
+    delete base.subcategory;
+    delete base.category;
+  }
+
   return base;
 }
 
@@ -150,6 +159,26 @@ function windowEndAtFromPersistedNode(node) {
   const ref = node.reference;
   if (ref && typeof ref === "object" && ref.windowEndAt) return ref.windowEndAt;
   return null;
+}
+
+function subcategoryFromPersistedNode(node) {
+  if (!node) return "";
+  if (typeof node.subcategory === "string" && node.subcategory.trim()) {
+    return node.subcategory.trim();
+  }
+  if (typeof node.category === "string" && node.category.trim()) {
+    return node.category.trim();
+  }
+  const ref = node.reference;
+  if (ref && typeof ref === "object") {
+    if (typeof ref.subcategory === "string" && ref.subcategory.trim()) {
+      return ref.subcategory.trim();
+    }
+    if (typeof ref.category === "string" && ref.category.trim()) {
+      return ref.category.trim();
+    }
+  }
+  return "";
 }
 
 function timelineSourceNodeIdFromPersistedDoc(camp) {
@@ -1601,6 +1630,7 @@ export function initPersistenceMiddleware(stores) {
           launchAt: launchAtFromPersistedNode({ reference, launchAt: node.launch_at }),
           windowStartAt: windowStartAtFromPersistedNode({ reference }),
           windowEndAt: windowEndAtFromPersistedNode({ reference }),
+          subcategory: subcategoryFromPersistedNode({ reference, subcategory: reference.subcategory, category: reference.category }),
           sourceId: sourceIdFromPersistedNode(persisted),
           objectId: objectIdFromPersistedNode(persisted),
           linkedToCanvas: node.linked_to_canvas || false,
