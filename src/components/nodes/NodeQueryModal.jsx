@@ -33,6 +33,7 @@ import {
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
+import { applyOrganizeToWritingBlocks } from "../../lib/organizeDocPaste.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
@@ -1391,6 +1392,12 @@ export function NodeQueryModal({
     onContentChange(serializeNodeWritingBody({ blocks }));
   }, [onContentChange]);
 
+  const handleOrganizeWritingText = useCallback(() => {
+    const { blocks: next, changed } = applyOrganizeToWritingBlocks(writingBlocks);
+    if (!changed) return;
+    updateWritingBlocks(next);
+  }, [writingBlocks, updateWritingBlocks]);
+
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
@@ -2297,6 +2304,19 @@ export function NodeQueryModal({
                 typographyId={typographyId}
                 onTypographyChange={setTypographyId}
               />
+            ) : null}
+            {isTextWritingMode ? (
+              <button
+                type="button"
+                className="doc-content-text-size-controls__btn node-query-modal__footer-organize"
+                onClick={handleOrganizeWritingText}
+                aria-label={t("docs.organizeText")}
+                title={t("docs.organizeTextTitle")}
+              >
+                <span className="node-query-modal__footer-organize-label">
+                  {t("docs.organizeText")}
+                </span>
+              </button>
             ) : null}
           </div>
           <div className="node-query-modal__footer-search">

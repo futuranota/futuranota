@@ -1,58 +1,76 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { resolveCurrentCorpus, resolveIntelCampaignBrand } from "../../lib/currentCorpus.js";
-import {
-  computeCampaignWindowProjection,
-  computeLaunchCadenceProjection,
-} from "../../lib/launchCadenceMath.js";
+import { computeCampaignWindowProjection } from "../../lib/launchCadenceMath.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
-import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
-import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
-import { syncLaunchRadarFromAnalystDoc, runLaunchRadarAnalysis } from "../../lib/agents/runLaunchRadar.js";
 import { resolveLaunchRadarObjectId } from "../../lib/agents/resolveLaunchRadarObjectId.js";
-import {
-  findLatestAnalystDocForScope,
-  launchRadarSnapshotHasData,
-  resolveLaunchRadarSnapshotForCorpus,
-} from "../../lib/launchRadarSnapshot.js";
-import { AnimatedIntelLine } from "../intel/AnimatedIntelLine.jsx";
 import {
   resolvePanelCorpusObjectId,
   readLaunchRadarPanelSaved,
   writeLaunchRadarPanelSaved,
 } from "../../lib/panelAgentLoop.js";
-import { getLaunchRadarRunCost } from "../../lib/agents/agentCreditCosts.js";
-import { formatCreditAmount } from "../../lib/planConfig.js";
 import { usePlanStore } from "../../stores/planStore.js";
 import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
-import { useLaunchRadarPanelStore, launchRadarScopeKey } from "../../stores/launchRadarPanelStore.js";
-import { cadenceRecordToPanelView } from "../../lib/launchRadarPanelView.js";
 import "../../styles/launch-predictor.css";
 
-const EMPTY_LAUNCH_RADAR_SESSION = {
-  status: "idle",
-  cadence: null,
-  toggleOn: false,
-  actionError: null,
-  reportReady: false,
-};
+const DESCRIPTION_MAX = 400;
 
-function formatTodayLabel(date, locale) {
-  const lang = locale === "es" ? "es-ES" : "en-US";
-  return new Intl.DateTimeFormat(lang, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date instanceof Date ? date : new Date(date));
+function openDatePicker(e) {
+  e.stopPropagation();
+  const input = e.currentTarget;
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+    } catch {
+      /* some browsers reject showPicker outside direct user gesture */
+    }
+  }
 }
 
-function cadenceRecordToView(cadenceRecord) {
-  return cadenceRecordToPanelView(cadenceRecord);
+/**
+ * @param {unknown} raw
+ * @returns {{ headline: string, dateStart: string, launchDate: string, description: string } | null}
+ */
+function normalizeManualEntry(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const headline = String(raw.headline || "").trim();
+  const dateStart = String(raw.dateStart || "").trim();
+  const launchDate = String(raw.launchDate || "").trim();
+  const description = String(raw.description || "").trim().slice(0, DESCRIPTION_MAX);
+  if (!headline && !dateStart && !launchDate && !description) return null;
+  return { headline, dateStart, launchDate, description };
 }
 
-function LaunchRadarPanelHeader({ brandName, reportKind, demo = false }) {
+/**
+ * @param {{ headline: string, dateStart: string, launchDate: string, description: string }} entry
+ */
+function manualEntryToCadenceView(entry) {
+  if (!entry?.launchDate) return null;
+  return {
+    mode: "campaign",
+    launchDate: entry.launchDate,
+    announcementDate: entry.dateStart || null,
+    overview: entry.description || "",
+    category: "",
+    headline: entry.headline || "",
+    source: "manual",
+  };
+}
+
+function emptyDraft() {
+  return {
+    headline: "",
+    dateStart: "",
+    launchDate: "",
+    description: "",
+  };
+}
+
+function LaunchRadarPanelHeader({ brandName, demo = false, headline = "", compact = false }) {
   const { t } = useI18n();
+  const displayName = headline || brandName;
+  const featured = Boolean(headline) && compact;
 
   return (
     <header className="launch-predictor__head">
@@ -60,19 +78,24 @@ function LaunchRadarPanelHeader({ brandName, reportKind, demo = false }) {
         {t("intel.launchRadarKicker")}
         {demo ? <span className="launch-predictor__demo-badge">{t("intel.launchRadarDemo")}</span> : null}
       </h4>
-      <p className="launch-predictor__role">{t("intel.launchRadarRole")}</p>
-      <p className="launch-predictor__role launch-predictor__role--secondary">
-        {t("intel.launchRadarSelectBrand")}
-      </p>
-      {brandName ? (
-        <p className="launch-predictor__brand">{brandName}</p>
+      {!compact ? (
+        <p className="launch-predictor__role">{t("intel.launchRadarRole")}</p>
       ) : null}
-      {reportKind === "active" ? (
-        <p className="launch-predictor__report-kind">{t("intel.launchRadarActiveReport")}</p>
-      ) : null}
-      {reportKind === "inactive" ? (
-        <p className="launch-predictor__report-kind">{t("intel.launchRadarInactiveReport")}</p>
-      ) : null}
+      {!displayName ? (
+        <p className="launch-predictor__role launch-predictor__role--secondary">
+          {t("intel.launchRadarSelectBrand")}
+        </p>
+      ) : (
+        <p
+          className={
+            featured
+              ? "launch-predictor__brand launch-predictor__brand--featured"
+              : "launch-predictor__brand"
+          }
+        >
+          {displayName}
+        </p>
+      )}
     </header>
   );
 }
@@ -106,27 +129,128 @@ function LaunchRadarControl({
   );
 }
 
+function LaunchRadarToolbar({ editing, canEdit, onEdit, onSave, onCancel, saveDisabled }) {
+  const { t } = useI18n();
+
+  if (editing) {
+    return (
+      <div className="launch-predictor__toolbar">
+        <button type="button" className="btn sm ghost" onClick={onCancel}>
+          {t("intel.launchRadarCancel")}
+        </button>
+        <button
+          type="button"
+          className="btn sm primary"
+          onClick={onSave}
+          disabled={saveDisabled}
+        >
+          {t("intel.launchRadarSave")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="launch-predictor__toolbar">
+      <button
+        type="button"
+        className="btn sm primary"
+        onClick={onEdit}
+        disabled={!canEdit}
+      >
+        {t("intel.launchRadarEdit")}
+      </button>
+    </div>
+  );
+}
+
+function LaunchRadarManualForm({ draft, onChange, dateError }) {
+  const { t } = useI18n();
+  const descLen = draft.description.length;
+
+  return (
+    <div className="launch-predictor__form">
+      <label className="launch-predictor__field">
+        <span className="launch-predictor__field-label">{t("intel.launchRadarHeadline")}</span>
+        <input
+          type="text"
+          className="launch-predictor__input"
+          value={draft.headline}
+          onChange={(e) => onChange({ ...draft, headline: e.target.value })}
+          placeholder={t("intel.launchRadarHeadlinePlaceholder")}
+          autoComplete="off"
+        />
+      </label>
+
+      <div className="launch-predictor__field-row">
+        <label className="launch-predictor__field">
+          <span className="launch-predictor__field-label">{t("intel.launchRadarDateStart")}</span>
+          <input
+            type="date"
+            className="launch-predictor__input launch-predictor__input--date"
+            value={draft.dateStart}
+            onChange={(e) => onChange({ ...draft, dateStart: e.target.value })}
+            onClick={openDatePicker}
+          />
+        </label>
+        <label className="launch-predictor__field">
+          <span className="launch-predictor__field-label">{t("intel.launchRadarLaunchDate")}</span>
+          <input
+            type="date"
+            className="launch-predictor__input launch-predictor__input--date"
+            value={draft.launchDate}
+            onChange={(e) => onChange({ ...draft, launchDate: e.target.value })}
+            onClick={openDatePicker}
+          />
+        </label>
+      </div>
+
+      {dateError ? (
+        <p className="launch-predictor__note launch-predictor__note--pending">{dateError}</p>
+      ) : null}
+
+      <label className="launch-predictor__field">
+        <span className="launch-predictor__field-label">{t("intel.launchRadarDescription")}</span>
+        <textarea
+          className="launch-predictor__textarea"
+          value={draft.description}
+          maxLength={DESCRIPTION_MAX}
+          rows={4}
+          onChange={(e) => onChange({ ...draft, description: e.target.value.slice(0, DESCRIPTION_MAX) })}
+          placeholder={t("intel.launchRadarDescriptionPlaceholder")}
+        />
+        <span className="launch-predictor__char-count">
+          {descLen}/{DESCRIPTION_MAX}
+        </span>
+      </label>
+    </div>
+  );
+}
+
 /**
- * Launch Radar — manual run only (no auto-load).
+ * Launch Radar — manual entry first; automatic scan stays non-functional for now.
  * @param {{ today?: Date }} props
  */
 export function LaunchPredictor({ today = new Date() }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const isPro = usePlanStore((s) => s.isPro());
   const isDemo = !isPro;
   const objects = useObjectsStore((s) => s.objects);
-  const docs = useDocsStore((s) => s.docs);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
-  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
-  const [running, setRunning] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(emptyDraft);
 
-  const { currentCorpus, brandName } = useMemo(() => {
+  const { brandName } = useMemo(() => {
     const resolved = resolveCurrentCorpus(objects, selectedObjectId);
     const brand = resolved.brandName || resolveIntelCampaignBrand(objects, selectedObjectId);
-    return { currentCorpus: resolved.currentCorpus, brandName: brand };
+    return { brandName: brand };
   }, [objects, selectedObjectId]);
 
-  const corpusId = currentCorpus?.id || selectedObjectId || null;
+  const corpusId = useMemo(() => {
+    const resolved = resolveCurrentCorpus(objects, selectedObjectId);
+    return resolved.currentCorpus?.id || selectedObjectId || null;
+  }, [objects, selectedObjectId]);
+
   const launchRadarObjectId = useMemo(
     () => resolveLaunchRadarObjectId(objects, brandName || "", corpusId),
     [objects, brandName, corpusId],
@@ -135,433 +259,199 @@ export function LaunchPredictor({ today = new Date() }) {
     () => resolvePanelCorpusObjectId(objects, corpusId || launchRadarObjectId),
     [objects, corpusId, launchRadarObjectId],
   );
-  const scopeIds = useMemo(
-    () => [...new Set([corpusId, launchRadarObjectId, panelCorpusId].filter(Boolean))],
-    [corpusId, launchRadarObjectId, panelCorpusId],
-  );
-  const scopeKey = useMemo(
-    () => launchRadarScopeKey(panelCorpusId, brandName),
-    [panelCorpusId, brandName],
-  );
 
   const persistedPanel = useMemo(
     () => readLaunchRadarPanelSaved(objects, panelCorpusId),
     [objects, panelCorpusId],
   );
 
-  const reportSnapshot = useMemo(
-    () => resolveLaunchRadarSnapshotForCorpus(
-      docs,
-      panelCorpusId,
-      brandName || "",
-      scopeIds,
-      objects,
-    ),
-    [docs, panelCorpusId, brandName, scopeIds, objects],
+  const manualEntry = useMemo(
+    () => normalizeManualEntry(persistedPanel?.manualEntry),
+    [persistedPanel],
   );
 
-  const hasReportData = useMemo(() => {
-    if (launchRadarSnapshotHasData(reportSnapshot)) return true;
-    if (!panelCorpusId) return false;
-    return Boolean(findLatestAnalystDocForScope(docs, {
-      corpusId: panelCorpusId,
-      scopeIds,
-      brandName: brandName || "",
-      objectsById: objects,
-    })?.doc);
-  }, [reportSnapshot, panelCorpusId, docs, scopeIds, brandName, objects]);
-
-  const panelLocked = Boolean(persistedPanel?.cadenceView);
-
-  const previewOverview = useMemo(() => {
-    if (!hasReportData || panelLocked || !panelCorpusId) return "";
-    const found = findLatestAnalystDocForScope(docs, {
-      corpusId: panelCorpusId,
-      scopeIds,
-      brandName: brandName || "",
-      objectsById: objects,
-    });
-    const snapshot = found?.snapshot || reportSnapshot;
-    return (snapshot?.overview || "").trim();
-  }, [hasReportData, panelLocked, panelCorpusId, docs, scopeIds, brandName, objects, reportSnapshot]);
-
-  const session = useLaunchRadarPanelStore(
-    (s) => s.sessions[scopeKey] ?? EMPTY_LAUNCH_RADAR_SESSION,
-  );
-  const patchSession = useLaunchRadarPanelStore((s) => s.patchSession);
-
-  const { status, cadence, toggleOn, actionError } = session;
-
-  useEffect(() => {
-    if (!persistedPanel?.cadenceView) return;
-    patchSession(panelCorpusId, brandName, {
-      status: "ready",
-      cadence: persistedPanel.cadenceView,
-      toggleOn: true,
-      actionError: null,
-      reportReady: true,
-    });
-  }, [persistedPanel, panelCorpusId, brandName, patchSession]);
-
-  const applyCadenceResult = useCallback((result) => {
-    if (!result?.ok || !result.cadence) {
-      const message = result?.message || t("intel.launchRadarActionError");
-      patchSession(panelCorpusId, brandName, {
-        status: "idle",
-        cadence: null,
-        toggleOn: false,
-        actionError: message,
-        reportReady: true,
-      });
-      return false;
-    }
-    const view = cadenceRecordToView(result.cadence);
-    if (view) {
-      writeLaunchRadarPanelSaved(panelCorpusId, {
-        cadenceView: view,
-        cadenceRecord: result.cadence,
-      });
-      patchSession(panelCorpusId, brandName, {
-        status: "ready",
-        cadence: view,
-        toggleOn: true,
-        actionError: null,
-        reportReady: true,
-      });
-      return true;
-    }
-    patchSession(panelCorpusId, brandName, {
-      status: "idle",
-      cadence: null,
-      toggleOn: false,
-      actionError: t("intel.launchRadarActionError"),
-      reportReady: true,
-    });
-    return false;
-  }, [t, patchSession, panelCorpusId, brandName]);
-
-  const handleLoadFromReport = useCallback(() => {
-    if (!panelCorpusId || !brandName || !hasReportData) return false;
-    patchSession(panelCorpusId, brandName, { actionError: null, reportReady: true });
-    const result = syncLaunchRadarFromAnalystDoc({
-      corpusId: panelCorpusId,
-      brandName: brandName || "",
-      locale: locale === "es" ? "es" : "en",
-      scopeIds,
-    });
-    return applyCadenceResult(result);
-  }, [panelCorpusId, brandName, hasReportData, locale, scopeIds, applyCadenceResult, patchSession]);
-
-  const handleRunScan = useCallback(async () => {
-    if (!brandName || running) return false;
-    if (isDemo) {
-      showUpgradeModal("generic");
-      return false;
-    }
-    setRunning(true);
-    patchSession(panelCorpusId, brandName, { actionError: null, reportReady: true });
-    try {
-      const result = await runLaunchRadarAnalysis({
-        brandName,
-        corpusId: panelCorpusId,
-        locale: locale === "es" ? "es" : "en",
-      });
-      if (result.code === "gate_tokens" || result.code === "gate_search") {
-        showUpgradeModal(result.code === "gate_search" ? "search" : "tokens");
-      }
-      return applyCadenceResult(result);
-    } finally {
-      setRunning(false);
-    }
-  }, [
-    brandName,
-    running,
-    panelCorpusId,
-    locale,
-    applyCadenceResult,
-    patchSession,
-    showUpgradeModal,
-    isDemo,
-  ]);
-
-  const handleToggleChange = useCallback(async (next) => {
-    if (running) return;
-    if (panelLocked && !next) return;
-
-    if (isDemo && next) {
-      showUpgradeModal("generic");
-      return;
-    }
-
-    if (!next) {
-      patchSession(panelCorpusId, brandName, {
-        status: "idle",
-        cadence: null,
-        toggleOn: false,
-        actionError: null,
-        reportReady: true,
-      });
-      return;
-    }
-
-    if (!brandName) {
-      patchSession(panelCorpusId, brandName, {
-        status: "idle",
-        cadence: null,
-        toggleOn: false,
-        actionError: null,
-        reportReady: true,
-      });
-      return;
-    }
-
-    patchSession(panelCorpusId, brandName, { toggleOn: true, actionError: null, reportReady: true });
-
-    if (hasReportData) {
-      handleLoadFromReport();
-      return;
-    }
-
-    await handleRunScan();
-  }, [
-    running,
-    panelLocked,
-    patchSession,
-    panelCorpusId,
-    brandName,
-    hasReportData,
-    handleLoadFromReport,
-    handleRunScan,
-    isDemo,
-    showUpgradeModal,
-  ]);
-
-  const effectiveToggleOn = panelLocked || toggleOn;
-  const effectiveStatus = panelLocked || status === "ready" ? "ready" : status;
-  const effectiveCadence = panelLocked ? persistedPanel.cadenceView : cadence;
-
-  const headerProps = { brandName, reportKind: null, demo: isDemo };
-
-  const scanCreditLabel = isDemo
-    ? t("intel.launchRadarDemoHint")
-    : t("intel.launchRadarCreditCost", {
-      cost: formatCreditAmount(getLaunchRadarRunCost().creditCost),
-    });
-
-  const controlProps = {
-    brandName,
-    running,
-    toggleOn: effectiveToggleOn,
-    onToggleChange: handleToggleChange,
-    disabled: !brandName || running,
-    creditHint: hasReportData
-      ? t("intel.launchRadarFromReport")
-      : brandName
-        ? scanCreditLabel
-        : null,
-  };
-
-  const panelHint = isDemo
-    ? t("intel.launchRadarDemoHint")
-    : panelLocked
-      ? t("intel.launchRadarSavedHint")
-      : hasReportData && effectiveStatus === "idle" && !effectiveToggleOn
-        ? t("intel.launchRadarInsertHint")
-        : null;
+  const campaignCadence = useMemo(() => {
+    const fromManual = manualEntry ? manualEntryToCadenceView(manualEntry) : null;
+    if (fromManual) return fromManual;
+    const saved = persistedPanel?.cadenceView;
+    if (saved?.mode === "campaign" && saved.launchDate) return saved;
+    return null;
+  }, [manualEntry, persistedPanel]);
 
   const campaignWindow = useMemo(() => {
-    if (!effectiveCadence || effectiveCadence.mode !== "campaign" || !effectiveCadence.launchDate) return null;
+    if (!campaignCadence?.launchDate) return null;
     return computeCampaignWindowProjection({
       today,
-      launchDate: effectiveCadence.launchDate,
-      announcementDate: effectiveCadence.announcementDate,
-      overview: effectiveCadence.overview,
-      category: effectiveCadence.category,
+      launchDate: campaignCadence.launchDate,
+      announcementDate: campaignCadence.announcementDate,
+      overview: campaignCadence.overview,
+      category: campaignCadence.category,
     });
-  }, [effectiveCadence, today]);
+  }, [campaignCadence, today]);
 
-  const cadenceProjection = useMemo(() => {
-    if (!effectiveCadence || (effectiveCadence.mode !== "cadence" && effectiveCadence.mode !== "heuristic") || !effectiveCadence.lastLaunchDate) {
-      return null;
+  const dateError = useMemo(() => {
+    if (!draft.dateStart || !draft.launchDate) return null;
+    if (draft.dateStart > draft.launchDate) {
+      return t("intel.launchRadarDateStartAfterLaunch");
     }
-    return computeLaunchCadenceProjection({
-      today,
-      averageIntervalMonths: effectiveCadence.averageIntervalMonths,
-      lastLaunchDate: effectiveCadence.lastLaunchDate,
+    return null;
+  }, [draft.dateStart, draft.launchDate, t]);
+
+  const canPersist = Boolean(panelCorpusId);
+  const draftHasContent = Boolean(
+    draft.headline.trim()
+    || draft.dateStart
+    || draft.launchDate
+    || draft.description.trim(),
+  );
+
+  const handleEdit = useCallback(() => {
+    if (!canPersist) return;
+    setDraft(manualEntry ? { ...manualEntry } : emptyDraft());
+    setEditing(true);
+  }, [canPersist, manualEntry]);
+
+  const handleCancel = useCallback(() => {
+    setEditing(false);
+    setDraft(emptyDraft());
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!canPersist || !panelCorpusId || dateError) return;
+    const entry = normalizeManualEntry(draft) || {
+      headline: "",
+      dateStart: "",
+      launchDate: "",
+      description: "",
+    };
+    const cadenceView = manualEntryToCadenceView(entry);
+    writeLaunchRadarPanelSaved(panelCorpusId, {
+      manualEntry: entry,
+      ...(cadenceView ? { cadenceView } : { cadenceView: null }),
     });
-  }, [effectiveCadence, today]);
+    setEditing(false);
+  }, [canPersist, panelCorpusId, dateError, draft]);
 
-  if (isDemo && effectiveStatus === "idle" && !panelLocked) {
+  const headline = manualEntry?.headline || campaignCadence?.headline || "";
+  const hasSavedView = Boolean(campaignWindow || manualEntry);
+  const headerProps = {
+    brandName,
+    demo: isDemo,
+    headline,
+    compact: hasSavedView && !editing,
+  };
+
+  // Red joystick stays visible; search/scan is deferred — toggle is a no-op.
+  const controlProps = {
+    running: false,
+    toggleOn: Boolean(campaignWindow),
+    onToggleChange: () => {},
+    disabled: false,
+    creditHint: null,
+  };
+
+  const toolbar = (
+    <LaunchRadarToolbar
+      editing={editing}
+      canEdit={canPersist}
+      onEdit={handleEdit}
+      onSave={handleSave}
+      onCancel={handleCancel}
+      saveDisabled={!draftHasContent || Boolean(dateError)}
+    />
+  );
+
+  const footer = (
+    <div className="launch-predictor__control-bar launch-predictor__control-bar--footer">
+      <LaunchRadarControl {...controlProps} />
+      {toolbar}
+    </div>
+  );
+
+  if (editing) {
     return (
-      <div className="launch-predictor launch-predictor--demo">
-        <LaunchRadarIdleView
-          headerProps={headerProps}
-          controlProps={{
-            brandName,
-            running,
-            toggleOn: false,
-            onToggleChange: handleToggleChange,
-            disabled: !brandName || running,
-            creditHint: scanCreditLabel,
-          }}
-          actionError={null}
-          panelHint={panelHint}
-          previewOverview={previewOverview}
-          animatePreview={Boolean(previewOverview)}
-        />
+      <div className="launch-predictor">
+        <LaunchRadarPanelHeader {...headerProps} compact={false} headline="" />
+        <div className="launch-predictor__main">
+          <LaunchRadarManualForm draft={draft} onChange={setDraft} dateError={dateError} />
+        </div>
+        {footer}
       </div>
-    );
-  }
-
-  if (effectiveStatus === "idle") {
-    return (
-      <LaunchRadarIdleView
-        headerProps={headerProps}
-        controlProps={controlProps}
-        actionError={actionError}
-        panelHint={panelHint}
-        previewOverview={previewOverview}
-        animatePreview={hasReportData && !panelLocked && Boolean(previewOverview)}
-      />
     );
   }
 
   if (campaignWindow) {
     return (
       <div className="launch-predictor">
-        <LaunchRadarPanelHeader {...headerProps} reportKind="active" />
-        <LaunchRadarControl {...controlProps} />
-        <CampaignWindowView
-          brandName={brandName}
-          window={campaignWindow}
-          embedded
-        />
+        <LaunchRadarPanelHeader {...headerProps} />
+        <div className="launch-predictor__main">
+          <CampaignWindowView window={campaignWindow} />
+        </div>
+        {footer}
       </div>
     );
   }
 
-  if (cadenceProjection && effectiveCadence) {
+  if (manualEntry) {
     return (
       <div className="launch-predictor">
-        <LaunchRadarPanelHeader {...headerProps} reportKind="inactive" />
-        <LaunchRadarControl {...controlProps} />
-        <CadenceEstimateView
-          brandName={brandName}
-          cadence={effectiveCadence}
-          projection={cadenceProjection}
-          today={today}
-          variant={effectiveCadence.mode === "heuristic" ? "heuristic" : "cadence"}
-          embedded
-        />
+        <LaunchRadarPanelHeader {...headerProps} />
+        <div className="launch-predictor__main">
+          {manualEntry.description ? (
+            <p className="launch-predictor__overview">{manualEntry.description}</p>
+          ) : null}
+        </div>
+        {footer}
       </div>
     );
   }
 
   return (
-    <LaunchRadarIdleView
-      headerProps={headerProps}
-      controlProps={controlProps}
-      actionError={actionError}
-      panelHint={panelHint}
-    />
-  );
-}
-
-function LaunchRadarIdleView({
-  headerProps,
-  controlProps,
-  actionError,
-  panelHint,
-  previewOverview = "",
-  animatePreview = false,
-}) {
-  return (
     <div className="launch-predictor">
-      <LaunchRadarPanelHeader {...headerProps} reportKind={null} />
-      <LaunchRadarControl {...controlProps} />
-      {animatePreview && previewOverview ? (
-        <AnimatedIntelLine
-          text={previewOverview}
-          className="launch-predictor__overview launch-predictor__overview--preview"
-        />
-      ) : null}
-      {panelHint ? (
-        <p className="launch-predictor__note launch-predictor__note--pending">{panelHint}</p>
-      ) : null}
-      {actionError ? (
-        <p className="launch-predictor__note launch-predictor__note--pending">{actionError}</p>
-      ) : null}
+      <LaunchRadarPanelHeader {...headerProps} />
+      <div className="launch-predictor__main">
+        {canPersist ? (
+          <p className="launch-predictor__note launch-predictor__note--pending">
+            {t("intel.launchRadarManualHint")}
+          </p>
+        ) : null}
+      </div>
+      {footer}
     </div>
   );
 }
 
-function CampaignWindowView({ brandName, window, embedded = false }) {
+/** Horizontal campaign window: Anuncio — días restantes — Lanzamiento. */
+function CampaignWindowView({ window }) {
   const { t } = useI18n();
 
-  const announceBridgeDays = window.daysUntilAnnouncement != null && window.daysUntilAnnouncement > 0
-    ? window.daysUntilAnnouncement
-    : null;
-  const launchBridgeDays = Math.max(0, window.rangeDaysRemaining);
+  const daysLeft = Math.max(0, window.rangeDaysRemaining);
+  const hasAnnounce = Boolean(window.announcementLabel);
 
   return (
-    <div className={embedded ? "launch-predictor__body" : "launch-predictor"}>
-      {!embedded ? (
-        <header className="launch-predictor__head">
-          <span className="launch-predictor__kicker">{t("intel.launchRadarKicker")}</span>
-          <h4 className="launch-predictor__brand">{brandName}</h4>
-          {window.category ? (
-            <span className="launch-predictor__category">{window.category}</span>
-          ) : null}
-        </header>
-      ) : null}
-
+    <div className="launch-predictor__body">
       {window.overview ? (
         <p className="launch-predictor__overview">{window.overview}</p>
       ) : null}
 
-      <div className="launch-predictor__compare" aria-label={t("intel.launchRadarDateCompare")}>
-        <div className="launch-predictor__compare-row">
-          <span className="launch-predictor__compare-key">{t("intel.launchRadarToday")}</span>
-          <span className="launch-predictor__compare-val">{window.todayLabel}</span>
-        </div>
-        {window.announcementLabel ? (
-          <div className="launch-predictor__compare-row">
-            <span className="launch-predictor__compare-key">{t("intel.launchRadarAnnounce")}</span>
-            <span className="launch-predictor__compare-val">{window.announcementLabel}</span>
+      <div
+        className="launch-predictor__timeline launch-predictor__timeline--pair"
+        aria-label={t("intel.launchRadarCampaignTimeline")}
+      >
+        {hasAnnounce ? (
+          <div className="launch-predictor__node">
+            <span className="launch-predictor__node-label">{t("intel.launchRadarAnnounce")}</span>
+            <span className="launch-predictor__node-date">{window.announcementLabel}</span>
           </div>
-        ) : null}
-        <div className="launch-predictor__compare-row">
-          <span className="launch-predictor__compare-key">{t("intel.launchRadarLaunch")}</span>
-          <span className="launch-predictor__compare-val launch-predictor__compare-val--accent">{window.launchLabel}</span>
-        </div>
-      </div>
-
-      <div className="launch-predictor__timeline launch-predictor__timeline--campaign" aria-label={t("intel.launchRadarCampaignTimeline")}>
-        <div className="launch-predictor__node launch-predictor__node--today">
-          <span className="launch-predictor__node-label">{t("intel.launchRadarToday")}</span>
-          <span className="launch-predictor__node-date">{window.todayLabel}</span>
-        </div>
-
-        {window.announcementLabel ? (
-          <>
-            <div className="launch-predictor__bridge">
-              <span className="launch-predictor__bridge-line" aria-hidden />
-              <span className="launch-predictor__bridge-caption">
-                {announceBridgeDays != null ? `${announceBridgeDays}d` : "—"}
-              </span>
-            </div>
-            <div className="launch-predictor__node">
-              <span className="launch-predictor__node-label">{t("intel.launchRadarAnnounce")}</span>
-              <span className="launch-predictor__node-date">{window.announcementLabel}</span>
-            </div>
-          </>
-        ) : null}
+        ) : (
+          <div className="launch-predictor__node" aria-hidden />
+        )}
 
         <div className="launch-predictor__bridge">
-          <span className="launch-predictor__bridge-line" aria-hidden />
           <span className="launch-predictor__bridge-caption">
-            {t("intel.launchRadarDaysLeft", { count: launchBridgeDays })}
+            {t("intel.launchRadarDaysLeft", { count: daysLeft })}
           </span>
+          <span className="launch-predictor__bridge-line" aria-hidden />
         </div>
 
         <div className="launch-predictor__node launch-predictor__node--estimate">
@@ -569,92 +459,6 @@ function CampaignWindowView({ brandName, window, embedded = false }) {
           <span className="launch-predictor__node-date">{window.launchLabel}</span>
         </div>
       </div>
-
-      <p className="launch-predictor__range">{window.rangeLabel}</p>
-      {window.windowTotalDays != null ? (
-        <p className="launch-predictor__note">
-          {t("intel.launchRadarShipWindow", { count: window.windowTotalDays })}
-          {window.phase === "ship-window" && window.windowDaysRemaining != null
-            ? ` ${t("intel.launchRadarScopeRemaining", { count: window.windowDaysRemaining })}`
-            : null}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function CadenceEstimateView({
-  brandName,
-  cadence,
-  projection,
-  today = new Date(),
-  variant = "cadence",
-  embedded = false,
-}) {
-  const { t, locale } = useI18n();
-  const isHeuristic = variant === "heuristic";
-  const intervalLabel = Number.isInteger(cadence.averageIntervalMonths)
-    ? cadence.averageIntervalMonths
-    : cadence.averageIntervalMonths.toFixed(1);
-  const todayLabel = formatTodayLabel(today, locale);
-
-  const noteKey = isHeuristic ? "intel.launchRadarHeuristicNote" : "intel.launchRadarCadenceNote";
-
-  return (
-    <div className={embedded ? "launch-predictor__body" : "launch-predictor"}>
-      {!embedded ? (
-        <header className="launch-predictor__head">
-          <span className="launch-predictor__kicker">{t("intel.launchRadarKicker")}</span>
-          {isHeuristic ? (
-            <span className="launch-predictor__badge">{t("intel.launchRadarHeuristicBadge")}</span>
-          ) : null}
-          <h4 className="launch-predictor__brand">{brandName}</h4>
-          {cadence.category ? (
-            <span className="launch-predictor__category">{cadence.category}</span>
-          ) : null}
-        </header>
-      ) : null}
-
-      {isHeuristic ? (
-        <span className="launch-predictor__badge">{t("intel.launchRadarHeuristicBadge")}</span>
-      ) : null}
-
-      {cadence.overview ? (
-        <p className="launch-predictor__overview">{cadence.overview}</p>
-      ) : null}
-
-      <div className="launch-predictor__timeline" aria-label="Launch cadence timeline">
-        <div className="launch-predictor__node launch-predictor__node--today">
-          <span className="launch-predictor__node-label">{t("intel.launchRadarToday")}</span>
-          <span className="launch-predictor__node-date">{todayLabel}</span>
-        </div>
-
-        <div className="launch-predictor__bridge">
-          <span className="launch-predictor__bridge-line" aria-hidden />
-          <span className="launch-predictor__bridge-caption">
-            {t("intel.launchRadarMonthsLeft", { count: projection.monthsRemaining })}
-          </span>
-        </div>
-
-        <div className="launch-predictor__node launch-predictor__node--estimate">
-          <span className="launch-predictor__node-label">{t("intel.launchRadarEstLaunch")}</span>
-          <span className="launch-predictor__node-date">{projection.estimatedMonthLabel}</span>
-        </div>
-      </div>
-
-      <p className="launch-predictor__note">
-        {t(noteKey, {
-          brand: brandName,
-          interval: intervalLabel,
-          today: todayLabel,
-          remaining: projection.monthsRemaining,
-          estimatedMonth: projection.estimatedMonthLabel,
-        })}
-      </p>
-
-      <p className="launch-predictor__note launch-predictor__note--pending">
-        {t("intel.launchRadarPendingWindow")}
-      </p>
     </div>
   );
 }

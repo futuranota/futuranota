@@ -396,6 +396,10 @@ export const messages = {
       altBlueprint: "+ Alt blueprint",
       altBlueprintTitle: "Seed a second campaign blueprint to demo stacked timelines",
     },
+    docs: {
+      organizeText: "Organize",
+      organizeTextTitle: "Clean pasted text into H1 / H2 / H3 + paragraphs (#i and #o stay as Library)",
+    },
     meta: {
       corpus: "Corpus",
       brand: "Brand",
@@ -957,11 +961,11 @@ export const messages = {
       launchRadarHeuristicClosing:
         "Recommendation: run Launch Radar in Intel to cross-check this heuristic estimate when you are ready.",
       launchRadarRole:
-        "Run manually to scan launch dates. Uses Campaign Analyst context when available.",
+        "Track a launch target. Automatic search is temporarily off.",
       launchRadarSelectBrand:
-        "Select a brand or corpus object in the sidebar to run Launch Radar.",
+        "Select a brand or object in the sidebar to use Launch Radar.",
       launchRadarNeedBrand:
-        "Set a brand on your sidebar object, then flip the switch to scan.",
+        "Set a brand on your sidebar object, then use Edit to add dates.",
       launchRadarRunning: "Running Launch Radar…",
       launchRadarFromReport: "From analyst report",
       launchRadarRunAgentFirst: "Run the Campaign Analyst first to generate launch data.",
@@ -972,6 +976,19 @@ export const messages = {
       launchRadarActionError: "Could not update Launch Radar.",
       launchRadarDemo: "Demo",
       launchRadarDemoHint: "Demo preview — upgrade to Pro to run live Launch Radar scans (2 credits each).",
+      launchRadarCreditCost: "{cost} credits per run",
+      launchRadarEdit: "Edit",
+      launchRadarSave: "Save",
+      launchRadarCancel: "Cancel",
+      launchRadarHeadline: "Target name",
+      launchRadarHeadlinePlaceholder: "Product or campaign name",
+      launchRadarDateStart: "Announce",
+      launchRadarLaunchDate: "Launch",
+      launchRadarDescription: "Description",
+      launchRadarDescriptionPlaceholder: "Short notes about this launch…",
+      launchRadarManualHint: "Use Edit to add a target name, dates, and description.",
+      launchRadarDateStartAfterLaunch: "Announce must be on or before Launch.",
+      launchRadarBrandLabel: "Brand · {brand}",
       weatherCityLockedFree: "Your forecast city is locked on the free plan. Upgrade to Pro to change cities.",
       forecastCityLockedHint: "One city on Starter. Upgrade to Pro to unlock city changes.",
       marketHypeProOnlyTitle: "Market Hype is a Pro feature",
@@ -1960,6 +1977,10 @@ export const messages = {
       altBlueprint: "+ Blueprint alt.",
       altBlueprintTitle: "Crear un segundo blueprint de campaña para demostrar timelines apilados",
     },
+    docs: {
+      organizeText: "Organizar",
+      organizeTextTitle: "Limpia texto pegado en H1 / H2 / H3 + párrafos (#i y #o siguen siendo Library)",
+    },
     meta: {
       /* Folder meta strip stays English for product consistency. */
       corpus: "Corpus",
@@ -2155,11 +2176,11 @@ export const messages = {
       launchRadarHeuristicClosing:
         "Recomendación: ejecutá Launch Radar en Intel para contrastar esta estimación heurística cuando te sirva.",
       launchRadarRole:
-        "Ejecutá manualmente para escanear fechas de lanzamiento. Usa contexto del Analyst si existe.",
+        "Monitoreá un objetivo de lanzamiento. La búsqueda automática está desactivada temporalmente.",
       launchRadarSelectBrand:
-        "Seleccioná una marca u objeto corpus en la barra lateral para ejecutar Launch Radar.",
+        "Seleccioná una marca u objeto en la barra lateral para usar Launch Radar.",
       launchRadarNeedBrand:
-        "Definí una marca en el objeto del sidebar y activá el switch para escanear.",
+        "Definí una marca en el objeto del sidebar y usá Edit para agregar fechas.",
       launchRadarRunning: "Ejecutando Launch Radar…",
       launchRadarFromReport: "Desde informe del analista",
       launchRadarRunAgentFirst: "Ejecutá primero el Campaign Analyst para generar datos de lanzamiento.",
@@ -2170,6 +2191,19 @@ export const messages = {
       launchRadarActionError: "No se pudo actualizar Launch Radar.",
       launchRadarDemo: "Demo",
       launchRadarDemoHint: "Vista demo — mejorá a Pro para escaneos live de Launch Radar (2 créditos c/u).",
+      launchRadarCreditCost: "{cost} créditos por ejecución",
+      launchRadarEdit: "Edit",
+      launchRadarSave: "Guardar",
+      launchRadarCancel: "Cancelar",
+      launchRadarHeadline: "Nombre objetivo",
+      launchRadarHeadlinePlaceholder: "Producto o campaña",
+      launchRadarDateStart: "Anuncio",
+      launchRadarLaunchDate: "Lanzamiento",
+      launchRadarDescription: "Descripción",
+      launchRadarDescriptionPlaceholder: "Notas cortas sobre este lanzamiento…",
+      launchRadarManualHint: "Usá Edit para agregar nombre, fechas y descripción.",
+      launchRadarDateStartAfterLaunch: "Anuncio debe ser anterior o igual a Lanzamiento.",
+      launchRadarBrandLabel: "Marca · {brand}",
       weatherCityLockedFree: "Tu ciudad de forecast está fijada en el plan gratis. Mejorá a Pro para cambiar de ciudad.",
       forecastCityLockedHint: "Una ciudad en Starter. Mejorá a Pro para desbloquear cambios de ciudad.",
       marketHypeProOnlyTitle: "Market Hype es una función Pro",

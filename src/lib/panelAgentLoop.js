@@ -100,10 +100,12 @@ export function writeLaunchRadarPanelSaved(corpusObjectId, payload) {
   const object = objects[id];
   if (!object) return false;
 
+  const prev = object.cadence?.launchRadarPanelSaved;
   updateObject(id, {
     cadence: {
       ...(object.cadence || {}),
       launchRadarPanelSaved: {
+        ...(prev && typeof prev === "object" ? prev : {}),
         ...payload,
         savedAt: new Date().toISOString(),
       },

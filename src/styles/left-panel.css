@@ -10265,6 +10265,35 @@ body.doc-content-resizing * {
   max-height: 22px;
 }
 
+.node-query-modal__footer-start .node-query-modal__footer-organize {
+  width: auto;
+  min-width: auto;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.node-query-modal__footer-start .node-query-modal__footer-organize:hover,
+.node-query-modal__footer-start .node-query-modal__footer-organize:focus-visible {
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.node-query-modal__footer-organize-label {
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .node-query-modal__footer-search {
   display: flex;
   align-items: center;
