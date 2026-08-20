@@ -238,6 +238,8 @@ export function ImageSplitBlockView({
   const cardFilled = imageSplitHasFill(block);
   const splitSaved = Boolean(block?.splitSaved && cardFilled);
   const isEdit = !splitSaved;
+  const wallColor = String(block?.wallColor || "").trim();
+  const wallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
   const pickerFolderId = libraryOwnerKind === "folder"
     ? (libraryOwnerId || folderLibraryId)
     : folderLibraryId;
@@ -537,6 +539,7 @@ export function ImageSplitBlockView({
       libraryOwnerId: "",
       libraryPrompt: "",
       libraryTag: "",
+      wallColor: null,
       mediaFace: "image",
       openFilePicker: false,
       splitSaved: false,
@@ -991,7 +994,7 @@ export function ImageSplitBlockView({
       <div className="doc-image-split__row" ref={rowRef}>
         <div className="doc-image-split__card" ref={cardRef}>
           {showingImage ? (
-            <div className="doc-image-split__media">
+            <div className="doc-image-split__media" style={wallStyle}>
               {showFaceSwitch ? (
                 <div
                   className="doc-image-split__face-switch doc-image-split__face-switch--on-image"
@@ -1029,7 +1032,7 @@ export function ImageSplitBlockView({
               {renderMediaBar()}
             </div>
           ) : showingPrompt ? (
-            <div className="doc-image-split__media doc-image-split__media--prompt">
+            <div className="doc-image-split__media doc-image-split__media--prompt" style={wallStyle}>
               {showFaceSwitch ? (
                 <div
                   className="doc-image-split__face-switch doc-image-split__face-switch--ghost"

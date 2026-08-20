@@ -1453,56 +1453,6 @@ export function SlashAwareTextarea({
 
   const insertLibraryNameCandidate = useCallback((candidate) => {
     if (!candidate || !activeLibraryNameQuery) return;
-    const tag = String(candidate.tag || candidate.name || "").trim();
-    const continueToAssets = Boolean(
-      libraryAssignEnabled
-      && tag
-      && Array.isArray(libraryAssignAssets)
-      && libraryAssignAssets.length > 0
-    );
-    if (continueToAssets) {
-      const replaced = replaceLibraryAssignPathToken(
-        value,
-        {
-          start: activeLibraryNameQuery.start,
-          end: activeLibraryNameQuery.end,
-        },
-        `${tag}.`,
-      );
-      const nextMentions = mentionsEnabled
-        ? applyTextEditToMentions(value, replaced.text, normalizedMentions)
-        : [];
-      const nextMarkers = markersEnabled
-        ? applyTextEditToMarkerRanges(value, replaced.text, normalizedMarkers)
-        : [];
-      const nextBolds = boldEnabled
-        ? applyTextEditToBoldRanges(value, replaced.text, normalizedBolds)
-        : [];
-      const nextTagRefs = tagRefsEnabled
-        ? applyTextEditToTagRefs(value, replaced.text, normalizedTagRefs)
-        : [];
-      const nextLibraryNames = libraryNameRefsEnabled
-        ? applyTextEditToLibraryNameRefs(value, replaced.text, normalizedLibraryNameRefs)
-        : [];
-      emitChange(
-        replaced.text,
-        nextMentions,
-        nextMarkers,
-        nextBolds,
-        nextTagRefs,
-        nextLibraryNames,
-      );
-      setActiveLibraryNameQuery(null);
-      setLibraryNameMenuAnchor(null);
-      requestAnimationFrame(() => {
-        const field = textareaRef.current;
-        if (!field || !("setSelectionRange" in field)) return;
-        field.focus({ preventScroll: true });
-        field.setSelectionRange(replaced.caret, replaced.caret);
-        syncMentionQuery();
-      });
-      return;
-    }
     const result = insertLibraryNameRefAtQuery(
       value,
       normalizedLibraryNameRefs,
@@ -1542,8 +1492,6 @@ export function SlashAwareTextarea({
     activeLibraryNameQuery,
     boldEnabled,
     emitChange,
-    libraryAssignAssets,
-    libraryAssignEnabled,
     libraryNameRefsEnabled,
     markersEnabled,
     mentionsEnabled,

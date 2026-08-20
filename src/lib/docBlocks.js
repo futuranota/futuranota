@@ -8,6 +8,7 @@ import { mergeLibraryNameRefBlocks, normalizeLibraryNameRefs } from "./docLibrar
 import { mergeBlockMarkerRanges, normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { mergeBlockBoldRanges, normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
+import { normalizeWallColor } from "./folderLibraryNormalize.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
 import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
 
@@ -745,6 +746,7 @@ function normalizeImageSplitBlock(block) {
     libraryOwnerId: String(block?.libraryOwnerId || "").trim(),
     libraryPrompt,
     libraryTag: String(block?.libraryTag || "").trim().slice(0, IMAGE_SPLIT_TITLE_MAX),
+    wallColor: normalizeWallColor(block?.wallColor),
     mediaFace: normalizeImageSplitMediaFace(block, imageSaved, hasPrompt),
     openFilePicker: Boolean(block?.openFilePicker),
     body: String(block?.body ?? ""),
@@ -2119,6 +2121,7 @@ export function docBlocksToBody(blocks) {
           libraryOwnerId: normalized.libraryOwnerId,
           libraryPrompt: normalized.libraryPrompt,
           libraryTag: normalized.libraryTag,
+          wallColor: normalized.wallColor,
           mediaFace: normalized.mediaFace,
           body: normalized.body,
           bodyMode: normalized.bodyMode,

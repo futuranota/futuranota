@@ -1,4 +1,5 @@
 import { fichaHasVisual, promptPreviewText } from "./libraryFichaPreview.js";
+import { normalizeWallColor } from "./folderLibraryNormalize.js";
 
 /** Keep in sync with BANNER_HEADLINE_MAX in docBlocks.js (avoid importing that module here). */
 const LIBRARY_PROMPT_MAX = 280;
@@ -55,6 +56,7 @@ export function libraryItemToImageSplitPatch(item, ownerKind = "document", owner
     libraryOwnerId: String(ownerId || "").trim(),
     libraryPrompt,
     libraryTag: tag,
+    wallColor: normalizeWallColor(item.wallColor),
     mediaFace: libraryPrompt.trim() ? "prompt" : "image",
     openFilePicker: false,
     splitSaved: false,

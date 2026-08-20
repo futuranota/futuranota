@@ -38,7 +38,7 @@ Assets live **only on the document** (node), not on the folder. Copy: **assets**
 - Prompt = **loose** fichas (`setId` null). `[+]` on Assets creates an asset; `[+]` while the asset detail is open adds Prompt into it.
 - Unsaved document → same message as `-- --` capture.
 - Out of this slice: reuse folder→doc as a dedicated flow, `--script--`.
-- **Name invoke (live):** typing a prefix of a Prompt ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). `#` stays reserved for `#i` / `#o`.
+- **Name invoke (live):** typing a prefix of a Prompt ficha **Name** in the document body opens autocomplete; picking it inserts the canonical name as a slight bold reference (not a link). Does **not** append `.` or open asset assign — that is only `ficha.asset`. `#` stays reserved for `#i` / `#o`.
 - **Dotted assign path (live):** `ficha.asset` in the document body. Enter opens the asset; prose keeps only the ficha **Name** bold. **Guardar** applies the insert. **Folder** fichas always **loop** (copy; source stays). **Document Prompts:** default = **move once** into that asset; **Loop** in the create/edit modal = copy and stay in Prompt. Autocomplete lists unique Names from loose Prompt + folder, not copies inside assets.
 
 ```

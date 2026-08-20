@@ -23,6 +23,7 @@ describe("libraryImageCardPick", () => {
         category: "image",
         description: "Gina comienza a caminar por el pasillo",
         mediaUrl: "/gina.webp",
+        wallColor: "#3a2a1a",
       },
       "folder",
       "folder1",
@@ -36,6 +37,7 @@ describe("libraryImageCardPick", () => {
       libraryTag: "gina_hall",
       mediaFace: "prompt",
       imageSaved: true,
+      wallColor: "#3A2A1A",
     });
     expect(patch.body).toBeUndefined();
     expect(patch.overlayTitle).toBeUndefined();
@@ -65,6 +67,17 @@ describe("libraryImageCardPick", () => {
     expect(patch.mediaFace).toBe("image");
     expect(patch.libraryPrompt).toBe("");
     expect(patch.imageSaved).toBe(true);
+  });
+
+  it("copies wall color onto the Image card", () => {
+    const patch = libraryItemToImageSplitPatch({
+      id: "lib4",
+      tag: "wall",
+      category: "image",
+      mediaUrl: "/w.webp",
+      wallColor: "#abc",
+    }, "folder", "f1");
+    expect(patch.wallColor).toBe("#AABBCC");
   });
 
   it("empty card is not filled", () => {
