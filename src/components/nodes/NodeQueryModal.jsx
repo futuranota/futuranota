@@ -35,6 +35,10 @@ import {
 } from "../../lib/nodeInlineContent.js";
 import { measureWritingCellCapacities } from "../../lib/organizeDocCellCapacity.js";
 import { planOrganizeWritingBlocks } from "../../lib/organizeDocPaste.js";
+import {
+  exportWritingBlocksToPdf,
+  writingBlocksHaveExportableProse,
+} from "../../lib/exportDocToPdf.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
@@ -229,6 +233,8 @@ export function NodeQueryModal({
   const [librarySlashAction, setLibrarySlashAction] = useState(null);
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
   const [organizingWriting, setOrganizingWriting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportPdfError, setExportPdfError] = useState("");
   const writingCaretRef = useRef(null);
   const organizeRunIdRef = useRef(0);
 
@@ -1437,6 +1443,29 @@ export function NodeQueryModal({
     setOrganizingWriting(false);
   }, [contentFocusMode, organizingWriting]);
 
+  const handleExportWritingPdf = useCallback(async () => {
+    if (exportingPdf) return;
+    if (!writingBlocksHaveExportableProse(writingBlocks)) {
+      setExportPdfError(t("docs.exportPdfEmpty"));
+      return;
+    }
+    setExportPdfError("");
+    setExportingPdf(true);
+    try {
+      const result = await exportWritingBlocksToPdf(writingBlocks, {
+        title: displayQuery,
+      });
+      if (result?.empty) {
+        setExportPdfError(t("docs.exportPdfEmpty"));
+      }
+    } catch (err) {
+      console.error("[exportPdf]", err);
+      setExportPdfError(t("docs.exportPdfFailed"));
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [exportingPdf, writingBlocks, displayQuery, t]);
+
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
@@ -2175,31 +2204,61 @@ export function NodeQueryModal({
             <span className="doc-new-content-expand-btn__icon" aria-hidden />
           </button>
           {contentFocusMode && isTextWritingMode ? (
-            <button
-              type="button"
-              className={
-                "node-query-modal__organize-float"
-                + (organizingWriting ? " is-loading" : "")
-              }
-              onClick={handleOrganizeWritingText}
-              disabled={organizingWriting}
-              aria-busy={organizingWriting}
-              aria-label={
-                organizingWriting
-                  ? t("docs.organizeTextLoading")
-                  : t("docs.organizeText")
-              }
-              title={t("docs.organizeTextTitle")}
-            >
-              {organizingWriting ? (
-                <span className="node-query-modal__organize-float-spinner" aria-hidden />
-              ) : null}
-              <span className="node-query-modal__organize-float-label">
-                {organizingWriting
-                  ? t("docs.organizeTextLoading")
-                  : t("docs.organizeText")}
-              </span>
-            </button>
+            <div className="node-query-modal__doc-float-stack">
+              <button
+                type="button"
+                className={
+                  "node-query-modal__organize-float node-query-modal__export-pdf-float"
+                  + (exportingPdf ? " is-loading" : "")
+                  + (exportPdfError ? " is-error" : "")
+                }
+                onClick={handleExportWritingPdf}
+                disabled={exportingPdf}
+                aria-busy={exportingPdf}
+                aria-label={
+                  exportingPdf
+                    ? t("docs.exportPdfLoading")
+                    : t("docs.exportPdf")
+                }
+                title={exportPdfError || t("docs.exportPdfTitle")}
+              >
+                {exportingPdf ? (
+                  <span className="node-query-modal__organize-float-spinner" aria-hidden />
+                ) : null}
+                <span className="node-query-modal__organize-float-label">
+                  {exportingPdf
+                    ? t("docs.exportPdfLoading")
+                    : exportPdfError
+                      ? t("docs.exportPdfRetry")
+                      : t("docs.exportPdf")}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={
+                  "node-query-modal__organize-float"
+                  + (organizingWriting ? " is-loading" : "")
+                }
+                onClick={handleOrganizeWritingText}
+                disabled={organizingWriting}
+                aria-busy={organizingWriting}
+                aria-label={
+                  organizingWriting
+                    ? t("docs.organizeTextLoading")
+                    : t("docs.organizeText")
+                }
+                title={t("docs.organizeTextTitle")}
+              >
+                {organizingWriting ? (
+                  <span className="node-query-modal__organize-float-spinner" aria-hidden />
+                ) : null}
+                <span className="node-query-modal__organize-float-label">
+                  {organizingWriting
+                    ? t("docs.organizeTextLoading")
+                    : t("docs.organizeText")}
+                </span>
+              </button>
+            </div>
           ) : null}
           <div
             ref={contentScrollRef}

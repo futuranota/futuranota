@@ -10295,10 +10295,26 @@ body.doc-content-resizing * {
 }
 
 /* Floating Organize — only in expanded content panel */
-.node-query-modal__organize-float {
+.node-query-modal__doc-float-stack {
   position: absolute;
   right: 14px;
   bottom: 16px;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.node-query-modal--content-focus .node-query-modal__doc-float-stack {
+  bottom: 20px;
+  right: 18px;
+}
+
+.node-query-modal__organize-float {
+  position: relative;
+  right: auto;
+  bottom: auto;
   z-index: 14;
   display: inline-flex;
   align-items: center;
@@ -10332,6 +10348,16 @@ body.doc-content-resizing * {
   opacity: 0.92;
 }
 
+.node-query-modal__organize-float:disabled:not(.is-loading) {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.node-query-modal__export-pdf-float.is-error {
+  border-color: rgba(232, 120, 100, 0.45);
+  color: rgba(255, 210, 200, 0.95);
+}
+
 .node-query-modal__organize-float-label {
   line-height: 1;
   white-space: nowrap;
@@ -10353,8 +10379,8 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal--content-focus .node-query-modal__organize-float {
-  bottom: 20px;
-  right: 18px;
+  bottom: auto;
+  right: auto;
 }
 
 .node-query-modal__footer-search {
@@ -19131,7 +19157,8 @@ body.doc-content-resizing * {
 }
 
 .folder-library-skill-detail--clipboard-expanded-shorter .folder-library-skill-detail__shell,
-.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__shell {
+.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__shell,
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__shell {
   max-height: min(94vh, 900px);
 }
 
@@ -19172,8 +19199,9 @@ body.doc-content-resizing * {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 15px;
+  font-weight: 700;
   line-height: 1.45;
   overflow-x: hidden;
   overflow-y: auto;
@@ -19213,10 +19241,12 @@ body.doc-content-resizing * {
 
 .folder-library-skill-detail__clipboard-wrap {
   flex: 0 0 auto;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 0 10px 0 0;
   line-height: 0;
   box-sizing: border-box;
   background: #151515;
@@ -19228,10 +19258,10 @@ body.doc-content-resizing * {
   max-width: min(280px, 70%);
   height: auto;
   max-height: 300px;
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
   object-fit: contain;
-  object-position: center bottom;
+  object-position: center center;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -19241,9 +19271,14 @@ body.doc-content-resizing * {
   max-height: 260px;
 }
 
-.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__clipboard {
+.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__clipboard,
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard {
   max-width: min(360px, 78%);
   max-height: 380px;
+}
+
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard-wrap {
+  background: transparent;
 }
 
 .folder-library-skill-detail__download {

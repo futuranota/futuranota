@@ -406,6 +406,12 @@ export const messages = {
       organizeText: "Organize",
       organizeTextLoading: "Organizing…",
       organizeTextTitle: "Read the document, place H1 / H2 / H3, and fill empty writing cells (#i and #o stay Library)",
+      exportPdf: "PDF",
+      exportPdfLoading: "PDF…",
+      exportPdfRetry: "Retry PDF",
+      exportPdfTitle: "Download this document’s text as a PDF (headings + paragraphs)",
+      exportPdfEmpty: "Nothing to export — add a heading or paragraph first",
+      exportPdfFailed: "Couldn’t build the PDF — try again",
     },
     meta: {
       corpus: "Corpus",
@@ -1994,6 +2000,12 @@ export const messages = {
       organizeText: "Organizar",
       organizeTextLoading: "Organizando…",
       organizeTextTitle: "Lee el documento, coloca H1 / H2 / H3 y rellena las celdas vacías (#i y #o siguen siendo Library)",
+      exportPdf: "PDF",
+      exportPdfLoading: "PDF…",
+      exportPdfRetry: "Reintentar PDF",
+      exportPdfTitle: "Descarga el texto de este documento como PDF (titulares + párrafos)",
+      exportPdfEmpty: "Nada que exportar — agregá un titular o un párrafo",
+      exportPdfFailed: "No se pudo armar el PDF — probá de nuevo",
     },
     meta: {
       /* Folder meta strip stays English for product consistency. */
