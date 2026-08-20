@@ -21,7 +21,7 @@ Workspace (later: index view only)
 
 Folder overlay shows **Folder | Docs** only when at least one child document already has fichas. Docs view = subfolder per document (title + count). Create from the document editor (`NodeQueryModal` Library) or by opening that subfolder.
 
-Document `[+]` = Prompt (or asset on Assets). Folder `[+]` = Prompt, or attachment when Attachments is open. Video create retired. Attachments live **only on the folder**.
+Document `[+]` = Prompt (or asset on Assets). Folder `[+]` = Prompt, or attachment when Attachments is open. Video create retired. Attachments live **only on the folder**; the document Library icon opens that same folder list (same URLs).
 
 The folder **groups** document fichas; it does not copy them.
 
@@ -32,8 +32,8 @@ Assets live **only on the document** (node), not on the folder. Copy: **assets**
 - **`#i`** — Name + **Prompt**. Right pane = 4 static **IMG** SVG cards (no upload). Saves `createLibrarySet` only.
 - Open an asset → modal layout read-only: **Name + Prompt** (copy) | adaptive **metadata grid** (tag + prompt per ficha, no thumb). **Download** = zip. Edit updates name/prompt. `[+]` while open adds a Prompt ficha into the set.
 - **`#o`** — action: opens document Library on tab **Assets**.
-- Document library: **Assets** + **Prompt** (fixed label + class chips). No Attachments. Internal category remains `image`.
-- Folder library: header **Attachments** (`attachment.svg` + name) visualizes files; Prompt row is `Prompt [all] [classes] [+]`.
+- Document library: **Assets** + **Prompt** (fixed label + class chips) + header **Attachments** icon → folder attachment corpus. Internal Prompt category remains `image`.
+- Folder library: header **Attachments** (`attachment.svg`) visualizes files; Prompt row is `Prompt [all] [classes] [+]`.
 - Assets tab: `assets.svg` + “Assets”. Rows = assets with `Folders.svg` + name + count.
 - Prompt = **loose** fichas (`setId` null). `[+]` on Assets creates an asset; `[+]` while the asset detail is open adds Prompt into it.
 - Unsaved document → same message as `-- --` capture.
@@ -53,23 +53,25 @@ Icons: scope `folder-main.svg` · `docs-main.svg` · tabs `assets.svg` · `img.s
 `[+]` creates for the active view — no type chooser:
 
 ```
-Folder Prompt view        → Prompt ficha
-Folder Attachments view   → attachment (skill/pdf)
-Document Assets           → asset
-Document Prompt / asset   → Prompt ficha
+Folder Prompt view          → Prompt ficha
+Folder Attachments view     → attachment (skill/pdf) on folder
+Document Assets             → asset
+Document Prompt / asset     → Prompt ficha
+Document Attachments icon   → same folder attachment corpus
 ```
 
 ## Section chrome
 
 ```
-Folder header:  [Attachments icon+name]  [+]
+Folder header:  [Attachments icon]  [+]
 Folder row:     Prompt  [all]  [classes]  [+]
+Document header:[Attachments icon]  [+]   ← folder attachments
 Document row:   [Assets]  Prompt  [all]  [classes]  [+]
 ```
 
 - **Assets** — assets / subfolders created with `#i` (document only)
 - **Prompt** — `category === image` (loose on the document). Fixed label; suffixes: **All** | user classes | **[+]**
-- **Attachments** — folder only (`category === skill` / `pdf`). Header visualizes; `[+]` creates.
+- **Attachments** — folder only (`category === skill` / `pdf`). Header icon on folder + document opens that list; create with URL and/or file.
 
 Remember last tab per folder (`sessionStorage`). Video tab retired.
 
@@ -131,7 +133,7 @@ Legacy video fichas no longer appear in folder tabs (create/filter retired).
 
 ## Live today (code)
 
-- Grid: folder Prompt row + header Attachments · document Assets + Prompt (no Attachments)
+- Grid: folder Prompt row + header Attachments · document Assets + Prompt + Attachments icon
 - Prompt class chips beside Prompt (`All` / user names / `[+]`) + Loop/class toggles in the create/edit modal
 - Prompt create/open + wallColor; Attachments create/open
 - Persist `campaigns.library_items` + `campaigns.prompt_classes` + `nodes.library_items` + `nodes.library_sets` + `nodes.prompt_classes`

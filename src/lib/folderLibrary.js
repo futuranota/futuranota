@@ -308,6 +308,7 @@ export function createLibraryItem(ownerKind, ownerId, input = {}) {
   const id = String(ownerId || "").trim();
   if (!id) return null;
   const category = normalizeFolderLibraryCategory(input.category);
+  // Attachments live on the folder only — document library icon opens the folder corpus.
   if (kind === "document" && (category === "skill" || category === "pdf")) return null;
   const item = buildFolderLibraryItem({
     ...input,

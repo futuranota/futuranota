@@ -11,6 +11,7 @@ import {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
   createLibraryItem,
+  inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeLibraryOwnerKind,
   normalizeWallColor,
@@ -201,6 +202,27 @@ export function FolderLibraryElementModal({
     setWallHexDraft(next || "");
   };
 
+  const applyAttachmentUrl = (rawUrl) => {
+    const url = String(rawUrl || "").trim();
+    if (!url) {
+      setAttachmentUrl(null);
+      setAttachmentName(null);
+      setAttachmentKind(null);
+      return;
+    }
+    setAttachmentUrl(url);
+    let name = url;
+    try {
+      const parsed = new URL(url);
+      const last = parsed.pathname.split("/").filter(Boolean).pop();
+      if (last) name = decodeURIComponent(last);
+    } catch {
+      /* keep full url as display name */
+    }
+    setAttachmentName(name);
+    setAttachmentKind(inferAttachmentKind(name, ""));
+  };
+
   const handleSave = () => {
     const trimmed = tag.trim();
     if (!trimmed) {
@@ -383,6 +405,30 @@ export function FolderLibraryElementModal({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+
+            {isSkillLike ? (
+              <label className="folder-library-element-modal__field">
+                <span className="folder-library-element-modal__label">
+                  {t("doc.library.attachmentUrlLabel")}
+                </span>
+                <input
+                  className="folder-library-element-modal__input"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="url"
+                  spellCheck={false}
+                  value={attachmentUrl || ""}
+                  placeholder={t("doc.library.attachmentUrlPlaceholder")}
+                  onChange={(e) => {
+                    setError("");
+                    applyAttachmentUrl(e.target.value);
+                  }}
+                />
+                <span className="folder-library-element-modal__hint">
+                  {t("doc.library.attachmentUrlHint")}
+                </span>
+              </label>
+            ) : null}
 
             {isImageLike ? (
               <div className="folder-library-element-modal__flag-block">

@@ -18201,6 +18201,7 @@ body.doc-content-resizing * {
 }
 
 .folder-library-overlay__attachments {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18235,7 +18236,7 @@ body.doc-content-resizing * {
 
 .folder-library-overlay__attachments.is-active .folder-library-overlay__attachments-icon,
 .folder-library-overlay__attachments:hover .folder-library-overlay__attachments-icon {
-  filter: brightness(0) invert(0.95);
+  filter: brightness(0) invert(1);
 }
 
 .folder-library-overlay__create {

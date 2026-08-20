@@ -321,7 +321,7 @@ describe("document library CRUD", () => {
     expect(listFolderLibraryItems("folder1")).toHaveLength(1);
   });
 
-  it("rejects skill create on a document", () => {
+  it("rejects skill create on a document (attachments stay on the folder)", () => {
     expect(createLibraryItem("document", "node1", {
       tag: "brief_pdf",
       category: "skill",

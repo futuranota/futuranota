@@ -2481,7 +2481,11 @@ export function NodeQueryModal({
     <FolderLibraryOverlay
       ownerKind="document"
       ownerId={entityNodeId}
-      folderLibraryId={resolvedParentDocId || ""}
+      folderLibraryId={
+        resolvedParentDocId
+        || String(nodesMap?.[entityNodeId]?.parentDocId || "").trim()
+        || ""
+      }
       initialTab={libraryInitialTab}
       onClose={() => {
         setLibraryOpen(false);

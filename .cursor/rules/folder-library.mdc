@@ -12,14 +12,14 @@ Format badges: [`.cursor/saved/folder-library/FileCard.original.tsx`](../saved/f
 ## Product
 
 - **`[+]` (contextual):** Prompt view creates a Prompt; folder Attachments view creates an attachment. Assets tab `[+]` creates an **asset**. No type menu.
-- **Folder chrome:** header **Attachments** (icon + name, visualize) next to `[+]`. **Prompt** is a fixed label with class suffixes in the same row (`All` · named classes · `[+]`).
-- **Document chrome:** **Assets | Prompt** (Prompt fijo + chips). No Attachments tab, header, or create. Internal Prompt category stays `image`.
+- **Folder chrome:** header **Attachments** (icon only, visualize) next to `[+]`. **Prompt** is a fixed label with class suffixes in the same row (`All` · named classes · `[+]`).
+- **Document chrome:** **Assets | Prompt** plus the same **Attachments** header icon. That icon opens the **folder** attachments corpus (same list / same URLs as folder Library) — not a separate document store.
 - **Prompt:** tag + prompt text + optional reference WebP (create/edit: image icon at the **bottom** opens upload; not a side column). **Library (folder)** cards prefer the photo when the ficha has media; **Docs / document Prompt** prefer the written prompt. Empty prompt + image → still show the image. Detail switch + copy prompt + download; **wallColor** under the image when the reference panel is open. **Loop** = `RepeatOnce.svg` on/off. **objects.svg** toggles user class chips. Info (i) on the Prompt label.
 - **Prompt classes:** overlay chips beside Prompt filter on **click** (`All` · named classes · `[+]`). **Double-click** a named chip to rename it. Create/edit modal assigns the class from the objects toggle list.
 - **`--prompt--` capture** in the document editor: name the ficha, choose **Prompt & Image** (loose) or **Asset** (double-click existing, or Insert new). Save opens that detail.
-- **Attachments** (folder only; category `skill` / `pdf`): tag + description + downloadable file; open → Download. Header button visualizes; `[+]` creates.
+- **Attachments** (folder corpus only; category `skill` / `pdf`): tag + description + **URL** (paste) and/or downloadable file; open → Download. Header icon on folder **and** document visualizes the same folder list; `[+]` creates on the folder.
 - **Video create retired** — no Video in `[+]` or tabs (legacy `video` fichas may still open from All).
-- **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle only if a child doc has Prompt/assets (legacy document attachments do not promote a group).
+- **Document sub-library:** fichas on the node; folder overlay **Folder | Docs** toggle if a child doc has Prompt/assets.
 - **Document assets (live):** `#i` creates an asset (name + **Prompt**, metadata grid preview). Open asset = modal read-only (Name/Prompt copy + adaptive cards: **image** when the ficha has media, otherwise tag + prompt). Zip download includes `manifest.json` + `script.text` (Kling) plus `.txt`/`.webp` fichas. `#o` opens Library on **Assets**. `[+]` while an asset is open adds a Prompt ficha into it. Prompt = loose fichas. Story = document body. `--…--` capture → Asset tab writes the scene script + refs into the asset (not a ficha). Prompt **Name** invoke inserts the name as a bold mention only (does not append `.` or open assign). `tag.speak` + Enter opens `""` for dialogue. Dotted `ficha.asset` is the explicit pack path + **Guardar**: folder always loops (copy); document Prompts move once unless **Loop** is on at create/edit. Assets tab: hover × deletes asset (fichas go loose). Moodboard `#` tags in writing are retired so `#` is reserved for I/O.
 - Bytes → `doc-images`. Metadatos → `campaigns.library_items` + `campaigns.prompt_classes` (folder) · `nodes.library_items` + `nodes.library_sets` + `nodes.prompt_classes` (document).
 
@@ -34,4 +34,5 @@ Live corpus — remember/show fichas in day chat. LIVE CORPUS ONLY.
 - Mix folder fichas into a document owner without an explicit copy (dotted assign always clones into the document asset)
 - Reintroduce Video create unless product asks again
 - Put assets/sets on the folder, or treat `#i` `#o` as heading/image blocks
-- Put Attachments create/tabs on the document library (folder only)
+- Store Attachments on the document — document icon must use the folder attachment corpus
+- Show Attachments as a text tab on document (icon-only header control)

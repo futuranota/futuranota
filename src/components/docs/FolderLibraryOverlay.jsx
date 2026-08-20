@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 import {
   useDocumentLibraryGroups,
   useLibraryItems,
@@ -151,8 +152,9 @@ function miniFichaClass(item, prefer) {
 
 /**
  * Folder / document library table.
- * Folder: header Attachments + contextual [+]; Prompt row with class chips.
- * Document: Assets + Prompt (no Attachments). [+] creates asset or Prompt.
+ * Folder: header Attachments icon + contextual [+]; Prompt row with class chips.
+ * Document: Assets + Prompt + Attachments icon. Attachments always read/write the
+ * parent folder corpus (same list as folder Library).
  */
 export function FolderLibraryOverlay({
   folderId,
@@ -174,14 +176,32 @@ export function FolderLibraryOverlay({
   const activeKind = isDocumentRoot || focusedDocumentId ? "document" : "folder";
   const activeId = isDocumentRoot ? rootId : (focusedDocumentId || rootId);
 
-  const items = useLibraryItems(activeKind, activeId);
+  const itemsPrimary = useLibraryItems(activeKind, activeId);
   const assets = useLibrarySets(activeKind, activeId);
   const promptClasses = usePromptClasses(activeKind, activeId);
   const docGroups = useDocumentLibraryGroups(isDocumentRoot ? "" : rootId);
   const showDocsToggle = !isDocumentRoot && docGroups.length > 0;
   const showingDocsIndex = !isDocumentRoot && scope === "docs" && !focusedDocumentId;
   const showingDocumentGrid = isDocumentRoot || Boolean(focusedDocumentId);
-  const canUseAttachments = activeKind === "folder" && !showingDocsIndex;
+  // Attachments always belong to the folder. Document Library shows the same button
+  // and the same folder files (resolve parent if prop is missing).
+  const documentParentFolderId = useNodesStore((s) => {
+    if (!isDocumentRoot && !focusedDocumentId) return "";
+    const docId = isDocumentRoot ? rootId : focusedDocumentId;
+    const node = s.getNode?.(docId) ?? s.nodes?.[docId] ?? null;
+    return String(node?.parentDocId || "").trim();
+  });
+  const attachmentOwnerId = String(
+    isDocumentRoot || focusedDocumentId
+      ? (folderLibraryId || documentParentFolderId || "")
+      : rootId,
+  ).trim();
+  const canUseAttachments = !showingDocsIndex && Boolean(attachmentOwnerId);
+  const folderAttachmentItems = useLibraryItems("folder", attachmentOwnerId);
+  const folderAttachmentCount = folderAttachmentItems.filter(
+    (item) => item.category === "skill" || item.category === "pdf",
+  ).length;
+  const hasFolderAttachments = folderAttachmentCount > 0;
 
   const filterKey = `${activeKind}:${activeId}`;
   const defaultTab = showingDocumentGrid ? "documents" : "image";
@@ -242,7 +262,7 @@ export function FolderLibraryOverlay({
 
   useEffect(() => {
     const allowed = new Set(
-      showingDocumentGrid ? ["documents", "image"] : ["image", "skill"],
+      showingDocumentGrid ? ["documents", "image", "skill"] : ["image", "skill"],
     );
     if (!allowed.has(filterTab)) {
       setFilterTab(defaultTab);
@@ -277,12 +297,14 @@ export function FolderLibraryOverlay({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose, modalOpen, assetModalOpen, detailItemId, focusedAssetId, focusedDocumentId]);
 
+  const showingDocumentsTab = showingDocumentGrid && filterTab === "documents";
+  const showingAttachments = canUseAttachments && filterTab === "skill";
+  const attachmentMutateKind = "folder";
+  const attachmentMutateId = attachmentOwnerId;
+  const items = showingAttachments ? folderAttachmentItems : itemsPrimary;
+
   const looseItems = useMemo(
-    () => {
-      const source = showingDocumentGrid ? items.filter((item) => !item.setId) : items;
-      if (!showingDocumentGrid) return source;
-      return source.filter((item) => item.category !== "skill" && item.category !== "pdf");
-    },
+    () => (showingDocumentGrid ? items.filter((item) => !item.setId) : items),
     [items, showingDocumentGrid],
   );
 
@@ -290,22 +312,22 @@ export function FolderLibraryOverlay({
   const assetCounts = useMemo(() => {
     const counts = {};
     for (const asset of assets) counts[asset.id] = 0;
-    for (const item of items) {
+    for (const item of itemsPrimary) {
       if (item.setId && counts[item.setId] != null) counts[item.setId] += 1;
     }
     return counts;
-  }, [assets, items]);
-
-  const showingDocumentsTab = showingDocumentGrid && filterTab === "documents";
+  }, [assets, itemsPrimary]);
 
   const filteredItems = useMemo(() => {
-    const source = showingDocumentGrid ? looseItems : items;
+    const source = showingAttachments
+      ? items
+      : (showingDocumentGrid ? looseItems : items);
     const byTab = source.filter((item) => folderLibraryItemMatchesFilter(item, filterTab));
     if (filterTab !== "image" || !promptClassFilter) return byTab;
     return byTab.filter(
       (item) => String(item.promptClass || "").toLowerCase() === promptClassFilter.toLowerCase(),
     );
-  }, [items, looseItems, filterTab, showingDocumentGrid, promptClassFilter]);
+  }, [items, looseItems, filterTab, showingDocumentGrid, showingAttachments, promptClassFilter]);
 
   const focusedGroup = focusedDocumentId
     ? docGroups.find((group) => group.documentId === focusedDocumentId)
@@ -371,7 +393,11 @@ export function FolderLibraryOverlay({
       setDetailItemId(null);
       setDetailKind(null);
     }
-    removeLibraryItem(activeKind, activeId, item.id);
+    removeLibraryItem(
+      showingAttachments ? attachmentMutateKind : activeKind,
+      showingAttachments ? attachmentMutateId : activeId,
+      item.id,
+    );
   };
 
   const handleDeleteAsset = async (asset, event) => {
@@ -464,12 +490,11 @@ export function FolderLibraryOverlay({
 
   const showCreate = !showingDocsIndex;
   const createOpensAsset = showingDocumentsTab && !focusedAssetId;
-  const showingAttachments = canUseAttachments && filterTab === "skill";
   const showingPromptRow = !showingDocsIndex;
   const gridItems = filteredItems;
   const promptGridEmpty = !showingAttachments && !showingDocumentsTab && !showingDocsIndex
     && gridItems.length === 0;
-  const showHeaderPlus = showCreate && !promptGridEmpty;
+  const showHeaderPlus = showCreate && (showingAttachments || !promptGridEmpty);
 
   const handleHeaderCreate = () => {
     if (!showingAttachments && !createOpensAsset && !showingDocsIndex && !focusedAssetId) {
@@ -515,11 +540,14 @@ export function FolderLibraryOverlay({
   const emptyGridKey = showingAttachments
     ? "doc.library.emptyFilteredSkill"
     : "doc.library.emptyPromptStart";
+  const emptyAttachmentsCopy = showingAttachments && (isDocumentRoot || focusedDocumentId)
+    ? t("doc.library.emptyFolderAttachmentsOnDoc")
+    : null;
 
   const renderItemGrid = (list, emptyKey) => (
     list.length === 0 ? (
       <div className="folder-library-overlay__empty">
-        <p>{showingAttachments ? t(emptyKey) : t("doc.library.emptyPromptStart")}</p>
+        <p>{emptyAttachmentsCopy || (showingAttachments ? t(emptyKey) : t("doc.library.emptyPromptStart"))}</p>
         <button
           type="button"
           className="folder-library-overlay__empty-add"
@@ -628,7 +656,22 @@ export function FolderLibraryOverlay({
                     + (showingAttachments ? " is-active" : "")
                   }
                   aria-pressed={showingAttachments}
-                  aria-label={t("doc.library.attachmentsAria")}
+                  aria-label={
+                    hasFolderAttachments
+                      ? t("doc.library.attachmentsWithFilesAria").replace(
+                        "{count}",
+                        String(folderAttachmentCount),
+                      )
+                      : t("doc.library.attachmentsAria")
+                  }
+                  title={
+                    hasFolderAttachments
+                      ? t("doc.library.attachmentsWithFilesTitle").replace(
+                        "{count}",
+                        String(folderAttachmentCount),
+                      )
+                      : t("doc.library.attachmentsAria")
+                  }
                   onClick={() => setFilter("skill")}
                 >
                   <img
@@ -1031,9 +1074,9 @@ export function FolderLibraryOverlay({
 
       {detailItemId && detailKind === "skill" && !modalOpen ? (
         <FolderLibrarySkillDetail
-          ownerKind={activeKind}
-          ownerId={activeId}
-          folderId={activeId}
+          ownerKind={attachmentMutateKind}
+          ownerId={attachmentMutateId}
+          folderId={attachmentMutateId}
           itemId={detailItemId}
           escapeEnabled={!modalOpen && !assetModalOpen}
           onClose={() => {
@@ -1046,9 +1089,9 @@ export function FolderLibraryOverlay({
 
       {modalOpen ? (
         <FolderLibraryElementModal
-          ownerKind={activeKind}
-          ownerId={activeId}
-          folderId={activeId}
+          ownerKind={showingAttachments ? attachmentMutateKind : activeKind}
+          ownerId={showingAttachments ? attachmentMutateId : activeId}
+          folderId={showingAttachments ? attachmentMutateId : activeId}
           item={editingItem}
           defaultCategory={editingItem ? undefined : createCategory}
           lockCategory={lockCategory && !editingItem}
@@ -1062,7 +1105,7 @@ export function FolderLibraryOverlay({
             setLockCategory(false);
           }}
           onSaved={(saved) => {
-            if (focusedAssetId && saved?.id) {
+            if (focusedAssetId && saved?.id && !showingAttachments) {
               assignLibraryItemToSet(activeKind, activeId, saved.id, focusedAssetId);
             }
             setModalOpen(false);
