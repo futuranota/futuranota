@@ -19119,8 +19119,9 @@ body.doc-content-resizing * {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(760px, calc(100vw - 32px));
-  max-height: min(88vh, 640px);
+  width: min(720px, calc(100vw - 32px));
+  height: auto;
+  max-height: min(92vh, 820px);
   box-sizing: border-box;
   border-radius: 12px;
   background: #151515;
@@ -19129,24 +19130,145 @@ body.doc-content-resizing * {
   overflow: hidden;
 }
 
+.folder-library-skill-detail--clipboard-expanded-shorter .folder-library-skill-detail__shell,
+.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__shell {
+  max-height: min(94vh, 900px);
+}
+
 .folder-library-skill-detail__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px 12px;
+  padding: 16px 18px 10px;
   flex-shrink: 0;
 }
 
-.folder-library-skill-detail__tag {
-  margin: 0;
+.folder-library-skill-detail__header .folder-library-skill-detail__file {
+  flex: 1 1 auto;
   min-width: 0;
-  font-size: 16px;
-  font-weight: 600;
+  margin: 0;
+  padding: 0;
+}
+
+.folder-library-skill-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 18px 0;
+  overflow: visible;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.folder-library-skill-detail__description {
+  margin: 0;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  max-height: 96px;
+  min-height: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-x: hidden;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.folder-library-skill-detail__file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.folder-library-skill-detail__badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(100, 120, 220, 0.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.folder-library-skill-detail__filename {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.folder-library-skill-detail__clipboard-wrap {
+  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  line-height: 0;
+  box-sizing: border-box;
+  background: #151515;
+}
+
+.folder-library-skill-detail__clipboard {
+  display: block;
+  width: auto;
+  max-width: min(280px, 70%);
+  height: auto;
+  max-height: 300px;
+  margin: 0 auto;
+  padding: 0;
+  object-fit: contain;
+  object-position: center bottom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.folder-library-skill-detail--clipboard-expanded-shorter .folder-library-skill-detail__clipboard {
+  max-width: min(300px, 72%);
+  max-height: 260px;
+}
+
+.folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__clipboard {
+  max-width: min(360px, 78%);
+  max-height: 380px;
+}
+
+.folder-library-skill-detail__download {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  z-index: 2;
+  margin: 0;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-library-skill-detail__download:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.folder-library-skill-detail__download:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .folder-library-skill-detail__header-actions {
@@ -19192,37 +19314,6 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.folder-library-skill-detail__body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 4px 8px 16px;
-  overflow: hidden;
-  min-height: 0;
-  flex: 1;
-}
-
-.folder-library-skill-detail__description {
-  margin: 0;
-  padding: 10px 12px;
-  width: 100%;
-  box-sizing: border-box;
-  flex: 1;
-  min-height: 0;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.78);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #1c1c1c #151515;
-}
-
 .folder-library-skill-detail__description::-webkit-scrollbar {
   width: 8px;
 }
@@ -19240,57 +19331,6 @@ body.doc-content-resizing * {
 
 .folder-library-skill-detail__description::-webkit-scrollbar-thumb:hover {
   background: #252525;
-}
-
-.folder-library-skill-detail__file {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex-shrink: 0;
-  padding: 0 4px;
-}
-
-.folder-library-skill-detail__badge {
-  flex-shrink: 0;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(100, 120, 220, 0.35);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.folder-library-skill-detail__filename {
-  min-width: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.folder-library-skill-detail__download {
-  align-self: flex-end;
-  flex-shrink: 0;
-  padding: 8px 14px;
-  border: none;
-  border-radius: 8px;
-  background: #fff;
-  color: #111;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.folder-library-skill-detail__download:hover:not(:disabled) {
-  filter: brightness(0.94);
-}
-
-.folder-library-skill-detail__download:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .folder-library-overlay__cell-delete {

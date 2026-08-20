@@ -3,8 +3,18 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 
+/** Switch later to compare: clipboard-expanded-shorter | clipbloard-expanded-larger */
+const ATTACHMENT_CLIPBOARD_VARIANT = "clipboard";
+
+/** PNG until WebP conversion is available in this environment. */
+const ATTACHMENT_CLIPBOARD_SRC = {
+  clipboard: "/uploads/clipboard.png",
+  "clipboard-expanded-shorter": "/uploads/clipboard-expanded-shorter.png",
+  "clipbloard-expanded-larger": "/uploads/clipbloard-expanded-larger.png",
+};
+
 /**
- * Skill / PDF ficha detail — tag, description, download attachment.
+ * Skill / PDF ficha detail — file row, description, clipboard preview, download.
  */
 export function FolderLibrarySkillDetail({
   folderId,
@@ -42,6 +52,10 @@ export function FolderLibrarySkillDetail({
 
   if (!item) return null;
 
+  const clipboardSrc = ATTACHMENT_CLIPBOARD_SRC[ATTACHMENT_CLIPBOARD_VARIANT]
+    || ATTACHMENT_CLIPBOARD_SRC.clipboard;
+  const fileLabel = item.attachmentName || t("doc.library.noAttachment");
+
   const handleDownload = async () => {
     if (!item.attachmentUrl || downloading) return;
     setDownloading(true);
@@ -66,10 +80,13 @@ export function FolderLibrarySkillDetail({
 
   return createPortal(
     <div
-      className="folder-library-skill-detail"
+      className={
+        "folder-library-skill-detail"
+        + ` folder-library-skill-detail--${ATTACHMENT_CLIPBOARD_VARIANT}`
+      }
       role="dialog"
       aria-modal="true"
-      aria-label={item.tag || t("doc.library.title")}
+      aria-label={fileLabel}
     >
       <button
         type="button"
@@ -79,7 +96,14 @@ export function FolderLibrarySkillDetail({
       />
       <div className="folder-library-skill-detail__shell">
         <header className="folder-library-skill-detail__header">
-          <h2 className="folder-library-skill-detail__tag">{item.tag || "—"}</h2>
+          <div className="folder-library-skill-detail__file">
+            <span className="folder-library-skill-detail__badge">
+              {(item.attachmentKind || "FILE").toUpperCase()}
+            </span>
+            <span className="folder-library-skill-detail__filename">
+              {fileLabel}
+            </span>
+          </div>
           <div className="folder-library-skill-detail__header-actions">
             <button
               type="button"
@@ -106,13 +130,13 @@ export function FolderLibrarySkillDetail({
               : t("doc.library.noSkillDescription")}
           </p>
 
-          <div className="folder-library-skill-detail__file">
-            <span className="folder-library-skill-detail__badge">
-              {(item.attachmentKind || "FILE").toUpperCase()}
-            </span>
-            <span className="folder-library-skill-detail__filename">
-              {item.attachmentName || t("doc.library.noAttachment")}
-            </span>
+          <div className="folder-library-skill-detail__clipboard-wrap">
+            <img
+              className="folder-library-skill-detail__clipboard"
+              src={clipboardSrc}
+              alt=""
+              draggable={false}
+            />
           </div>
 
           <button
