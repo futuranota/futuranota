@@ -371,6 +371,7 @@ export const messages = {
         promptClassDeleteTitle: "Delete classification",
         promptClassDeleteConfirm: "Delete classification “{name}”? Prompts using it will have no class.",
         promptClassDeleteAria: "Delete {name}",
+        panorama: "Panorama",
       },
       blockDelete: {
         title: "Delete block",
@@ -1924,6 +1925,7 @@ export const messages = {
         promptClassDeleteTitle: "Eliminar clasificación",
         promptClassDeleteConfirm: "¿Eliminar la clasificación “{name}”? Los prompts de esta clase quedarán sin clasificar.",
         promptClassDeleteAria: "Eliminar {name}",
+        panorama: "Panorama",
       },
       blockDelete: {
         title: "Eliminar bloque",

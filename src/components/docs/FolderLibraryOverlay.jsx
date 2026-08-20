@@ -574,6 +574,19 @@ export function FolderLibraryOverlay({
             </button>
           </li>
         ))}
+        {!showingAttachments ? (
+          <li className="folder-library-overlay__cell folder-library-overlay__cell--add">
+            <button
+              type="button"
+              className="folder-library-overlay__cell-add"
+              onClick={openCreatePrompt}
+              aria-label={t("doc.library.addPrompt")}
+              title={t("doc.library.addPrompt")}
+            >
+              +
+            </button>
+          </li>
+        ) : null}
       </ul>
     )
   );
@@ -625,7 +638,6 @@ export function FolderLibraryOverlay({
                     aria-hidden
                     draggable={false}
                   />
-                  <span>{t("doc.library.tabSkills")}</span>
                 </button>
               ) : null}
               {showHeaderPlus ? (
@@ -773,6 +785,14 @@ export function FolderLibraryOverlay({
                     onClick={() => setFilter("image")}
                   >
                     {t("doc.library.tabImages")}
+                  </button>
+                  <button
+                    type="button"
+                    className="folder-library-overlay__panorama"
+                    aria-label={t("doc.library.panorama")}
+                    title={t("doc.library.panorama")}
+                  >
+                    {t("doc.library.panorama")}
                   </button>
                   {filterTab === "image" ? (
                     <>
