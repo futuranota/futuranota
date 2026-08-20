@@ -219,9 +219,30 @@ function resolveUniqueAssignFile(files, fileQuery) {
 }
 
 /**
+ * Whether `.speak` should appear for the current asset suffix query (`s`, `sp`, …).
+ * @param {string} assetQuery
+ */
+export function assignPathSpeakMatches(assetQuery = "") {
+  const q = normalizeLibraryNameKey(assetQuery);
+  if (!q) return true;
+  return normalizeLibraryNameKey("speak").startsWith(q);
+}
+
+function speakMenuRow(file) {
+  return {
+    id: `speak:${file.id}`,
+    kind: "speak",
+    tag: "speak",
+    name: "Speak",
+    description: "Dialogue",
+    file,
+  };
+}
+
+/**
  * Autocomplete rows for a path query.
- * With a dot: unique Prompt → Assets; otherwise list matching Names.
- * @returns {Array<{ id: string, kind: "file"|"asset", tag: string, name: string, description?: string, file?: object, asset?: object }>}
+ * With a dot: unique Prompt → `.speak` + Assets; otherwise list matching Names.
+ * @returns {Array<{ id: string, kind: "file"|"asset"|"speak", tag: string, name: string, description?: string, file?: object, asset?: object }>}
  */
 export function listLibraryAssignMenuItems(path, files = [], assets = [], limit = 8) {
   if (!path) return [];
@@ -236,17 +257,24 @@ export function listLibraryAssignMenuItems(path, files = [], assets = [], limit 
     return fileMatches.slice(0, limit).map(fileMenuRow);
   }
 
-  return filterAssignByTag(assets, path.assetQuery || "")
-    .slice(0, limit)
-    .map((asset) => ({
-      id: `path:${file.id}:${asset.id}`,
-      kind: "asset",
-      tag: asset.tag,
-      name: asset.tag,
-      description: asset.description || "",
-      file,
-      asset,
-    }));
+  /** @type {ReturnType<typeof fileMenuRow>[]} */
+  const rows = [];
+  if (assignPathSpeakMatches(path.assetQuery || "")) {
+    rows.push(speakMenuRow(file));
+  }
+  rows.push(
+    ...filterAssignByTag(assets, path.assetQuery || "")
+      .map((asset) => ({
+        id: `path:${file.id}:${asset.id}`,
+        kind: "asset",
+        tag: asset.tag,
+        name: asset.tag,
+        description: asset.description || "",
+        file,
+        asset,
+      })),
+  );
+  return rows.slice(0, limit);
 }
 
 /**

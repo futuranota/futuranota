@@ -48,7 +48,17 @@ describe("libraryAssignPath", () => {
       "scene01",
       "scene02",
     ]);
-    expect(listLibraryAssignMenuItems(pathQ, files, assets).every((row) => row.kind === "asset")).toBe(true);
+  });
+
+  it("offers speak beside assets when typing tag.s", () => {
+    const ginaFiles = [{ id: "g1", tag: "Gina", description: "assistant" }];
+    const pathQ = getLibraryAssignPathAtCaret("Gina.s", 6);
+    expect(listLibraryAssignMenuItems(pathQ, ginaFiles, assets).map((row) => row.tag)).toEqual([
+      "speak",
+      "scene01",
+      "scene02",
+    ]);
+    expect(listLibraryAssignMenuItems(pathQ, ginaFiles, assets)[0]?.kind).toBe("speak");
   });
 
   it("prefers document files over folder duplicates", () => {
@@ -69,6 +79,7 @@ describe("libraryAssignPath", () => {
   it("lists every asset when the asset query is empty", () => {
     const pathQ = getLibraryAssignPathAtCaret("recordatorio.", 13);
     expect(listLibraryAssignMenuItems(pathQ, files, assets).map((row) => row.tag)).toEqual([
+      "speak",
       "scene01",
       "scene02",
     ]);
@@ -98,6 +109,7 @@ describe("libraryAssignPath", () => {
     expect(getLibraryAssignPathAtCaret(text, text.length)?.fileQuery).toBe("Life");
     const dotted = getLibraryAssignPathAtCaret("Art in Life.", 12, spaced);
     expect(listLibraryAssignMenuItems(dotted, spaced, assets).map((row) => row.tag)).toEqual([
+      "speak",
       "scene01",
       "scene02",
     ]);
@@ -120,10 +132,12 @@ describe("libraryAssignPath", () => {
     expect(libraryAssignMenuEmptyReason(pathQ, prefixFiles, assets)).toBeNull();
   });
 
-  it("returns no rows and noAsset when the file is unique but there are no assets", () => {
+  it("still offers speak when the file is unique but there are no assets", () => {
     const pathQ = getLibraryAssignPathAtCaret("recordatorio.", 13);
-    expect(listLibraryAssignMenuItems(pathQ, files, [])).toEqual([]);
-    expect(libraryAssignMenuEmptyReason(pathQ, files, [])).toBe("noAsset");
+    expect(listLibraryAssignMenuItems(pathQ, files, [])).toMatchObject([
+      { kind: "speak", tag: "speak" },
+    ]);
+    expect(libraryAssignMenuEmptyReason(pathQ, files, [])).toBeNull();
   });
 
   it("returns noFile when the name matches nothing", () => {

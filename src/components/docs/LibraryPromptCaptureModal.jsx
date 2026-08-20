@@ -7,6 +7,7 @@ import {
   createLibraryItem,
   createLibrarySet,
   normalizeLibraryOwnerKind,
+  updateLibrarySet,
 } from "../../lib/folderLibrary.js";
 
 /**
@@ -15,6 +16,8 @@ import {
  */
 export function LibraryPromptCaptureModal({
   prompt,
+  libraryNameRefs = [],
+  librarySpeakRefs = [],
   ownerKind = "document",
   ownerId,
   onClose,
@@ -34,7 +37,6 @@ export function LibraryPromptCaptureModal({
   const [copied, setCopied] = useState(false);
   const promptText = String(prompt || "").trim();
   const showName = destination === "image" || insertingNew;
-  const showSave = destination === "image" || insertingNew;
 
   const rankedAssets = useMemo(() => {
     const counts = new Map();
@@ -46,6 +48,11 @@ export function LibraryPromptCaptureModal({
       .map((asset) => ({ ...asset, count: counts.get(asset.id) || 0 }))
       .sort((a, b) => a.count - b.count || String(a.tag).localeCompare(String(b.tag)));
   }, [assets, items]);
+
+  const selectedExistingAsset = destination === "asset" && !insertingNew && selectedAssetId
+    ? rankedAssets.find((asset) => asset.id === selectedAssetId) || null
+    : null;
+  const showSave = destination === "image" || insertingNew || Boolean(selectedExistingAsset);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -74,7 +81,7 @@ export function LibraryPromptCaptureModal({
     window.setTimeout(() => setCopied(false), 1400);
   };
 
-  const insertIntoAsset = (asset) => {
+  const saveScriptToAsset = (asset) => {
     if (!asset?.id) return;
     if (!id) {
       setError(t("doc.library.captureNoOwner"));
@@ -83,20 +90,22 @@ export function LibraryPromptCaptureModal({
     setSaving(true);
     setError("");
     try {
-      const saved = createLibraryItem(kind, id, {
-        tag: asset.tag,
+      const updated = updateLibrarySet(kind, id, asset.id, {
         description: promptText,
-        category: "image",
-        mediaUrl: null,
-        setId: asset.id,
+        libraryNameRefs: libraryNameRefs.length ? libraryNameRefs : null,
+        librarySpeakRefs: librarySpeakRefs.length ? librarySpeakRefs : null,
       });
-      finish(saved);
+      finish(updated ? { id: updated.id, setId: updated.id } : null);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSave = () => {
+    if (selectedExistingAsset) {
+      saveScriptToAsset(selectedExistingAsset);
+      return;
+    }
     const name = tag.trim();
     if (!name) {
       setError(t("doc.library.nameRequired"));
@@ -113,6 +122,8 @@ export function LibraryPromptCaptureModal({
         const created = createLibrarySet(kind, id, {
           tag: name,
           description: promptText,
+          libraryNameRefs: libraryNameRefs.length ? libraryNameRefs : undefined,
+          librarySpeakRefs: librarySpeakRefs.length ? librarySpeakRefs : undefined,
         });
         finish(created ? { id: created.id, setId: created.id } : null);
         return;
@@ -131,7 +142,7 @@ export function LibraryPromptCaptureModal({
   };
 
   const copyAria = copied ? t("doc.library.copied") : t("doc.library.copy");
-  const saveDisabled = saving || (showSave && !tag.trim());
+  const saveDisabled = saving || (showSave && !selectedExistingAsset && !tag.trim());
 
   return createPortal(
     <div
@@ -269,7 +280,7 @@ export function LibraryPromptCaptureModal({
                           setInsertingNew(false);
                           setError("");
                         }}
-                        onDoubleClick={() => insertIntoAsset(asset)}
+                        onDoubleClick={() => saveScriptToAsset(asset)}
                       >
                         <img
                           className="library-capture-assets__icon"

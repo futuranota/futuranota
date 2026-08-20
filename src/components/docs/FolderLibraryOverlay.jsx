@@ -156,6 +156,7 @@ function miniFichaClass(item, prefer) {
  */
 export function FolderLibraryOverlay({
   folderId,
+  folderLibraryId = "",
   ownerKind = "folder",
   ownerId,
   initialTab = null,
@@ -966,6 +967,7 @@ export function FolderLibraryOverlay({
         <FolderLibraryAssetDetail
           ownerKind={activeKind}
           ownerId={activeId}
+          folderLibraryId={folderLibraryId || (isDocumentRoot ? "" : rootId)}
           assetId={focusedAsset.id}
           escapeEnabled={!modalOpen && !assetModalOpen && !detailItemId}
           onClose={() => setFocusedAssetId(null)}

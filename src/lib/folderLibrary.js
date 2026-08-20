@@ -1,5 +1,7 @@
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
+import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
+import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
 import {
   buildFolderLibraryItem,
   buildLibrarySet,
@@ -532,7 +534,7 @@ export function listLibrarySets(ownerKind, ownerId) {
 /**
  * @param {LibraryOwnerKind|string} ownerKind
  * @param {string} ownerId
- * @param {{ tag?: string, description?: string }} input
+ * @param {{ tag?: string, description?: string, libraryNameRefs?: import("./docLibraryNameRefs.js").DocLibraryNameRef[], librarySpeakRefs?: import("./docLibrarySpeakRefs.js").DocLibrarySpeakRef[] }} input
  * @returns {import("./folderLibraryNormalize.js").LibrarySet|null}
  */
 export function createLibrarySet(ownerKind, ownerId, input = {}) {
@@ -550,7 +552,7 @@ export function createLibrarySet(ownerKind, ownerId, input = {}) {
  * @param {LibraryOwnerKind|string} ownerKind
  * @param {string} ownerId
  * @param {string} setId
- * @param {{ tag?: string, description?: string }} patch
+ * @param {{ tag?: string, description?: string, libraryNameRefs?: import("./docLibraryNameRefs.js").DocLibraryNameRef[]|null, librarySpeakRefs?: import("./docLibrarySpeakRefs.js").DocLibrarySpeakRef[]|null }} patch
  * @returns {import("./folderLibraryNormalize.js").LibrarySet|null}
  */
 export function updateLibrarySet(ownerKind, ownerId, setId, patch = {}) {
@@ -567,12 +569,27 @@ export function updateLibrarySet(ownerKind, ownerId, setId, patch = {}) {
   const nextTag = patch.tag !== undefined ? String(patch.tag).trim() : current.tag;
   if (!nextTag) return null;
 
+  const nextDescription = patch.description !== undefined
+    ? String(patch.description).trim()
+    : current.description;
+  const libraryNameRefs = normalizeLibraryNameRefs(
+    nextDescription,
+    patch.libraryNameRefs !== undefined
+      ? (patch.libraryNameRefs || [])
+      : current.libraryNameRefs,
+  );
+  const librarySpeakRefs = normalizeLibrarySpeakRefs(
+    nextDescription,
+    patch.librarySpeakRefs !== undefined
+      ? (patch.librarySpeakRefs || [])
+      : current.librarySpeakRefs,
+  );
   const next = {
     ...current,
     tag: nextTag,
-    description: patch.description !== undefined
-      ? String(patch.description).trim()
-      : current.description,
+    description: nextDescription,
+    libraryNameRefs: libraryNameRefs.length ? libraryNameRefs : undefined,
+    librarySpeakRefs: librarySpeakRefs.length ? librarySpeakRefs : undefined,
     updatedAt: new Date().toISOString(),
   };
   const sets = [...prev];

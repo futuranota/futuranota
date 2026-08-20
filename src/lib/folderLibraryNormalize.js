@@ -1,4 +1,6 @@
 import { generateId } from "./ids.js";
+import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
+import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
 
 /** @typedef {"auto"|"image"|"pdf"|"skill"|"video"} FolderLibraryCategory */
 
@@ -26,6 +28,8 @@ import { generateId } from "./ids.js";
  * @property {string} id
  * @property {string} tag
  * @property {string} description Story / prompt for the pack
+ * @property {import("./docLibraryNameRefs.js").DocLibraryNameRef[]} [libraryNameRefs]
+ * @property {import("./docLibrarySpeakRefs.js").DocLibrarySpeakRef[]} [librarySpeakRefs]
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -353,10 +357,14 @@ export function normalizeLibrarySet(raw) {
   const updatedAt = typeof raw.updatedAt === "string" && raw.updatedAt
     ? raw.updatedAt
     : createdAt;
+  const libraryNameRefs = normalizeLibraryNameRefs(description, raw.libraryNameRefs);
+  const librarySpeakRefs = normalizeLibrarySpeakRefs(description, raw.librarySpeakRefs);
   return {
     id,
     tag,
     description,
+    ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
+    ...(librarySpeakRefs.length ? { librarySpeakRefs } : {}),
     createdAt,
     updatedAt,
   };
@@ -381,17 +389,22 @@ export function normalizeLibrarySets(value) {
 
 /**
  * Build a new document library set (does not persist).
- * @param {{ tag?: string, description?: string }} input
+ * @param {{ tag?: string, description?: string, libraryNameRefs?: import("./docLibraryNameRefs.js").DocLibraryNameRef[], librarySpeakRefs?: import("./docLibrarySpeakRefs.js").DocLibrarySpeakRef[] }} input
  * @returns {LibrarySet|null}
  */
 export function buildLibrarySet(input = {}) {
   const tag = String(input.tag ?? "").trim();
   if (!tag) return null;
   const now = new Date().toISOString();
+  const description = String(input.description ?? "").trim();
+  const libraryNameRefs = normalizeLibraryNameRefs(description, input.libraryNameRefs);
+  const librarySpeakRefs = normalizeLibrarySpeakRefs(description, input.librarySpeakRefs);
   return {
     id: generateId("SET"),
     tag,
-    description: String(input.description ?? "").trim(),
+    description,
+    ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
+    ...(librarySpeakRefs.length ? { librarySpeakRefs } : {}),
     createdAt: now,
     updatedAt: now,
   };

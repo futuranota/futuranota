@@ -19401,12 +19401,28 @@ body.doc-content-resizing * {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 120px;
-  max-height: min(42vh, 320px);
+  min-height: 96px;
+  /* Compact height so assets stay visible; scroll to read the full script. */
+  max-height: min(28vh, 220px);
   padding: 12px 44px 12px 12px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #333 #1e1e1e;
+}
+
+.library-asset-field-readonly__prompt::-webkit-scrollbar {
+  width: 8px;
+}
+
+.library-asset-field-readonly__prompt::-webkit-scrollbar-track {
+  background: #1e1e1e;
+  border-radius: 8px;
+}
+
+.library-asset-field-readonly__prompt::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 8px;
+  border: 2px solid #1e1e1e;
 }
 
 .library-asset-field-readonly__prompt-text {
@@ -19976,6 +19992,13 @@ body.doc-content-resizing * {
   flex-direction: column;
   gap: 14px;
   grid-template-columns: none;
+  max-height: min(70vh, 560px);
+}
+
+.folder-library-element-modal__body--capture .library-capture-assets {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: min(36vh, 260px);
 }
 
 .folder-library-element-modal__prompt-preview {
@@ -19989,6 +20012,26 @@ body.doc-content-resizing * {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Compact preview with scroll so folders stay visible and full script is readable. */
+  max-height: 9em;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #333 #1e1e1e;
+}
+
+.folder-library-element-modal__prompt-preview::-webkit-scrollbar {
+  width: 8px;
+}
+
+.folder-library-element-modal__prompt-preview::-webkit-scrollbar-track {
+  background: #1e1e1e;
+  border-radius: 8px;
+}
+
+.folder-library-element-modal__prompt-preview::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 8px;
+  border: 2px solid #1e1e1e;
 }
 
 .library-capture-prompt {

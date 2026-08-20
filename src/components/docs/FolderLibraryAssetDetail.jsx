@@ -17,11 +17,14 @@ export function FolderLibraryAssetDetail({
   ownerKind = "document",
   ownerId,
   assetId,
+  folderLibraryId = "",
   onClose,
   onEdit,
   onOpenItem,
   pendingClone = null,
   onSavePendingClone = null,
+  /** Download pack only when browsing the library — not after capture/insert. */
+  allowDownload = true,
   escapeEnabled = true,
 }) {
   const { t } = useI18n();
@@ -62,7 +65,10 @@ export function FolderLibraryAssetDetail({
     if (!canDownload || downloading) return;
     setDownloading(true);
     try {
-      const pack = await zipLibraryAssetImages(asset, imageItems);
+      const pack = await zipLibraryAssetImages(asset, imageItems, {
+        folderId: folderLibraryId || undefined,
+        documentId: ownerKind === "document" ? ownerId : undefined,
+      });
       if (!pack) return;
       triggerBlobDownload(pack.blob, pack.filename);
     } finally {
@@ -147,7 +153,7 @@ export function FolderLibraryAssetDetail({
               >
                 {t("doc.library.save")}
               </button>
-            ) : (
+            ) : allowDownload ? (
               <>
                 <button
                   type="button"
@@ -167,6 +173,14 @@ export function FolderLibraryAssetDetail({
                     : t("doc.library.assetDownload")}
                 </button>
               </>
+            ) : (
+              <button
+                type="button"
+                className="folder-library-element-modal__btn folder-library-element-modal__btn--save"
+                onClick={() => onClose?.()}
+              >
+                {t("doc.library.save")}
+              </button>
             )}
           </div>
         </footer>

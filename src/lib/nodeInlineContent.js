@@ -8,6 +8,10 @@ import {
   normalizeLibraryNameRefs,
   splitLibraryNameRefsAt,
 } from "./docLibraryNameRefs.js";
+import {
+  normalizeLibrarySpeakRefs,
+  splitLibrarySpeakRefsAt,
+} from "./docLibrarySpeakRefs.js";
 import { applyTextEditToMarkerRanges, normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
 import { applyTextEditToBoldRanges, normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -52,6 +56,7 @@ export function createEmptyTextBlock(text = "", patch = {}) {
   const mentions = normalizeMentions(value, patch.mentions);
   const tagRefs = normalizeTagRefs(value, patch.tagRefs);
   const libraryNameRefs = normalizeLibraryNameRefs(value, patch.libraryNameRefs);
+  const librarySpeakRefs = normalizeLibrarySpeakRefs(value, patch.librarySpeakRefs);
   const markerRanges = normalizeMarkerRanges(value, patch.markerRanges);
   const boldRanges = normalizeBoldRanges(value, patch.boldRanges);
   return {
@@ -61,6 +66,7 @@ export function createEmptyTextBlock(text = "", patch = {}) {
     ...(mentions.length ? { mentions } : {}),
     ...(tagRefs.length ? { tagRefs } : {}),
     ...(libraryNameRefs.length ? { libraryNameRefs } : {}),
+    ...(librarySpeakRefs.length ? { librarySpeakRefs } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
     ...(boldRanges.length ? { boldRanges } : {}),
     ...(patch.embedded && typeof patch.embedded === "object"
@@ -126,11 +132,17 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
     headEnd,
     tailStart,
   );
+  const { headRanges: headSpeaks, tailRanges: tailSpeaks } = splitLibrarySpeakRefsAt(
+    block?.librarySpeakRefs,
+    headEnd,
+    tailStart,
+  );
   return {
     beforePatch: {
       mentions: normalizeMentions(beforeText, block?.mentions),
       tagRefs: normalizeTagRefs(beforeText, headTagRefs),
       libraryNameRefs: normalizeLibraryNameRefs(beforeText, headNames),
+      librarySpeakRefs: normalizeLibrarySpeakRefs(beforeText, headSpeaks),
       markerRanges: normalizeMarkerRanges(beforeText, headMarkers),
       boldRanges: normalizeBoldRanges(beforeText, headBolds),
       ...(block?.embedded && typeof block.embedded === "object"
@@ -141,6 +153,7 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
       mentions: normalizeMentions(afterText, block?.mentions),
       tagRefs: normalizeTagRefs(afterText, tailTagRefs),
       libraryNameRefs: normalizeLibraryNameRefs(afterText, tailNames),
+      librarySpeakRefs: normalizeLibrarySpeakRefs(afterText, tailSpeaks),
       markerRanges: normalizeMarkerRanges(afterText, tailMarkers),
       boldRanges: normalizeBoldRanges(afterText, tailBolds),
     },

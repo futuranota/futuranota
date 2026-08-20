@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { listHintedLibraryCatalogs } from "./folderLibrary.js";
 
 /**
  * @param {unknown} value
@@ -100,12 +101,13 @@ export function libraryAssetHasPack(asset, items) {
 }
 
 /**
- * Zip the asset Script, ficha scripts (`.txt`), and images (`.webp`).
- * @param {{ tag?: string }} asset
+ * Zip the asset Script, ficha scripts (`.txt`), images (`.webp`), plus `manifest.json` + `script.text`.
+ * @param {{ tag?: string, id?: string, description?: string, libraryNameRefs?: object[], librarySpeakRefs?: object[] }} asset
  * @param {Array<{ category?: string, tag?: string, description?: string, mediaUrl?: string|null }>} items
+ * @param {{ folderId?: string, documentId?: string }} [options]
  * @returns {Promise<{ blob: Blob, filename: string, count: number }|null>}
  */
-export async function zipLibraryAssetImages(asset, items) {
+export async function zipLibraryAssetImages(asset, items, options = {}) {
   const entries = listLibraryAssetPackEntries(items, asset);
   if (!entries.length) return null;
 
@@ -131,6 +133,25 @@ export async function zipLibraryAssetImages(asset, items) {
       /* skip missing remote; keep the .txt */
     }
   }
+
+  const script = String(asset?.description || "").trim();
+  if (script) {
+    const { compileAssetScript } = await import("./compileAssetScript.js");
+    const { manifest, klingText } = compileAssetScript({
+      asset,
+      description: script,
+      libraryNameRefs: asset?.libraryNameRefs,
+      librarySpeakRefs: asset?.librarySpeakRefs,
+      catalogs: listHintedLibraryCatalogs({
+        folderId: options.folderId,
+        documentId: options.documentId,
+      }),
+    });
+    folder.file("manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+    folder.file("script.text", klingText);
+    count += 2;
+  }
+
   if (!count) return null;
 
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });

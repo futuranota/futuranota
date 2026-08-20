@@ -53,7 +53,9 @@ export function DocLibraryNameMenu({
       {items.length === 0 ? (
         <p className="doc-mention-menu__empty">{emptyLabel}</p>
       ) : items.map((item, index) => {
-        const name = String(item.tag || item.name || "").trim();
+        const name = item.kind === "speak"
+          ? String(item.name || "Speak").trim()
+          : String(item.tag || item.name || "").trim();
         const prompt = String(item.description || "").trim();
         const preview = prompt
           ? (prompt.length > 72 ? `${prompt.slice(0, 72)}…` : prompt)

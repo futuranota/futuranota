@@ -38,7 +38,16 @@ import {
   getLibraryNameQueryAtCaret,
   insertLibraryNameRefAtQuery,
   normalizeLibraryNameRefs,
+  normalizeLibraryNameKey,
 } from "../../../lib/docLibraryNameRefs.js";
+import {
+  applyTextEditToLibrarySpeakRefs,
+  getLibrarySpeakPathAtCaret,
+  normalizeLibrarySpeakRefs,
+  openLibrarySpeakQuotes,
+  refreshSpeakDialogueBounds,
+} from "../../../lib/docLibrarySpeakRefs.js";
+import { generateId } from "../../../lib/ids.js";
 import {
   getLibraryAssignPathAtCaret,
   libraryAssignMenuEmptyReason,
@@ -268,6 +277,8 @@ export function SlashAwareTextarea({
   boldRanges = null,
   libraryNameRefs = null,
   onLibraryNameRefsChange = null,
+  librarySpeakRefs = null,
+  onLibrarySpeakRefsChange = null,
   libraryNameCandidates = null,
   libraryAssignFiles = null,
   libraryAssignAssets = null,
@@ -381,6 +392,12 @@ export function SlashAwareTextarea({
     [libraryNameRefs, libraryNameRefsEnabled, value],
   );
   const hasLibraryNameRefs = normalizedLibraryNameRefs.length > 0;
+  const librarySpeakRefsEnabled = Array.isArray(librarySpeakRefs)
+    || (libraryAssignEnabled && libraryNameInvokeEnabled);
+  const normalizedLibrarySpeakRefs = useMemo(
+    () => (librarySpeakRefsEnabled ? normalizeLibrarySpeakRefs(value, librarySpeakRefs) : []),
+    [librarySpeakRefs, librarySpeakRefsEnabled, value],
+  );
   // Mirror overlay for chips, ink, and/or faux-bold glyphs.
   const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold || hasLibraryNameRefs;
   // Glyph overlays require transparent textarea text (same as mentions).
@@ -454,6 +471,7 @@ export function SlashAwareTextarea({
     focused
     && libraryAssignEnabled
     && activeAssignPath?.hasDot
+    && filteredAssignPathItems.length > 0
     && !showGhost
     && !activeQuery
     && !activeTagRefQuery,
@@ -1161,13 +1179,22 @@ export function SlashAwareTextarea({
     syncMentionQuery();
   }, [showMentionMenu, showTagRefMenu, showLibraryNameMenu, value, syncMentionQuery]);
 
-  const emitChange = useCallback((nextValue, nextMentions, nextMarkers, nextBolds, nextTagRefs, nextLibraryNameRefs) => {
+  const emitChange = useCallback((
+    nextValue,
+    nextMentions,
+    nextMarkers,
+    nextBolds,
+    nextTagRefs,
+    nextLibraryNameRefs,
+    nextLibrarySpeakRefs,
+  ) => {
     const collapsed = collapseDuplicateSlashTail(nextValue);
     let mentionsOut = nextMentions;
     let markersOut = nextMarkers;
     let boldsOut = nextBolds;
     let tagRefsOut = nextTagRefs;
     let libraryNameOut = nextLibraryNameRefs;
+    let librarySpeakOut = nextLibrarySpeakRefs;
     if (collapsed !== nextValue) {
       if (mentionsEnabled) {
         mentionsOut = applyTextEditToMentions(nextValue, collapsed, nextMentions);
@@ -1177,6 +1204,13 @@ export function SlashAwareTextarea({
       }
       if (libraryNameRefsEnabled) {
         libraryNameOut = applyTextEditToLibraryNameRefs(nextValue, collapsed, nextLibraryNameRefs);
+      }
+      if (librarySpeakRefsEnabled) {
+        librarySpeakOut = applyTextEditToLibrarySpeakRefs(
+          nextValue,
+          collapsed,
+          nextLibrarySpeakRefs ?? normalizedLibrarySpeakRefs,
+        );
       }
       if (markersEnabled) {
         markersOut = applyTextEditToMarkerRanges(nextValue, collapsed, nextMarkers);
@@ -1194,6 +1228,9 @@ export function SlashAwareTextarea({
     const normalizedLibraryNameOut = libraryNameRefsEnabled
       ? normalizeLibraryNameRefs(collapsed, libraryNameOut)
       : [];
+    const normalizedLibrarySpeakOut = librarySpeakRefsEnabled
+      ? normalizeLibrarySpeakRefs(collapsed, librarySpeakOut)
+      : [];
     const normalizedMarkersOut = markersEnabled
       ? normalizeMarkerRanges(collapsed, markersOut)
       : [];
@@ -1207,6 +1244,7 @@ export function SlashAwareTextarea({
       ...(mentionsEnabled ? { mentions: normalized } : {}),
       ...(tagRefsEnabled ? { tagRefs: normalizedTagRefsOut } : {}),
       ...(libraryNameRefsEnabled ? { libraryNameRefs: normalizedLibraryNameOut } : {}),
+      ...(librarySpeakRefsEnabled ? { librarySpeakRefs: normalizedLibrarySpeakOut } : {}),
       ...(markersEnabled ? { markerRanges: normalizedMarkersOut } : {}),
       ...(boldEnabled ? { boldRanges: normalizedBoldsOut } : {}),
     };
@@ -1223,15 +1261,21 @@ export function SlashAwareTextarea({
     if (libraryNameRefsEnabled) {
       onLibraryNameRefsChange?.(normalizedLibraryNameOut);
     }
+    if (librarySpeakRefsEnabled) {
+      onLibrarySpeakRefsChange?.(normalizedLibrarySpeakOut);
+    }
     onAfterInput?.();
   }, [
     boldEnabled,
     libraryNameRefsEnabled,
+    librarySpeakRefsEnabled,
     markersEnabled,
     mentionsEnabled,
+    normalizedLibrarySpeakRefs,
     onAfterInput,
     onChange,
     onLibraryNameRefsChange,
+    onLibrarySpeakRefsChange,
     onMentionsChange,
     onTagRefsChange,
     tagRefsEnabled,
@@ -1373,8 +1417,104 @@ export function SlashAwareTextarea({
     value,
   ]);
 
+  const applyLibrarySpeakOpen = useCallback((speakPath, candidateFile = null) => {
+    if (!speakPath) return false;
+    const candidate = candidateFile
+      || (libraryAssignFiles || []).find(
+        (item) => normalizeLibraryNameKey(item?.tag || item?.name)
+          === normalizeLibraryNameKey(speakPath.tag),
+      );
+    const opened = openLibrarySpeakQuotes(
+      value,
+      speakPath,
+      candidate || { tag: speakPath.tag },
+    );
+    if (!opened.speakRef) return false;
+
+    const tagStart = speakPath.start;
+    const tagEnd = tagStart + opened.speakRef.tag.length;
+    const nextNameRefs = normalizeLibraryNameRefs(opened.text, [
+      ...normalizedLibraryNameRefs.filter(
+        (item) => item.end <= tagStart || item.start >= tagEnd,
+      ),
+      {
+        id: generateId("LNR"),
+        itemId: String(candidate?.id || opened.speakRef.itemId || ""),
+        tag: opened.speakRef.tag,
+        setId: candidate?.setId ?? null,
+        start: tagStart,
+        end: tagEnd,
+        insertedAt: new Date().toISOString(),
+      },
+    ]);
+    const nextSpeakRefs = normalizeLibrarySpeakRefs(
+      opened.text,
+      [...normalizedLibrarySpeakRefs, opened.speakRef],
+    );
+    const nextMentions = mentionsEnabled
+      ? applyTextEditToMentions(value, opened.text, normalizedMentions)
+      : [];
+    const nextMarkers = markersEnabled
+      ? applyTextEditToMarkerRanges(value, opened.text, normalizedMarkers)
+      : [];
+    const nextBolds = boldEnabled
+      ? applyTextEditToBoldRanges(value, opened.text, normalizedBolds)
+      : [];
+    const nextTagRefs = tagRefsEnabled
+      ? applyTextEditToTagRefs(value, opened.text, normalizedTagRefs)
+      : [];
+    emitChange(
+      opened.text,
+      nextMentions,
+      nextMarkers,
+      nextBolds,
+      nextTagRefs,
+      nextNameRefs,
+      nextSpeakRefs,
+    );
+    setActiveAssignPath(null);
+    setAssignPathMenuAnchor(null);
+    requestAnimationFrame(() => {
+      const field = textareaRef.current;
+      if (!field || !("setSelectionRange" in field)) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(opened.caret, opened.caret);
+      syncMentionQuery();
+    });
+    return true;
+  }, [
+    boldEnabled,
+    emitChange,
+    libraryAssignFiles,
+    markersEnabled,
+    mentionsEnabled,
+    normalizedBolds,
+    normalizedLibraryNameRefs,
+    normalizedLibrarySpeakRefs,
+    normalizedMarkers,
+    normalizedMentions,
+    normalizedTagRefs,
+    syncMentionQuery,
+    tagRefsEnabled,
+    textareaRef,
+    value,
+  ]);
+
   const insertAssignPathCandidate = useCallback((candidate) => {
     if (!candidate || !activeAssignPath) return;
+    if (candidate.kind === "speak" && candidate.file) {
+      const fileTag = String(candidate.file.tag || "").trim();
+      if (!fileTag) return;
+      // Open quotes from the live token (`Gina.s`), not from a rewritten
+      // `Gina.speak` string — those offsets would eat the following newline.
+      const opened = applyLibrarySpeakOpen({
+        start: activeAssignPath.start,
+        end: activeAssignPath.end,
+        tag: fileTag,
+        fileQuery: activeAssignPath.fileQuery,
+      }, candidate.file);
+      if (opened) return;
+    }
     const fileTag = String(candidate.file?.tag || candidate.tag || "").trim();
     const result = candidate.kind === "asset" && fileTag
       ? insertLibraryNameRefAtQuery(
@@ -1434,6 +1574,7 @@ export function SlashAwareTextarea({
     }
   }, [
     activeAssignPath,
+    applyLibrarySpeakOpen,
     boldEnabled,
     emitChange,
     libraryNameRefsEnabled,
@@ -1506,7 +1647,31 @@ export function SlashAwareTextarea({
     value,
   ]);
 
+  const openLibrarySpeakOnEnter = useCallback((event) => {
+    if (event.key !== "Enter" || event.shiftKey) return false;
+    if (showLibraryNameMenu || showTagRefMenu || showMentionMenu) return false;
+    if (!libraryAssignEnabled || !librarySpeakRefsEnabled) return false;
+    const el = textareaRef.current;
+    if (!el || !("selectionStart" in el)) return false;
+    const caret = el.selectionStart ?? 0;
+    const path = getLibrarySpeakPathAtCaret(el.value, caret, libraryAssignFiles);
+    if (!path) return false;
+
+    event.preventDefault();
+    return applyLibrarySpeakOpen(path);
+  }, [
+    applyLibrarySpeakOpen,
+    libraryAssignEnabled,
+    libraryAssignFiles,
+    librarySpeakRefsEnabled,
+    showLibraryNameMenu,
+    showMentionMenu,
+    showTagRefMenu,
+    textareaRef,
+  ]);
+
   const handleMentionKeyDown = useCallback((event) => {
+    if (openLibrarySpeakOnEnter(event)) return true;
     if (showAssignPathMenu) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -1631,6 +1796,7 @@ export function SlashAwareTextarea({
     filteredTagRefCandidates,
     assignPathMenuIndex,
     filteredAssignPathItems,
+    openLibrarySpeakOnEnter,
     insertAssignPathCandidate,
     insertCandidate,
     insertLibraryNameCandidate,
@@ -1787,7 +1953,22 @@ export function SlashAwareTextarea({
           const nextLibraryNames = libraryNameRefsEnabled
             ? applyTextEditToLibraryNameRefs(value, nextValue, normalizedLibraryNameRefs)
             : [];
-          emitChange(nextValue, nextMentions, nextMarkers, nextBolds, nextTagRefs, nextLibraryNames);
+          const caret = e.target.selectionStart ?? 0;
+          const shiftedSpeak = librarySpeakRefsEnabled
+            ? applyTextEditToLibrarySpeakRefs(value, nextValue, normalizedLibrarySpeakRefs)
+            : [];
+          const nextSpeakRefs = librarySpeakRefsEnabled
+            ? refreshSpeakDialogueBounds(nextValue, caret, shiftedSpeak)
+            : undefined;
+          emitChange(
+            nextValue,
+            nextMentions,
+            nextMarkers,
+            nextBolds,
+            nextTagRefs,
+            nextLibraryNames,
+            nextSpeakRefs,
+          );
           requestAnimationFrame(() => syncMentionQuery());
         }}
         onKeyDown={(e) => {

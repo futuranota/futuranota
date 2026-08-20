@@ -14,6 +14,9 @@ import {
   applyTextEditToLibraryNameRefs,
   mergeLibraryNameRefBlocks,
 } from "../../lib/docLibraryNameRefs.js";
+import {
+  applyTextEditToLibrarySpeakRefs,
+} from "../../lib/docLibrarySpeakRefs.js";
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
 import { isLibraryAssignPromptFile, mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
@@ -77,6 +80,7 @@ import {
   findNewlyClosedLibraryPrompt,
   stripLibraryPromptDelimiters,
 } from "../../lib/libraryPromptCapture.js";
+import { sliceScriptRefsForCapture } from "../../lib/libraryScriptCapture.js";
 import { LibraryPromptCaptureModal } from "../docs/LibraryPromptCaptureModal.jsx";
 import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
 import { FolderLibraryAssetDetail } from "../docs/FolderLibraryAssetDetail.jsx";
@@ -244,6 +248,11 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
       nextText,
       item.libraryNameRefs || [],
     );
+    const librarySpeakRefs = applyTextEditToLibrarySpeakRefs(
+      item.text || "",
+      nextText,
+      item.librarySpeakRefs || [],
+    );
     const markerRanges = applyTextEditToMarkerRanges(item.text || "", nextText, item.markerRanges || []);
     const boldRanges = applyTextEditToBoldRanges(item.text || "", nextText, item.boldRanges || []);
     return {
@@ -252,6 +261,7 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
       mentions: mentions.length ? mentions : undefined,
       tagRefs: nextTagRefs.length ? nextTagRefs : undefined,
       libraryNameRefs: libraryNameRefs.length ? libraryNameRefs : undefined,
+      librarySpeakRefs: librarySpeakRefs.length ? librarySpeakRefs : undefined,
       markerRanges: markerRanges.length ? markerRanges : undefined,
       boldRanges: boldRanges.length ? boldRanges : undefined,
     };
@@ -485,17 +495,41 @@ export function NodeWritingBlockStack({
 
   const applyTextBlockChange = useCallback((blockIndex, nextText, meta) => {
     const prevText = blocksRef.current[blockIndex]?.text ?? "";
+    const block = blocksRef.current[blockIndex];
     let text = nextText;
+    let captureMeta = null;
     if (libraryOwnerId) {
       const capture = findNewlyClosedLibraryPrompt(prevText, nextText);
       if (capture) {
+        captureMeta = sliceScriptRefsForCapture(nextText, capture, {
+          libraryNameRefs: meta?.libraryNameRefs ?? block?.libraryNameRefs,
+          librarySpeakRefs: meta?.librarySpeakRefs ?? block?.librarySpeakRefs,
+        });
         text = stripLibraryPromptDelimiters(nextText, capture);
-        setPromptCapture({ prompt: capture.prompt });
+        setPromptCapture({
+          prompt: capture.prompt,
+          libraryNameRefs: captureMeta.libraryNameRefs,
+          librarySpeakRefs: captureMeta.librarySpeakRefs,
+        });
       }
     }
     const mentions = text !== nextText
       ? applyTextEditToMentions(nextText, text, meta?.mentions || [])
       : meta?.mentions;
+    const libraryNameRefs = text !== nextText
+      ? applyTextEditToLibraryNameRefs(
+        nextText,
+        text,
+        meta?.libraryNameRefs ?? block?.libraryNameRefs,
+      )
+      : meta?.libraryNameRefs;
+    const librarySpeakRefs = text !== nextText
+      ? applyTextEditToLibrarySpeakRefs(
+        nextText,
+        text,
+        meta?.librarySpeakRefs ?? block?.librarySpeakRefs,
+      )
+      : meta?.librarySpeakRefs;
     updateBlockAt(blockIndex, {
       text,
       ...(meta && "mentions" in meta
@@ -504,8 +538,11 @@ export function NodeWritingBlockStack({
       ...(meta && "tagRefs" in meta
         ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
         : {}),
-      ...(meta && "libraryNameRefs" in meta
-        ? { libraryNameRefs: meta.libraryNameRefs?.length ? meta.libraryNameRefs : undefined }
+      ...((meta && "libraryNameRefs" in meta) || libraryNameRefs?.length
+        ? { libraryNameRefs: libraryNameRefs?.length ? libraryNameRefs : undefined }
+        : {}),
+      ...((meta && "librarySpeakRefs" in meta) || librarySpeakRefs?.length
+        ? { librarySpeakRefs: librarySpeakRefs?.length ? librarySpeakRefs : undefined }
         : {}),
       ...(meta && "markerRanges" in meta
         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
@@ -1470,6 +1507,7 @@ export function NodeWritingBlockStack({
                 mentions={block.mentions || []}
                 tagRefs={block.tagRefs || []}
                 libraryNameRefs={block.libraryNameRefs || []}
+                librarySpeakRefs={block.librarySpeakRefs || []}
                 libraryNameCandidates={libraryNameCandidates}
                 libraryAssignFiles={libraryAssignFiles}
                 libraryAssignAssets={libraryAssignAssets}
@@ -1529,6 +1567,7 @@ export function NodeWritingBlockStack({
                   mentions={block.mentions || []}
                   tagRefs={block.tagRefs || []}
                   libraryNameRefs={block.libraryNameRefs || []}
+                  librarySpeakRefs={block.librarySpeakRefs || []}
                   libraryNameCandidates={libraryNameCandidates}
                   libraryAssignFiles={libraryAssignFiles}
                   libraryAssignAssets={libraryAssignAssets}
@@ -1582,6 +1621,8 @@ export function NodeWritingBlockStack({
     {promptCapture ? (
       <LibraryPromptCaptureModal
         prompt={promptCapture.prompt}
+        libraryNameRefs={promptCapture.libraryNameRefs || []}
+        librarySpeakRefs={promptCapture.librarySpeakRefs || []}
         ownerKind={libraryOwnerKind}
         ownerId={libraryOwnerId}
         onClose={() => setPromptCapture(null)}
@@ -1597,7 +1638,9 @@ export function NodeWritingBlockStack({
       <FolderLibraryAssetDetail
         ownerKind={libraryOwnerKind}
         ownerId={libraryOwnerId}
+        folderLibraryId={folderLibraryId}
         assetId={savedPromptAssetId}
+        allowDownload={false}
         pendingClone={
           pendingAssignClone?.assetId === savedPromptAssetId
             ? pendingAssignClone.file
