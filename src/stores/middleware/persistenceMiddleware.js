@@ -531,40 +531,6 @@ function stripPendingDeletesFromState(state) {
 }
 
 /**
- * Drop tombstoned docs/nodes/companies from live Zustand stores.
- * Used after paint, ledger adopt, and version-gate skip so ghosts cannot re-upsert.
- * @returns {boolean} true if any store changed
- */
-function stripPendingDeletesFromLiveStores() {
-  if (
-    pendingDeletedDocIds.size === 0
-    && pendingDeletedNodeIds.size === 0
-    && pendingDeletedCompanyIds.size === 0
-  ) {
-    return false;
-  }
-  const docsState = useDocsStore.getState().docs || {};
-  const nodesState = useNodesStore.getState().nodes || {};
-  const objectsState = useObjectsStore.getState().objects || {};
-  const stripped = stripPendingDeletesFromState({
-    docs: docsState,
-    nodes: nodesState,
-    objects: objectsState,
-  });
-  if (stripped === undefined || stripped === null) return false;
-  const docsChanged = stripped.docs !== docsState;
-  const nodesChanged = stripped.nodes !== nodesState;
-  const objectsChanged = stripped.objects !== objectsState;
-  if (!docsChanged && !nodesChanged && !objectsChanged) return false;
-  if (docsChanged) useDocsStore.setState({ docs: stripped.docs });
-  if (nodesChanged) useNodesStore.setState({ nodes: stripped.nodes });
-  if (objectsChanged) {
-    useObjectsStore.setState({ objects: stripped.objects || {} });
-  }
-  return true;
-}
-
-/**
  * Hard-delete tombstoned ids from a remote table (batched).
  * @param {string} table
  * @param {string} userId
@@ -1305,6 +1271,40 @@ export function initPersistenceMiddleware(stores) {
     useCanvasStore,
     useTimelineStore,
   } = stores;
+
+  /**
+   * Drop tombstoned docs/nodes/companies from live Zustand stores.
+   * Must live inside init so store hooks from `stores` are in scope.
+   * @returns {boolean} true if any store changed
+   */
+  function stripPendingDeletesFromLiveStores() {
+    if (
+      pendingDeletedDocIds.size === 0
+      && pendingDeletedNodeIds.size === 0
+      && pendingDeletedCompanyIds.size === 0
+    ) {
+      return false;
+    }
+    const docsState = useDocsStore.getState().docs || {};
+    const nodesState = useNodesStore.getState().nodes || {};
+    const objectsState = useObjectsStore.getState().objects || {};
+    const stripped = stripPendingDeletesFromState({
+      docs: docsState,
+      nodes: nodesState,
+      objects: objectsState,
+    });
+    if (stripped === undefined || stripped === null) return false;
+    const docsChanged = stripped.docs !== docsState;
+    const nodesChanged = stripped.nodes !== nodesState;
+    const objectsChanged = stripped.objects !== objectsState;
+    if (!docsChanged && !nodesChanged && !objectsChanged) return false;
+    if (docsChanged) useDocsStore.setState({ docs: stripped.docs });
+    if (nodesChanged) useNodesStore.setState({ nodes: stripped.nodes });
+    if (objectsChanged) {
+      useObjectsStore.setState({ objects: stripped.objects || {} });
+    }
+    return true;
+  }
 
   const getLocalState = () => ({
     objects: useObjectsStore.getState().objects,
