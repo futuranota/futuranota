@@ -1137,7 +1137,7 @@ textarea.field {
 /* Timeline lives in-flow at the bottom; expands upward inside the dash grid */
 .dash {
   --dash-chrome-h: 96px;
-  --timeline-peek-h: 212px;
+  --timeline-peek-h: 44px;
   display: grid;
   grid-template-rows: 52px 44px minmax(0, 1fr) auto;
   min-height: 100vh;
@@ -5100,9 +5100,9 @@ textarea.note-form-field {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
-  min-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
-  max-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
+  min-height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
+  max-height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
   padding-top: 2px;
   background: color-mix(in oklab, var(--panel-solid) 96%, #14181d 4%);
   border-top: 1px solid color-mix(in oklab, var(--hairline) 80%, #21232b 20%);
@@ -5118,7 +5118,7 @@ textarea.note-form-field {
     box-shadow 0.34s ease;
 }
 .timeline.tl-tactical.is-sheet-peek {
-  --timeline-sheet-h: var(--timeline-peek-h, 212px);
+  --timeline-sheet-h: var(--timeline-peek-h, 44px);
 }
 .timeline.tl-tactical.is-sheet-expanded {
   --timeline-sheet-h: calc(100vh - var(--dash-chrome-h, 96px) - 8px);
@@ -5137,16 +5137,19 @@ textarea.note-form-field {
 .tl-sheet-top {
   display: flex;
   justify-content: center;
+  align-items: center;
   flex-shrink: 0;
-  padding: 4px 0 0;
+  height: 100%;
+  padding: 0;
 }
 .tl-sheet-toggle {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   margin: 0;
-  padding: 4px 28px 6px;
+  padding: 6px 28px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -5215,18 +5218,21 @@ textarea.note-form-field {
 .tl-tactical-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px 8px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 16px 4px;
   border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
 }
 .tl-tactical-header__title {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  min-width: 0;
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 1.25;
   color: var(--dim);
 }
 .tl-tactical-header__title b {
@@ -5235,8 +5241,8 @@ textarea.note-form-field {
   color: var(--text);
   letter-spacing: -0.01em;
 }
-.tl-tactical-header .tl-alerts-toggle {
-  font-size: 9.5px;
+.tl-tactical-header__meta {
+  color: var(--dim);
 }
 .tl-tactical-body {
   position: relative;
@@ -5249,9 +5255,6 @@ textarea.note-form-field {
   flex: 1;
   min-height: 0;
   max-height: none;
-}
-.timeline.tl-tactical.is-sheet-peek .tl-tactical-body {
-  max-height: calc(var(--timeline-peek-h, 212px) - 88px);
 }
 .timeline.tl-tactical.is-sheet-expanded .tl-tactical-body {
   flex: 1;

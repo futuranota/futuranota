@@ -387,9 +387,6 @@ export const messages = {
         promptClassDeleteTitle: "Delete classification",
         promptClassDeleteConfirm: "Delete classification “{name}”? Prompts using it will have no class.",
         promptClassDeleteAria: "Delete {name}",
-        panorama: "Panorama",
-        panoramaEmpty: "No Prompt images yet. Add a photo to a loose Prompt to browse here.",
-        panoramaClose: "Close",
       },
       blockDelete: {
         title: "Delete block",
@@ -2024,9 +2021,6 @@ export const messages = {
         promptClassDeleteTitle: "Eliminar clasificación",
         promptClassDeleteConfirm: "¿Eliminar la clasificación “{name}”? Los prompts de esta clase quedarán sin clasificar.",
         promptClassDeleteAria: "Eliminar {name}",
-        panorama: "Panorama",
-        panoramaEmpty: "Todavía no hay imágenes de Prompt. Agregá una foto a un Prompt suelto para verlas aquí.",
-        panoramaClose: "Cerrar",
       },
       blockDelete: {
         title: "Eliminar bloque",

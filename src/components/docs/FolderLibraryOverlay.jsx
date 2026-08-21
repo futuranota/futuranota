@@ -29,16 +29,12 @@ import {
   resolveFichaPreviewKind,
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
-import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
-import { listPanoramaPromptSlides } from "../../lib/libraryPanoramaSlides.js";
-import { useAuthStore } from "../../stores/authStore.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
 import { FolderLibrarySkillDetail } from "./FolderLibrarySkillDetail.jsx";
 import { FolderLibraryVideoDetail } from "./FolderLibraryVideoDetail.jsx";
-import { LibraryPanoramaModal } from "./LibraryPanoramaModal.jsx";
 import { LibrarySetInputModal } from "./LibrarySetInputModal.jsx";
 
 const SCOPE_OPTIONS = [
@@ -171,7 +167,6 @@ export function FolderLibraryOverlay({
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
-  const userEmail = useAuthStore((s) => s.user?.email);
   const rootKind = normalizeLibraryOwnerKind(ownerKind);
   const rootId = String(ownerId || folderId || "").trim();
   const isDocumentRoot = rootKind === "document";
@@ -179,7 +174,6 @@ export function FolderLibraryOverlay({
   const [scope, setScope] = useState("folder");
   const [focusedDocumentId, setFocusedDocumentId] = useState(null);
   const [focusedAssetId, setFocusedAssetId] = useState(null);
-  const [panoramaOpen, setPanoramaOpen] = useState(false);
   const activeKind = isDocumentRoot || focusedDocumentId ? "document" : "folder";
   const activeId = isDocumentRoot ? rootId : (focusedDocumentId || rootId);
 
@@ -291,7 +285,7 @@ export function FolderLibraryOverlay({
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
-      if (modalOpen || assetModalOpen || detailItemId || panoramaOpen) return;
+      if (modalOpen || assetModalOpen || detailItemId) return;
       if (focusedAssetId) {
         event.preventDefault();
         setFocusedAssetId(null);
@@ -307,13 +301,10 @@ export function FolderLibraryOverlay({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, modalOpen, assetModalOpen, detailItemId, focusedAssetId, focusedDocumentId, panoramaOpen]);
+  }, [onClose, modalOpen, assetModalOpen, detailItemId, focusedAssetId, focusedDocumentId]);
 
   const showingDocumentsTab = showingDocumentGrid && filterTab === "documents";
   const showingAttachments = canUseAttachments && filterTab === "skill";
-  const canUsePanorama = isAdminSessionEmail(userEmail)
-    && showingDocumentGrid
-    && filterTab === "image";
   const attachmentMutateKind = "folder";
   const attachmentMutateId = attachmentOwnerId;
   const items = showingAttachments ? folderAttachmentItems : itemsPrimary;
@@ -321,11 +312,6 @@ export function FolderLibraryOverlay({
   const looseItems = useMemo(
     () => (showingDocumentGrid ? items.filter((item) => !item.setId) : items),
     [items, showingDocumentGrid],
-  );
-
-  const panoramaSlides = useMemo(
-    () => listPanoramaPromptSlides(showingDocumentGrid ? looseItems : []),
-    [looseItems, showingDocumentGrid],
   );
 
   const focusedAsset = assets.find((asset) => asset.id === focusedAssetId) || null;
@@ -853,17 +839,6 @@ export function FolderLibraryOverlay({
                   >
                     {t("doc.library.tabImages")}
                   </button>
-                  {canUsePanorama ? (
-                    <button
-                      type="button"
-                      className="folder-library-overlay__panorama"
-                      aria-label={t("doc.library.panorama")}
-                      title={t("doc.library.panorama")}
-                      onClick={() => setPanoramaOpen(true)}
-                    >
-                      {t("doc.library.panorama")}
-                    </button>
-                  ) : null}
                   {filterTab === "image" ? (
                     <>
                       <button
@@ -1052,13 +1027,6 @@ export function FolderLibraryOverlay({
           )}
         </div>
       </div>
-
-      {panoramaOpen ? (
-        <LibraryPanoramaModal
-          items={panoramaSlides}
-          onClose={() => setPanoramaOpen(false)}
-        />
-      ) : null}
 
       {focusedAsset ? (
         <FolderLibraryAssetDetail
