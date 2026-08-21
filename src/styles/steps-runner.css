@@ -630,12 +630,12 @@
   padding: 24px 16px;
   box-sizing: border-box;
   background: #0a0c10;
-  /* Inherit the to-do list dashboard palette: card + inner = same #12151c */
-  --step-dashboard-bg: #12151c;
-  --step-dashboard-surface: #12151c;
-  --step-dashboard-code-bg: #12151c;
-  --step-card-bg: #12151c;
-  --step-input-bg: #12151c;
+  /* Same surface as recipe / documents — neutral #151515, not bluish #12151c */
+  --step-dashboard-bg: #151515;
+  --step-dashboard-surface: #151515;
+  --step-dashboard-code-bg: #151515;
+  --step-card-bg: #151515;
+  --step-input-bg: #151515;
 }
 
 .step-playbook-dashboard-overlay__backdrop {
@@ -675,15 +675,19 @@
 }
 
 .step-playbook-dashboard-overlay__share {
+  width: 28px;
+  height: 28px;
   min-height: 28px;
-  padding: 4px 10px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(232, 220, 200, 0.85);
-  font-size: 11px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 .step-playbook-dashboard-overlay__share:hover:not(:disabled) {
@@ -694,6 +698,37 @@
 .step-playbook-dashboard-overlay__share:disabled {
   opacity: 0.55;
   cursor: wait;
+}
+
+.step-playbook-dashboard-overlay__share--copied {
+  color: #cdffa5;
+  border-color: rgba(205, 255, 165, 0.35);
+  background: rgba(205, 255, 165, 0.12);
+}
+
+.step-playbook-dashboard-overlay__share-icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.step-playbook-dashboard-overlay__share-check {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  animation: step-share-check-pop 0.28s ease;
+}
+
+@keyframes step-share-check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .step-playbook-dashboard-overlay__close {
@@ -752,22 +787,39 @@
   flex-shrink: 0;
 }
 
-.step-playbook-dashboard-overlay__body .doc-step-sequence__label,
+.step-playbook-dashboard-overlay__body .doc-step-sequence__label {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .step-playbook-dashboard-overlay__body .doc-step-sequence__title-label,
 .step-playbook-dashboard-overlay__body .doc-step-sequence__field-label {
   color: rgba(232, 220, 200, 0.52);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__counter {
-  color: #79b8ff;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  color: #cdffa5;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  word-spacing: -0.12em;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__title-input,
 .step-playbook-dashboard-overlay__body .doc-step-sequence__header-title {
   color: #e8e4dc;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.step-playbook-dashboard-overlay__body .doc-step-sequence--saved .doc-step-sequence__header-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__title-input {
@@ -813,9 +865,9 @@
   border: none;
   min-width: 72px;
   padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--next:hover:not(:disabled) {
@@ -827,11 +879,11 @@
   color: rgba(232, 220, 200, 0.72);
   border-color: rgba(255, 255, 255, 0.14);
   background: transparent;
-  font-weight: 500;
+  font-weight: 400;
   min-width: 0;
-  padding: 4px 11px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--save:hover:not(:disabled),
@@ -915,14 +967,32 @@
   overflow: visible;
 }
 
+.step-playbook-dashboard-overlay__body .doc-step-recipe__field-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.step-playbook-dashboard-overlay__body .doc-step-recipe__meta-text,
+.step-playbook-dashboard-overlay__body .doc-step-recipe__textarea--meta,
+.step-playbook-dashboard-overlay__body .doc-step-recipe__textarea--prompt,
+.step-playbook-dashboard-overlay__body .doc-step-recipe__prompt-text,
+.step-playbook-dashboard-overlay__body .doc-step-recipe__md {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .step-playbook-dashboard-overlay__body .doc-step-sequence__step-badge {
   padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #79b8ff;
-  font-size: 16px;
-  font-weight: 600;
+  color: #cdffa5;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  word-spacing: -0.12em;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__input,
@@ -2426,9 +2496,9 @@
   padding: 20px 16px 32px;
   background: #0a0c10;
   color: #e8e4dc;
-  --step-dashboard-bg: #12151c;
-  --step-card-bg: #12151c;
-  --step-input-bg: #12151c;
+  --step-dashboard-bg: #151515;
+  --step-card-bg: #151515;
+  --step-input-bg: #151515;
   --scroll-bg: #0a0c10;
 }
 
@@ -2505,6 +2575,70 @@
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.step-share-page__main .doc-step-sequence__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.step-share-page__main .doc-step-sequence__header-title,
+.step-share-page__main .doc-step-sequence--saved .doc-step-sequence__header-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.step-share-page__main .doc-step-sequence__counter {
+  color: #cdffa5;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  word-spacing: -0.12em;
+}
+
+.step-share-page__main .doc-step-recipe__field-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.step-share-page__main .doc-step-recipe__meta-text,
+.step-share-page__main .doc-step-recipe__textarea--meta,
+.step-share-page__main .doc-step-recipe__textarea--prompt,
+.step-share-page__main .doc-step-recipe__prompt-text,
+.step-share-page__main .doc-step-recipe__md {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.step-share-page__main .doc-step-sequence__nav-btn {
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  min-width: 0;
+  padding: 6px 12px;
+}
+
+.step-share-page__main .doc-step-sequence__nav-btn--next {
+  color: #111;
+  background: #fff;
+  border: none;
+  padding: 6px 14px;
+  font-weight: 700;
+}
+
+.step-share-page__main .doc-step-sequence__nav-btn--next:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.step-share-page__main .doc-step-sequence__nav-btn--back {
+  color: rgba(232, 220, 200, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: transparent;
 }
 
 .step-share-page__status,

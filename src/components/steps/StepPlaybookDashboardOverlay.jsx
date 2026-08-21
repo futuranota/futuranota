@@ -1,7 +1,39 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
+
+function ShareGlyph({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M12 3v11"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8.5 6.5 12 3l3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 12v5.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V12"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 /**
  * @param {Object} props
@@ -9,7 +41,7 @@ import { useI18n } from "../../i18n/useI18n.js";
  * @param {(patch: Partial<import("../../lib/stepPlaybookSession.js").StepPlaybookSession>) => void} props.onChange
  * @param {() => void} props.onCloseTab
  * @param {(finalizedSteps: import("../../lib/docBlocks.js").StepEntry[]) => void} props.onSaved
- * @param {() => void | Promise<void>} [props.onShare]
+ * @param {() => void | Promise<boolean | void>} [props.onShare]
  * @param {boolean} [props.shareBusy]
  */
 export function StepPlaybookDashboardOverlay({
@@ -21,6 +53,8 @@ export function StepPlaybookDashboardOverlay({
   shareBusy = false,
 }) {
   const { t } = useI18n();
+  const [shareCopied, setShareCopied] = useState(false);
+  const copiedTimerRef = useRef(null);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -32,9 +66,22 @@ export function StepPlaybookDashboardOverlay({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onCloseTab]);
 
+  useEffect(() => () => {
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+  }, []);
+
   if (!session) return null;
 
   const canShare = Boolean(session.saved && session.docId && onShare);
+
+  const handleShareClick = async () => {
+    if (shareBusy || shareCopied) return;
+    const ok = await onShare?.();
+    if (ok === false) return;
+    setShareCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setShareCopied(false), 1600);
+  };
 
   return createPortal(
     <div
@@ -49,13 +96,22 @@ export function StepPlaybookDashboardOverlay({
           {canShare ? (
             <button
               type="button"
-              className="step-playbook-dashboard-overlay__share"
-              onClick={() => { void onShare?.(); }}
+              className={
+                "step-playbook-dashboard-overlay__share"
+                + (shareCopied ? " step-playbook-dashboard-overlay__share--copied" : "")
+              }
+              onClick={() => { void handleShareClick(); }}
               disabled={shareBusy}
-              aria-label={t("stepsLibrary.share")}
-              title={t("stepsLibrary.share")}
+              aria-label={shareCopied ? t("stepsLibrary.shareCopied") : t("stepsLibrary.share")}
+              title={shareCopied ? t("stepsLibrary.shareCopied") : t("stepsLibrary.share")}
             >
-              {shareBusy ? "…" : t("stepsLibrary.share")}
+              {shareBusy ? (
+                <span aria-hidden>…</span>
+              ) : shareCopied ? (
+                <span className="step-playbook-dashboard-overlay__share-check" aria-hidden>✓</span>
+              ) : (
+                <ShareGlyph className="step-playbook-dashboard-overlay__share-icon" />
+              )}
             </button>
           ) : null}
           <button

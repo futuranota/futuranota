@@ -1227,26 +1227,25 @@ useEffect(() => {
 
   const handleStepPlaybookShare = useCallback(async () => {
     const current = activeStepPlaybookSessionRef.current;
-    if (!current) return;
+    if (!current) return false;
     if (!current.saved || !current.docId) {
       setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
-      return;
+      return false;
     }
     const user = useAuthStore.getState().user;
     if (!user?.id) {
       setToast({ message: t('stepsLibrary.shareSignIn'), kind: 'warm' });
-      return;
+      return false;
     }
-    if (stepPlaybookShareBusy) return;
+    if (stepPlaybookShareBusy) return false;
     setStepPlaybookShareBusy(true);
     try {
       const result = await shareStepPlaybookAndCopy({ session: current, user });
-      setToast({
-        message: result.copied
-          ? t('stepsLibrary.shareCopied')
-          : result.url,
-        kind: 'ok',
-      });
+      if (!result.copied) {
+        setToast({ message: result.url, kind: 'ok' });
+        return false;
+      }
+      return true;
     } catch (err) {
       const msg = String(err?.message || '');
       if (msg === 'SAVE_FIRST') {
@@ -1259,6 +1258,7 @@ useEffect(() => {
           kind: 'warm',
         });
       }
+      return false;
     } finally {
       setStepPlaybookShareBusy(false);
     }
