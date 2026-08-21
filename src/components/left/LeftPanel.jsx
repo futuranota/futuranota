@@ -2252,7 +2252,7 @@ export function LeftPanel({
     setGinaDashboardOpen(true);
   }, [userEmail, locale, selectedCanvasNodeIds, canvasNodes, nodesMap, docsMap]);
 
-  /** Temporary sidebar Agents list — only Social Hype + Content Creator while wiring flows. */
+  /** Temporary under Assistance — Social Hype + Content Creator (Agents click-folder retired). */
   const canvasAgents = useMemo(
     () => getAgentsForUser(userEmail).filter((agent) => (
       agent.id === AGENT_SOCIAL_HYPE_ANALYST
@@ -2480,6 +2480,11 @@ export function LeftPanel({
   useEffect(() => {
     setClickFolderViewStore(clickFolderView);
   }, [clickFolderView, setClickFolderViewStore]);
+
+  // Agents click-folder retired — land orphan "agents" views in Assistance.
+  useEffect(() => {
+    if (clickFolderView === "agents") setClickFolderView("assistance");
+  }, [clickFolderView]);
 
   useEffect(() => {
     setClickFolderView(null);
@@ -3312,7 +3317,6 @@ export function LeftPanel({
     (!objectWorkspaceActive && panelType !== "Objects")
     || (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId)
     || (panelType === "Documents" && !clickFolderView && !guestWorkspace)
-    || (!guestWorkspace && clickFolderView === "agents")
     || (!guestWorkspace && clickFolderView === "assistance");
   const docCreateMode = clickFolderView === "groups"
     ? "product"
@@ -5527,11 +5531,6 @@ export function LeftPanel({
                     onClick={() => setClickFolderView("departments")}
                   />
                   <ClickFolderBox
-                    variant="agents"
-                    label={t("sidebar.agents")}
-                    onClick={() => setClickFolderView("agents")}
-                  />
-                  <ClickFolderBox
                     variant="assistance"
                     label={t("sidebar.assistance")}
                     onClick={() => setClickFolderView("assistance")}
@@ -5781,25 +5780,6 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "agents" && !guestWorkspace ? (
-              <div className="lp-click-folder-detail">
-                <ClickFolderBack
-                  iconOnly
-                  onBack={() => setClickFolderView(null)}
-                  label={t("sidebar.agentsTitle")}
-                />
-                <div className="lp-click-folder-detail-list">
-                  {canvasAgents.map((agent) => (
-                    <AgentListCard
-                      key={agent.id}
-                      agent={agent}
-                      onInsert={(agentId) => onInsertAgent?.(agentId)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
@@ -5816,6 +5796,18 @@ export function LeftPanel({
                     knowledgeDocCount={knowledgeDocs.length}
                     chatOpen={ginaDashboardOpen && !ginaMeetingSession}
                   />
+                  {canvasAgents.length > 0 ? (
+                    <div className="lp-assistance-agents">
+                      <div className="lp-assistance-agents__title">{t("sidebar.agents")}</div>
+                      {canvasAgents.map((agent) => (
+                        <AgentListCard
+                          key={agent.id}
+                          agent={agent}
+                          onInsert={(agentId) => onInsertAgent?.(agentId)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}

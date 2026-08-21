@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Direction
 
-- Primordial build: **Gina / Asistente**. Multi-agent cards will be removed soon (keep Agents card until explicit approval — see `assistant-single-card-roadmap.mdc`).
+- Primordial build: **Gina / Asistente**. **Agents sidebar card retired** — specialists temporarily listed under Assistance (see `assistant-single-card-roadmap.mdc`).
 - Intel tools that stay (**Launch Radar**, **Forecast**, **Event calendar**, Market Hype, etc.) remain in **their panel only** — not as a multi-agent package.
 
 ## Credits → capacity model

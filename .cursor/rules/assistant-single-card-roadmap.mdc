@@ -9,11 +9,11 @@ Futura Nota is moving toward one protagonist: **Asistente**.
 
 ## Transition
 
-- Keep the existing **Agents** folder/card untouched while testing continues.
-- Do not delete or migrate Agents until the user explicitly approves it.
-- Add a separate card directly below Agents titled **Asistente**.
-- The new card should follow the current Agent card's insert/open interaction so it can be inserted into the workspace.
-- Long term, Agents will be removed and only Asistente will remain.
+- **Agents click-folder removed.** Canvas specialists (Social Hype, Content Creator) live **temporarily under Assistance** (below Gina Call / Knowledge / Meetings) until their product home is decided.
+- Do not restore a separate Agents sidebar card.
+- Assistance = Gina dashboard entry + temporary agent Insert/drag list.
+- Intel tools (**Launch Radar**, **Forecast**, **Market Hype**, Event calendar) stay in their panel; agent runs still feed those loops.
+- Long term: one Asistente protagonist; specialist agents / Social Hype destiny TBD (not deleted from registry).
 
 ## Chat reference
 

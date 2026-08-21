@@ -110,6 +110,23 @@
   padding-bottom: 8px;
 }
 
+.lp-assistance-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lp-assistance-agents__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7d7e81;
+}
+
 .lp-assistance-call-btn {
   align-self: flex-start;
 }
