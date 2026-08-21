@@ -4,6 +4,8 @@ import { generateId } from "./ids.js";
 import { resolveSyncUserId } from "./resolveSyncUserId.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
+const URL_TABLE_TOMBSTONE_KEY = "futura-nota-url-table-deleted-v1";
+const TOMBSTONE_CLEAR_GRACE_MS = 60_000;
 
 /** @param {(...args: unknown[]) => void} fn @param {number} ms */
 function debounce(fn, ms) {
@@ -57,16 +59,139 @@ let debouncedRemoteSync = null;
 /**
  * Tombstones for tables deleted locally but possibly still present remotely.
  * Prevents hydrate from resurrecting ghost URL tables.
- * Cleared after a successful sync (orphan DELETE landed).
  * @type {Set<string>}
  */
 const pendingDeletedTableIds = new Set();
+/** @type {Map<string, number>} */
+const deletedTableMarkedAt = new Map();
+
+function readUrlTableTombstoneLedger() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(URL_TABLE_TOMBSTONE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Union memory ∪ disk — never wipe another tab's table tombstones. */
+function writeUrlTableTombstoneLedger() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const existing = readUrlTableTombstoneLedger();
+    const ids = new Set([
+      ...(Array.isArray(existing?.ids) ? existing.ids : []).map(String),
+      ...pendingDeletedTableIds,
+    ]);
+    const markedAt = {
+      ...(existing?.markedAt && typeof existing.markedAt === "object" ? existing.markedAt : {}),
+    };
+    for (const id of pendingDeletedTableIds) {
+      if (markedAt[id] == null) {
+        markedAt[id] = deletedTableMarkedAt.get(id) || Date.now();
+      }
+    }
+    localStorage.setItem(
+      URL_TABLE_TOMBSTONE_KEY,
+      JSON.stringify({ ids: [...ids], markedAt, updatedAt: Date.now() }),
+    );
+  } catch {
+    // private mode / quota
+  }
+}
+
+/** @param {string[]} clearedIds */
+function removeIdsFromUrlTableTombstoneLedger(clearedIds) {
+  if (typeof localStorage === "undefined") return;
+  const remove = new Set((clearedIds || []).filter(Boolean).map(String));
+  if (!remove.size) return;
+  try {
+    const existing = readUrlTableTombstoneLedger() || {};
+    const prev = Array.isArray(existing.ids) ? existing.ids : [];
+    const next = prev.filter((id) => id && !remove.has(String(id)));
+    const markedAt = {
+      ...(existing.markedAt && typeof existing.markedAt === "object" ? existing.markedAt : {}),
+    };
+    for (const id of remove) delete markedAt[id];
+    localStorage.setItem(
+      URL_TABLE_TOMBSTONE_KEY,
+      JSON.stringify({ ids: next, markedAt, updatedAt: Date.now() }),
+    );
+  } catch {
+    // private mode / quota
+  }
+}
+
+function adoptUrlTableTombstoneLedger() {
+  const ledger = readUrlTableTombstoneLedger();
+  if (!ledger || typeof ledger !== "object") return;
+  const ids = Array.isArray(ledger.ids) ? ledger.ids : [];
+  const markedAt = ledger.markedAt && typeof ledger.markedAt === "object" ? ledger.markedAt : {};
+  const now = Date.now();
+  for (const id of ids) {
+    if (!id) continue;
+    const key = String(id);
+    if (!pendingDeletedTableIds.has(key)) {
+      pendingDeletedTableIds.add(key);
+    }
+    if (!deletedTableMarkedAt.has(key)) {
+      const fromDisk = Number(markedAt[key]);
+      deletedTableMarkedAt.set(key, Number.isFinite(fromDisk) && fromDisk > 0 ? fromDisk : now);
+    }
+  }
+}
 
 /** @param {string|string[]} ids */
 export function markUrlTableDeleted(ids) {
   const list = Array.isArray(ids) ? ids : [ids];
+  const now = Date.now();
+  let changed = false;
   for (const id of list) {
-    if (id) pendingDeletedTableIds.add(String(id));
+    if (!id) continue;
+    const key = String(id);
+    if (!pendingDeletedTableIds.has(key)) {
+      pendingDeletedTableIds.add(key);
+      deletedTableMarkedAt.set(key, now);
+      changed = true;
+    }
+  }
+  if (changed) writeUrlTableTombstoneLedger();
+}
+
+/**
+ * Drop tombstones only after remote SELECT proves gone + grace window.
+ * @param {string} userId
+ * @param {Set<string>} frozenDeleted
+ */
+async function clearUrlTableTombstonesConfirmedAbsent(userId, frozenDeleted) {
+  const ids = [...frozenDeleted].filter(Boolean);
+  if (!ids.length) return;
+  const { data, error } = await supabase
+    .from("url_tables")
+    .select("id")
+    .eq("user_id", userId)
+    .in("id", ids);
+  if (error) {
+    console.warn(formatSupabaseError(error, "Verify url_tables tombstones"));
+    return;
+  }
+  const stillRemote = new Set((data || []).map((row) => row?.id).filter(Boolean));
+  const now = Date.now();
+  const cleared = [];
+  for (const id of ids) {
+    if (stillRemote.has(id)) continue;
+    const markedAt = deletedTableMarkedAt.get(id);
+    if (markedAt == null || now - markedAt < TOMBSTONE_CLEAR_GRACE_MS) continue;
+    pendingDeletedTableIds.delete(id);
+    deletedTableMarkedAt.delete(id);
+    cleared.push(id);
+  }
+  if (cleared.length) {
+    removeIdsFromUrlTableTombstoneLedger(cleared);
+    writeUrlTableTombstoneLedger();
   }
 }
 
@@ -78,8 +203,10 @@ async function syncUrlTablesToSupabase(tables) {
     return false;
   }
 
+  adoptUrlTableTombstoneLedger();
+  const frozenDeleted = new Set(pendingDeletedTableIds);
   const now = new Date().toISOString();
-  const liveTables = tables.filter((table) => !pendingDeletedTableIds.has(table.id));
+  const liveTables = tables.filter((table) => !frozenDeleted.has(table.id));
   const rows = liveTables.map((table) => tableToRow(table, userId, now));
 
   if (rows.length > 0) {
@@ -120,9 +247,10 @@ async function syncUrlTablesToSupabase(tables) {
   }
 
   const localIds = new Set(liveTables.map((table) => table.id));
+  // Never treat tombstoned ids as "local" — they must stay in the orphan DELETE set.
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
-    .filter((id) => !localIds.has(id));
+    .filter((id) => id && !localIds.has(id));
 
   if (orphanIds.length > 0) {
     const { error: deleteErr } = await supabase
@@ -136,8 +264,7 @@ async function syncUrlTablesToSupabase(tables) {
     }
   }
 
-  // Remote now mirrors local: tombstoned tables were deleted as orphans.
-  pendingDeletedTableIds.clear();
+  await clearUrlTableTombstonesConfirmedAbsent(userId, frozenDeleted);
   return true;
 }
 
@@ -168,6 +295,7 @@ export async function loadUrlTablesFromSupabase() {
  * @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} remoteTables
  */
 export function mergeUrlTablesFromRemote(localTables, remoteTables) {
+  adoptUrlTableTombstoneLedger();
   const localList = Array.isArray(localTables) ? localTables : [];
   const remoteList = Array.isArray(remoteTables) ? remoteTables : [];
   const localById = new Map(localList.map((table) => [table.id, table]));
@@ -209,22 +337,30 @@ export async function flushUrlTablesSync() {
 export function initUrlTablesSync(useUrlTablesStore) {
   if (typeof window === "undefined") return;
 
+  adoptUrlTableTombstoneLedger();
+
   debouncedRemoteSync = debounce((tables) => {
     if (isHydrating) return;
     syncUrlTablesToSupabase(tables);
   }, SYNC_DEBOUNCE_MS);
 
   const hydrateFromRemote = async () => {
+    adoptUrlTableTombstoneLedger();
     const remoteTables = await loadUrlTablesFromSupabase();
     if (remoteTables === null) return;
 
     isHydrating = true;
     try {
+      adoptUrlTableTombstoneLedger();
       const localTables = useUrlTablesStore.getState().tables;
       const merged = mergeUrlTablesFromRemote(localTables, remoteTables);
       const tombstonedRemote = remoteTables.some((table) => (
         pendingDeletedTableIds.has(table.id)
       ));
+
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix',hypothesisId:'H-URL',location:'urlTablesSync.js:hydrateFromRemote',message:'URL tables hydrate merge',data:{pending:[...pendingDeletedTableIds],remoteCount:remoteTables.length,localCount:localTables.length,mergedCount:merged.length,tombstonedRemote,skippedRemoteIds:remoteTables.filter((t)=>pendingDeletedTableIds.has(t.id)).map((t)=>t.id)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (remoteTables.length > 0 || tombstonedRemote || pendingDeletedTableIds.size > 0) {
         useUrlTablesStore.getState().replaceTables(merged);
@@ -250,6 +386,7 @@ export function initUrlTablesSync(useUrlTablesStore) {
     if (event === "SIGNED_OUT") {
       debouncedRemoteSync?.cancel();
       pendingDeletedTableIds.clear();
+      deletedTableMarkedAt.clear();
     }
   });
 

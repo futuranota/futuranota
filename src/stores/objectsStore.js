@@ -79,6 +79,10 @@ export const useObjectsStore = create(
         }),
 
       deleteObject: (id) => {
+        const before = get().objects?.[id] || null;
+        // #region agent log
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'pre-fix',hypothesisId:'H-A',location:'objectsStore.js:deleteObject',message:'mark tombstone + remove local object',data:{id,name:before?.name||null,role:before?.role||null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         markCompaniesDeletedForSync(id);
         set((state) => {
           const next = { ...state.objects };
@@ -87,6 +91,9 @@ export const useObjectsStore = create(
         });
         flushPersistenceSync().catch((err) => {
           console.warn("Flush after corpus delete failed:", err);
+          // #region agent log
+          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'pre-fix',hypothesisId:'H-B',location:'objectsStore.js:flushFailed',message:'Flush after corpus delete failed',data:{id,error:String(err?.message||err)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
         });
       },
 

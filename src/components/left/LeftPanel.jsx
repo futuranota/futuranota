@@ -3164,6 +3164,9 @@ export function LeftPanel({
       cancelLabel: t("common.cancel"),
     });
     if (!confirmed) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'pre-fix',hypothesisId:'H-A',location:'LeftPanel.jsx:handleDeleteObject',message:'User confirmed delete object',data:{objectId,name:obj.name,role:obj.role||null,isGuest:obj.role==='guest',docCount,siblingHomeDepot:Object.values(objects||{}).filter((o)=>/home\s*depot/i.test(String(o?.name||''))).map((o)=>({id:o.id,name:o.name,role:o.role||null}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     deleteObjectWithCascade(objectId);
     if (activeId === objectId) setActiveId(null);
     if (filterObjectId === objectId) setFilterObjectId(null);
