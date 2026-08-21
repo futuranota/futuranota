@@ -1695,17 +1695,6 @@ export function DocExpandedView({
     }
   };
 
-  const handleSendQueryToIntelSearch = async () => {
-    const gate = await ensureChildScheduleOrRemind();
-    if (gate === "stay") return;
-    if (gate === "discard") {
-      discardNodeModalWithoutSave();
-      return;
-    }
-    await flushAndCloseNodeModal();
-    onClose();
-  };
-
   const handleRequestCloseDoc = () => {
     requestCloseDoc();
   };
@@ -2728,16 +2717,6 @@ export function DocExpandedView({
           onClose={handleRequestCloseNodeModal}
           onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
           entityNodeId={activeNodeContext.nodeId || null}
-          onSendToIntelSearch={handleSendQueryToIntelSearch}
-          intelSearchMeta={
-            activeNodeContext
-              ? {
-                  queryNodeEntityId: activeNodeContext.nodeId || null,
-                  docId,
-                  blockIndex: activeNodeContext.blockIndex,
-                }
-              : null
-          }
         />
       ) : null}
       <UnsavedChangesConfirm

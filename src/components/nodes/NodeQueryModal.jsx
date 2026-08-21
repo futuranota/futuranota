@@ -1,7 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
-import { runIntelSearch } from "../../lib/intelSearch.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
@@ -203,10 +201,9 @@ export function NodeQueryModal({
   /** Close and discard without re-running schedule/unsaved gates (optional). */
   onCloseWithoutSave,
   initialContentFocus = false,
-  onSendToIntelSearch,
   onInsertToCanvas: _onInsertToCanvas,
   entityNodeId = null,
-  intelSearchMeta = null,
+  intelSearchMeta: _intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
   anchorFinishTime = "",
@@ -377,8 +374,6 @@ export function NodeQueryModal({
     return () => cancelAnimationFrame(frame);
   }, [contentFocusMode, entityNodeId, scrollContentToTop]);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
-  const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
-  const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
 
   const normalizedDateContent =
     dataType === "date"
@@ -1711,24 +1706,6 @@ export function NodeQueryModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [contentFocusMode, requestDismiss, onSave, handleFooterSave]);
 
-  const handleSearchClick = () => {
-    const queryText = (displayQuery || "").trim() || displayQuery;
-    if (!queryText || intelSearchStatus === "loading") return;
-    triggerIntelSearchFromNode(queryText);
-    runIntelSearch({
-      query: queryText,
-      queryNodeEntityId: intelSearchMeta?.queryNodeEntityId ?? null,
-      queryCanvasNodeId: intelSearchMeta?.queryCanvasNodeId ?? null,
-      docId: intelSearchMeta?.docId ?? null,
-      blockIndex: intelSearchMeta?.blockIndex ?? null,
-    });
-    if (onSendToIntelSearch) {
-      onSendToIntelSearch();
-      return;
-    }
-    onClose?.();
-  };
-
   const modalCard = (
       <div
         className={
@@ -2545,14 +2522,6 @@ export function NodeQueryModal({
                 onTypographyChange={setTypographyId}
               />
             ) : null}
-          </div>
-          <div className="node-query-modal__footer-search">
-            <IntelSearchButton
-              variant="modal"
-              loading={intelSearchStatus === "loading"}
-              onClick={handleSearchClick}
-              title="Send query to Intel search and close"
-            />
           </div>
         </footer>
       </div>

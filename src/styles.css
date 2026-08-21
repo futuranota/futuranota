@@ -1194,6 +1194,46 @@ textarea.field {
   display: block;
   padding: 10px 10px 8px;
 }
+.intel-toolbar-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.intel-toolbar-row .intel-model-select {
+  flex: 0 0 auto;
+}
+.intel-toolbar-overlays {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.intel-toolbar-overlays .intel-folder-bar {
+  margin-bottom: 0;
+}
+.intel-toolbar-overlays .intel-folder-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.intel-folder-tabs__icon {
+  width: 11px;
+  height: 11px;
+  object-fit: contain;
+  opacity: 0.72;
+  flex-shrink: 0;
+}
+.intel-folder-tabs button[data-on="1"] .intel-folder-tabs__icon,
+.intel-folder-tabs button:hover .intel-folder-tabs__icon {
+  opacity: 0.95;
+}
+.intel-folder-bar.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
 .intel-search-card {
   position: relative;
   background: #12171d;
@@ -1512,7 +1552,7 @@ textarea.field {
   z-index: 1;
   flex: 1 1 0;
   min-width: 0;
-  padding: 4px 5px;
+  padding: 4px 4px;
   border: none;
   background: transparent;
   color: #757b87;
@@ -1527,6 +1567,11 @@ textarea.field {
   cursor: pointer;
   border-radius: 3px;
   transition: color 120ms ease;
+}
+.intel-folder-tabs__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .intel-folder-tabs button[data-on="1"] {
   color: #e8eaef;
@@ -1544,22 +1589,10 @@ textarea.field {
   min-height: 200px;
 }
 .intel-folder-panel--forecast {
-  max-height: min(320px, 42vh);
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #2b323d #0b0e12;
-}
-.intel-folder-panel--forecast::-webkit-scrollbar {
-  width: 5px;
-}
-.intel-folder-panel--forecast::-webkit-scrollbar-track {
-  background: #0b0e12;
-  border-radius: 5px;
-}
-.intel-folder-panel--forecast::-webkit-scrollbar-thumb {
-  background: #2b323d;
-  border-radius: 5px;
+  position: relative;
+  z-index: 2;
+  max-height: none;
+  overflow: visible;
 }
 .intel-folder-panel--calendar {
   min-height: 200px;
@@ -1650,9 +1683,6 @@ textarea.field {
   display: flex;
   flex-direction: column;
   gap: 0;
-}
-.intel-folder-panel--with-search.intel-folder-panel--forecast {
-  max-height: min(420px, 52vh);
 }
 .intel-folder-placeholder {
   padding: 24px 12px;

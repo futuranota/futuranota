@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { daysBetween, fmtDate, timelineWindowDays } from './data.jsx';
 import { Sidebar } from './components/sidebar/Sidebar.jsx';
 import { FuturaCanvas } from './components/canvas/FuturaCanvas.jsx';
@@ -15,23 +15,16 @@ import {
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { TacticalTimeline } from './components/timeline/TacticalTimeline.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
-import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
 import { MarketHypePanel } from './components/intel/MarketHypePanel.jsx';
 import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
-import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { StudioPanel } from './components/studio/StudioPanel.jsx';
-import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
-import { IntelRateLimitBadge } from './components/intel/IntelRateLimitBadge.jsx';
-import { formatRateLimitClock } from './lib/intelRateLimitCooldown.js';
 import { clearStudioSessionDraft } from './lib/studioConfig.js';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
-import { runIntelSearch } from './lib/intelSearch.js';
-import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
 import { resolveCurrentCorpus, resolveIntelCampaignBrand } from './lib/currentCorpus.js';
 import { resolveLaunchRadarObjectId } from './lib/agents/resolveLaunchRadarObjectId.js';
 import { isCalendarEventNodeContent } from './lib/eventCalendarSearch.js';
@@ -43,6 +36,8 @@ import { usePlanStore } from './stores/planStore.js';
 import { isIntelPanelLocked } from './lib/planConfig.js';
 import { PlanFeatureGate } from './components/plans/PlanFeatureGate.jsx';
 import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
+
+const INTEL_EMBED_LINK_ICON = "/uploads/url-table.svg";
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -601,13 +596,11 @@ function NotesPanel({
 
 /* ─── INTEL PANEL ─────────────────────────────────────────── */
 
-function useIntelTabOptions() {
+function useIntelOverlayTabs() {
   const { t } = useI18n();
   return useMemo(() => ([
-    { id: "news", label: t("intel.news") },
-    { id: "youtube", label: t("intel.youtube") },
+    { id: "embed-link", label: t("intel.embedLink"), iconSrc: INTEL_EMBED_LINK_ICON },
     { id: "studio", label: t("intel.studio") },
-    { id: "campaign", label: t("intel.campaign") },
   ]), [t]);
 }
 
@@ -642,7 +635,15 @@ function Tabs({ value, options, onChange }) {
   );
 }
 
-function IntelFolderBar({ value, onChange, launchBadge = null, tabs }) {
+function IntelFolderBar({
+  value,
+  onChange,
+  launchBadge = null,
+  tabs,
+  ariaLabel,
+  disabled = false,
+  idPrefix = "intel-folder",
+}) {
   const { t } = useI18n();
   const refs = useRef([]);
   const [thumb, setThumb] = useState({ left: 0, width: 0 });
@@ -651,11 +652,16 @@ function IntelFolderBar({ value, onChange, launchBadge = null, tabs }) {
     const idx = tabs.findIndex((o) => o.id === value);
     const el = refs.current[idx];
     if (el) setThumb({ left: el.offsetLeft, width: el.offsetWidth });
+    else setThumb({ left: 0, width: 0 });
   }, [value, tabs]);
 
   return (
-    <div className="intel-folder-bar">
-      <div className="intel-folder-tabs" role="tablist" aria-label={t("intel.foldersAria")}>
+    <div className={"intel-folder-bar" + (disabled ? " is-disabled" : "")}>
+      <div
+        className="intel-folder-tabs"
+        role="tablist"
+        aria-label={ariaLabel || t("intel.foldersAria")}
+      >
         <div className="intel-folder-tabs-thumb" style={{ left: thumb.left, width: thumb.width }} />
         {tabs.map((o, i) => (
           <button
@@ -663,13 +669,22 @@ function IntelFolderBar({ value, onChange, launchBadge = null, tabs }) {
             type="button"
             ref={(el) => { refs.current[i] = el; }}
             role="tab"
-            id={`intel-folder-tab-${o.id}`}
+            id={`${idPrefix}-tab-${o.id}`}
             aria-selected={value === o.id}
-            aria-controls={`intel-folder-panel-${o.id}`}
+            aria-controls={`${idPrefix}-panel-${o.id}`}
             data-on={value === o.id ? "1" : "0"}
+            disabled={disabled}
             onClick={() => onChange(o.id)}
           >
-            {o.label}
+            {o.iconSrc ? (
+              <img
+                className="intel-folder-tabs__icon"
+                src={o.iconSrc}
+                alt=""
+                aria-hidden
+              />
+            ) : null}
+            <span className="intel-folder-tabs__label">{o.label}</span>
           </button>
         ))}
       </div>
@@ -678,20 +693,7 @@ function IntelFolderBar({ value, onChange, launchBadge = null, tabs }) {
   );
 }
 
-function IntelFolderPlaceholder({ title }) {
-  const { t } = useI18n();
-  return (
-    <div className="intel-folder-placeholder empty-block">
-      <b>{title}</b>
-      <p className="mute" style={{ marginTop: 8 }}>
-        {t("intel.comingSoon")}
-      </p>
-    </div>
-  );
-}
-
 function IntelFoldersSection({
-  folder,
   onFolderChange,
   today,
   launchDate,
@@ -705,13 +707,13 @@ function IntelFoldersSection({
   onInsertEventNode,
   corpusBrandName = "",
   corpusObjectId = null,
-  selectedObjectId = null,
+  bodyMode = "calendar",
 }) {
   const { t } = useI18n();
   const intelFolderTabs = useIntelFolderTabs();
-  const activeTab = intelFolderTabs.find((tab) => tab.id === folder) || intelFolderTabs[0];
+  const activeTab = intelFolderTabs.find((tab) => tab.id === bodyMode) || intelFolderTabs[0];
   const daysUntilLaunch = launchDate ? daysBetween(today, launchDate) : null;
-  const launchBadge = folder === "calendar" && launchDate ? (
+  const launchBadge = bodyMode === "calendar" && launchDate ? (
     <span className="intel-folder-launch-badge tnum mono">
       T−{daysUntilLaunch}d
     </span>
@@ -722,12 +724,12 @@ function IntelFoldersSection({
     docsById,
   );
   const scheduleHint = getScheduleHintForNode(activeNode);
-  const showForecastSearch = folder === "forecast";
+  const showForecastSearch = bodyMode === "forecast";
 
   return (
     <section className="intel-folders-section" aria-label={t("intel.foldersAria")}>
       <IntelFolderBar
-        value={folder}
+        value={bodyMode}
         onChange={onFolderChange}
         launchBadge={launchBadge}
         tabs={intelFolderTabs}
@@ -736,16 +738,16 @@ function IntelFoldersSection({
         id={`intel-folder-panel-${activeTab.id}`}
         className={
           "intel-folder-panel"
-          + (folder === "calendar" ? " intel-folder-panel--calendar" : "")
-          + (folder === "forecast" ? " intel-folder-panel--forecast" : "")
-          + (folder === "launch-radar" ? " intel-folder-panel--launch-radar" : "")
-          + (folder === "market-hype" ? " intel-folder-panel--market-hype" : "")
+          + (bodyMode === "calendar" ? " intel-folder-panel--calendar" : "")
+          + (bodyMode === "forecast" ? " intel-folder-panel--forecast" : "")
+          + (bodyMode === "launch-radar" ? " intel-folder-panel--launch-radar" : "")
+          + (bodyMode === "market-hype" ? " intel-folder-panel--market-hype" : "")
           + (showForecastSearch ? " intel-folder-panel--with-search" : "")
         }
         role="tabpanel"
         aria-labelledby={`intel-folder-tab-${activeTab.id}`}
       >
-        {folder === "calendar" && (
+        {bodyMode === "calendar" && (
           <CalendarPanel
             today={today}
             launchDate={launchDate}
@@ -759,11 +761,11 @@ function IntelFoldersSection({
             onInsertEventNode={onInsertEventNode}
           />
         )}
-        {folder === "forecast" && <ForecastPanel today={today} />}
-        {folder === "launch-radar" && (
+        {bodyMode === "forecast" && <ForecastPanel today={today} />}
+        {bodyMode === "launch-radar" && (
           <LaunchPredictor today={today} />
         )}
-        {folder === "market-hype" && (
+        {bodyMode === "market-hype" && (
           <div className="intel-market-hype-wrap">
             <MarketHypePanel
               brandName={corpusBrandName}
@@ -819,12 +821,6 @@ function Signal({ item, added, isLoading, onGetOverview }) {
 }
 
 function IntelPanel({
-  intel,
-  addedIds,
-  loadingIds,
-  onGetOverview,
-  onScanBlogs,
-  hasScannedBlogs,
   today,
   launchDate,
   onSelectDate,
@@ -844,46 +840,16 @@ function IntelPanel({
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const activeCompanyObjectId = selectedObjectId || filterObjectId || null;
   const intelLocked = isIntelPanelLocked(planProfile);
-  const tabOptions = useIntelTabOptions();
-  const pluralS = (n) => (n === 1 ? "" : "s");
-  const [tab, setTab] = useState("news");
-  const [youtubePanelOpen, setYoutubePanelOpen] = useState(false);
+  const overlayTabs = useIntelOverlayTabs();
+  const [embedPanelOpen, setEmbedPanelOpen] = useState(false);
   const [studioPanelOpen, setStudioPanelOpen] = useState(false);
-  const [intelFolderTab, setIntelFolderTab] = useState("calendar");
-  const [intelQuery, setIntelQuery] = useState("");
-  const intelQueryRef = useRef(null);
-  const intelSearchSeed = useUIStateStore((s) => s.intelSearchSeed);
-  const intelSearchRequest = useUIStateStore((s) => s.intelSearchRequest);
-  const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
-  const intelSearchResult = useUIStateStore((s) => s.intelSearchResult);
-  const intelSearchError = useUIStateStore((s) => s.intelSearchError);
-  const intelSearchMeta = useUIStateStore((s) => s.intelSearchMeta);
-  const intelSelectedModelId = useUIStateStore((s) => s.intelSelectedModelId);
-  const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
-  const clearIntelSearch = useUIStateStore((s) => s.clearIntelSearch);
-  const setIntelSearchError = useUIStateStore((s) => s.setIntelSearchError);
-  const intelRateLimitUntil = useUIStateStore((s) => s.intelRateLimitUntil);
-  const [rateLimitRemainingSec, setRateLimitRemainingSec] = useState(0);
+  const [bodyMode, setBodyMode] = useState("calendar");
 
-  useEffect(() => {
-    if (!intelRateLimitUntil) {
-      setRateLimitRemainingSec(0);
-      return undefined;
-    }
-    const tick = () => {
-      setRateLimitRemainingSec(Math.max(0, Math.ceil((intelRateLimitUntil - Date.now()) / 1000)));
-    };
-    tick();
-    const id = window.setInterval(tick, 250);
-    return () => window.clearInterval(id);
-  }, [intelRateLimitUntil]);
-
-  const isRateLimitCooldown = rateLimitRemainingSec > 0;
-
-  const { brandName: corpusBrandName } = useMemo(
-    () => ({ brandName: resolveIntelCampaignBrand(objectsById, selectedObjectId) }),
-    [objectsById, selectedObjectId],
-  );
+  const overlayTabValue = embedPanelOpen
+    ? "embed-link"
+    : studioPanelOpen
+      ? "studio"
+      : null;
 
   const { corpusScopeBrand, corpusObjectId } = useMemo(() => {
     const { currentCorpus, brandName } = resolveCurrentCorpus(objectsById, selectedObjectId);
@@ -897,149 +863,33 @@ function IntelPanel({
 
   useEffect(() => {
     if (!intelLocked) return;
-    setYoutubePanelOpen(false);
+    setEmbedPanelOpen(false);
     clearStudioSessionDraft();
     setStudioPanelOpen(false);
-    if (tab === "youtube" || tab === "studio") setTab("news");
-  }, [intelLocked, tab]);
+  }, [intelLocked]);
 
-  const syncIntelQueryHeight = () => {
-    const el = intelQueryRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const maxPx = 120;
-    const next = Math.min(el.scrollHeight, maxPx);
-    el.style.height = `${next}px`;
-    el.style.overflowY = el.scrollHeight > maxPx ? "auto" : "hidden";
-  };
-
-  const injectCampaignQuery = useCallback(() => {
-    const brandLabel = corpusBrandName || t("intel.campaignScanBrandPlaceholder");
-    const seed = getDefaultCampaignSearchQuery(corpusBrandName, () =>
-      t("intel.campaignScanQuerySeed", { brand: brandLabel }),
-    );
-    setIntelQuery(seed);
-  }, [corpusBrandName, t]);
-
-  useEffect(() => {
-    if (tab !== "campaign") return;
-    injectCampaignQuery();
-  }, [tab, injectCampaignQuery]);
-
-  useEffect(() => {
-    syncIntelQueryHeight();
-  }, [intelQuery]);
-
-  useEffect(() => {
-    if (tab === "campaign") return;
-    setIntelQuery(intelSearchSeed || "");
-    requestAnimationFrame(() => syncIntelQueryHeight());
-  }, [intelSearchRequest, intelSearchSeed, tab]);
-
-  const handleIntelSearchSubmit = async () => {
-    if (intelLocked || intelSearchStatus === "loading" || isRateLimitCooldown) return;
-
-    if (tab === "campaign" && !corpusBrandName) {
-      setIntelSearchError(t("intel.campaignScanNoBrand"));
-      return;
-    }
-
-    let q = intelQuery.trim();
-    if (tab === "campaign" && !q) {
-      q = getDefaultCampaignSearchQuery(corpusBrandName, () =>
-        t("intel.campaignScanQuerySeed", { brand: corpusBrandName }),
-      ).trim();
-    }
-    if (!q) return;
-
-    triggerIntelSearchFromNode(q);
-    runIntelSearch({
-      query: q,
-      modelId: intelSelectedModelId,
-      queryNodeEntityId: null,
-      queryCanvasNodeId: null,
-      docId: null,
-      blockIndex: null,
-    });
-  };
-
-  const handleIntelClear = () => {
-    if (intelSearchStatus === "loading") return;
-    setIntelQuery("");
-    clearIntelSearch();
-    setYoutubePanelOpen(false);
-    setStudioPanelOpen(false);
-    if (tab === "youtube" || tab === "studio") setTab("news");
-    if (tab === "campaign") {
-      requestAnimationFrame(() => {
-        injectCampaignQuery();
-        syncIntelQueryHeight();
-      });
-      return;
-    }
-    requestAnimationFrame(() => syncIntelQueryHeight());
-  };
-
-  const isSearchLoading = intelSearchStatus === "loading";
-  const hasSearchResult = intelSearchStatus === "success" && intelSearchResult;
-  const contextCount = intelSearchResult?.contextNodes?.length ?? 0;
-  const youtubeSearchQuery = intelSearchResult?.query ?? intelQuery;
-  const activeIntelMeta = useMemo(() => {
-    if (!intelSearchMeta) return null;
-    const metaQuery = (intelSearchMeta.query || "").trim();
-    const currentQuery = (intelSearchResult?.query ?? intelQuery).trim();
-    if (metaQuery && currentQuery && metaQuery !== currentQuery) return null;
-    return intelSearchMeta;
-  }, [intelSearchMeta, intelSearchResult?.query, intelQuery]);
-
-  const intelNodeId = activeIntelMeta?.queryNodeEntityId ?? null;
-  const intelParentDocId = activeIntelMeta?.docId ?? null;
-  const intelBlockIndex = typeof activeIntelMeta?.blockIndex === "number"
-    ? activeIntelMeta.blockIndex
-    : null;
-
-  const handleIntelTabChange = (nextTab) => {
+  const handleOverlayTab = (tabId) => {
     if (intelLocked) return;
-    if (nextTab === "youtube") {
-      setTab("youtube");
-      setYoutubePanelOpen(true);
+    if (tabId === "embed-link") {
+      setEmbedPanelOpen(true);
       clearStudioSessionDraft();
       setStudioPanelOpen(false);
       return;
     }
-    if (nextTab === "studio") {
-      setTab("studio");
+    if (tabId === "studio") {
       setStudioPanelOpen(true);
-      setYoutubePanelOpen(false);
-      return;
+      setEmbedPanelOpen(false);
     }
-    setYoutubePanelOpen(false);
-    clearStudioSessionDraft();
-    setStudioPanelOpen(false);
-    setTab(nextTab);
   };
 
-  const handleYoutubePanelClose = () => {
-    setYoutubePanelOpen(false);
-    setTab("news");
+  const handleEmbedPanelClose = () => {
+    setEmbedPanelOpen(false);
   };
 
   const handleStudioPanelClose = () => {
     clearStudioSessionDraft();
     setStudioPanelOpen(false);
-    setTab("news");
   };
-
-  const normalizedQuery = intelQuery.trim().toLowerCase();
-  const filtered = intel.filter((s) => {
-    const byTab = s.category === tab;
-    if (!byTab) return false;
-    if (!normalizedQuery) return true;
-    const haystack = [s.src, s.category, String(s.confidence ?? "")]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(normalizedQuery);
-  });
 
   return (
     <div className={"intel-panel-wrap" + (intelLocked ? " is-locked" : "")}>
@@ -1052,14 +902,14 @@ function IntelPanel({
         </div>
       ) : null}
       <div className="intel-panel-wrap__content">
-      {youtubePanelOpen ? (
+      {embedPanelOpen ? (
         <VideoReferencePanel
-          nodeId={intelNodeId}
-          searchQuery={youtubeSearchQuery}
-          parentDocId={intelParentDocId}
-          blockIndex={intelBlockIndex}
+          nodeId={null}
+          searchQuery=""
+          parentDocId={null}
+          blockIndex={null}
           companyObjectId={activeCompanyObjectId}
-          onClose={handleYoutubePanelClose}
+          onClose={handleEmbedPanelClose}
           onSlashCreateNode={onSlashCreateNode}
         />
       ) : null}
@@ -1067,164 +917,24 @@ function IntelPanel({
         <StudioPanel onClose={handleStudioPanelClose} />
       ) : null}
       <div className="col-header intel-header">
-        <div className="intel-search-card">
-          <IntelRateLimitBadge />
-          <div className="intel-search-top">
-            <textarea
-              ref={intelQueryRef}
-              className="intel-query-input"
-              value={intelQuery}
+        <div className="intel-toolbar-row">
+          <IntelModelSelect disabled={intelLocked} className="intel-toolbar-model" />
+          <div className="intel-toolbar-overlays">
+            <IntelFolderBar
+              value={overlayTabValue}
+              onChange={handleOverlayTab}
+              tabs={overlayTabs}
+              ariaLabel={t("intel.overlaysAria")}
               disabled={intelLocked}
-              onChange={(e) => {
-                setIntelQuery(e.target.value);
-                syncIntelQueryHeight();
-              }}
-              placeholder={t("intel.describeSearch")}
-              rows={1}
-              spellCheck={false}
-              aria-label={t("intel.searchAria")}
+              idPrefix="intel-overlay"
             />
-            <IntelSearchButton
-              variant="intel"
-              loading={isSearchLoading}
-              disabled={intelLocked || isRateLimitCooldown}
-              onClick={handleIntelSearchSubmit}
-              title={isRateLimitCooldown
-                ? t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })
-                : t("intel.runSearch")}
-            />
-          </div>
-          <div className="intel-search-bottom">
-            <IntelModelSelect disabled={isSearchLoading} />
-            {tabOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className="intel-tab-chip intel-bottom-item"
-                data-on={tab === option.id ? "1" : "0"}
-                aria-pressed={tab === option.id}
-                disabled={intelLocked}
-                onClick={() => handleIntelTabChange(option.id)}
-              >
-                {option.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="intel-clear-chip intel-bottom-item"
-              onClick={handleIntelClear}
-              title={t("intel.clearSearchTitle")}
-            >
-              <img
-                className="intel-clear-chip__icon"
-                src="/uploads/botones/SpinnerGap.svg"
-                alt=""
-                aria-hidden
-              />
-              {t("intel.clearChip")}
-            </button>
           </div>
         </div>
       </div>
-      <div
-        className={
-          "col-body scroll"
-          + (hasSearchResult ? " intel-col-body--results" : "")
-        }
-        style={{ padding: 14 }}
-      >
-        {isSearchLoading && (
-          <div className="intel-search-loading" role="status" aria-live="polite">
-            <div className="intel-search-loading-pulse" />
-            <b>{tab === "campaign" ? t("intel.campaignScanning") : t("intel.searchingWeb")}</b>
-            <p className="mute">
-              {tab === "campaign" ? t("intel.campaignScanHint") : t("intel.readingNodes")}
-            </p>
-          </div>
-        )}
-
-        {intelSearchStatus === "error" && (
-          <div className="empty-block">
-            <b>{t("intel.searchFailed")}</b>
-            <p className="mute" style={{ marginTop: 6 }}>{intelSearchError}</p>
-            {isRateLimitCooldown ? (
-              <p className="intel-rate-banner mute">
-                {t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="btn sm primary"
-              style={{ marginTop: 10 }}
-              disabled={isRateLimitCooldown}
-              onClick={handleIntelSearchSubmit}
-            >
-              {isRateLimitCooldown
-                ? t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })
-                : t("common.retry")}
-            </button>
-          </div>
-        )}
-
-        {hasSearchResult && !isSearchLoading && (
-          <div className="intel-results">
-            <section className="intel-overview-block" aria-label={t("intel.aiOverview")}>
-              <div className="col-section-h" style={{ marginBottom: 8 }}>
-                <span className="label">{t("intel.overview")}</span>
-                {contextCount > 0 && (
-                  <span className="intel-context-badge">
-                    {t("intel.wiredNodes", { count: contextCount, s: pluralS(contextCount) })}
-                  </span>
-                )}
-              </div>
-              <AnimatedOverviewText
-                key={intelSearchResult.query ?? intelSearchResult.overview}
-                text={intelSearchResult.overview}
-              />
-            </section>
-            <section className="intel-citations-block" aria-label={t("intel.webReferences")}>
-              <div className="col-section-h" style={{ margin: "10px 0 6px" }}>
-                <span className="label">{t("intel.sources")}</span>
-                <span className="mute" style={{ fontSize: 11 }}>
-                  {t("intel.references", { count: intelSearchResult.citations?.length ?? 0 })}
-                </span>
-              </div>
-              <IntelSourcesList
-                citations={intelSearchResult.citations || []}
-                searchQuery={intelSearchResult.query ?? intelQuery}
-                nodeId={intelNodeId}
-                parentDocId={intelParentDocId}
-                blockIndex={intelBlockIndex}
-              />
-            </section>
-          </div>
-        )}
-
-        {!isSearchLoading && !hasSearchResult && intelSearchStatus !== "error" && !hasScannedBlogs && intel.length === 0 && tab !== "campaign" && (
-          <div className="empty-block">
-            <b>Ask anything</b>
-            <p className="mute" style={{ marginTop: 6 }}>
-              Enter a query and press search for an AI overview and web references.
-            </p>
-          </div>
-        )}
-
-        {!hasSearchResult && !isSearchLoading && hasScannedBlogs && filtered.length === 0 && tab !== "campaign" && (
-          <div className="empty-block">
-            <b>No {tab} signals</b>
-            Try another tab or run scan again.
-          </div>
-        )}
-        {!hasSearchResult && !isSearchLoading && filtered.map((s) => (
-          <Signal key={s.id} item={s}
-                  added={addedIds.includes(s.id)}
-                  isLoading={loadingIds.includes(s.id)}
-                  onGetOverview={onGetOverview} />
-        ))}
-
+      <div className="col-body scroll" style={{ padding: 14 }}>
         <IntelFoldersSection
-          folder={intelFolderTab}
-          onFolderChange={setIntelFolderTab}
+          onFolderChange={setBodyMode}
+          bodyMode={bodyMode}
           today={today}
           launchDate={launchDate}
           onSelectDate={onSelectDate}
@@ -1237,7 +947,6 @@ function IntelPanel({
           onInsertEventNode={onInsertEventNode}
           corpusBrandName={corpusScopeBrand}
           corpusObjectId={corpusObjectId}
-          selectedObjectId={selectedObjectId}
         />
       </div>
       </div>

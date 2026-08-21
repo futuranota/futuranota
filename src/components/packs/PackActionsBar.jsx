@@ -8,8 +8,7 @@ const EXPORT_ICON_SRC = "/uploads/import.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
-const PRODUCTS_ICON_SRC = "/uploads/botones/click-groups.svg";
-const CAMPAIGN_ICON_SRC = "/uploads/market-hype.svg";
+const CAMPAIGN_ICON_SRC = "/uploads/web-advertising.svg";
 
 /** @param {{ src: string, className?: string }} props */
 function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
@@ -29,7 +28,6 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
- * @param {() => void} [props.onOpenProducts]
  * @param {() => void} [props.onOpenCampaign]
  * @param {boolean} [props.companySelected]
  * @param {'category'|null} [props.filterMode]
@@ -43,7 +41,6 @@ export function PackActionsBar({
   onOpenStepsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
-  onOpenProducts,
   onOpenCampaign,
   companySelected = false,
   filterMode = null,
@@ -77,24 +74,6 @@ export function PackActionsBar({
   return (
     <>
       <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenImport}
-          title={t("pack.importPack")}
-        >
-          <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
-        </button>
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={() => setExportModalOpen(true)}
-          title={t("pack.exportAllOpenTitle")}
-        >
-          <PackActionsToolbarIcon src={EXPORT_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
-        </button>
         {companySelected && onOpenStepsLibrary ? (
           <button
             type="button"
@@ -128,17 +107,6 @@ export function PackActionsBar({
             <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
           </button>
         ) : null}
-        {companySelected && onOpenProducts ? (
-          <button
-            type="button"
-            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-            onClick={onOpenProducts}
-            title={t("pack.productsTitle")}
-          >
-            <PackActionsToolbarIcon src={PRODUCTS_ICON_SRC} />
-            <span className="pack-actions__btn-label">{t("pack.products")}</span>
-          </button>
-        ) : null}
         {companySelected && onOpenCampaign ? (
           <button
             type="button"
@@ -164,6 +132,24 @@ export function PackActionsBar({
             ))}
           </select>
         ) : null}
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={onOpenImport}
+          title={t("pack.importPack")}
+        >
+          <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
+        </button>
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={() => setExportModalOpen(true)}
+          title={t("pack.exportAllOpenTitle")}
+        >
+          <PackActionsToolbarIcon src={EXPORT_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
+        </button>
       </div>
       {exportModalOpen ? (
         <ExportWorkspaceModal

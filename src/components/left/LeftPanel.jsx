@@ -2798,18 +2798,6 @@ export function LeftPanel({
     openUrlTableLibraryView();
   };
 
-  const openProductsFromToolbar = () => {
-    const targetObjectId = filterObjectId || selectedObjectId;
-    if (targetObjectId) {
-      if (!objectWorkspaceActive) {
-        enterObjectWorkspace(targetObjectId);
-      }
-      setClickFolderView("groups");
-      return;
-    }
-    setPanelType("Documents");
-  };
-
   const openCampaignFromToolbar = () => {
     const targetObjectId = filterObjectId || selectedObjectId;
     if (targetObjectId) {
@@ -5521,7 +5509,6 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
                   />
                 </div>
@@ -5566,7 +5553,6 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
@@ -5677,7 +5663,6 @@ export function LeftPanel({
                     onOpenStepsLibrary={guestWorkspace ? undefined : openStepsLibraryFromToolbar}
                     onOpenLazyTodos={guestWorkspace ? undefined : openLazyTodosFromToolbar}
                     onOpenUrlTable={guestWorkspace ? undefined : openUrlTableFromToolbar}
-                    onOpenProducts={guestWorkspace ? undefined : openProductsFromToolbar}
                     onOpenCampaign={guestWorkspace ? undefined : openCampaignFromToolbar}
                     filterMode="category"
                     filterOptions={campaignCategoryFilterOptions}
@@ -5887,7 +5872,6 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
                   />
                 </div>
