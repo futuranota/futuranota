@@ -60,7 +60,7 @@ export function findStepPlaybookForSourceDocument(docs, sourceDocumentId, object
 
     for (const block of blocksForDoc(doc)) {
       if (block.type !== DOC_BLOCK_TYPES.STEP_SEQUENCE) continue;
-      if (!block.saved) continue;
+      // Match by source link even if the block is still a draft (saved: false).
       if (String(block.sourceDocumentId || "").trim() !== sourceId) continue;
 
       return {
@@ -73,6 +73,42 @@ export function findStepPlaybookForSourceDocument(docs, sourceDocumentId, object
     }
   }
   return null;
+}
+
+/**
+ * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * @param {string} docId
+ * @param {string} blockId
+ * @returns {import("./stepsLibrary.js").StepPlaybookRef|null}
+ */
+export function buildStepPlaybookRefFromDoc(docs, docId, blockId) {
+  const id = String(docId || "").trim();
+  const bid = String(blockId || "").trim();
+  if (!id || !bid) return null;
+  const doc = docs?.[id];
+  if (!doc) return null;
+
+  const block = blocksForDoc(doc).find(
+    (entry) => entry.id === bid && entry.type === DOC_BLOCK_TYPES.STEP_SEQUENCE,
+  );
+  if (!block) return null;
+
+  const steps = normalizeStepEntries(block.steps);
+  const title = String(block.title || doc.title || "").trim() || "Step by step";
+
+  return {
+    id: `${doc.id}:${block.id}`,
+    docId: doc.id,
+    blockId: block.id,
+    title,
+    preview: "",
+    stepCount: steps.length,
+    objectId: doc.parentObjectId ?? null,
+    docKind: "standard",
+    category: String(doc.category ?? "").trim(),
+    steps,
+    sourceDocumentId: String(block.sourceDocumentId || "").trim() || undefined,
+  };
 }
 
 /**

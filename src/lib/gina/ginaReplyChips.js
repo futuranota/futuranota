@@ -65,7 +65,7 @@ export function chipsAreHomeOpening(chips) {
  *   label: string,
  *   text?: string,
  *   primary?: boolean,
- *   kind?: "category" | "layer_schedule" | "layer_status" | "omit" | "prompt" | "action",
+ *   kind?: "category" | "layer_schedule" | "layer_status" | "omit" | "prompt" | "action" | "more_actions",
  *   group?: string,
  *   selectable?: boolean,
  *   value?: string,
@@ -99,7 +99,7 @@ export function buildGinaOpeningChips(opts = {}) {
     ? opts.mode
     : "first";
 
-  // In-document Asistente: free-hours check + optional day schedule reopen.
+  // In-document Asistente: free-hours check + optional day schedule reopen + more actions.
   if (surface === "document") {
     /** @type {GinaReplyChip[]} */
     const docChips = [
@@ -115,6 +115,12 @@ export function buildGinaOpeningChips(opts = {}) {
         icon: "/uploads/ClockCountdown.svg",
         text: en ? "See free hours for today" : "Ver horas libres del día",
         primary: true,
+      },
+      {
+        id: "doc_algo_mas",
+        kind: "more_actions",
+        label: en ? "Something else" : "Algo más",
+        text: en ? "Something else" : "Algo más",
       },
     ];
     return docChips;

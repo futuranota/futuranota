@@ -822,6 +822,9 @@ export function GinaChatCard({
   const [meetingMode, setMeetingMode] = useState(Boolean(initialMeetingMode));
   /** Green “active” schedule-style dot — shown while Enable.wav plays / Gina is live. */
   const [enableDotVisible, setEnableDotVisible] = useState(false);
+  /** In-doc: footer action button unlocks after chip «Algo más». */
+  const [moreActionsEnabled, setMoreActionsEnabled] = useState(false);
+  const isDocumentSurface = Boolean(documentId);
 
   useEffect(() => {
     setMeetingMode(Boolean(initialMeetingMode));
@@ -2676,6 +2679,28 @@ export function GinaChatCard({
                             onClose?.();
                             return;
                           }
+                          if (chip.kind === "more_actions" || chip.id === "doc_algo_mas") {
+                            const label = chip.label || (chipLocale === "en" ? "Something else" : "Algo más");
+                            const ack = labels.moreActionsAck
+                              || (chipLocale === "en"
+                                ? "Tell me what you need for this document — pick an action below when you’re ready."
+                                : "Dime qué necesitas con este documento — elige una acción abajo cuando quieras.");
+                            setMoreActionsEnabled(true);
+                            setMessages((prev) => [
+                              ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
+                              { id: makeMsgId(), sender: "user", text: label },
+                              {
+                                id: makeMsgId(),
+                                sender: "ai",
+                                text: ack,
+                                visualization: null,
+                                chips: null,
+                              },
+                            ]);
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            return;
+                          }
                           if (chip.kind === "nav_back") {
                             isAiAnimatingRef.current = false;
                             setIsAiAnimating(false);
@@ -2802,13 +2827,45 @@ export function GinaChatCard({
           <div ref={messagesEndRef} />
         </div>
 
-        {micError ? (
+        {micError && !isDocumentSurface ? (
           <p className="gina-chat-card__mic-banner is-error" role="status" aria-live="polite">
             {micError}
           </p>
         ) : null}
 
-        {isListening ? (
+        {isDocumentSurface ? (
+          <div className="gina-chat-card__actions-footer">
+            <button
+              type="button"
+              className={
+                "gina-chat-card__more-actions"
+                + (moreActionsEnabled ? " is-enabled" : "")
+              }
+              disabled={!moreActionsEnabled}
+              aria-disabled={!moreActionsEnabled}
+              aria-expanded={false}
+              aria-label={
+                labels.moreActionsAria
+                || (chipLocale === "en"
+                  ? "More actions for this document"
+                  : "Más acciones para este documento")
+              }
+              title={
+                moreActionsEnabled
+                  ? undefined
+                  : (labels.moreActionsDisabledHint
+                    || (chipLocale === "en"
+                      ? "Choose “Something else” above to unlock actions"
+                      : "Elige «Algo más» arriba para desbloquear acciones"))
+              }
+              onClick={() => {
+                /* Step 1: unlock only — action menu in a later brief. */
+              }}
+            >
+              {labels.moreActions || (chipLocale === "en" ? "Something else" : "Algo más")}
+            </button>
+          </div>
+        ) : isListening ? (
           <div
             ref={dictationRef}
             className={`gina-chat-card__dictation${deletePhraseArmed ? " is-delete-armed" : ""}`}

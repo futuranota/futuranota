@@ -2632,6 +2632,10 @@ export function NodeQueryModal({
         meetingActiveHint: t("gina.meetingActiveHint"),
         meetingThisDocument: t("gina.meetingThisDocument"),
         meetingOffHint: t("gina.meetingOffHint"),
+        moreActions: t("gina.moreActions"),
+        moreActionsAria: t("gina.moreActionsAria"),
+        moreActionsDisabledHint: t("gina.moreActionsDisabledHint"),
+        moreActionsAck: t("gina.moreActionsAck"),
       }}
       onSendMessage={handleGinaInDocSend}
       onClose={() => setGinaChatOpen(false)}

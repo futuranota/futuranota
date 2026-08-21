@@ -26,6 +26,7 @@ const PREVIEW_MAX = 120;
  * @property {string} docKind
  * @property {string} category
  * @property {import("./docBlocks.js").StepEntry[]} steps
+ * @property {string} [sourceDocumentId]
  */
 
 function truncate(text, max) {

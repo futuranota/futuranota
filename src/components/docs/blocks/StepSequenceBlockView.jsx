@@ -248,11 +248,16 @@ export function StepSequenceBlockView({
   onDeleteBlock,
   compact = false,
   autoFocus = false,
+  initialActiveIndex = 0,
 }) {
   const { t } = useI18n();
   const safeSteps = steps.length ? steps : [createStepEntry()];
   const total = safeSteps.length;
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const raw = Number(initialActiveIndex);
+    const idx = Number.isFinite(raw) ? Math.floor(raw) : 0;
+    return Math.max(0, Math.min(idx, Math.max(0, total - 1)));
+  });
 
   const stepNumber = Math.min(activeIndex, total - 1) + 1;
   const activeStep = safeSteps[Math.min(activeIndex, total - 1)] ?? safeSteps[0];

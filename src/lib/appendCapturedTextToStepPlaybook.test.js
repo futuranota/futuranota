@@ -9,6 +9,10 @@ import {
   createStepEntry,
   DOC_BLOCK_TYPES,
 } from "./docBlocks.js";
+import {
+  persistStepPlaybookSession,
+  stepPlaybookSessionFromRef,
+} from "./stepPlaybookSession.js";
 
 describe("appendPromptToStepEntries", () => {
   it("fills an empty trailing step", () => {
@@ -29,6 +33,29 @@ describe("appendPromptToStepEntries", () => {
     expect(steps).toHaveLength(2);
     expect(stepIndex).toBe(1);
     expect(steps[1].prompt).toBe("Second");
+  });
+});
+
+describe("findStepPlaybookForSourceDocument", () => {
+  it("matches by sourceDocumentId even when block is unsaved", () => {
+    const block = createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+      id: "BLK_1",
+      title: "Story",
+      saved: false,
+      sourceDocumentId: "NODE_1",
+      steps: [createStepEntry({ prompt: "First" })],
+    });
+    const docs = {
+      DOC_1: {
+        id: "DOC_1",
+        title: "Story",
+        parentObjectId: "OBJ_1",
+        blocks: [block],
+      },
+    };
+    const found = findStepPlaybookForSourceDocument(docs, "NODE_1", "OBJ_1");
+    expect(found?.docId).toBe("DOC_1");
+    expect(found?.blockId).toBe("BLK_1");
   });
 });
 
@@ -73,6 +100,7 @@ describe("appendCapturedTextToStepPlaybook", () => {
       },
     };
     const updateDoc = vi.fn();
+    const addDoc = vi.fn();
     const found = findStepPlaybookForSourceDocument(docs, "NODE_1", "OBJ_1");
     expect(found?.docId).toBe("DOC_1");
 
@@ -83,15 +111,90 @@ describe("appendCapturedTextToStepPlaybook", () => {
       objectId: "OBJ_1",
       docs,
       objects: {},
-      addDoc: vi.fn(),
+      addDoc,
       updateDoc,
     });
     expect(result.ok).toBe(true);
     expect(result.created).toBe(false);
+    expect(result.docId).toBe("DOC_1");
     expect(result.stepIndex).toBe(1);
+    expect(addDoc).not.toHaveBeenCalled();
     expect(updateDoc).toHaveBeenCalled();
     const nextBlocks = updateDoc.mock.calls[0][1].blocks;
     expect(nextBlocks[0].steps).toHaveLength(2);
     expect(nextBlocks[0].steps[1].prompt).toBe("Second beat");
+  });
+
+  it("still appends after persist keeps sourceDocumentId (no second playbook)", () => {
+    const block = createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+      id: "BLK_1",
+      title: "Story",
+      saved: true,
+      sourceDocumentId: "NODE_1",
+      steps: [createStepEntry({ prompt: "First" })],
+    });
+    let docs = {
+      DOC_1: {
+        id: "DOC_1",
+        title: "Story",
+        parentObjectId: "OBJ_1",
+        blocks: [block],
+      },
+    };
+
+    const session = stepPlaybookSessionFromRef({
+      id: "DOC_1:BLK_1",
+      docId: "DOC_1",
+      blockId: "BLK_1",
+      title: "Story",
+      preview: "",
+      stepCount: 1,
+      objectId: "OBJ_1",
+      docKind: "standard",
+      category: "",
+      steps: block.steps,
+      sourceDocumentId: "NODE_1",
+    }, { saved: false });
+
+    expect(session.sourceDocumentId).toBe("NODE_1");
+
+    const updateDoc = vi.fn((id, patch) => {
+      docs = {
+        ...docs,
+        [id]: { ...docs[id], ...patch },
+      };
+    });
+    const addDoc = vi.fn();
+
+    persistStepPlaybookSession(
+      { ...session, steps: [createStepEntry({ prompt: "First polished" })], saved: true },
+      {
+        addDoc,
+        updateDoc,
+        docs,
+        objects: { OBJ_1: { name: "Marketing" } },
+        defaultTitle: "Step by step",
+      },
+    );
+
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(docs.DOC_1.blocks[0].sourceDocumentId).toBe("NODE_1");
+
+    const result = appendCapturedTextToStepPlaybook({
+      promptText: "Second beat",
+      sourceDocumentId: "NODE_1",
+      documentTitle: "Story",
+      objectId: "OBJ_1",
+      docs,
+      objects: {},
+      addDoc,
+      updateDoc,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.created).toBe(false);
+    expect(result.docId).toBe("DOC_1");
+    expect(result.stepIndex).toBe(1);
+    expect(addDoc).not.toHaveBeenCalled();
   });
 });

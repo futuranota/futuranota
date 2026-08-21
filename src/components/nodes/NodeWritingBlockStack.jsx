@@ -85,9 +85,13 @@ import { LibraryPromptCaptureModal } from "../docs/LibraryPromptCaptureModal.jsx
 import { LibraryCaptureFamilyChooser } from "../docs/LibraryCaptureFamilyChooser.jsx";
 import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
 import { FolderLibraryAssetDetail } from "../docs/FolderLibraryAssetDetail.jsx";
-import { appendCapturedTextToStepPlaybook } from "../../lib/appendCapturedTextToStepPlaybook.js";
+import {
+  appendCapturedTextToStepPlaybook,
+  buildStepPlaybookRefFromDoc,
+} from "../../lib/appendCapturedTextToStepPlaybook.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -598,6 +602,19 @@ export function NodeWritingBlockStack({
           : t("doc.library.captureStepsFailed"),
       );
       return;
+    }
+
+    const latestDocs = useDocsStore.getState().docs;
+    const playbook = buildStepPlaybookRefFromDoc(
+      latestDocs,
+      result.docId,
+      result.blockId,
+    );
+    if (playbook) {
+      useUIStateStore.getState().requestOpenStepPlaybook({
+        playbook,
+        initialStepIndex: result.stepIndex,
+      });
     }
     clearPromptCapture();
   }, [

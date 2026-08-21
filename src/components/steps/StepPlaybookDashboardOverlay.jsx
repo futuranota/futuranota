@@ -50,10 +50,12 @@ export function StepPlaybookDashboardOverlay({
         </button>
         <div className="step-playbook-dashboard-overlay__body scroll-match-bg">
           <StepSequenceBlockView
+            key={`${session.docId || "new"}:${session.blockId}:${session.initialStepIndex ?? 0}`}
             blockId={session.blockId}
             title={session.title}
             steps={session.steps}
             saved={session.saved}
+            initialActiveIndex={session.initialStepIndex ?? 0}
             autoFocus
             onTitleChange={(title) => onChange({ title })}
             onStepsChange={(steps) => onChange({ steps, saved: false })}

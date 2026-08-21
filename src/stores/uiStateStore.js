@@ -329,6 +329,23 @@ export const useUIStateStore = create(
       },
       clearLazyTodoCreateRequest: () => set({ lazyTodoCreateRequest: null }),
 
+      /**
+       * After `--prompt--` → Step by step: App opens StepPlaybookDashboardOverlay in edit mode.
+       * @type {{ playbook: object, initialStepIndex?: number, nonce: number }|null}
+       */
+      stepPlaybookOpenRequest: null,
+      requestOpenStepPlaybook: ({ playbook, initialStepIndex = 0 } = {}) => {
+        if (!playbook?.docId || !playbook?.blockId) return;
+        set({
+          stepPlaybookOpenRequest: {
+            playbook,
+            initialStepIndex: Math.max(0, Number(initialStepIndex) || 0),
+            nonce: Date.now(),
+          },
+        });
+      },
+      clearStepPlaybookOpenRequest: () => set({ stepPlaybookOpenRequest: null }),
+
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
 

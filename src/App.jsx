@@ -1489,6 +1489,19 @@ useEffect(() => {
     useUIStateStore.getState().clearLazyTodoCreateRequest();
   }, [lazyTodoCreateRequest, handleOpenNewLazyTodo]);
 
+  const stepPlaybookOpenRequest = useUIStateStore((s) => s.stepPlaybookOpenRequest);
+  useEffect(() => {
+    if (!stepPlaybookOpenRequest?.playbook) return;
+    const { playbook, initialStepIndex = 0 } = stepPlaybookOpenRequest;
+    setActiveStepPlaybookSession(
+      stepPlaybookSessionFromRef(playbook, {
+        saved: false,
+        initialStepIndex,
+      }),
+    );
+    useUIStateStore.getState().clearStepPlaybookOpenRequest();
+  }, [stepPlaybookOpenRequest]);
+
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;
     setActiveLazyTodo((current) => {

@@ -16,6 +16,8 @@ import { generateId } from "./ids.js";
  * @property {string} title
  * @property {import("./docBlocks.js").StepEntry[]} steps
  * @property {boolean} saved
+ * @property {number} [initialStepIndex]
+ * @property {string|null} [sourceDocumentId]
  */
 
 /**
@@ -30,14 +32,20 @@ export function createBlankStepPlaybookSession(objectId = null) {
     title: "",
     steps: [createStepEntry()],
     saved: false,
+    initialStepIndex: 0,
+    sourceDocumentId: null,
   };
 }
 
 /**
  * @param {import("./stepsLibrary.js").StepPlaybookRef} playbook
+ * @param {{ initialStepIndex?: number, saved?: boolean }} [options]
  * @returns {StepPlaybookSession}
  */
-export function stepPlaybookSessionFromRef(playbook) {
+export function stepPlaybookSessionFromRef(playbook, options = {}) {
+  const initialStepIndex = Math.max(0, Number(options.initialStepIndex) || 0);
+  const saved = options.saved != null ? Boolean(options.saved) : true;
+  const sourceDocumentId = String(playbook.sourceDocumentId || "").trim() || null;
   return {
     objectId: playbook.objectId ?? null,
     docId: playbook.docId,
@@ -47,7 +55,9 @@ export function stepPlaybookSessionFromRef(playbook) {
       ...step,
       blocks: step.blocks ? [...step.blocks] : [],
     })),
-    saved: true,
+    saved,
+    initialStepIndex,
+    sourceDocumentId,
   };
 }
 
@@ -75,17 +85,28 @@ export function persistStepPlaybookSession(session, {
   objects,
   defaultTitle,
 }) {
-  const block = createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
-    id: session.blockId,
-    title: String(session.title ?? "").trim(),
-    steps: session.steps,
-    saved: true,
-  });
+  /** Preserve capture link from session, else keep whatever the doc block already has. */
+  const resolveSourceDocumentId = (existingBlock = null) => {
+    const fromSession = String(session.sourceDocumentId || "").trim();
+    if (fromSession) return fromSession;
+    const fromBlock = String(existingBlock?.sourceDocumentId || "").trim();
+    return fromBlock || null;
+  };
 
-  const docTitle = block.title || defaultTitle;
+  const buildBlock = (existingBlock = null) => {
+    const sourceDocumentId = resolveSourceDocumentId(existingBlock);
+    return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+      id: session.blockId,
+      title: String(session.title ?? "").trim(),
+      steps: session.steps,
+      saved: true,
+      ...(sourceDocumentId ? { sourceDocumentId } : {}),
+    });
+  };
 
   if (!session.docId) {
     if (!session.objectId) {
+      const block = buildBlock();
       return { docId: null, blockId: block.id };
     }
 
@@ -95,6 +116,9 @@ export function persistStepPlaybookSession(session, {
       const existingIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
       if (existingIndex < 0) continue;
 
+      const existingBlock = existingBlocks[existingIndex];
+      const block = buildBlock(existingBlock);
+      const docTitle = block.title || defaultTitle;
       const nextBlocks = existingBlocks.map((entry, index) => (
         index === existingIndex ? block : entry
       ));
@@ -107,6 +131,8 @@ export function persistStepPlaybookSession(session, {
       return { docId: doc.id, blockId: block.id };
     }
 
+    const block = buildBlock();
+    const docTitle = block.title || defaultTitle;
     const parentObject = objects[session.objectId];
     const tags = parentObject?.name ? [parentObject.name] : [];
     const newDocId = addDoc(
@@ -128,11 +154,15 @@ export function persistStepPlaybookSession(session, {
 
   const doc = docs[session.docId];
   if (!doc) {
+    const block = buildBlock();
     return { docId: session.docId, blockId: block.id };
   }
 
   const existingBlocks = normalizeDocBlocks(doc.blocks || []);
   const blockIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
+  const existingBlock = blockIndex >= 0 ? existingBlocks[blockIndex] : null;
+  const block = buildBlock(existingBlock);
+  const docTitle = block.title || defaultTitle;
   const nextBlocks = blockIndex >= 0
     ? existingBlocks.map((entry, index) => (index === blockIndex ? block : entry))
     : [...existingBlocks, block];
