@@ -39,6 +39,7 @@ import {
   exportWritingBlocksToPdf,
   writingBlocksHaveExportableProse,
 } from "../../lib/exportDocToPdf.js";
+import { saveWritingBlocksPdfToFolderLibrary } from "../../lib/saveDocPdfToLibrary.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
@@ -235,6 +236,9 @@ export function NodeQueryModal({
   const [organizingWriting, setOrganizingWriting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportPdfError, setExportPdfError] = useState("");
+  const [savingPdfLibrary, setSavingPdfLibrary] = useState(false);
+  const [savePdfLibraryError, setSavePdfLibraryError] = useState("");
+  const [savePdfLibraryOk, setSavePdfLibraryOk] = useState(false);
   const writingCaretRef = useRef(null);
   const organizeRunIdRef = useRef(0);
 
@@ -1444,7 +1448,7 @@ export function NodeQueryModal({
   }, [contentFocusMode, organizingWriting]);
 
   const handleExportWritingPdf = useCallback(async () => {
-    if (exportingPdf) return;
+    if (exportingPdf || savingPdfLibrary) return;
     if (!writingBlocksHaveExportableProse(writingBlocks)) {
       setExportPdfError(t("docs.exportPdfEmpty"));
       return;
@@ -1464,7 +1468,84 @@ export function NodeQueryModal({
     } finally {
       setExportingPdf(false);
     }
-  }, [exportingPdf, writingBlocks, displayQuery, t]);
+  }, [exportingPdf, savingPdfLibrary, writingBlocks, displayQuery, t]);
+
+  const handleSaveWritingPdfToLibrary = useCallback(async () => {
+    if (exportingPdf || savingPdfLibrary) return;
+    if (!writingBlocksHaveExportableProse(writingBlocks)) {
+      setSavePdfLibraryError(t("docs.exportPdfEmpty"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    const folderId = String(
+      resolvedParentDocId
+      || nodesMap?.[entityNodeId]?.parentDocId
+      || "",
+    ).trim();
+    if (!folderId) {
+      setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    if (docsMap && !docsMap[folderId]) {
+      setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    setSavePdfLibraryError("");
+    setSavePdfLibraryOk(false);
+    setSavingPdfLibrary(true);
+    try {
+      const result = await saveWritingBlocksPdfToFolderLibrary(writingBlocks, {
+        title: displayQuery,
+        folderId,
+        tag: displayQuery,
+        description: t("docs.exportPdfLibraryDescription", { title: displayQuery }),
+      });
+      if (!result?.ok) {
+        console.error("[exportPdfLibrary]", result?.reason, result?.error || result);
+        if (result?.reason === "empty") {
+          setSavePdfLibraryError(t("docs.exportPdfEmpty"));
+        } else if (result?.reason === "no_folder" || result?.reason === "create_failed") {
+          setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+        } else if (
+          /sign in|auth|not authenticated/i.test(String(result?.error || ""))
+        ) {
+          setSavePdfLibraryError(t("docs.exportPdfNeedSignIn"));
+        } else {
+          setSavePdfLibraryError(
+            result?.error
+              ? `${t("docs.exportPdfLibraryFailed")}: ${result.error}`
+              : t("docs.exportPdfLibraryFailed"),
+          );
+        }
+        return;
+      }
+      setSavePdfLibraryOk(true);
+      setLibraryInitialTab("skill");
+      setLibraryOpen(true);
+      window.setTimeout(() => setSavePdfLibraryOk(false), 2400);
+    } catch (err) {
+      console.error("[exportPdfLibrary]", err);
+      setSavePdfLibraryError(
+        err?.message
+          ? `${t("docs.exportPdfLibraryFailed")}: ${err.message}`
+          : t("docs.exportPdfLibraryFailed"),
+      );
+    } finally {
+      setSavingPdfLibrary(false);
+    }
+  }, [
+    exportingPdf,
+    savingPdfLibrary,
+    writingBlocks,
+    displayQuery,
+    resolvedParentDocId,
+    nodesMap,
+    entityNodeId,
+    docsMap,
+    t,
+  ]);
 
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
@@ -2213,7 +2294,7 @@ export function NodeQueryModal({
                   + (exportPdfError ? " is-error" : "")
                 }
                 onClick={handleExportWritingPdf}
-                disabled={exportingPdf}
+                disabled={exportingPdf || savingPdfLibrary}
                 aria-busy={exportingPdf}
                 aria-label={
                   exportingPdf
@@ -2236,11 +2317,45 @@ export function NodeQueryModal({
               <button
                 type="button"
                 className={
+                  "node-query-modal__organize-float node-query-modal__export-pdf-library-float"
+                  + (savingPdfLibrary ? " is-loading" : "")
+                  + (savePdfLibraryError ? " is-error" : "")
+                  + (savePdfLibraryOk ? " is-ok" : "")
+                }
+                onClick={handleSaveWritingPdfToLibrary}
+                disabled={exportingPdf || savingPdfLibrary}
+                aria-busy={savingPdfLibrary}
+                aria-label={
+                  savingPdfLibrary
+                    ? t("docs.exportPdfLibraryLoading")
+                    : t("docs.exportPdfLibrary")
+                }
+                title={
+                  savePdfLibraryError
+                  || (savePdfLibraryOk ? t("docs.exportPdfLibrarySaved") : t("docs.exportPdfLibraryTitle"))
+                }
+              >
+                {savingPdfLibrary ? (
+                  <span className="node-query-modal__organize-float-spinner" aria-hidden />
+                ) : null}
+                <span className="node-query-modal__organize-float-label">
+                  {savingPdfLibrary
+                    ? t("docs.exportPdfLibraryLoading")
+                    : savePdfLibraryError
+                      ? t("docs.exportPdfLibraryRetry")
+                      : savePdfLibraryOk
+                        ? t("docs.exportPdfLibrarySaved")
+                        : t("docs.exportPdfLibrary")}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={
                   "node-query-modal__organize-float"
                   + (organizingWriting ? " is-loading" : "")
                 }
                 onClick={handleOrganizeWritingText}
-                disabled={organizingWriting}
+                disabled={organizingWriting || exportingPdf || savingPdfLibrary}
                 aria-busy={organizingWriting}
                 aria-label={
                   organizingWriting
