@@ -24,6 +24,14 @@ export const messages = {
       noParent: "No parent",
       loading: "Loading…",
     },
+    account: {
+      exportMyData: "Export my data",
+      exportMyDataAction: "Download",
+      exportMyDataLoading: "Preparing…",
+      exportMyDataHint: "ZIP of your workspace (JSON). Usually a few seconds.",
+      exportMyDataTitle: "Download a ZIP snapshot of your workspace data",
+      exportMyDataFailed: "Couldn’t export your data — try again",
+    },
     canvas: {
       adoptNodeTitle: "Make this node a child of the document?",
       adoptNodeBody: "Connect \"{orphan}\" to \"{doc}\". Yes links the node and copies its content into the document. No keeps the wire but data stays temporary on the canvas.",
@@ -1526,6 +1534,14 @@ export const messages = {
       open: "Abrir",
       noParent: "Sin padre",
       loading: "Cargando…",
+    },
+    account: {
+      exportMyData: "Exportar mis datos",
+      exportMyDataAction: "Descargar",
+      exportMyDataLoading: "Preparando…",
+      exportMyDataHint: "ZIP de tu workspace (JSON). Suele tardar unos segundos.",
+      exportMyDataTitle: "Descarga un ZIP con el snapshot de tu workspace",
+      exportMyDataFailed: "No se pudo exportar — probá de nuevo",
     },
     stepsLibrary: {
       discardDraftTitle: "Cerrar step by step",

@@ -41,7 +41,7 @@ export function GinaChatOverlay({
   lockMeetingMode = false,
   autoRunPrompt = null,
   autoRunDisplayText = null,
-  compact = false,
+  compact: _compact = false,
   onClose,
 }) {
   useEffect(() => {
@@ -56,8 +56,6 @@ export function GinaChatOverlay({
   }, [onClose]);
 
   if (typeof document === "undefined") return null;
-
-  const useSmall = Boolean(compact || documentId);
 
   return createPortal(
     <>
@@ -74,7 +72,6 @@ export function GinaChatOverlay({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <GinaChatCard
-          className={useSmall ? "" : "gina-chat-card--dashboard"}
           documentId={documentId}
           assistantName={assistantName}
           openingMessage={openingMessage}

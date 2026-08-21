@@ -5,6 +5,8 @@ import { usePlanStore } from "../../stores/planStore.js";
 import { getCreditsDisplay } from "../../lib/planConfig.js";
 import { isAppSoundMuted, setAppSoundMuted } from "../../lib/appSoundPrefs.js";
 import { getGinaPrefs, setGinaPrefs } from "../../lib/gina/ginaPrefs.js";
+import { exportWorkspaceDataZip } from "../../lib/exportWorkspaceDataZip.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 function IconUser({ className = "" }) {
   return (
@@ -24,12 +26,15 @@ const SETTINGS_ICON = "/uploads/settings.svg";
 
 /** Shows the signed-in user popover (settings: mute + plan) for the dashboard topbar. */
 export function UserMenu() {
+  const { t } = useI18n();
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [soundMuted, setSoundMuted] = useState(() => isAppSoundMuted());
   const [ginaPrefs, setGinaPrefsState] = useState(() => getGinaPrefs());
+  const [exportingData, setExportingData] = useState(false);
+  const [exportDataError, setExportDataError] = useState("");
   const rootRef = useRef(null);
   const profile = usePlanStore((s) => s.profile);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
@@ -82,6 +87,23 @@ export function UserMenu() {
 
   const patchGinaPrefs = (partial) => {
     setGinaPrefsState(setGinaPrefs(partial));
+  };
+
+  const handleExportMyData = async () => {
+    if (exportingData) return;
+    setExportDataError("");
+    setExportingData(true);
+    try {
+      const result = await exportWorkspaceDataZip();
+      if (!result?.ok) {
+        setExportDataError(result?.error || t("account.exportMyDataFailed"));
+      }
+    } catch (err) {
+      console.error("[exportMyData]", err);
+      setExportDataError(err?.message || t("account.exportMyDataFailed"));
+    } finally {
+      setExportingData(false);
+    }
   };
 
   return (
@@ -208,6 +230,36 @@ export function UserMenu() {
                       Folder
                     </button>
                   </div>
+                </div>
+
+                <div className="user-menu__setting user-menu__setting--stack">
+                  <div className="user-menu__setting-copy">
+                    <span className="user-menu__setting-title">
+                      {t("account.exportMyData")}
+                    </span>
+                    <span className="user-menu__setting-hint">
+                      {exportDataError
+                        || (exportingData
+                          ? t("account.exportMyDataLoading")
+                          : t("account.exportMyDataHint"))}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={
+                      "user-menu__export-btn"
+                      + (exportingData ? " is-loading" : "")
+                      + (exportDataError ? " is-error" : "")
+                    }
+                    disabled={exportingData}
+                    aria-busy={exportingData}
+                    onClick={handleExportMyData}
+                    title={exportDataError || t("account.exportMyDataTitle")}
+                  >
+                    {exportingData
+                      ? t("account.exportMyDataLoading")
+                      : t("account.exportMyDataAction")}
+                  </button>
                 </div>
 
                 <button

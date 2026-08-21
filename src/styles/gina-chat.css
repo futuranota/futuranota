@@ -35,11 +35,6 @@
   box-sizing: border-box;
 }
 
-.gina-chat-card--dashboard {
-  width: min(740px, calc(100vw - 32px));
-  height: min(720px, calc(100vh - 48px));
-}
-
 .gina-chat-card__orbit {
   position: absolute;
   inset: 0;

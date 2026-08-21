@@ -557,6 +557,33 @@ input, textarea {
   font-size: 11px;
   color: var(--um-muted);
 }
+.user-menu__export-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.user-menu__export-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.user-menu__export-btn:disabled,
+.user-menu__export-btn.is-loading {
+  cursor: progress;
+  opacity: 0.75;
+}
+.user-menu__export-btn.is-error {
+  border-color: rgba(232, 120, 100, 0.45);
+  color: rgba(255, 210, 200, 0.95);
+}
 .user-menu__switch {
   position: relative;
   width: 36px;
