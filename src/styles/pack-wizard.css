@@ -141,6 +141,13 @@
   pointer-events: none;
 }
 
+.pack-actions .btn.pack-actions__btn--toolbar.pack-actions__btn--ie {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 /* Open buttons in steps / to-do panels — card surface, not toolbar gray */
 .btn.pack-actions__btn--toolbar.panel-list-open-btn {
   color: rgba(232, 220, 200, 0.72);

@@ -3,10 +3,12 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
- * Preview art for the export-all card.
+ * Preview art for the export-all card (WebP from export-car-overlay.svg).
  * Empty string → placeholder panel.
  */
-export const EXPORT_WORKSPACE_PREVIEW_SRC = "/uploads/so-sad-to-see-you-go.png";
+export const EXPORT_WORKSPACE_PREVIEW_SRC = "/uploads/export-car-overlay.webp";
+
+const EXPORT_CTA_ICON_SRC = "/uploads/botones/Export.svg";
 
 /**
  * Intro card before running a full workspace export.
@@ -114,18 +116,27 @@ export function ExportWorkspaceModal({
           </p>
         ) : null}
 
-        <button
-          type="button"
-          className={
-            "export-workspace-modal__cta"
-            + (busy ? " is-loading" : "")
-          }
-          onClick={handleExportAll}
-          disabled={busy}
-          aria-busy={busy}
-        >
-          {busy ? t("pack.exportAllLoading") : t("pack.exportAllCta")}
-        </button>
+        <div className="export-workspace-modal__footer">
+          <button
+            type="button"
+            className={
+              "export-workspace-modal__cta"
+              + (busy ? " is-loading" : "")
+            }
+            onClick={handleExportAll}
+            disabled={busy}
+            aria-busy={busy}
+          >
+            <span
+              className="export-workspace-modal__cta-icon"
+              style={{ "--export-cta-icon-mask": `url("${EXPORT_CTA_ICON_SRC}")` }}
+              aria-hidden
+            />
+            <span className="export-workspace-modal__cta-label">
+              {busy ? t("pack.exportAllLoading") : t("pack.exportAllCta")}
+            </span>
+          </button>
+        </div>
       </div>
     </div>,
     document.body,

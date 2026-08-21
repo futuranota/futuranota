@@ -22,14 +22,16 @@
 }
 
 .export-workspace-modal__card {
+  --export-card-pad-x: 28px;
+  --export-card-pad-y: 28px;
   position: relative;
   z-index: 1;
-  width: min(420px, 100%);
-  max-height: min(92vh, 720px);
+  width: min(480px, 100%);
+  max-height: min(92vh, 820px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 28px 24px 22px;
+  gap: 0;
+  padding: 0;
   box-sizing: border-box;
   border-radius: 14px;
   background: #151515;
@@ -42,6 +44,7 @@
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 2;
   width: 32px;
   height: 32px;
   margin: 0;
@@ -69,51 +72,57 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-right: 28px;
-  text-align: center;
+  padding: var(--export-card-pad-y) var(--export-card-pad-x) 16px;
+  padding-right: calc(var(--export-card-pad-x) + 28px);
+  text-align: left;
 }
 
 .export-workspace-modal__title {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.25;
   color: #fff;
   letter-spacing: -0.01em;
+  text-align: left;
 }
 
 .export-workspace-modal__subtitle {
   margin: 0;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 400;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.58);
+  text-align: left;
 }
 
 .export-workspace-modal__preview {
   width: 100%;
-  border-radius: 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
 }
 
 .export-workspace-modal__preview-img {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 280px;
-  object-fit: cover;
-  object-position: center;
+  max-height: none;
+  object-fit: contain;
+  object-position: center bottom;
   user-select: none;
   -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 .export-workspace-modal__preview-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 180px;
+  min-height: 220px;
   padding: 24px;
   box-sizing: border-box;
   color: rgba(255, 255, 255, 0.35);
@@ -128,16 +137,24 @@
 
 .export-workspace-modal__error {
   margin: 0;
-  padding: 0 4px;
+  padding: 10px var(--export-card-pad-x) 0;
   font-size: 12px;
   line-height: 1.4;
   color: rgba(255, 190, 180, 0.95);
-  text-align: center;
+  text-align: left;
+}
+
+.export-workspace-modal__footer {
+  padding: 16px var(--export-card-pad-x) 22px;
 }
 
 .export-workspace-modal__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  min-height: 44px;
+  min-height: 46px;
   margin: 0;
   padding: 12px 18px;
   border: none;
@@ -149,6 +166,27 @@
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.export-workspace-modal__cta-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-image: var(--export-cta-icon-mask);
+  mask-image: var(--export-cta-icon-mask);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+}
+
+.export-workspace-modal__cta-label {
+  line-height: 1;
 }
 
 .export-workspace-modal__cta:hover:not(:disabled) {

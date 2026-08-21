@@ -1,0 +1,111 @@
+/* i/e pack chooser (Import | Export) — portal over app */
+
+.ie-pack-chooser {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.ie-pack-chooser__backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  cursor: pointer;
+}
+
+.ie-pack-chooser__card {
+  position: relative;
+  z-index: 1;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 20px 18px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.ie-pack-chooser__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ie-pack-chooser__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ie-pack-chooser__title {
+  margin: 0;
+  padding-right: 28px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.ie-pack-chooser__subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.ie-pack-chooser__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ie-pack-chooser__btn {
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ie-pack-chooser__btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.ie-pack-chooser__btn--primary {
+  background: #fff;
+  color: #111;
+  border-color: transparent;
+}
+
+.ie-pack-chooser__btn--primary:hover {
+  opacity: 0.92;
+  background: #fff;
+}

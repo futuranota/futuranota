@@ -2,9 +2,12 @@ import { useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { exportWorkspaceTreeZip } from "../../lib/exportWorkspaceTreeZip.js";
 import { ExportWorkspaceModal } from "./ExportWorkspaceModal.jsx";
+import { ExportPackModal } from "./ExportPackModal.jsx";
+import { IePackChooserModal } from "./IePackChooserModal.jsx";
 
-const IMPORT_ICON_SRC = "/uploads/import.svg";
-const EXPORT_ICON_SRC = "/uploads/import.svg";
+/** Swap to `/uploads/ie-pack.svg` when the asset is ready. */
+const IE_PACK_ICON_SRC = "/uploads/import.svg";
+const EXPORT_ICON_SRC = "/uploads/botones/Export.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
@@ -50,6 +53,8 @@ export function PackActionsBar({
 }) {
   const { t } = useI18n();
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportPackOpen, setExportPackOpen] = useState(false);
+  const [ieChooserOpen, setIeChooserOpen] = useState(false);
 
   const filterEnabled = filterMode === "category"
     && placement === "documents"
@@ -132,15 +137,17 @@ export function PackActionsBar({
             ))}
           </select>
         ) : null}
+
         <button
           type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenImport}
-          title={t("pack.importPack")}
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar pack-actions__btn--ie"
+          onClick={() => setIeChooserOpen(true)}
+          title={t("pack.iePackTitle")}
         >
-          <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
+          <PackActionsToolbarIcon src={IE_PACK_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.iePack")}</span>
         </button>
+
         <button
           type="button"
           className="btn xs pack-actions__btn pack-actions__btn--toolbar"
@@ -151,6 +158,14 @@ export function PackActionsBar({
           <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
         </button>
       </div>
+
+      {ieChooserOpen ? (
+        <IePackChooserModal
+          onClose={() => setIeChooserOpen(false)}
+          onImport={() => onOpenImport?.()}
+          onExport={() => setExportPackOpen(true)}
+        />
+      ) : null}
       {exportModalOpen ? (
         <ExportWorkspaceModal
           onClose={() => setExportModalOpen(false)}
@@ -162,6 +177,9 @@ export function PackActionsBar({
             setExportModalOpen(false);
           }}
         />
+      ) : null}
+      {exportPackOpen ? (
+        <ExportPackModal onClose={() => setExportPackOpen(false)} />
       ) : null}
     </>
   );
