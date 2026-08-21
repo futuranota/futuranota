@@ -3,10 +3,10 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
- * Preview art for the export-all card. Swap this path when the final image is ready.
+ * Preview art for the export-all card.
  * Empty string → placeholder panel.
  */
-export const EXPORT_WORKSPACE_PREVIEW_SRC = "";
+export const EXPORT_WORKSPACE_PREVIEW_SRC = "/uploads/so-sad-to-see-you-go.png";
 
 /**
  * Intro card before running a full workspace export.

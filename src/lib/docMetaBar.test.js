@@ -63,7 +63,7 @@ describe("docMetaBar campaign source child", () => {
     expect(meta.product).toBe("Beer");
   });
 
-  it("resolves campaign folder from timeline queue for MetaBar", () => {
+  it("does not fill MetaBar from timeline queue alone (canvas/overlay only)", () => {
     const docs = { "folder-1": folder, content: { id: "content", campaignActive: false } };
     expect(resolveCampaignFolderFromTimelineQueue(["content", "folder-1"], docs, "obj-1")?.id)
       .toBe("folder-1");
@@ -77,8 +77,12 @@ describe("docMetaBar campaign source child", () => {
       nodeEntitiesById: nodes,
       today,
     });
-    expect(meta.campaign).toBe("active");
-    expect(meta.launch).toBeTruthy();
+    expect(meta.corpus).toBe("Futura nota");
+    expect(meta.brand).toBe("Admin");
+    expect(meta.product).toBeNull();
+    expect(meta.campaign).toBeNull();
+    expect(meta.launch).toBeNull();
+    expect(meta.window).toBeNull();
   });
 
   it("does not resolve Category/Launch/Window from queue without company context", () => {

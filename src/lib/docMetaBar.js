@@ -262,7 +262,8 @@ export function buildMetaBarFromCanvas({
   selectedObjectId = null,
   expandedDocId = null,
   activeDocMetaDraft = null,
-  timelineDocQueue = [],
+  // timelineDocQueue kept for call-site compat; MetaBar no longer falls back to queue.
+  timelineDocQueue: _timelineDocQueue = [],
   nodeEntitiesById = {},
   today = getToday(),
 }) {
@@ -275,14 +276,6 @@ export function buildMetaBarFromCanvas({
     }
   } else {
     doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs, nodeEntitiesById);
-  }
-
-  if (!doc) {
-    doc = resolveCampaignFolderFromTimelineQueue(
-      timelineDocQueue,
-      docs,
-      selectedObjectId,
-    );
   }
 
   return buildMetaBarFromDoc({
