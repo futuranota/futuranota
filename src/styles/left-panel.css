@@ -7473,7 +7473,7 @@ body.doc-content-resizing * {
 }
 
 .doc-step-sequence__counter {
-  font-size: 10px;
+  font-size: 16px;
   color: var(--dim);
   letter-spacing: 0.04em;
 }
@@ -7828,6 +7828,18 @@ body.doc-content-resizing * {
   box-sizing: border-box;
 }
 
+.doc-step-recipe--text-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.doc-step-recipe--text-only .doc-step-recipe__col--copy {
+  padding: 12px 14px;
+}
+
+.doc-step-recipe--text-only .doc-step-recipe__textarea--prompt {
+  min-height: 220px;
+}
+
 .doc-step-recipe__col {
   display: flex;
   flex-direction: column;
@@ -7896,6 +7908,7 @@ body.doc-content-resizing * {
 
 .doc-step-recipe__drop {
   border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: #151515;
 }
 
 .doc-step-recipe__preview {
@@ -8076,7 +8089,7 @@ body.doc-content-resizing * {
 .doc-step-recipe__drop--active,
 .doc-step-recipe__drop:hover {
   border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.08);
+  background: #151515;
   color: #fff;
 }
 
@@ -8100,8 +8113,42 @@ body.doc-content-resizing * {
   flex: 1 1 auto;
 }
 
+.doc-step-recipe__prompt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.doc-step-recipe__reveal-media {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: #151515;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.doc-step-recipe__reveal-media:hover,
+.doc-step-recipe__reveal-media:focus-visible {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: #151515;
+  outline: none;
+}
+
 .doc-step-recipe__field-label {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -8179,7 +8226,7 @@ body.doc-content-resizing * {
 
 .doc-step-recipe__textarea--prompt {
   min-height: 140px;
-  padding: 36px 12px 40px;
+  padding: 5px 12px 12px;
   font-family: var(--sans);
   font-size: 16px;
   font-weight: 500;
@@ -8239,7 +8286,7 @@ body.doc-content-resizing * {
   font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
-  padding: 36px 12px 40px;
+  padding: 5px 12px 12px;
   min-height: 140px;
   height: 100%;
   max-height: none;

@@ -139,14 +139,21 @@ export function StepRecipeCard({
   const promptMd = Boolean(step?.promptMd);
   const promptSaved = Boolean(step?.promptSaved && prompt.trim());
   const images = Array.isArray(step?.images) ? step.images : [];
+  const hasImages = images.some((item) => Boolean(item?.src));
+  const [mediaOpen, setMediaOpen] = useState(hasImages);
+  const showMedia = hasImages || (interactive && mediaOpen);
   const showPlus = interactive && allowSecondImage && images.length === 1 && !addingSecond;
+
+  useEffect(() => {
+    if (hasImages) setMediaOpen(true);
+  }, [hasImages]);
 
   useEffect(() => {
     const el = metaRef.current;
     if (!el) return;
     el.style.height = "0px";
     el.style.height = `${Math.max(el.scrollHeight, 44)}px`;
-  }, [meta, interactive]);
+  }, [meta, interactive, showMedia]);
 
   const patchStep = useCallback((patch) => {
     onChange?.({
@@ -194,6 +201,7 @@ export function StepRecipeCard({
         next[index] = { ...image, caption: prevCaption };
         patchStep({ images: next.filter((item) => item?.src).slice(0, 2) });
         setAddingSecond(false);
+        setMediaOpen(true);
       });
     } finally {
       setBusyKey(null);
@@ -209,64 +217,74 @@ export function StepRecipeCard({
 
   const showCopy = Boolean(prompt.trim());
   const renderMarkdown = promptMd && (readOnly || promptSaved) && prompt.trim();
+  const recipeClass = [
+    "doc-step-recipe",
+    compact ? "doc-step-recipe--compact" : "",
+    readOnly ? "doc-step-recipe--saved" : "",
+    showMedia ? "" : "doc-step-recipe--text-only",
+  ].filter(Boolean).join(" ");
 
   return (
-    <div className={`doc-step-recipe${compact ? " doc-step-recipe--compact" : ""}${readOnly ? " doc-step-recipe--saved" : ""}`}>
-      <div className="doc-step-recipe__col doc-step-recipe__col--media">
-        {(images[0] || interactive) ? (
-          <RecipeImageSlot
-            image={images[0] || null}
-            caption={images[0]?.caption || ""}
-            onCaptionChange={(caption) => {
-              if (!images[0]) return;
-              const next = [...images];
-              next[0] = { ...next[0], caption };
-              patchStep({ images: next });
-            }}
-            readOnly={!interactive}
-            uploading={busyKey === "0"}
-            inputRef={firstInputRef}
-            onPick={() => firstInputRef.current?.click()}
-            onClear={() => {
-              setAddingSecond(false);
-              patchStep({ images: images.slice(1) });
-            }}
-            onFiles={(files) => handleImageFiles(0, files)}
-            fill={!images[1] && !addingSecond}
-          />
-        ) : null}
-        {images[1] || (interactive && addingSecond) ? (
-          <RecipeImageSlot
-            image={images[1] || null}
-            caption={images[1]?.caption || ""}
-            onCaptionChange={(caption) => {
-              if (!images[1]) return;
-              const next = [...images];
-              next[1] = { ...next[1], caption };
-              patchStep({ images: next });
-            }}
-            readOnly={!interactive}
-            uploading={busyKey === "1"}
-            inputRef={secondInputRef}
-            onPick={() => secondInputRef.current?.click()}
-            onClear={() => {
-              setAddingSecond(false);
-              patchStep({ images: images.slice(0, 1) });
-            }}
-            onFiles={(files) => handleImageFiles(1, files)}
-          />
-        ) : null}
-        {showPlus ? (
-          <button
-            type="button"
-            className="doc-step-recipe__add"
-            aria-label={t("doc.stepRecipe.addImage")}
-            onClick={() => setAddingSecond(true)}
-          >
-            {t("doc.stepRecipe.addImage")}
-          </button>
-        ) : null}
-      </div>
+    <div className={recipeClass}>
+      {showMedia ? (
+        <div className="doc-step-recipe__col doc-step-recipe__col--media">
+          {(images[0] || interactive) ? (
+            <RecipeImageSlot
+              image={images[0] || null}
+              caption={images[0]?.caption || ""}
+              onCaptionChange={(caption) => {
+                if (!images[0]) return;
+                const next = [...images];
+                next[0] = { ...next[0], caption };
+                patchStep({ images: next });
+              }}
+              readOnly={!interactive}
+              uploading={busyKey === "0"}
+              inputRef={firstInputRef}
+              onPick={() => firstInputRef.current?.click()}
+              onClear={() => {
+                setAddingSecond(false);
+                const next = images.slice(1);
+                patchStep({ images: next });
+                if (!next.some((item) => item?.src)) setMediaOpen(false);
+              }}
+              onFiles={(files) => handleImageFiles(0, files)}
+              fill={!images[1] && !addingSecond}
+            />
+          ) : null}
+          {images[1] || (interactive && addingSecond) ? (
+            <RecipeImageSlot
+              image={images[1] || null}
+              caption={images[1]?.caption || ""}
+              onCaptionChange={(caption) => {
+                if (!images[1]) return;
+                const next = [...images];
+                next[1] = { ...next[1], caption };
+                patchStep({ images: next });
+              }}
+              readOnly={!interactive}
+              uploading={busyKey === "1"}
+              inputRef={secondInputRef}
+              onPick={() => secondInputRef.current?.click()}
+              onClear={() => {
+                setAddingSecond(false);
+                patchStep({ images: images.slice(0, 1) });
+              }}
+              onFiles={(files) => handleImageFiles(1, files)}
+            />
+          ) : null}
+          {showPlus ? (
+            <button
+              type="button"
+              className="doc-step-recipe__add"
+              aria-label={t("doc.stepRecipe.addImage")}
+              onClick={() => setAddingSecond(true)}
+            >
+              {t("doc.stepRecipe.addImage")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="doc-step-recipe__col doc-step-recipe__col--copy">
         <label className="doc-step-recipe__field doc-step-recipe__field--meta">
@@ -289,13 +307,26 @@ export function StepRecipeCard({
         </label>
 
         <div className="doc-step-recipe__field doc-step-recipe__field--prompt">
-          <span className="doc-step-recipe__field-label">{t("doc.stepRecipe.promptLabel")}</span>
+          <div className="doc-step-recipe__prompt-head">
+            <span className="doc-step-recipe__field-label">{t("doc.stepRecipe.promptLabel")}</span>
+            {interactive && !showMedia ? (
+              <button
+                type="button"
+                className="doc-step-recipe__reveal-media"
+                onClick={() => setMediaOpen(true)}
+                aria-label={t("doc.stepRecipe.revealImage")}
+                title={t("doc.stepRecipe.revealImage")}
+              >
+                +
+              </button>
+            ) : null}
+          </div>
           <div className="doc-step-recipe__prompt-box">
             {interactive ? (
               <textarea
                 className="doc-step-recipe__textarea doc-step-recipe__textarea--prompt"
                 value={prompt}
-                rows={6}
+                rows={showMedia ? 6 : 10}
                 placeholder={t("doc.stepRecipe.promptPlaceholder")}
                 spellCheck
                 onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
