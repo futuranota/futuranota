@@ -10358,6 +10358,23 @@ body.doc-content-resizing * {
   color: rgba(255, 210, 200, 0.95);
 }
 
+.node-query-modal__import-pdf-float.is-error {
+  border-color: rgba(232, 120, 100, 0.45);
+  color: rgba(255, 210, 200, 0.95);
+}
+
+.node-query-modal__import-pdf-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .node-query-modal__export-pdf-library-float.is-error {
   border-color: rgba(232, 120, 100, 0.45);
   color: rgba(255, 210, 200, 0.95);

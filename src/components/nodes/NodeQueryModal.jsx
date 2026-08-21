@@ -38,6 +38,10 @@ import {
   writingBlocksHaveExportableProse,
 } from "../../lib/exportDocToPdf.js";
 import { saveWritingBlocksPdfToFolderLibrary } from "../../lib/saveDocPdfToLibrary.js";
+import {
+  extractTextFromPdfFile,
+  mergePdfTextIntoWritingBlocks,
+} from "../../lib/importPdfText.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
   normalizeNodeTodoContent,
@@ -236,8 +240,11 @@ export function NodeQueryModal({
   const [savingPdfLibrary, setSavingPdfLibrary] = useState(false);
   const [savePdfLibraryError, setSavePdfLibraryError] = useState("");
   const [savePdfLibraryOk, setSavePdfLibraryOk] = useState(false);
+  const [importingPdf, setImportingPdf] = useState(false);
+  const [importPdfError, setImportPdfError] = useState("");
   const writingCaretRef = useRef(null);
   const organizeRunIdRef = useRef(0);
+  const importPdfInputRef = useRef(null);
 
   useEffect(() => {
     if (librarySlashAction !== LIBRARY_SLASH_ACTIONS.OUTPUT) return;
@@ -1443,7 +1450,7 @@ export function NodeQueryModal({
   }, [contentFocusMode, organizingWriting]);
 
   const handleExportWritingPdf = useCallback(async () => {
-    if (exportingPdf || savingPdfLibrary) return;
+    if (exportingPdf || savingPdfLibrary || importingPdf) return;
     if (!writingBlocksHaveExportableProse(writingBlocks)) {
       setExportPdfError(t("docs.exportPdfEmpty"));
       return;
@@ -1463,10 +1470,60 @@ export function NodeQueryModal({
     } finally {
       setExportingPdf(false);
     }
-  }, [exportingPdf, savingPdfLibrary, writingBlocks, displayQuery, t]);
+  }, [exportingPdf, savingPdfLibrary, importingPdf, writingBlocks, displayQuery, t]);
+
+  const handleImportPdfPick = useCallback(() => {
+    if (exportingPdf || savingPdfLibrary || importingPdf || organizingWriting) return;
+    setImportPdfError("");
+    importPdfInputRef.current?.click();
+  }, [exportingPdf, savingPdfLibrary, importingPdf, organizingWriting]);
+
+  const handleImportPdfFile = useCallback(async (event) => {
+    const input = event?.target;
+    const file = input?.files?.[0] || null;
+    if (input) input.value = "";
+    if (!file) return;
+
+    const name = String(file.name || "").toLowerCase();
+    const mime = String(file.type || "").toLowerCase();
+    const looksPdf = mime.includes("pdf") || name.endsWith(".pdf");
+    if (!looksPdf) {
+      setImportPdfError(t("docs.importPdfInvalid"));
+      return;
+    }
+
+    if (exportingPdf || savingPdfLibrary || importingPdf) return;
+    setImportPdfError("");
+    setImportingPdf(true);
+    try {
+      const extracted = await extractTextFromPdfFile(file);
+      if (extracted?.empty) {
+        setImportPdfError(t("docs.importPdfEmpty"));
+        return;
+      }
+      const merged = mergePdfTextIntoWritingBlocks(writingBlocks, extracted.text);
+      if (merged.empty || !merged.changed) {
+        setImportPdfError(t("docs.importPdfEmpty"));
+        return;
+      }
+      updateWritingBlocks(merged.blocks);
+    } catch (err) {
+      console.error("[importPdf]", err);
+      setImportPdfError(t("docs.importPdfFailed"));
+    } finally {
+      setImportingPdf(false);
+    }
+  }, [
+    exportingPdf,
+    savingPdfLibrary,
+    importingPdf,
+    writingBlocks,
+    updateWritingBlocks,
+    t,
+  ]);
 
   const handleSaveWritingPdfToLibrary = useCallback(async () => {
-    if (exportingPdf || savingPdfLibrary) return;
+    if (exportingPdf || savingPdfLibrary || importingPdf) return;
     if (!writingBlocksHaveExportableProse(writingBlocks)) {
       setSavePdfLibraryError(t("docs.exportPdfEmpty"));
       setSavePdfLibraryOk(false);
@@ -1533,6 +1590,7 @@ export function NodeQueryModal({
   }, [
     exportingPdf,
     savingPdfLibrary,
+    importingPdf,
     writingBlocks,
     displayQuery,
     resolvedParentDocId,
@@ -2263,6 +2321,43 @@ export function NodeQueryModal({
           </button>
           {contentFocusMode && isTextWritingMode ? (
             <div className="node-query-modal__doc-float-stack">
+              <input
+                ref={importPdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="node-query-modal__import-pdf-input"
+                onChange={handleImportPdfFile}
+                tabIndex={-1}
+                aria-hidden
+              />
+              <button
+                type="button"
+                className={
+                  "node-query-modal__organize-float node-query-modal__import-pdf-float"
+                  + (importingPdf ? " is-loading" : "")
+                  + (importPdfError ? " is-error" : "")
+                }
+                onClick={handleImportPdfPick}
+                disabled={exportingPdf || savingPdfLibrary || importingPdf || organizingWriting}
+                aria-busy={importingPdf}
+                aria-label={
+                  importingPdf
+                    ? t("docs.importPdfLoading")
+                    : t("docs.importPdf")
+                }
+                title={importPdfError || t("docs.importPdfTitle")}
+              >
+                {importingPdf ? (
+                  <span className="node-query-modal__organize-float-spinner" aria-hidden />
+                ) : null}
+                <span className="node-query-modal__organize-float-label">
+                  {importingPdf
+                    ? t("docs.importPdfLoading")
+                    : importPdfError
+                      ? t("docs.importPdfRetry")
+                      : t("docs.importPdf")}
+                </span>
+              </button>
               <button
                 type="button"
                 className={
@@ -2271,7 +2366,7 @@ export function NodeQueryModal({
                   + (exportPdfError ? " is-error" : "")
                 }
                 onClick={handleExportWritingPdf}
-                disabled={exportingPdf || savingPdfLibrary}
+                disabled={exportingPdf || savingPdfLibrary || importingPdf}
                 aria-busy={exportingPdf}
                 aria-label={
                   exportingPdf
@@ -2300,7 +2395,7 @@ export function NodeQueryModal({
                   + (savePdfLibraryOk ? " is-ok" : "")
                 }
                 onClick={handleSaveWritingPdfToLibrary}
-                disabled={exportingPdf || savingPdfLibrary}
+                disabled={exportingPdf || savingPdfLibrary || importingPdf}
                 aria-busy={savingPdfLibrary}
                 aria-label={
                   savingPdfLibrary
@@ -2332,7 +2427,7 @@ export function NodeQueryModal({
                   + (organizingWriting ? " is-loading" : "")
                 }
                 onClick={handleOrganizeWritingText}
-                disabled={organizingWriting || exportingPdf || savingPdfLibrary}
+                disabled={organizingWriting || exportingPdf || savingPdfLibrary || importingPdf}
                 aria-busy={organizingWriting}
                 aria-label={
                   organizingWriting

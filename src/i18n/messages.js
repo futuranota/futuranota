@@ -430,6 +430,13 @@ export const messages = {
       exportPdfNoFolder: "Assign this document to a folder first",
       exportPdfNeedSignIn: "Sign in to save the PDF to the library",
       exportPdfLibraryDescription: "PDF export from “{title}”",
+      importPdf: "Import PDF",
+      importPdfLoading: "Importing…",
+      importPdfRetry: "Retry import",
+      importPdfTitle: "Import a PDF’s text into this writing area (then use Organize)",
+      importPdfEmpty: "No text found in that PDF — scanned pages need OCR later",
+      importPdfFailed: "Couldn’t read that PDF — try another file",
+      importPdfInvalid: "Choose a PDF file",
     },
     meta: {
       corpus: "Corpus",
@@ -2064,6 +2071,13 @@ export const messages = {
       exportPdfNoFolder: "Asigná este documento a un folder primero",
       exportPdfNeedSignIn: "Iniciá sesión para guardar el PDF en la biblioteca",
       exportPdfLibraryDescription: "Exportación PDF de “{title}”",
+      importPdf: "Importar PDF",
+      importPdfLoading: "Importando…",
+      importPdfRetry: "Reintentar",
+      importPdfTitle: "Importá el texto de un PDF a esta área de escritura (después usá Organizar)",
+      importPdfEmpty: "Ese PDF no trae texto — páginas escaneadas van con OCR más adelante",
+      importPdfFailed: "No se pudo leer ese PDF — probá con otro archivo",
+      importPdfInvalid: "Elegí un archivo PDF",
     },
     meta: {
       /* Folder meta strip stays English for product consistency. */
