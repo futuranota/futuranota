@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
+import { exportWorkspaceTreeZip } from "../../lib/exportWorkspaceTreeZip.js";
+import { ExportWorkspaceModal } from "./ExportWorkspaceModal.jsx";
 
 const IMPORT_ICON_SRC = "/uploads/import.svg";
+const EXPORT_ICON_SRC = "/uploads/import.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
@@ -48,6 +52,7 @@ export function PackActionsBar({
   onFilterChange,
 }) {
   const { t } = useI18n();
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const filterEnabled = filterMode === "category"
     && placement === "documents"
@@ -70,85 +75,108 @@ export function PackActionsBar({
     : "";
 
   return (
-    <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
-      <button
-        type="button"
-        className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-        onClick={onOpenImport}
-        title={t("pack.importPack")}
-      >
-        <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
-        <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
-      </button>
-      {companySelected && onOpenStepsLibrary ? (
+    <>
+      <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
         <button
           type="button"
           className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenStepsLibrary}
-          title={t("pack.stepsLibraryTitle")}
+          onClick={onOpenImport}
+          title={t("pack.importPack")}
         >
-          <PackActionsToolbarIcon src={STEPS_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.stepsLibrary")}</span>
+          <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
         </button>
-      ) : null}
-      {companySelected && onOpenLazyTodos ? (
         <button
           type="button"
           className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenLazyTodos}
-          title={t("pack.lazyTodosTitle")}
+          onClick={() => setExportModalOpen(true)}
+          title={t("pack.exportAllOpenTitle")}
         >
-          <PackActionsToolbarIcon src={LAZY_TODO_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.lazyTodos")}</span>
+          <PackActionsToolbarIcon src={EXPORT_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
         </button>
+        {companySelected && onOpenStepsLibrary ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenStepsLibrary}
+            title={t("pack.stepsLibraryTitle")}
+          >
+            <PackActionsToolbarIcon src={STEPS_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.stepsLibrary")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenLazyTodos ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenLazyTodos}
+            title={t("pack.lazyTodosTitle")}
+          >
+            <PackActionsToolbarIcon src={LAZY_TODO_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.lazyTodos")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenUrlTable ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenUrlTable}
+            title={t("pack.urlTableTitle")}
+          >
+            <PackActionsToolbarIcon src={URL_TABLE_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenProducts ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenProducts}
+            title={t("pack.productsTitle")}
+          >
+            <PackActionsToolbarIcon src={PRODUCTS_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.products")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenCampaign ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenCampaign}
+            title={t("pack.campaignTitle")}
+          >
+            <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.campaign")}</span>
+          </button>
+        ) : null}
+        {filterEnabled ? (
+          <select
+            className="pack-actions__filter-select btn xs pack-actions__btn pack-actions__filter-select--category"
+            value={selectedOptionId}
+            onChange={handleSelectChange}
+            aria-label={t("pack.filterProductsAria")}
+            title={t("pack.filterProducts")}
+          >
+            <option value="">{t("pack.category")}</option>
+            {filterOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+      {exportModalOpen ? (
+        <ExportWorkspaceModal
+          onClose={() => setExportModalOpen(false)}
+          onExportAll={async () => {
+            const result = await exportWorkspaceTreeZip();
+            if (!result?.ok) {
+              throw new Error(result?.error || t("pack.exportAllFailed"));
+            }
+            setExportModalOpen(false);
+          }}
+        />
       ) : null}
-      {companySelected && onOpenUrlTable ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenUrlTable}
-          title={t("pack.urlTableTitle")}
-        >
-          <PackActionsToolbarIcon src={URL_TABLE_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
-        </button>
-      ) : null}
-      {companySelected && onOpenProducts ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenProducts}
-          title={t("pack.productsTitle")}
-        >
-          <PackActionsToolbarIcon src={PRODUCTS_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.products")}</span>
-        </button>
-      ) : null}
-      {companySelected && onOpenCampaign ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenCampaign}
-          title={t("pack.campaignTitle")}
-        >
-          <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.campaign")}</span>
-        </button>
-      ) : null}
-      {filterEnabled ? (
-        <select
-          className="pack-actions__filter-select btn xs pack-actions__btn pack-actions__filter-select--category"
-          value={selectedOptionId}
-          onChange={handleSelectChange}
-          aria-label={t("pack.filterProductsAria")}
-          title={t("pack.filterProducts")}
-        >
-          <option value="">{t("pack.category")}</option>
-          {filterOptions.map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
-          ))}
-        </select>
-      ) : null}
-    </div>
+    </>
   );
 }

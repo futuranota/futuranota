@@ -1,0 +1,162 @@
+/* Export-all intro card (PackActionsBar → ExportWorkspaceModal) */
+
+.export-workspace-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.export-workspace-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  cursor: pointer;
+}
+
+.export-workspace-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  max-height: min(92vh, 720px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px 22px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  overflow: auto;
+}
+
+.export-workspace-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.export-workspace-modal__close:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.export-workspace-modal__close:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.export-workspace-modal__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 28px;
+  text-align: center;
+}
+
+.export-workspace-modal__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.export-workspace-modal__subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.export-workspace-modal__preview {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.export-workspace-modal__preview-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.export-workspace-modal__preview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 24px;
+  box-sizing: border-box;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+    #151515;
+}
+
+.export-workspace-modal__error {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 190, 180, 0.95);
+  text-align: center;
+}
+
+.export-workspace-modal__cta {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.export-workspace-modal__cta:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.export-workspace-modal__cta:disabled,
+.export-workspace-modal__cta.is-loading {
+  cursor: progress;
+  opacity: 0.75;
+}

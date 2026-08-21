@@ -9,6 +9,7 @@ import './styles/left-panel.css';
 import './styles/intel-reference.css';
 import './styles/studio.css';
 import './styles/pack-wizard.css';
+import './styles/export-workspace-modal.css';
 import './styles/steps-runner.css';
 import './styles/lazy-todos.css';
 import './styles/gina-chat.css';
