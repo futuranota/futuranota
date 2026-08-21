@@ -9,9 +9,17 @@ import {
   useLibrarySets,
   usePromptClasses,
 } from "../../hooks/useLibraryItems.js";
+import { convertAndUploadDocImage, uploadDocAttachmentFile } from "../../lib/docImageStorage.js";
+import { generateId } from "../../lib/ids.js";
+import {
+  extractTextFromPdfData,
+  fetchPdfBytesFromUrl,
+  isPdfLibraryAttachment,
+} from "../../lib/importPdfText.js";
 import {
   addPromptClass,
   assignLibraryItemToSet,
+  createLibraryItem,
   folderLibraryItemMatchesFilter,
   libraryDocumentTitle,
   normalizeFolderLibraryFilterTab,
@@ -29,12 +37,6 @@ import {
   resolveFichaPreviewKind,
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
-import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
-import {
-  extractTextFromPdfData,
-  fetchPdfBytesFromUrl,
-  isPdfLibraryAttachment,
-} from "../../lib/importPdfText.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
@@ -175,6 +177,9 @@ export function FolderLibraryOverlay({
    * @type {null|((payload: { text: string, tag?: string }) => Promise<void>|void)}
    */
   onImportPdfToWriting = null,
+  /** Gina: open PDF file picker once, upload attachment, then run PDF → text. */
+  autoStartPdfImport = false,
+  onAutoStartPdfImportConsumed = null,
   onClose,
 }) {
   const { t } = useI18n();
@@ -249,6 +254,8 @@ export function FolderLibraryOverlay({
   const classDraftRef = useRef(null);
   const classEditRef = useRef(null);
   const libraryImageInputRef = useRef(null);
+  const pdfAutoUploadInputRef = useRef(null);
+  const autoPdfImportStartedRef = useRef(false);
   const [pdfToTextBusy, setPdfToTextBusy] = useState(false);
   const [pdfToTextError, setPdfToTextError] = useState("");
   const [pdfPickerOpen, setPdfPickerOpen] = useState(false);
@@ -437,14 +444,23 @@ export function FolderLibraryOverlay({
     if (pdfToTextError) return pdfToTextError;
     if (!canImportPdfToWriting) return t("doc.library.pdfToTextUnavailable");
     if (!writingEmpty) return t("doc.library.pdfToTextNeedEmpty");
-    if (!pdfAttachmentItems.length) return t("doc.library.pdfToTextNeedPdf");
     return t("doc.library.pdfToTextTitle");
   })();
 
   const pdfToTextEnabled = canImportPdfToWriting
     && writingEmpty
-    && !pdfToTextBusy
-    && pdfAttachmentItems.length > 0;
+    && !pdfToTextBusy;
+
+  const openLocalPdfUpload = () => {
+    if (!canImportPdfToWriting || pdfToTextBusy) return;
+    if (!writingEmpty) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedEmpty"));
+      return;
+    }
+    setPdfToTextError("");
+    setPdfPickerOpen(false);
+    pdfAutoUploadInputRef.current?.click();
+  };
 
   const importPdfAttachment = async (target) => {
     if (!target?.attachmentUrl) {
@@ -473,28 +489,104 @@ export function FolderLibraryOverlay({
     }
   };
 
-  const handlePdfToText = async () => {
+  const handlePdfToText = () => {
     if (!canImportPdfToWriting || pdfToTextBusy) return;
     if (!writingEmpty) {
       setPdfToTextError(t("doc.library.pdfToTextNeedEmpty"));
-      return;
-    }
-    if (!pdfAttachmentItems.length) {
-      setPdfToTextError(t("doc.library.pdfToTextNeedPdf"));
-      return;
-    }
-    if (pdfAttachmentItems.length === 1) {
-      await importPdfAttachment(pdfAttachmentItems[0]);
       return;
     }
     setPdfToTextError("");
     setPdfPickerOpen(true);
   };
 
-  const handleDelete = (item) => {
-    const ok = window.confirm(
-      t("doc.library.deleteConfirm").replace("{tag}", item.tag || ""),
-    );
+  const handleAutoPdfUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const isPdf = String(file.type || "").toLowerCase() === "application/pdf"
+      || /\.pdf$/i.test(file.name || "");
+    if (!isPdf) {
+      setPdfToTextError(t("docs.importPdfInvalid"));
+      return;
+    }
+    if (!canImportPdfToWriting) {
+      setPdfToTextError(t("doc.library.pdfToTextUnavailable"));
+      return;
+    }
+    if (!writingEmpty) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedEmpty"));
+      return;
+    }
+    if (!attachmentOwnerId) {
+      setPdfToTextError(t("doc.library.pdfToTextUnavailable"));
+      return;
+    }
+    setPdfToTextError("");
+    setPdfToTextBusy(true);
+    try {
+      const uploaded = await uploadDocAttachmentFile(file, {
+        fileId: generateId("LIBPDF"),
+        scopeId: attachmentOwnerId || "folder-lib",
+        fileName: file.name,
+      });
+      const tagBase = String(file.name || "").replace(/\.pdf$/i, "").trim() || "PDF";
+      const created = createLibraryItem("folder", attachmentOwnerId, {
+        tag: tagBase,
+        category: "pdf",
+        attachmentUrl: uploaded.url,
+        attachmentName: uploaded.name || file.name,
+        attachmentKind: uploaded.kind || "pdf",
+      });
+      if (!created?.attachmentUrl) {
+        setPdfToTextError(t("docs.importPdfFailed"));
+        setPdfToTextBusy(false);
+        return;
+      }
+      await importPdfAttachment(created);
+    } catch (err) {
+      console.error("[autoPdfImport]", err);
+      setPdfToTextError(err?.message || t("docs.importPdfFailed"));
+      setPdfToTextBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!autoStartPdfImport) {
+      autoPdfImportStartedRef.current = false;
+      return undefined;
+    }
+    if (autoPdfImportStartedRef.current) return undefined;
+    autoPdfImportStartedRef.current = true;
+    onAutoStartPdfImportConsumed?.();
+    if (!canImportPdfToWriting) {
+      setPdfToTextError(t("doc.library.pdfToTextUnavailable"));
+      return undefined;
+    }
+    if (!writingEmpty) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedEmpty"));
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      pdfAutoUploadInputRef.current?.click();
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [
+    autoStartPdfImport,
+    canImportPdfToWriting,
+    writingEmpty,
+    onAutoStartPdfImportConsumed,
+    t,
+  ]);
+
+  const handleDelete = async (item) => {
+    const tag = String(item?.tag || item?.attachmentName || "").trim() || "—";
+    const ok = await askConfirm({
+      title: t("doc.library.deleteItemTitle"),
+      message: t("doc.library.deleteConfirm").replace("{tag}", tag),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+      tone: "danger",
+    });
     if (!ok) return;
     if (detailItemId === item.id) {
       setDetailItemId(null);
@@ -777,6 +869,13 @@ export function FolderLibraryOverlay({
                 hidden
                 onChange={handleQuickFolderImage}
               />
+              <input
+                ref={pdfAutoUploadInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                hidden
+                onChange={handleAutoPdfUpload}
+              />
               <button
                 type="button"
                 className="folder-library-overlay__close"
@@ -977,25 +1076,14 @@ export function FolderLibraryOverlay({
                               ×
                             </button>
                           </div>
-                          <ul className="folder-library-overlay__pdf-picker-list">
-                            {pdfAttachmentItems.map((item) => (
-                              <li key={item.id}>
-                                <button
-                                  type="button"
-                                  className="folder-library-overlay__pdf-picker-item"
-                                  disabled={pdfToTextBusy}
-                                  onClick={() => importPdfAttachment(item)}
-                                >
-                                  <span className="folder-library-overlay__pdf-picker-item-name">
-                                    {item.tag || item.attachmentName || "PDF"}
-                                  </span>
-                                  <span className="folder-library-overlay__pdf-picker-item-badge">
-                                    PDF
-                                  </span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
+                          <button
+                            type="button"
+                            className="folder-library-overlay__pdf-picker-upload"
+                            disabled={pdfToTextBusy}
+                            onClick={openLocalPdfUpload}
+                          >
+                            {t("doc.library.pdfToTextUpload")}
+                          </button>
                         </div>
                       ) : null}
                     </span>

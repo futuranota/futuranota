@@ -10,22 +10,35 @@ import {
 } from "./ginaDocActionChips.js";
 
 describe("ginaDocActionChips", () => {
-  it("menu has three stable action ids (es)", () => {
-    const menu = buildGinaDocActionsMenu({ locale: "es" });
+  it("menu has three stable action ids when writing is empty (es)", () => {
+    const menu = buildGinaDocActionsMenu({ locale: "es", writingEmpty: true });
     expect(menu.map((x) => x.id)).toEqual([
       "doc_action_organize",
       "doc_action_pdf_to_text",
       "doc_action_export",
     ]);
     expect(menu[0].label).toBe("Organizar documento");
-    expect(menu[1].label).toBe("Convertir PDF a texto editable");
+    expect(menu[1].label).toBe("PDF → text");
     expect(menu[2].label).toBe("Exportar documento");
   });
 
+  it("hides PDF option when writing is not empty", () => {
+    const menu = buildGinaDocActionsMenu({ locale: "es", writingEmpty: false });
+    expect(menu.map((x) => x.id)).toEqual([
+      "doc_action_organize",
+      "doc_action_export",
+    ]);
+  });
+
+  it("defaults to including PDF when writingEmpty omitted", () => {
+    const menu = buildGinaDocActionsMenu({ locale: "es" });
+    expect(menu.some((x) => x.id === "doc_action_pdf_to_text")).toBe(true);
+  });
+
   it("menu EN labels", () => {
-    const menu = buildGinaDocActionsMenu({ locale: "en" });
+    const menu = buildGinaDocActionsMenu({ locale: "en", writingEmpty: true });
     expect(menu[0].label).toBe("Organize document");
-    expect(menu[1].label).toBe("Convert PDF to editable text");
+    expect(menu[1].label).toBe("PDF → text");
     expect(menu[2].label).toBe("Export document");
   });
 
@@ -47,7 +60,7 @@ describe("ginaDocActionChips", () => {
 
   it("prompt messages are non-empty", () => {
     expect(buildGinaOrganizePromptMessage({ locale: "es" }).length).toBeGreaterThan(20);
-    expect(buildGinaPdfToTextMessage({ locale: "es" }).length).toBeGreaterThan(20);
+    expect(buildGinaPdfToTextMessage({ locale: "es" })).toMatch(/Upload/);
     expect(buildGinaExportPromptMessage({ locale: "es" }).length).toBeGreaterThan(20);
     expect(buildGinaOrganizeAppliedAck({ locale: "es", styleId: "doc_organize_style_standard" }))
       .toContain("estándar");

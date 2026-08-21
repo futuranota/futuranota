@@ -14,12 +14,13 @@
  */
 
 /**
- * @param {{ locale?: string }} [opts]
+ * @param {{ locale?: string, writingEmpty?: boolean }} [opts]
  * @returns {GinaDocActionItem[]}
  */
 export function buildGinaDocActionsMenu(opts = {}) {
   const en = opts.locale === "en";
-  return [
+  /** @type {GinaDocActionItem[]} */
+  const items = [
     {
       id: "doc_action_organize",
       kind: "doc_action",
@@ -29,25 +30,28 @@ export function buildGinaDocActionsMenu(opts = {}) {
         ? "Polish writing, cut redundancy, and give it a clean professional structure."
         : "Pule la redacción, elimina redundancias y dale una estructura limpia y profesional.",
     },
-    {
+  ];
+  if (opts.writingEmpty !== false) {
+    items.push({
       id: "doc_action_pdf_to_text",
       kind: "doc_action",
       action: "import_pdf",
-      label: en ? "Convert PDF to editable text" : "Convertir PDF a texto editable",
+      label: "PDF → text",
       hint: en
-        ? "Process a PDF from Library Attachments into editable writing."
-        : "Procesa un PDF de Attachments de la Biblioteca en texto editable.",
-    },
-    {
-      id: "doc_action_export",
-      kind: "doc_action",
-      action: "export_prompt",
-      label: en ? "Export document" : "Exportar documento",
-      hint: en
-        ? "Prepare a PDF export — save to Library or download now."
-        : "Prepara la exportación en PDF — guardar en Biblioteca o descargar ahora.",
-    },
-  ];
+        ? "Upload a PDF from your computer into the empty writing area (document title can stay)."
+        : "Subí un PDF desde tu computadora al área de escritura vacía (el título del documento puede quedarse).",
+    });
+  }
+  items.push({
+    id: "doc_action_export",
+    kind: "doc_action",
+    action: "export_prompt",
+    label: en ? "Export document" : "Exportar documento",
+    hint: en
+      ? "Prepare a PDF export — save to Library or download now."
+      : "Prepara la exportación en PDF — guardar en Biblioteca o descargar ahora.",
+  });
+  return items;
 }
 
 /**
@@ -118,8 +122,47 @@ export function buildGinaOrganizeAppliedAck(opts = {}) {
 export function buildGinaPdfToTextMessage(opts = {}) {
   const en = opts.locale === "en";
   return en
-    ? "Understood. I’ll process the PDF file and turn it into fully editable text. Opening Library Attachments so you can pick the PDF."
-    : "Entendido. Voy a procesar el archivo PDF y transformarlo en texto completamente editable. Abro Attachments de la Biblioteca para que elijas el PDF.";
+    ? "Understood. Use Upload to pick a PDF from your computer and I’ll turn it into editable text here."
+    : "Entendido. Usá Upload para elegir un PDF de tu computadora y lo transformo en texto editable aquí.";
+}
+
+/**
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildGinaPdfWaitMessage(opts = {}) {
+  const en = opts.locale === "en";
+  return en ? "wait…" : "espera…";
+}
+
+/**
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildGinaPdfDoneMessage(opts = {}) {
+  const en = opts.locale === "en";
+  return en
+    ? "Done — it’s already converted from PDF to text."
+    : "Listo, ya está convertido de PDF a texto.";
+}
+
+/**
+ * @param {{ locale?: string }} [opts]
+ * @returns {GinaDocActionItem[]}
+ */
+export function buildGinaPdfUploadChip(opts = {}) {
+  const en = opts.locale === "en";
+  return [
+    {
+      id: "doc_pdf_upload",
+      kind: "doc_pdf_upload",
+      action: "import_pdf",
+      label: "Upload",
+      text: "Upload",
+      primary: true,
+      hint: en
+        ? "Open your computer’s file picker"
+        : "Abre el file picker de tu computadora",
+    },
+  ];
 }
 
 /**

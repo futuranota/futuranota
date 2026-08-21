@@ -41,6 +41,7 @@ import { saveWritingBlocksPdfToFolderLibrary } from "../../lib/saveDocPdfToLibra
 import {
   mergePdfTextIntoWritingBlocks,
   writingTextAreasAreEmpty,
+  extractTextFromPdfData,
 } from "../../lib/importPdfText.js";
 import { writeImageSplitPromptsFromBlocks } from "../../lib/libraryImageCardSync.js";
 import {
@@ -234,6 +235,7 @@ export function NodeQueryModal({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [librarySlashAction, setLibrarySlashAction] = useState(null);
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
+  const [libraryAutoPdfImport, setLibraryAutoPdfImport] = useState(false);
   const [organizingWriting, setOrganizingWriting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportPdfError, setExportPdfError] = useState("");
@@ -242,6 +244,10 @@ export function NodeQueryModal({
   const [savePdfLibraryOk, setSavePdfLibraryOk] = useState(false);
   const writingCaretRef = useRef(null);
   const organizeRunIdRef = useRef(0);
+  const ginaPdfUploadInputRef = useRef(null);
+  /** @type {React.MutableRefObject<null | { resolve: (v?: unknown) => void, reject: (e?: Error) => void }>} */
+  const ginaPdfUploadPendingRef = useRef(null);
+  const ginaPdfUploadBusyRef = useRef(false);
 
   useEffect(() => {
     if (librarySlashAction !== LIBRARY_SLASH_ACTIONS.OUTPUT) return;
@@ -1480,6 +1486,71 @@ export function NodeQueryModal({
     updateWritingBlocks(merged.blocks);
     setLibraryOpen(false);
     setLibraryInitialTab(null);
+    setLibraryAutoPdfImport(false);
+  }, [writingBlocks, updateWritingBlocks]);
+
+  const handleGinaLocalPdfUpload = useCallback(async (event) => {
+    const pending = ginaPdfUploadPendingRef.current;
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      ginaPdfUploadPendingRef.current = null;
+      pending?.reject(new Error("cancelled"));
+      return;
+    }
+    const isPdf = String(file.type || "").toLowerCase() === "application/pdf"
+      || /\.pdf$/i.test(file.name || "");
+    if (!isPdf) {
+      ginaPdfUploadPendingRef.current = null;
+      pending?.reject(new Error("invalid"));
+      return;
+    }
+    if (!writingTextAreasAreEmpty(writingBlocks)) {
+      ginaPdfUploadPendingRef.current = null;
+      pending?.reject(new Error("writing_not_empty"));
+      return;
+    }
+    ginaPdfUploadBusyRef.current = true;
+    const sleep = (ms) => new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+    try {
+      const bytes = await file.arrayBuffer();
+      const extracted = await extractTextFromPdfData(bytes);
+      if (extracted.empty) {
+        ginaPdfUploadPendingRef.current = null;
+        pending?.reject(new Error("empty"));
+        return;
+      }
+      const fullText = String(extracted.text || "");
+      const baseBlocks = writingBlocks;
+      // Hold the lupa / “espera…” beat, then type into the writing area quickly.
+      await sleep(1100);
+      const total = fullText.length;
+      const steps = Math.min(48, Math.max(12, Math.ceil(total / 18)));
+      const stepSize = Math.max(1, Math.ceil(total / steps));
+      for (let end = stepSize; end < total; end += stepSize) {
+        const merged = mergePdfTextIntoWritingBlocks(baseBlocks, fullText.slice(0, end));
+        if (merged.changed) updateWritingBlocks(merged.blocks);
+        await sleep(22);
+      }
+      const finalMerged = mergePdfTextIntoWritingBlocks(baseBlocks, fullText);
+      if (finalMerged.empty || !finalMerged.changed) {
+        ginaPdfUploadPendingRef.current = null;
+        pending?.reject(new Error("empty"));
+        return;
+      }
+      updateWritingBlocks(finalMerged.blocks);
+      await sleep(280);
+      ginaPdfUploadPendingRef.current = null;
+      pending?.resolve({ ok: true });
+    } catch (err) {
+      console.error("[ginaPdfUpload]", err);
+      ginaPdfUploadPendingRef.current = null;
+      pending?.reject(err instanceof Error ? err : new Error("failed"));
+    } finally {
+      ginaPdfUploadBusyRef.current = false;
+    }
   }, [writingBlocks, updateWritingBlocks]);
 
   const handleSaveWritingPdfToLibrary = useCallback(async () => {
@@ -1574,9 +1645,32 @@ export function NodeQueryModal({
       return;
     }
     if (key === "import_pdf") {
-      setGinaChatOpen(false);
-      setLibraryInitialTab("skill");
-      setLibraryOpen(true);
+      // Keep Gina open — open local file picker and resolve when conversion finishes.
+      return new Promise((resolve, reject) => {
+        if (ginaPdfUploadPendingRef.current) {
+          try {
+            ginaPdfUploadPendingRef.current.reject(new Error("cancelled"));
+          } catch { /* ignore */ }
+          ginaPdfUploadPendingRef.current = null;
+        }
+        ginaPdfUploadPendingRef.current = { resolve, reject };
+        window.setTimeout(() => {
+          ginaPdfUploadInputRef.current?.click();
+        }, 0);
+        const onFocus = () => {
+          window.removeEventListener("focus", onFocus);
+          window.setTimeout(() => {
+            if (ginaPdfUploadBusyRef.current) return;
+            if (ginaPdfUploadPendingRef.current?.reject === reject) {
+              ginaPdfUploadPendingRef.current = null;
+              reject(new Error("cancelled"));
+            }
+          }, 500);
+        };
+        window.setTimeout(() => {
+          window.addEventListener("focus", onFocus);
+        }, 100);
+      });
     }
   }, [
     handleOrganizeWritingText,
@@ -2666,9 +2760,20 @@ export function NodeQueryModal({
       }}
       onSendMessage={handleGinaInDocSend}
       onDocumentAction={handleGinaDocumentAction}
+      writingEmpty={writingTextAreasAreEmpty(writingBlocks)}
       onClose={() => setGinaChatOpen(false)}
     />
   ) : null;
+
+  const ginaPdfUploadInput = (
+    <input
+      ref={ginaPdfUploadInputRef}
+      type="file"
+      accept="application/pdf,.pdf"
+      hidden
+      onChange={handleGinaLocalPdfUpload}
+    />
+  );
 
   const libraryOverlay = entityNodeId && libraryOpen ? (
     <FolderLibraryOverlay
@@ -2681,10 +2786,13 @@ export function NodeQueryModal({
       }
       initialTab={libraryInitialTab}
       writingEmpty={writingTextAreasAreEmpty(writingBlocks)}
+      autoStartPdfImport={libraryAutoPdfImport}
+      onAutoStartPdfImportConsumed={() => setLibraryAutoPdfImport(false)}
       onImportPdfToWriting={handleImportPdfFromLibrary}
       onClose={() => {
         setLibraryOpen(false);
         setLibraryInitialTab(null);
+        setLibraryAutoPdfImport(false);
       }}
     />
   ) : null;
@@ -2709,6 +2817,7 @@ export function NodeQueryModal({
         {modalCard}
         {unsavedConfirm}
         {ginaChat}
+        {ginaPdfUploadInput}
         {libraryOverlay}
         {libraryIoUi}
       </>
@@ -2732,6 +2841,7 @@ export function NodeQueryModal({
       )}
       {unsavedConfirm}
       {ginaChat}
+      {ginaPdfUploadInput}
       {libraryOverlay}
       {libraryIoUi}
     </>

@@ -21,6 +21,9 @@ import {
   buildGinaOrganizePromptMessage,
   buildGinaOrganizeStyleChips,
   buildGinaPdfToTextMessage,
+  buildGinaPdfUploadChip,
+  buildGinaPdfWaitMessage,
+  buildGinaPdfDoneMessage,
 } from "../../lib/gina/ginaDocActionChips.js";
 import { buildGinaDocumentSyncOpening } from "../../lib/gina/ginaOpenings.js";
 import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
@@ -782,6 +785,7 @@ function joinTranscript(finalParts, interim) {
  *   onClose?: () => void,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null, searchSequence?: { preludeMessage?: string } | null }>,
  *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library") => void | Promise<void>,
+ *   writingEmpty?: boolean,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
@@ -803,6 +807,7 @@ export function GinaChatCard({
   onClose,
   onSendMessage,
   onDocumentAction,
+  writingEmpty = false,
   allowMeetingMode = false,
   meetingDocumentTitle = "",
   initialMeetingMode = false,
@@ -839,8 +844,10 @@ export function GinaChatCard({
   const [docActionsMenuOpen, setDocActionsMenuOpen] = useState(false);
   const isDocumentSurface = Boolean(documentId);
   const docActionsMenu = useMemo(
-    () => (isDocumentSurface ? buildGinaDocActionsMenu({ locale: chipLocale }) : []),
-    [isDocumentSurface, chipLocale],
+    () => (isDocumentSurface
+      ? buildGinaDocActionsMenu({ locale: chipLocale, writingEmpty: Boolean(writingEmpty) })
+      : []),
+    [isDocumentSurface, chipLocale, writingEmpty],
   );
 
   useEffect(() => {
@@ -2702,7 +2709,10 @@ export function GinaChatCard({
                               || (chipLocale === "en"
                                 ? "Tell me what you need for this document — pick an option below."
                                 : "Dime qué necesitas con este documento — elige una opción abajo.");
-                            const actionChips = buildGinaDocActionsMenu({ locale: chipLocale }).map((item) => ({
+                            const actionChips = buildGinaDocActionsMenu({
+                              locale: chipLocale,
+                              writingEmpty: Boolean(writingEmpty),
+                            }).map((item) => ({
                               ...item,
                               text: item.label,
                             }));
@@ -2756,13 +2766,12 @@ export function GinaChatCard({
                                   sender: "ai",
                                   text: buildGinaPdfToTextMessage({ locale: chipLocale }),
                                   visualization: null,
-                                  chips: null,
+                                  chips: buildGinaPdfUploadChip({ locale: chipLocale }),
                                   refineRevealed: true,
                                 },
                               ]);
                               isAiAnimatingRef.current = false;
                               setIsAiAnimating(false);
-                              void Promise.resolve(onDocumentAction?.("import_pdf")).catch(() => {});
                               return;
                             }
                             if (chip.action === "export_prompt") {
@@ -2782,6 +2791,71 @@ export function GinaChatCard({
                               setIsAiAnimating(false);
                               return;
                             }
+                            return;
+                          }
+                          if (chip.kind === "doc_pdf_upload") {
+                            const label = chip.label || "Upload";
+                            const waitId = makeMsgId();
+                            setDocActionsMenuOpen(false);
+                            setMessages((prev) => [
+                              ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
+                              { id: makeMsgId(), sender: "user", text: label },
+                              {
+                                id: waitId,
+                                sender: "ai",
+                                text: buildGinaPdfWaitMessage({ locale: chipLocale }),
+                                searching: true,
+                                refineRevealed: true,
+                                visualization: null,
+                                chips: null,
+                              },
+                            ]);
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            void (async () => {
+                              try {
+                                await Promise.resolve(onDocumentAction?.("import_pdf"));
+                                setMessages((prev) => prev.map((m) => (
+                                  m.id === waitId
+                                    ? {
+                                      ...m,
+                                      searching: false,
+                                      text: buildGinaPdfDoneMessage({ locale: chipLocale }),
+                                      refineRevealed: true,
+                                    }
+                                    : m
+                                )));
+                                isAiAnimatingRef.current = true;
+                                setIsAiAnimating(true);
+                                window.setTimeout(() => {
+                                  isAiAnimatingRef.current = false;
+                                  setIsAiAnimating(false);
+                                  onClose?.();
+                                }, 1600);
+                              } catch (err) {
+                                const cancelled = String(err?.message || "") === "cancelled";
+                                if (cancelled) {
+                                  setMessages((prev) => prev.filter((m) => m.id !== waitId));
+                                  isAiAnimatingRef.current = false;
+                                  setIsAiAnimating(false);
+                                  return;
+                                }
+                                setMessages((prev) => prev.map((m) => (
+                                  m.id === waitId
+                                    ? {
+                                      ...m,
+                                      searching: false,
+                                      text: chipLocale === "en"
+                                        ? "I couldn’t convert that PDF. Try another file."
+                                        : "No pude convertir ese PDF. Probá con otro archivo.",
+                                      refineRevealed: true,
+                                    }
+                                    : m
+                                )));
+                                isAiAnimatingRef.current = false;
+                                setIsAiAnimating(false);
+                              }
+                            })();
                             return;
                           }
                           if (chip.kind === "doc_organize_style") {
@@ -3009,13 +3083,12 @@ export function GinaChatCard({
                             sender: "ai",
                             text: buildGinaPdfToTextMessage({ locale: chipLocale }),
                             visualization: null,
-                            chips: null,
+                            chips: buildGinaPdfUploadChip({ locale: chipLocale }),
                             refineRevealed: true,
                           },
                         ]);
                         isAiAnimatingRef.current = false;
                         setIsAiAnimating(false);
-                        void Promise.resolve(onDocumentAction?.("import_pdf")).catch(() => {});
                         return;
                       }
                       if (item.action === "export_prompt") {
@@ -3075,7 +3148,10 @@ export function GinaChatCard({
                   setDocActionsMenuOpen((open) => {
                     const next = !open;
                     if (next) {
-                      const actionChips = buildGinaDocActionsMenu({ locale: chipLocale }).map((item) => ({
+                      const actionChips = buildGinaDocActionsMenu({
+                        locale: chipLocale,
+                        writingEmpty: Boolean(writingEmpty),
+                      }).map((item) => ({
                         ...item,
                         text: item.label,
                       }));

@@ -16,6 +16,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   labels?: Record<string, string>,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | object>,
  *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library") => void | Promise<void>,
+ *   writingEmpty?: boolean,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
@@ -37,6 +38,7 @@ export function GinaChatOverlay({
   labels = {},
   onSendMessage,
   onDocumentAction,
+  writingEmpty = false,
   allowMeetingMode = false,
   meetingDocumentTitle = "",
   initialMeetingMode = false,
@@ -84,6 +86,7 @@ export function GinaChatOverlay({
           labels={labels}
           onSendMessage={onSendMessage}
           onDocumentAction={onDocumentAction}
+          writingEmpty={writingEmpty}
           allowMeetingMode={allowMeetingMode}
           meetingDocumentTitle={meetingDocumentTitle}
           initialMeetingMode={initialMeetingMode}
