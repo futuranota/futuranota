@@ -61,6 +61,91 @@ function departmentToRow(dept, userId, now) {
 let isHydrating = false;
 let debouncedRemoteSync = null;
 
+const DEPT_TOMBSTONE_KEY = "futuranota.departments.deleted-ids.v1";
+const TAG_TOMBSTONE_KEY = "futuranota.departments.deleted-tags.v1";
+
+/** @type {Set<string>} */
+const pendingDeletedDeptIds = new Set();
+/** @type {Set<string>} `${deptId}::${labelLower}` */
+const pendingDeletedTagKeys = new Set();
+
+function readJsonArray(key) {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistTombstones() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(DEPT_TOMBSTONE_KEY, JSON.stringify([...pendingDeletedDeptIds]));
+    localStorage.setItem(TAG_TOMBSTONE_KEY, JSON.stringify([...pendingDeletedTagKeys]));
+  } catch {
+    /* quota */
+  }
+}
+
+function loadTombstonesFromDisk() {
+  for (const id of readJsonArray(DEPT_TOMBSTONE_KEY)) pendingDeletedDeptIds.add(id);
+  for (const key of readJsonArray(TAG_TOMBSTONE_KEY)) pendingDeletedTagKeys.add(key);
+}
+
+if (typeof window !== "undefined") loadTombstonesFromDisk();
+
+function tagTombstoneKey(departmentId, label) {
+  return `${departmentId}::${String(label || "").trim().toLowerCase()}`;
+}
+
+/** @param {string|string[]} ids */
+export function markDepartmentDeleted(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  let changed = false;
+  for (const id of list) {
+    if (!id || pendingDeletedDeptIds.has(id)) continue;
+    pendingDeletedDeptIds.add(String(id));
+    changed = true;
+  }
+  if (changed) persistTombstones();
+}
+
+/**
+ * @param {string} departmentId
+ * @param {string|string[]} labels
+ */
+export function markDepartmentTagsDeleted(departmentId, labels) {
+  if (!departmentId) return;
+  const list = Array.isArray(labels) ? labels : [labels];
+  let changed = false;
+  for (const label of list) {
+    const key = tagTombstoneKey(departmentId, label);
+    if (key.endsWith("::") || pendingDeletedTagKeys.has(key)) continue;
+    pendingDeletedTagKeys.add(key);
+    changed = true;
+  }
+  if (changed) persistTombstones();
+}
+
+/**
+ * @param {import("../lib/departments.js").DepartmentEntity[]} departments
+ * @returns {import("../lib/departments.js").DepartmentEntity[]}
+ */
+export function applyDepartmentTombstones(departments) {
+  return (departments || [])
+    .filter((dept) => dept?.id && !pendingDeletedDeptIds.has(dept.id))
+    .map((dept) => ({
+      ...dept,
+      subcategories: (dept.subcategories || []).filter(
+        (tag) => !pendingDeletedTagKeys.has(tagTombstoneKey(dept.id, tag.label)),
+      ),
+    }));
+}
+
 /** @param {import("../lib/departments.js").DepartmentEntity[]} departments */
 async function syncDepartmentsToSupabase(departments) {
   const userId = await resolveSyncUserId();
@@ -70,7 +155,8 @@ async function syncDepartmentsToSupabase(departments) {
   }
 
   const now = new Date().toISOString();
-  const rows = departments.map((dept) => departmentToRow(dept, userId, now));
+  const live = applyDepartmentTombstones(departments);
+  const rows = live.map((dept) => departmentToRow(dept, userId, now));
 
   if (rows.length > 0) {
     let { error } = await supabase
@@ -102,7 +188,7 @@ async function syncDepartmentsToSupabase(departments) {
     return false;
   }
 
-  const localIds = new Set(departments.map((dept) => dept.id));
+  const localIds = new Set(live.map((dept) => dept.id));
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
     .filter((id) => !localIds.has(id));
@@ -119,6 +205,9 @@ async function syncDepartmentsToSupabase(departments) {
     }
   }
 
+  pendingDeletedDeptIds.clear();
+  pendingDeletedTagKeys.clear();
+  persistTombstones();
   return true;
 }
 
@@ -163,17 +252,18 @@ export function initDepartmentsSync(useDepartmentsStoreArg) {
 
     isHydrating = true;
     try {
-      if (remote.length > 0) {
-        const local = useDepartmentsStoreArg.getState().departments;
-        const remoteById = new Map(remote.map((dept) => [dept.id, dept]));
+      loadTombstonesFromDisk();
+      const local = useDepartmentsStoreArg.getState().departments;
+      if (remote.length > 0 || pendingDeletedDeptIds.size > 0 || pendingDeletedTagKeys.size > 0) {
         const localById = new Map(local.map((dept) => [dept.id, dept]));
 
         // Merge so a newer remote row that dropped `description` (schema cache)
-        // cannot wipe local department / tag metadata.
+        // cannot wipe local department / tag metadata. Tombstones block ghosts.
         const merged = [];
         const seen = new Set();
 
         for (const remoteDept of remote) {
+          if (pendingDeletedDeptIds.has(remoteDept.id)) continue;
           seen.add(remoteDept.id);
           const localDept = localById.get(remoteDept.id);
           if (!localDept) {
@@ -184,23 +274,20 @@ export function initDepartmentsSync(useDepartmentsStoreArg) {
         }
 
         for (const localDept of local) {
+          if (pendingDeletedDeptIds.has(localDept.id)) continue;
           if (seen.has(localDept.id)) continue;
-          // Local-only row (upsert may have failed) — keep and push on sync.
           merged.push(localDept);
         }
 
-        useDepartmentsStoreArg.getState().replaceDepartments(merged);
-        // Push any local-newer / local-only rows after hydrate unlocks.
+        const stripped = applyDepartmentTombstones(merged);
+        useDepartmentsStoreArg.getState().replaceDepartments(stripped);
         queueMicrotask(() => {
           syncDepartmentsToSupabase(
             useDepartmentsStoreArg.getState().departments,
           );
         });
-      } else {
-        const local = useDepartmentsStoreArg.getState().departments;
-        if (local.length > 0) {
-          await syncDepartmentsToSupabase(local);
-        }
+      } else if (local.length > 0) {
+        await syncDepartmentsToSupabase(local);
       }
     } finally {
       isHydrating = false;

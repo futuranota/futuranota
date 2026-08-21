@@ -8,6 +8,8 @@ import {
   docBlocksFromBody,
   normalizeDocBlocks,
 } from "./docBlocks.js";
+import { markUrlTableDeleted } from "./urlTablesSync.js";
+import { markUrlTableEntryDeleted } from "./urlTableSync.js";
 
 const PREVIEW_MAX = 120;
 
@@ -315,6 +317,16 @@ export function filterUrlTables(tables, query) {
 export function removeUrlTableFromDoc(table) {
   const tableId = table?.tableId || table?.id;
   if (!tableId) return { docRemoved: false };
+
+  const entryIds = useUrlTableStore.getState()
+    .getEntriesForTable(tableId)
+    .map((entry) => entry.id)
+    .filter(Boolean);
+
+  // Tombstone before store remove so a racing hydrate cannot resurrect.
+  markUrlTableDeleted(tableId);
+  for (const id of entryIds) markUrlTableEntryDeleted(id);
+
   useUrlTableStore.getState().removeEntriesForTable(tableId);
   useUrlTablesStore.getState().removeTable(tableId);
   return { docRemoved: true };

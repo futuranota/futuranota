@@ -238,9 +238,8 @@ export function initUrlTableSync(useUrlTableStore) {
     // #endregion
     isHydrating = true;
     try {
-      if (merged.length > 0) {
-        useUrlTableStore.getState().replaceEntries(merged);
-      }
+      // Always apply merge result (including empty) so tombstoned deletes stick.
+      useUrlTableStore.getState().replaceEntries(merged);
     } finally {
       isHydrating = false;
     }

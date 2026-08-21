@@ -531,6 +531,40 @@ function stripPendingDeletesFromState(state) {
 }
 
 /**
+ * Drop tombstoned docs/nodes/companies from live Zustand stores.
+ * Used after paint, ledger adopt, and version-gate skip so ghosts cannot re-upsert.
+ * @returns {boolean} true if any store changed
+ */
+function stripPendingDeletesFromLiveStores() {
+  if (
+    pendingDeletedDocIds.size === 0
+    && pendingDeletedNodeIds.size === 0
+    && pendingDeletedCompanyIds.size === 0
+  ) {
+    return false;
+  }
+  const docsState = useDocsStore.getState().docs || {};
+  const nodesState = useNodesStore.getState().nodes || {};
+  const objectsState = useObjectsStore.getState().objects || {};
+  const stripped = stripPendingDeletesFromState({
+    docs: docsState,
+    nodes: nodesState,
+    objects: objectsState,
+  });
+  if (stripped === undefined || stripped === null) return false;
+  const docsChanged = stripped.docs !== docsState;
+  const nodesChanged = stripped.nodes !== nodesState;
+  const objectsChanged = stripped.objects !== objectsState;
+  if (!docsChanged && !nodesChanged && !objectsChanged) return false;
+  if (docsChanged) useDocsStore.setState({ docs: stripped.docs });
+  if (nodesChanged) useNodesStore.setState({ nodes: stripped.nodes });
+  if (objectsChanged) {
+    useObjectsStore.setState({ objects: stripped.objects || {} });
+  }
+  return true;
+}
+
+/**
  * Hard-delete tombstoned ids from a remote table (batched).
  * @param {string} table
  * @param {string} userId
@@ -1481,6 +1515,7 @@ export function initPersistenceMiddleware(stores) {
           hasPendingDeletes,
         })
       ) {
+        stripPendingDeletesFromLiveStores();
         isSyncedWithRemote = true;
         finishWorkspaceHydration();
         console.log(
@@ -1492,6 +1527,7 @@ export function initPersistenceMiddleware(stores) {
       }
 
       if (versionFetchFailed && !hydrateOnVersionError) {
+        stripPendingDeletesFromLiveStores();
         isSyncedWithRemote = true;
         finishWorkspaceHydration();
         scheduleDocImageDataUrlBackfill();
@@ -2340,10 +2376,17 @@ export function initPersistenceMiddleware(stores) {
   window.addEventListener("beforeunload", flushPersistenceSyncBestEffort);
   document.addEventListener("visibilitychange", onVisibilityChange);
 
-  // Paint local workspace immediately so reload does not flash empty companies.
-  // Remote hydrate merges on top; seed default "yo" only after hydrate finishes.
-  paintLocalWorkspace();
+  // Adopt delete ledger BEFORE paint so tombstoned corpora/folders never flash
+  // back from futura-nota-v1 and cannot be re-upserted on version-gate skip.
   adoptTombstoneLedger(readTombstoneLedger());
+  paintLocalWorkspace();
+  if (stripPendingDeletesFromLiveStores()) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
+    } catch {
+      // quota / private mode
+    }
+  }
   loadFromSupabase();
 
   // Sibling /app tabs: adopt delete ledger so they stop re-upserting ghost folders.
@@ -2356,41 +2399,9 @@ export function initPersistenceMiddleware(stores) {
       return;
     }
     if (!adoptTombstoneLedger(ledger)) return;
-    const docsState = useDocsStore.getState().docs || {};
-    const nodesState = useNodesStore.getState().nodes || {};
-    const objectsState = useObjectsStore.getState().objects || {};
-    let docsChanged = false;
-    let nodesChanged = false;
-    let objectsChanged = false;
-    const nextDocs = { ...docsState };
-    const nextNodes = { ...nodesState };
-    const nextObjects = { ...objectsState };
-    for (const id of pendingDeletedDocIds) {
-      if (id in nextDocs) {
-        delete nextDocs[id];
-        docsChanged = true;
-      }
+    if (stripPendingDeletesFromLiveStores()) {
+      debouncedRemoteSync();
     }
-    for (const id of pendingDeletedNodeIds) {
-      if (id in nextNodes) {
-        delete nextNodes[id];
-        nodesChanged = true;
-      }
-    }
-    for (const id of pendingDeletedCompanyIds) {
-      if (id in nextObjects) {
-        delete nextObjects[id];
-        objectsChanged = true;
-      }
-    }
-    if (docsChanged) useDocsStore.setState({ docs: nextDocs });
-    if (nodesChanged) useNodesStore.setState({ nodes: nextNodes });
-    if (objectsChanged) {
-      useObjectsStore.setState({
-        objects: rebuildObjectChildren(nextObjects, docsChanged ? nextDocs : docsState),
-      });
-    }
-    debouncedRemoteSync();
   });
 
   // Escuchar cambios de sesión — recargar solo en login real, no en cada refresh de token

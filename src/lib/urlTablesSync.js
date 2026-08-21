@@ -54,6 +54,22 @@ function tableToRow(table, userId, now) {
 let isHydrating = false;
 let debouncedRemoteSync = null;
 
+/**
+ * Tombstones for tables deleted locally but possibly still present remotely.
+ * Prevents hydrate from resurrecting ghost URL tables.
+ * Cleared after a successful sync (orphan DELETE landed).
+ * @type {Set<string>}
+ */
+const pendingDeletedTableIds = new Set();
+
+/** @param {string|string[]} ids */
+export function markUrlTableDeleted(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  for (const id of list) {
+    if (id) pendingDeletedTableIds.add(String(id));
+  }
+}
+
 /** @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} tables */
 async function syncUrlTablesToSupabase(tables) {
   const userId = await resolveSyncUserId();
@@ -63,7 +79,8 @@ async function syncUrlTablesToSupabase(tables) {
   }
 
   const now = new Date().toISOString();
-  const rows = tables.map((table) => tableToRow(table, userId, now));
+  const liveTables = tables.filter((table) => !pendingDeletedTableIds.has(table.id));
+  const rows = liveTables.map((table) => tableToRow(table, userId, now));
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -102,7 +119,7 @@ async function syncUrlTablesToSupabase(tables) {
     return false;
   }
 
-  const localIds = new Set(tables.map((table) => table.id));
+  const localIds = new Set(liveTables.map((table) => table.id));
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
     .filter((id) => !localIds.has(id));
@@ -119,6 +136,8 @@ async function syncUrlTablesToSupabase(tables) {
     }
   }
 
+  // Remote now mirrors local: tombstoned tables were deleted as orphans.
+  pendingDeletedTableIds.clear();
   return true;
 }
 
@@ -144,6 +163,7 @@ export async function loadUrlTablesFromSupabase() {
 /**
  * Merge remote tables into local without dropping local-only rows or wiping
  * `kind: affiliates` when the remote row still lacks / defaults the column.
+ * Tombstoned ids are never reintroduced from remote or kept as local-only ghosts.
  * @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} localTables
  * @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} remoteTables
  */
@@ -153,16 +173,23 @@ export function mergeUrlTablesFromRemote(localTables, remoteTables) {
   const localById = new Map(localList.map((table) => [table.id, table]));
   const remoteIds = new Set(remoteList.map((table) => table.id));
 
-  const merged = remoteList.map((remote) => {
+  const merged = [];
+  for (const remote of remoteList) {
+    if (pendingDeletedTableIds.has(remote.id)) continue;
     const local = localById.get(remote.id);
-    if (!local) return remote;
-    if (local.kind === "affiliates" && remote.kind !== "affiliates") {
-      return normalizeUrlTableMeta({ ...remote, kind: "affiliates" });
+    if (!local) {
+      merged.push(remote);
+      continue;
     }
-    return remote;
-  });
+    if (local.kind === "affiliates" && remote.kind !== "affiliates") {
+      merged.push(normalizeUrlTableMeta({ ...remote, kind: "affiliates" }));
+    } else {
+      merged.push(remote);
+    }
+  }
 
   for (const local of localList) {
+    if (pendingDeletedTableIds.has(local.id)) continue;
     if (!remoteIds.has(local.id)) {
       merged.push(local);
     }
@@ -194,12 +221,19 @@ export function initUrlTablesSync(useUrlTablesStore) {
     isHydrating = true;
     try {
       const localTables = useUrlTablesStore.getState().tables;
-      if (remoteTables.length > 0) {
-        useUrlTablesStore.getState().replaceTables(
-          mergeUrlTablesFromRemote(localTables, remoteTables),
-        );
+      const merged = mergeUrlTablesFromRemote(localTables, remoteTables);
+      const tombstonedRemote = remoteTables.some((table) => (
+        pendingDeletedTableIds.has(table.id)
+      ));
+
+      if (remoteTables.length > 0 || tombstonedRemote || pendingDeletedTableIds.size > 0) {
+        useUrlTablesStore.getState().replaceTables(merged);
       } else if (localTables.length > 0) {
         await syncUrlTablesToSupabase(localTables);
+      }
+
+      if (tombstonedRemote || pendingDeletedTableIds.size > 0) {
+        await syncUrlTablesToSupabase(useUrlTablesStore.getState().tables);
       }
     } finally {
       isHydrating = false;
@@ -215,6 +249,7 @@ export function initUrlTablesSync(useUrlTablesStore) {
     }
     if (event === "SIGNED_OUT") {
       debouncedRemoteSync?.cancel();
+      pendingDeletedTableIds.clear();
     }
   });
 

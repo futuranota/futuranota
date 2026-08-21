@@ -145,9 +145,10 @@ export function folderMatchesDepartmentFilter(folder, filterDepartmentId) {
 }
 
 /**
- * Union tags by label; keep a non-empty description from either side.
- * @param {unknown} primary
- * @param {unknown} secondary
+ * Keep the newer list as authority. Fill empty descriptions from the older
+ * side for the same label — never re-add tags the newer list already dropped.
+ * @param {unknown} primary newer subcategory list
+ * @param {unknown} secondary older subcategory list
  * @returns {DepartmentCategoryTag[]}
  */
 export function mergeSubcategoryLists(primary, secondary) {
@@ -156,23 +157,13 @@ export function mergeSubcategoryLists(primary, secondary) {
   const olderByKey = new Map(
     older.map((tag) => [tag.label.toLowerCase(), tag]),
   );
-  const seen = new Set();
-  const out = [];
-  for (const tag of newer) {
-    const key = tag.label.toLowerCase();
-    seen.add(key);
-    const prev = olderByKey.get(key);
-    out.push({
+  return newer.map((tag) => {
+    const prev = olderByKey.get(tag.label.toLowerCase());
+    return {
       label: tag.label,
       description: tag.description || prev?.description || "",
-    });
-  }
-  for (const tag of older) {
-    const key = tag.label.toLowerCase();
-    if (seen.has(key)) continue;
-    out.push(tag);
-  }
-  return out;
+    };
+  });
 }
 
 /**

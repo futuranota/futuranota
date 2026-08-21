@@ -23,6 +23,7 @@ export const messages = {
       open: "Open",
       noParent: "No parent",
       loading: "Loading…",
+      saving: "Saving…",
     },
     account: {
       exportMyData: "Export my data",
@@ -1586,6 +1587,7 @@ export const messages = {
       open: "Abrir",
       noParent: "Sin padre",
       loading: "Cargando…",
+      saving: "Guardando…",
     },
     account: {
       exportMyData: "Exportar mis datos",

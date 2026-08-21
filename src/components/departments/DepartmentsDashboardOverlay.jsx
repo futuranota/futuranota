@@ -7,7 +7,7 @@ import {
   countFoldersWithDepartmentCategory,
 } from "../../stores/departmentsStore.js";
 import { findDepartmentById, normalizeDescription } from "../../lib/departments.js";
-import { flushDepartmentsSync } from "../../lib/departmentsSync.js";
+import { flushDepartmentsSync, markDepartmentDeleted, markDepartmentTagsDeleted } from "../../lib/departmentsSync.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 
 const DEPT_BG_SRC = "/uploads/department-img.png";
@@ -50,6 +50,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   const [editingKey, setEditingKey] = useState(null);
   const [editLabelDraft, setEditLabelDraft] = useState("");
   const [editDescriptionDraft, setEditDescriptionDraft] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!session) return;
@@ -141,16 +142,21 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     setEditingDeptMeta(false);
   };
 
-  const handleSaveDeptMeta = () => {
-    if (!existing) return;
+  const handleSaveDeptMeta = async () => {
+    if (!existing || saving) return;
     const category = name.trim();
     if (!category) return;
-    updateDepartment(existing.id, {
-      category,
-      description: normalizeDescription(description),
-    });
-    setEditingDeptMeta(false);
-    void flushDepartmentsSync();
+    setSaving(true);
+    try {
+      updateDepartment(existing.id, {
+        category,
+        description: normalizeDescription(description),
+      });
+      setEditingDeptMeta(false);
+      await flushDepartmentsSync();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addTag = () => {
@@ -213,6 +219,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     if (!wasSaved) return;
 
     cascadeFolderCategoryClear(existing.id, cascadeLabel);
+    markDepartmentTagsDeleted(existing.id, cascadeLabel);
     updateDepartment(existing.id, {
       category: existing.category,
       description: normalizeDescription(existing.description),
@@ -256,31 +263,39 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     setEditingKey(null);
   };
 
-  const handleSaveCreate = () => {
+  const handleSaveCreate = async () => {
+    if (saving) return;
     const category = name.trim();
     if (!category) return;
-    const created = createDepartment({
-      objectId: session.objectId ?? null,
-      category,
-      description: normalizeDescription(description),
-      subcategories: [],
-    });
-    onSessionChange?.({
-      mode: "edit",
-      departmentId: created.id,
-      objectId: session.objectId ?? null,
-    });
-    void flushDepartmentsSync();
+    setSaving(true);
+    try {
+      const created = createDepartment({
+        objectId: session.objectId ?? null,
+        category,
+        description: normalizeDescription(description),
+        subcategories: [],
+      });
+      onSessionChange?.({
+        mode: "edit",
+        departmentId: created.id,
+        objectId: session.objectId ?? null,
+      });
+      await flushDepartmentsSync();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
-    if (!existing) return;
+    if (!existing || saving) return;
+    markDepartmentDeleted(existing.id);
     deleteDepartment(existing.id);
+    void flushDepartmentsSync();
     onClose?.();
   };
 
-  const handleSaveTags = () => {
-    if (!existing) return;
+  const handleSaveTags = async () => {
+    if (!existing || saving) return;
 
     // Commit any tag still sitting in the input (user typed + Save without Add).
     let tagsToSave = draftTags;
@@ -298,44 +313,54 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       }
     }
 
-    // Cascade renames before replacing the full list.
-    tagsToSave.forEach((tag) => {
-      if (
-        tag.originLabel &&
-        tag.originLabel.toLowerCase() !== tag.label.toLowerCase()
-      ) {
-        updateSubcategory(existing.id, tag.originLabel, {
+    setSaving(true);
+    try {
+      // Cascade renames before replacing the full list.
+      tagsToSave.forEach((tag) => {
+        if (
+          tag.originLabel &&
+          tag.originLabel.toLowerCase() !== tag.label.toLowerCase()
+        ) {
+          updateSubcategory(existing.id, tag.originLabel, {
+            label: tag.label,
+            description: tag.description,
+          });
+        }
+      });
+
+      // Erase folder.category for tags removed from the board.
+      const nextKeys = new Set(
+        tagsToSave.map((tag) => tag.label.trim().toLowerCase()).filter(Boolean),
+      );
+      const removedLabels = [];
+      (existing.subcategories || []).forEach((sub) => {
+        const label = String(sub?.label || "").trim();
+        if (!label) return;
+        if (!nextKeys.has(label.toLowerCase())) {
+          removedLabels.push(label);
+          cascadeFolderCategoryClear(existing.id, label);
+        }
+      });
+      if (removedLabels.length) {
+        markDepartmentTagsDeleted(existing.id, removedLabels);
+      }
+
+      // Keep department name/description with the tag write so a tags-only
+      // save cannot drop metadata the overlay still has in memory.
+      updateDepartment(existing.id, {
+        category: (existing.category || name).trim() || existing.category,
+        description: normalizeDescription(existing.description || description),
+        subcategories: tagsToSave.map((tag) => ({
           label: tag.label,
-          description: tag.description,
-        });
-      }
-    });
+          description: normalizeDescription(tag.description),
+        })),
+      });
 
-    // Erase folder.category for tags removed from the board.
-    const nextKeys = new Set(
-      tagsToSave.map((tag) => tag.label.trim().toLowerCase()).filter(Boolean),
-    );
-    (existing.subcategories || []).forEach((sub) => {
-      const label = String(sub?.label || "").trim();
-      if (!label) return;
-      if (!nextKeys.has(label.toLowerCase())) {
-        cascadeFolderCategoryClear(existing.id, label);
-      }
-    });
-
-    // Keep department name/description with the tag write so a tags-only
-    // save cannot drop metadata the overlay still has in memory.
-    updateDepartment(existing.id, {
-      category: (existing.category || name).trim() || existing.category,
-      description: normalizeDescription(existing.description || description),
-      subcategories: tagsToSave.map((tag) => ({
-        label: tag.label,
-        description: normalizeDescription(tag.description),
-      })),
-    });
-
-    void flushDepartmentsSync();
-    onClose?.();
+      await flushDepartmentsSync();
+      onClose?.();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const title = isCreate
@@ -652,7 +677,8 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
               type="button"
               className="departments-dashboard-overlay__save"
               disabled={
-                isCreate || editingDeptMeta ? !name.trim() : false
+                saving
+                || (isCreate || editingDeptMeta ? !name.trim() : false)
               }
               onClick={
                 isCreate
@@ -662,7 +688,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                     : handleSaveTags
               }
             >
-              {t("common.save")}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </footer>

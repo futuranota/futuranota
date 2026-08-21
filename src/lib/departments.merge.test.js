@@ -28,7 +28,7 @@ describe("mergeDepartmentRecords", () => {
     ]);
   });
 
-  it("unions tags from both sides and fills empty descriptions", () => {
+  it("does not resurrect tags the newer list already dropped", () => {
     expect(
       mergeSubcategoryLists(
         [{ label: "Blogs", description: "" }],
@@ -36,7 +36,29 @@ describe("mergeDepartmentRecords", () => {
       ),
     ).toEqual([
       { label: "Blogs", description: "Long form" },
-      { label: "Social", description: "Posts" },
     ]);
+  });
+
+  it("keeps local tags when local is newer even if remote still has deleted ones", () => {
+    const local = {
+      id: "d1",
+      objectId: "co1",
+      category: "Estrategias",
+      description: "",
+      subcategories: [{ label: "Plan de Negocio", description: "" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-08-21T22:00:00.000Z",
+    };
+    const remote = {
+      ...local,
+      subcategories: [
+        { label: "Plan de Negocio", description: "" },
+        { label: "this-is-about-to-get-erased", description: "" },
+        { label: "Inversionistas", description: "" },
+      ],
+      updatedAt: "2026-08-21T20:00:00.000Z",
+    };
+    const merged = mergeDepartmentRecords(local, remote);
+    expect(merged.subcategories.map((t) => t.label)).toEqual(["Plan de Negocio"]);
   });
 });

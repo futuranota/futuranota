@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
- * Preview art for the export-all card (WebP from export-car-overlay.svg).
+ * Preview art for the export-all card (WebP from `Group 16.svg`).
  * Empty string → placeholder panel.
  */
 export const EXPORT_WORKSPACE_PREVIEW_SRC = "/uploads/export-car-overlay.webp";
