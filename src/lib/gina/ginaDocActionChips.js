@@ -27,8 +27,8 @@ export function buildGinaDocActionsMenu(opts = {}) {
       action: "organize_prompt",
       label: en ? "Organize document" : "Organizar documento",
       hint: en
-        ? "Polish writing, cut redundancy, and give it a clean professional structure."
-        : "Pule la redacción, elimina redundancias y dale una estructura limpia y profesional.",
+        ? "Polish the writing, remove redundancies, and bring a clean professional structure."
+        : "Pule la redacción, elimina redundancias y aporta una estructura limpia y profesional.",
     },
   ];
   if (opts.writingEmpty !== false) {
@@ -38,8 +38,8 @@ export function buildGinaDocActionsMenu(opts = {}) {
       action: "import_pdf",
       label: "PDF → text",
       hint: en
-        ? "Upload a PDF from your computer into the empty writing area (document title can stay)."
-        : "Subí un PDF desde tu computadora al área de escritura vacía (el título del documento puede quedarse).",
+        ? "Upload a PDF from your computer to the work area (you can keep the current title)."
+        : "Sube un archivo PDF desde tu ordenador al área de trabajo (puedes conservar el título actual).",
     });
   }
   items.push({
@@ -48,8 +48,8 @@ export function buildGinaDocActionsMenu(opts = {}) {
     action: "export_prompt",
     label: en ? "Export document" : "Exportar documento",
     hint: en
-      ? "Prepare a PDF export — save to Library or download now."
-      : "Prepara la exportación en PDF — guardar en Biblioteca o descargar ahora.",
+      ? "Prepare your document for PDF export; save it to the library or download it right away."
+      : "Prepara tu documento para exportarlo en PDF; guárdalo en la biblioteca o descárgalo de inmediato.",
   });
   return items;
 }
@@ -171,8 +171,8 @@ export function buildGinaPdfUploadChip(opts = {}) {
 export function buildGinaExportPromptMessage(opts = {}) {
   const en = opts.locale === "en";
   return en
-    ? "Ready — I’ll prepare this document’s PDF export. Before continuing: do you want to save it permanently in the Library for future projects, or download it right away?"
-    : "Listo, prepararé la exportación de este documento en formato PDF. Antes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca para futuros proyectos, o prefieres descargarlo de inmediato?";
+    ? "Ready — I’ll prepare this document’s PDF export.\nBefore continuing, tell me: do you want to save it permanently in the Library for future projects, or download it right away?"
+    : "Listo, prepararé la exportación de este documento en formato PDF.\nAntes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca para futuros proyectos, o prefieres descargarlo de inmediato?";
 }
 
 /**

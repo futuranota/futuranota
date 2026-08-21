@@ -2152,7 +2152,10 @@ export function GinaChatCard({
                       ) : (
                       <GinaAiMessageText
                         text={msg.text}
-                        plainBody={msg.visualization?.type === "recovery_preview"}
+                        plainBody={
+                          Boolean(msg.plainBody)
+                          || msg.visualization?.type === "recovery_preview"
+                        }
                         instant={Boolean(msg.refineRevealed)}
                         headlineIcon={
                           /Aún no tienes ningún documento seleccionado|You don’t have any document selected yet/i
@@ -2707,8 +2710,8 @@ export function GinaChatCard({
                             const label = chip.label || (chipLocale === "en" ? "Something else" : "Algo más");
                             const ack = labels.moreActionsAck
                               || (chipLocale === "en"
-                                ? "Tell me what you need for this document — pick an option below."
-                                : "Dime qué necesitas con este documento — elige una opción abajo.");
+                                ? "What do you need to do with this document?\nSelect one of the options below:"
+                                : "¿Qué necesitas hacer con este documento?\nSelecciona una de las opciones a continuación:");
                             const actionChips = buildGinaDocActionsMenu({
                               locale: chipLocale,
                               writingEmpty: Boolean(writingEmpty),
@@ -2748,13 +2751,13 @@ export function GinaChatCard({
                                   id: makeMsgId(),
                                   sender: "ai",
                                   text: buildGinaOrganizePromptMessage({ locale: chipLocale }),
+                                  plainBody: true,
                                   visualization: null,
                                   chips: buildGinaOrganizeStyleChips({ locale: chipLocale }),
-                                  refineRevealed: true,
                                 },
                               ]);
-                              isAiAnimatingRef.current = false;
-                              setIsAiAnimating(false);
+                              isAiAnimatingRef.current = true;
+                              setIsAiAnimating(true);
                               return;
                             }
                             if (chip.action === "import_pdf") {
@@ -2765,13 +2768,13 @@ export function GinaChatCard({
                                   id: makeMsgId(),
                                   sender: "ai",
                                   text: buildGinaPdfToTextMessage({ locale: chipLocale }),
+                                  plainBody: true,
                                   visualization: null,
                                   chips: buildGinaPdfUploadChip({ locale: chipLocale }),
-                                  refineRevealed: true,
                                 },
                               ]);
-                              isAiAnimatingRef.current = false;
-                              setIsAiAnimating(false);
+                              isAiAnimatingRef.current = true;
+                              setIsAiAnimating(true);
                               return;
                             }
                             if (chip.action === "export_prompt") {
@@ -2782,13 +2785,13 @@ export function GinaChatCard({
                                   id: makeMsgId(),
                                   sender: "ai",
                                   text: buildGinaExportPromptMessage({ locale: chipLocale }),
+                                  plainBody: true,
                                   visualization: null,
                                   chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
-                                  refineRevealed: true,
                                 },
                               ]);
-                              isAiAnimatingRef.current = false;
-                              setIsAiAnimating(false);
+                              isAiAnimatingRef.current = true;
+                              setIsAiAnimating(true);
                               return;
                             }
                             return;
@@ -3065,13 +3068,13 @@ export function GinaChatCard({
                             id: makeMsgId(),
                             sender: "ai",
                             text: buildGinaOrganizePromptMessage({ locale: chipLocale }),
+                            plainBody: true,
                             visualization: null,
                             chips: buildGinaOrganizeStyleChips({ locale: chipLocale }),
-                            refineRevealed: true,
                           },
                         ]);
-                        isAiAnimatingRef.current = false;
-                        setIsAiAnimating(false);
+                        isAiAnimatingRef.current = true;
+                        setIsAiAnimating(true);
                         return;
                       }
                       if (item.action === "import_pdf") {
@@ -3082,13 +3085,13 @@ export function GinaChatCard({
                             id: makeMsgId(),
                             sender: "ai",
                             text: buildGinaPdfToTextMessage({ locale: chipLocale }),
+                            plainBody: true,
                             visualization: null,
                             chips: buildGinaPdfUploadChip({ locale: chipLocale }),
-                            refineRevealed: true,
                           },
                         ]);
-                        isAiAnimatingRef.current = false;
-                        setIsAiAnimating(false);
+                        isAiAnimatingRef.current = true;
+                        setIsAiAnimating(true);
                         return;
                       }
                       if (item.action === "export_prompt") {
@@ -3099,13 +3102,13 @@ export function GinaChatCard({
                             id: makeMsgId(),
                             sender: "ai",
                             text: buildGinaExportPromptMessage({ locale: chipLocale }),
+                            plainBody: true,
                             visualization: null,
                             chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
-                            refineRevealed: true,
                           },
                         ]);
-                        isAiAnimatingRef.current = false;
-                        setIsAiAnimating(false);
+                        isAiAnimatingRef.current = true;
+                        setIsAiAnimating(true);
                       }
                     }}
                   >

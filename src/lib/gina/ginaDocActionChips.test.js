@@ -18,8 +18,17 @@ describe("ginaDocActionChips", () => {
       "doc_action_export",
     ]);
     expect(menu[0].label).toBe("Organizar documento");
+    expect(menu[0].hint).toBe(
+      "Pule la redacción, elimina redundancias y aporta una estructura limpia y profesional.",
+    );
     expect(menu[1].label).toBe("PDF → text");
+    expect(menu[1].hint).toBe(
+      "Sube un archivo PDF desde tu ordenador al área de trabajo (puedes conservar el título actual).",
+    );
     expect(menu[2].label).toBe("Exportar documento");
+    expect(menu[2].hint).toBe(
+      "Prepara tu documento para exportarlo en PDF; guárdalo en la biblioteca o descárgalo de inmediato.",
+    );
   });
 
   it("hides PDF option when writing is not empty", () => {
@@ -61,7 +70,11 @@ describe("ginaDocActionChips", () => {
   it("prompt messages are non-empty", () => {
     expect(buildGinaOrganizePromptMessage({ locale: "es" }).length).toBeGreaterThan(20);
     expect(buildGinaPdfToTextMessage({ locale: "es" })).toMatch(/Upload/);
-    expect(buildGinaExportPromptMessage({ locale: "es" }).length).toBeGreaterThan(20);
+    expect(buildGinaExportPromptMessage({ locale: "es" })).toBe(
+      "Listo, prepararé la exportación de este documento en formato PDF.\n"
+      + "Antes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca "
+      + "para futuros proyectos, o prefieres descargarlo de inmediato?",
+    );
     expect(buildGinaOrganizeAppliedAck({ locale: "es", styleId: "doc_organize_style_standard" }))
       .toContain("estándar");
   });
