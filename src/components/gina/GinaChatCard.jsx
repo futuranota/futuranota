@@ -15,7 +15,10 @@ import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaR
 import {
   buildGinaDocActionsMenu,
   buildGinaExportAppliedAck,
+  buildGinaExportDestPromptMessage,
   buildGinaExportFollowUpChips,
+  buildGinaExportFormatChips,
+  buildGinaExportLearnMoreMessage,
   buildGinaExportPromptMessage,
   buildGinaOrganizeAppliedAck,
   buildGinaOrganizePromptMessage,
@@ -784,7 +787,7 @@ function joinTranscript(finalParts, interim) {
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null, searchSequence?: { preludeMessage?: string } | null }>,
- *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library") => void | Promise<void>,
+ *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library" | "export_md" | "save_md_library") => void | Promise<void>,
  *   writingEmpty?: boolean,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
@@ -2787,13 +2790,62 @@ export function GinaChatCard({
                                   text: buildGinaExportPromptMessage({ locale: chipLocale }),
                                   plainBody: true,
                                   visualization: null,
-                                  chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
+                                  chips: buildGinaExportFormatChips({ locale: chipLocale }),
                                 },
                               ]);
                               isAiAnimatingRef.current = true;
                               setIsAiAnimating(true);
                               return;
                             }
+                            return;
+                          }
+                          if (chip.kind === "doc_export_format") {
+                            const label = chip.label || chip.text || "";
+                            setDocActionsMenuOpen(false);
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i ? stashMessageChips(m) : m
+                            )));
+                            if (chip.action === "learn_more") {
+                              setMessages((prev) => [
+                                ...prev,
+                                { id: makeMsgId(), sender: "user", text: label },
+                                {
+                                  id: makeMsgId(),
+                                  sender: "ai",
+                                  text: buildGinaExportLearnMoreMessage({ locale: chipLocale }),
+                                  plainBody: true,
+                                  visualization: null,
+                                  chips: buildGinaExportFormatChips({
+                                    locale: chipLocale,
+                                    includeLearnMore: false,
+                                  }),
+                                },
+                              ]);
+                              isAiAnimatingRef.current = true;
+                              setIsAiAnimating(true);
+                              return;
+                            }
+                            const format = chip.action === "markdown" ? "markdown" : "pdf";
+                            setMessages((prev) => [
+                              ...prev,
+                              { id: makeMsgId(), sender: "user", text: label },
+                              {
+                                id: makeMsgId(),
+                                sender: "ai",
+                                text: buildGinaExportDestPromptMessage({
+                                  locale: chipLocale,
+                                  format,
+                                }),
+                                plainBody: true,
+                                visualization: null,
+                                chips: buildGinaExportFollowUpChips({
+                                  locale: chipLocale,
+                                  format,
+                                }),
+                              },
+                            ]);
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
                             return;
                           }
                           if (chip.kind === "doc_pdf_upload") {
@@ -2885,8 +2937,14 @@ export function GinaChatCard({
                           }
                           if (chip.kind === "doc_export_dest") {
                             const label = chip.label || chip.text || "";
-                            const action = chip.action === "save_pdf_library"
-                              ? "save_pdf_library"
+                            const raw = String(chip.action || "");
+                            const action = (
+                              raw === "save_pdf_library"
+                              || raw === "export_pdf"
+                              || raw === "save_md_library"
+                              || raw === "export_md"
+                            )
+                              ? raw
                               : "export_pdf";
                             const ack = buildGinaExportAppliedAck({
                               locale: chipLocale,
@@ -2899,6 +2957,7 @@ export function GinaChatCard({
                                 id: makeMsgId(),
                                 sender: "ai",
                                 text: ack,
+                                plainBody: true,
                                 visualization: null,
                                 chips: null,
                               },
@@ -3104,7 +3163,7 @@ export function GinaChatCard({
                             text: buildGinaExportPromptMessage({ locale: chipLocale }),
                             plainBody: true,
                             visualization: null,
-                            chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
+                            chips: buildGinaExportFormatChips({ locale: chipLocale }),
                           },
                         ]);
                         isAiAnimatingRef.current = true;

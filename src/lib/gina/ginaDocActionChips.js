@@ -10,6 +10,7 @@
  *   kind?: string,
  *   text?: string,
  *   action?: string,
+ *   primary?: boolean,
  * }} GinaDocActionItem
  */
 
@@ -48,8 +49,8 @@ export function buildGinaDocActionsMenu(opts = {}) {
     action: "export_prompt",
     label: en ? "Export document" : "Exportar documento",
     hint: en
-      ? "Prepare your document for PDF export; save it to the library or download it right away."
-      : "Prepara tu documento para exportarlo en PDF; guárdalo en la biblioteca o descárgalo de inmediato.",
+      ? "Prepare your document export as PDF or Markdown; save it to the library or download it right away."
+      : "Prepara la exportación de tu documento en PDF o Markdown; guárdalo en la biblioteca o descárgalo de inmediato.",
   });
   return items;
 }
@@ -166,33 +167,114 @@ export function buildGinaPdfUploadChip(opts = {}) {
 }
 
 /**
+ * Step 1 after “Exportar documento”: ask for format.
  * @param {{ locale?: string }} [opts]
  */
 export function buildGinaExportPromptMessage(opts = {}) {
   const en = opts.locale === "en";
   return en
-    ? "Ready — I’ll prepare this document’s PDF export.\nBefore continuing, tell me: do you want to save it permanently in the Library for future projects, or download it right away?"
-    : "Listo, prepararé la exportación de este documento en formato PDF.\nAntes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca para futuros proyectos, o prefieres descargarlo de inmediato?";
+    ? "What format would you like to export this document in? Pick one of the options below, or learn more if you need details."
+    : "¿En qué formato te gustaría exportar este documento? Elige una de las opciones a continuación o descubre más detalles si lo necesitas.";
+}
+
+/**
+ * @param {{ locale?: string, includeLearnMore?: boolean }} [opts]
+ * @returns {GinaDocActionItem[]}
+ */
+export function buildGinaExportFormatChips(opts = {}) {
+  const en = opts.locale === "en";
+  /** @type {GinaDocActionItem[]} */
+  const chips = [
+    {
+      id: "doc_export_format_pdf",
+      kind: "doc_export_format",
+      action: "pdf",
+      label: "PDF",
+      text: "PDF",
+    },
+    {
+      id: "doc_export_format_md",
+      kind: "doc_export_format",
+      action: "markdown",
+      label: "Markdown",
+      text: "Markdown",
+    },
+  ];
+  if (opts.includeLearnMore !== false) {
+    chips.push({
+      id: "doc_export_format_learn",
+      kind: "doc_export_format",
+      action: "learn_more",
+      label: en ? "Learn more" : "Saber más",
+      text: en ? "Learn more" : "Saber más",
+    });
+  }
+  return chips;
 }
 
 /**
  * @param {{ locale?: string }} [opts]
+ */
+export function buildGinaExportLearnMoreMessage(opts = {}) {
+  const en = opts.locale === "en";
+  if (en) {
+    return [
+      "Of course! Here’s a short guide so you can pick what fits best:",
+      "",
+      "PDF is your best ally when you want a polished, final, static result. It keeps every visual detail, layout, and typography exactly the same no matter where it’s opened — perfect for printing, formal presentation, or sharing a closed document.",
+      "",
+      "Markdown (.md), on the other hand, is a lightweight plain-text format and very versatile. Ideal if you plan to keep editing, move content into other writing tools, code editors, or web platforms, while keeping a clean structure that’s easy to reorganize.",
+      "",
+      "Which format do you want to export this document in?",
+    ].join("\n");
+  }
+  return [
+    "¡Claro que sí! Te lo explico brevemente para que elijas la opción que mejor se adapte a lo que necesitas:",
+    "",
+    "El formato PDF es tu mejor aliado si buscas un resultado final, pulido y estático. Mantiene cada detalle visual, diseño y tipografía exactamente igual sin importar dónde se abra, lo que lo hace perfecto para imprimir, presentar formalmente o compartir un documento cerrado.",
+    "",
+    "Por otro lado, Markdown (.md) es un formato de texto plano hiperligero y súper versátil. Es ideal si planeas seguir editando el contenido, pasarlo a otras herramientas de escritura, editores de código o plataformas web, conservando una estructura limpia y fácil de reorganizar.",
+    "",
+    "¿En qué formato quieres exportar este documento?",
+  ].join("\n");
+}
+
+/**
+ * Step 3: after format choice — library vs download.
+ * @param {{ locale?: string, format?: "pdf" | "markdown" }} [opts]
+ */
+export function buildGinaExportDestPromptMessage(opts = {}) {
+  const en = opts.locale === "en";
+  const md = opts.format === "markdown";
+  if (en) {
+    return md
+      ? "Ready — I’ll prepare this document’s Markdown export.\nBefore continuing, tell me: do you want to save it permanently in the Library for future projects, or download it right away?"
+      : "Ready — I’ll prepare this document’s PDF export.\nBefore continuing, tell me: do you want to save it permanently in the Library for future projects, or download it right away?";
+  }
+  return md
+    ? "Listo, prepararé la exportación de este documento en formato Markdown.\nAntes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca para futuros proyectos, o prefieres descargarlo de inmediato?"
+    : "Listo, prepararé la exportación de este documento en formato PDF.\nAntes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca para futuros proyectos, o prefieres descargarlo de inmediato?";
+}
+
+/**
+ * @param {{ locale?: string, format?: "pdf" | "markdown" }} [opts]
  * @returns {GinaDocActionItem[]}
  */
 export function buildGinaExportFollowUpChips(opts = {}) {
   const en = opts.locale === "en";
+  const md = opts.format === "markdown";
   return [
     {
-      id: "doc_export_library",
+      id: md ? "doc_export_md_library" : "doc_export_library",
       kind: "doc_export_dest",
-      action: "save_pdf_library",
+      action: md ? "save_md_library" : "save_pdf_library",
       label: en ? "Save to Library" : "Guardar en Biblioteca",
       text: en ? "Save to Library" : "Guardar en Biblioteca",
     },
     {
-      id: "doc_export_download",
+      id: md ? "doc_export_md_download" : "doc_export_download",
       kind: "doc_export_dest",
-      action: "export_pdf",
+      action: md ? "export_md" : "export_pdf",
       label: en ? "Download now" : "Descargar directo",
       text: en ? "Download now" : "Descargar directo",
     },
@@ -204,7 +286,18 @@ export function buildGinaExportFollowUpChips(opts = {}) {
  */
 export function buildGinaExportAppliedAck(opts = {}) {
   const en = opts.locale === "en";
-  if (opts.action === "save_pdf_library") {
+  const action = String(opts.action || "");
+  if (action === "save_md_library") {
+    return en
+      ? "Saving the Markdown file to the folder Library…"
+      : "Guardando el Markdown en la Biblioteca del folder…";
+  }
+  if (action === "export_md") {
+    return en
+      ? "Preparing the Markdown download…"
+      : "Preparando la descarga del Markdown…";
+  }
+  if (action === "save_pdf_library") {
     return en
       ? "Saving the PDF to the folder Library…"
       : "Guardando el PDF en la Biblioteca del folder…";

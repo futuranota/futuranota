@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   buildGinaDocActionsMenu,
   buildGinaExportFollowUpChips,
+  buildGinaExportFormatChips,
+  buildGinaExportLearnMoreMessage,
+  buildGinaExportDestPromptMessage,
   buildGinaOrganizeStyleChips,
   buildGinaOrganizePromptMessage,
   buildGinaExportPromptMessage,
   buildGinaPdfToTextMessage,
   buildGinaOrganizeAppliedAck,
+  buildGinaExportAppliedAck,
 } from "./ginaDocActionChips.js";
 
 describe("ginaDocActionChips", () => {
@@ -27,7 +31,7 @@ describe("ginaDocActionChips", () => {
     );
     expect(menu[2].label).toBe("Exportar documento");
     expect(menu[2].hint).toBe(
-      "Prepara tu documento para exportarlo en PDF; guárdalo en la biblioteca o descárgalo de inmediato.",
+      "Prepara la exportación de tu documento en PDF o Markdown; guárdalo en la biblioteca o descárgalo de inmediato.",
     );
   });
 
@@ -62,20 +66,35 @@ describe("ginaDocActionChips", () => {
     ]);
   });
 
-  it("export follow-up chips map to library / download", () => {
-    const chips = buildGinaExportFollowUpChips({ locale: "es" });
-    expect(chips.map((c) => c.action)).toEqual(["save_pdf_library", "export_pdf"]);
+  it("export format chips include learn more by default", () => {
+    const chips = buildGinaExportFormatChips({ locale: "es" });
+    expect(chips.map((c) => c.action)).toEqual(["pdf", "markdown", "learn_more"]);
+    expect(chips[2].label).toBe("Saber más");
   });
 
-  it("prompt messages are non-empty", () => {
+  it("export format chips can omit learn more", () => {
+    const chips = buildGinaExportFormatChips({ locale: "es", includeLearnMore: false });
+    expect(chips.map((c) => c.action)).toEqual(["pdf", "markdown"]);
+  });
+
+  it("export follow-up chips map by format", () => {
+    expect(buildGinaExportFollowUpChips({ locale: "es", format: "pdf" }).map((c) => c.action))
+      .toEqual(["save_pdf_library", "export_pdf"]);
+    expect(buildGinaExportFollowUpChips({ locale: "es", format: "markdown" }).map((c) => c.action))
+      .toEqual(["save_md_library", "export_md"]);
+  });
+
+  it("prompt messages cover format → dest → learn more", () => {
     expect(buildGinaOrganizePromptMessage({ locale: "es" }).length).toBeGreaterThan(20);
     expect(buildGinaPdfToTextMessage({ locale: "es" })).toMatch(/Upload/);
-    expect(buildGinaExportPromptMessage({ locale: "es" })).toBe(
-      "Listo, prepararé la exportación de este documento en formato PDF.\n"
-      + "Antes de continuar, dime: ¿quieres guardarlo de forma permanente en la Biblioteca "
-      + "para futuros proyectos, o prefieres descargarlo de inmediato?",
-    );
+    expect(buildGinaExportPromptMessage({ locale: "es" })).toMatch(/formato/);
+    expect(buildGinaExportDestPromptMessage({ locale: "es", format: "pdf" })).toContain("PDF");
+    expect(buildGinaExportDestPromptMessage({ locale: "es", format: "markdown" }))
+      .toContain("Markdown");
+    expect(buildGinaExportLearnMoreMessage({ locale: "es" })).toMatch(/Markdown/);
     expect(buildGinaOrganizeAppliedAck({ locale: "es", styleId: "doc_organize_style_standard" }))
       .toContain("estándar");
+    expect(buildGinaExportAppliedAck({ locale: "es", action: "export_md" }))
+      .toMatch(/Markdown/);
   });
 });

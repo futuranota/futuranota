@@ -37,6 +37,10 @@ import {
   exportWritingBlocksToPdf,
   writingBlocksHaveExportableProse,
 } from "../../lib/exportDocToPdf.js";
+import {
+  exportWritingBlocksToMarkdown,
+  saveWritingBlocksMarkdownToFolderLibrary,
+} from "../../lib/exportDocToMarkdown.js";
 import { saveWritingBlocksPdfToFolderLibrary } from "../../lib/saveDocPdfToLibrary.js";
 import {
   mergePdfTextIntoWritingBlocks,
@@ -1475,6 +1479,29 @@ export function NodeQueryModal({
     }
   }, [exportingPdf, savingPdfLibrary, writingBlocks, displayQuery, t]);
 
+  const handleExportWritingMarkdown = useCallback(async () => {
+    if (exportingPdf || savingPdfLibrary) return;
+    if (!writingBlocksHaveExportableProse(writingBlocks)) {
+      setExportPdfError(t("docs.exportPdfEmpty"));
+      return;
+    }
+    setExportPdfError("");
+    setExportingPdf(true);
+    try {
+      const result = exportWritingBlocksToMarkdown(writingBlocks, {
+        title: displayQuery,
+      });
+      if (result?.empty) {
+        setExportPdfError(t("docs.exportPdfEmpty"));
+      }
+    } catch (err) {
+      console.error("[exportMd]", err);
+      setExportPdfError(t("docs.exportPdfFailed"));
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [exportingPdf, savingPdfLibrary, writingBlocks, displayQuery, t]);
+
   const handleImportPdfFromLibrary = useCallback(async ({ text }) => {
     if (!writingTextAreasAreEmpty(writingBlocks)) {
       throw new Error("writing_not_empty");
@@ -1630,6 +1657,84 @@ export function NodeQueryModal({
     t,
   ]);
 
+  const handleSaveWritingMarkdownToLibrary = useCallback(async () => {
+    if (exportingPdf || savingPdfLibrary) return;
+    if (!writingBlocksHaveExportableProse(writingBlocks)) {
+      setSavePdfLibraryError(t("docs.exportPdfEmpty"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    const folderId = String(
+      resolvedParentDocId
+      || nodesMap?.[entityNodeId]?.parentDocId
+      || "",
+    ).trim();
+    if (!folderId) {
+      setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    if (docsMap && !docsMap[folderId]) {
+      setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+      setSavePdfLibraryOk(false);
+      return;
+    }
+    setSavePdfLibraryError("");
+    setSavePdfLibraryOk(false);
+    setSavingPdfLibrary(true);
+    try {
+      const result = await saveWritingBlocksMarkdownToFolderLibrary(writingBlocks, {
+        title: displayQuery,
+        folderId,
+        tag: displayQuery,
+        description: t("docs.exportPdfLibraryDescription", { title: displayQuery })
+          .replace(/PDF/g, "Markdown"),
+      });
+      if (!result?.ok) {
+        console.error("[exportMdLibrary]", result?.reason, result?.error || result);
+        if (result?.reason === "empty") {
+          setSavePdfLibraryError(t("docs.exportPdfEmpty"));
+        } else if (result?.reason === "no_folder" || result?.reason === "create_failed") {
+          setSavePdfLibraryError(t("docs.exportPdfNoFolder"));
+        } else if (
+          /sign in|auth|not authenticated/i.test(String(result?.error || ""))
+        ) {
+          setSavePdfLibraryError(t("docs.exportPdfNeedSignIn"));
+        } else {
+          setSavePdfLibraryError(
+            result?.error
+              ? `${t("docs.exportPdfLibraryFailed")}: ${result.error}`
+              : t("docs.exportPdfLibraryFailed"),
+          );
+        }
+        return;
+      }
+      setSavePdfLibraryOk(true);
+      setLibraryInitialTab("skill");
+      setLibraryOpen(true);
+      window.setTimeout(() => setSavePdfLibraryOk(false), 2400);
+    } catch (err) {
+      console.error("[exportMdLibrary]", err);
+      setSavePdfLibraryError(
+        err?.message
+          ? `${t("docs.exportPdfLibraryFailed")}: ${err.message}`
+          : t("docs.exportPdfLibraryFailed"),
+      );
+    } finally {
+      setSavingPdfLibrary(false);
+    }
+  }, [
+    exportingPdf,
+    savingPdfLibrary,
+    writingBlocks,
+    displayQuery,
+    resolvedParentDocId,
+    nodesMap,
+    entityNodeId,
+    docsMap,
+    t,
+  ]);
+
   const handleGinaDocumentAction = useCallback((action) => {
     const key = String(action || "").trim();
     if (key === "organize") {
@@ -1642,6 +1747,14 @@ export function NodeQueryModal({
     }
     if (key === "save_pdf_library") {
       void handleSaveWritingPdfToLibrary();
+      return;
+    }
+    if (key === "export_md") {
+      void handleExportWritingMarkdown();
+      return;
+    }
+    if (key === "save_md_library") {
+      void handleSaveWritingMarkdownToLibrary();
       return;
     }
     if (key === "import_pdf") {
@@ -1676,6 +1789,8 @@ export function NodeQueryModal({
     handleOrganizeWritingText,
     handleExportWritingPdf,
     handleSaveWritingPdfToLibrary,
+    handleExportWritingMarkdown,
+    handleSaveWritingMarkdownToLibrary,
   ]);
 
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
