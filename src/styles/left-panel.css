@@ -16360,7 +16360,7 @@ body.doc-content-resizing * {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 7px;
   min-height: 24px;
   padding-right: 0;
   margin-top: 0;
@@ -16399,14 +16399,14 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__node-icon {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   display: block;
   object-fit: contain;
-  /* Match parent doc label color */
+  /* Match parent folder label color */
   filter: brightness(0) invert(0.85);
-  opacity: 0.55;
+  opacity: 0.6;
   margin: 0;
 }
 

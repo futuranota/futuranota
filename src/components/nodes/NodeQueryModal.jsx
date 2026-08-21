@@ -148,6 +148,9 @@ import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
+/** Max chars of the doc title shown in the Biblioteca button label (UI only). */
+const LIBRARY_BUTTON_TITLE_MAX = 28;
+
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
 function openDatePicker(e) {
@@ -271,6 +274,12 @@ export function NodeQueryModal({
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const displayQuery = (query || "").trim() || "Untitled";
+  const libraryButtonTitle = displayQuery.length > LIBRARY_BUTTON_TITLE_MAX
+    ? `${displayQuery.slice(0, LIBRARY_BUTTON_TITLE_MAX).trimEnd()}…`
+    : displayQuery;
+  const libraryButtonLabel = t("doc.library.openWithName", { title: libraryButtonTitle });
+  const libraryButtonFullLabel = t("doc.library.openWithName", { title: displayQuery });
+  const libraryButtonAria = t("doc.library.openDocLibraryAria", { title: displayQuery });
   const queryEditable = Boolean(onQueryChange);
   const parentSelectable = Boolean(onParentDocIdChange);
   const adoptableDocs = listAdoptableDocs(docs, { parentObjectId });
@@ -1995,10 +2004,10 @@ export function NodeQueryModal({
                     type="button"
                     className="node-query-modal__doc-action node-query-modal__library"
                     onClick={() => setLibraryOpen(true)}
-                    title={t("doc.library.openWithName", { title: displayQuery })}
-                    aria-label={t("doc.library.openDocLibraryAria", { title: displayQuery })}
+                    title={libraryButtonFullLabel}
+                    aria-label={libraryButtonAria}
                   >
-                    <span>{t("doc.library.openWithName", { title: displayQuery })}</span>
+                    <span>{libraryButtonLabel}</span>
                   </button>
                 ) : null}
                 <button
@@ -2053,7 +2062,7 @@ export function NodeQueryModal({
           >
             <img
               className="node-query-modal__node-icon"
-              src="/uploads/FileDashed.svg"
+              src="/uploads/box-closed.svg"
               alt=""
               aria-hidden
             />
@@ -2080,10 +2089,10 @@ export function NodeQueryModal({
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__library"
                   onClick={() => setLibraryOpen(true)}
-                  title={t("doc.library.openWithName", { title: displayQuery })}
-                  aria-label={t("doc.library.openDocLibraryAria", { title: displayQuery })}
+                  title={libraryButtonFullLabel}
+                  aria-label={libraryButtonAria}
                 >
-                  <span>{t("doc.library.openWithName", { title: displayQuery })}</span>
+                  <span>{libraryButtonLabel}</span>
                 </button>
               ) : null}
               <button

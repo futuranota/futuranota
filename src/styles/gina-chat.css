@@ -773,6 +773,17 @@
   box-sizing: border-box;
 }
 
+.node-query-modal__library {
+  max-width: min(240px, 42vw);
+  overflow: hidden;
+}
+
+.node-query-modal__library > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .node-query-modal__doc-action-icon {
   display: block;
   width: 12px;

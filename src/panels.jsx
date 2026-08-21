@@ -677,10 +677,9 @@ function IntelFolderBar({
             onClick={() => onChange(o.id)}
           >
             {o.iconSrc ? (
-              <img
+              <span
                 className="intel-folder-tabs__icon"
-                src={o.iconSrc}
-                alt=""
+                style={{ "--intel-tab-icon-mask": `url("${o.iconSrc}")` }}
                 aria-hidden
               />
             ) : null}
