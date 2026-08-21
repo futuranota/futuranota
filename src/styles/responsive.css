@@ -100,7 +100,7 @@
   }
 
   .dash {
-    --timeline-peek-h: 40px;
+    --timeline-peek-h: 168px;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
 

@@ -1137,7 +1137,7 @@ textarea.field {
 /* Timeline lives in-flow at the bottom; expands upward inside the dash grid */
 .dash {
   --dash-chrome-h: 96px;
-  --timeline-peek-h: 44px;
+  --timeline-peek-h: 212px;
   display: grid;
   grid-template-rows: 52px 44px minmax(0, 1fr) auto;
   min-height: 100vh;
@@ -5100,9 +5100,9 @@ textarea.note-form-field {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
-  min-height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
-  max-height: var(--timeline-sheet-h, var(--timeline-peek-h, 44px));
+  height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  min-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  max-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
   padding-top: 2px;
   background: color-mix(in oklab, var(--panel-solid) 96%, #14181d 4%);
   border-top: 1px solid color-mix(in oklab, var(--hairline) 80%, #21232b 20%);
@@ -5118,7 +5118,7 @@ textarea.note-form-field {
     box-shadow 0.34s ease;
 }
 .timeline.tl-tactical.is-sheet-peek {
-  --timeline-sheet-h: var(--timeline-peek-h, 44px);
+  --timeline-sheet-h: var(--timeline-peek-h, 212px);
 }
 .timeline.tl-tactical.is-sheet-expanded {
   --timeline-sheet-h: calc(100vh - var(--dash-chrome-h, 96px) - 8px);
@@ -5139,7 +5139,7 @@ textarea.note-form-field {
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
-  height: 100%;
+  height: 28px;
   padding: 0;
 }
 .tl-sheet-toggle {
