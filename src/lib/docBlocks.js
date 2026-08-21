@@ -323,10 +323,12 @@ function normalizeStepSequenceSteps(steps) {
 }
 
 function normalizeStepSequenceBlock(block) {
+  const sourceDocumentId = String(block?.sourceDocumentId ?? "").trim();
   return {
     title: String(block?.title ?? ""),
     steps: normalizeStepSequenceSteps(block?.steps),
     saved: Boolean(block?.saved),
+    ...(sourceDocumentId ? { sourceDocumentId } : {}),
   };
 }
 

@@ -82,8 +82,12 @@ import {
 } from "../../lib/libraryPromptCapture.js";
 import { sliceScriptRefsForCapture } from "../../lib/libraryScriptCapture.js";
 import { LibraryPromptCaptureModal } from "../docs/LibraryPromptCaptureModal.jsx";
+import { LibraryCaptureFamilyChooser } from "../docs/LibraryCaptureFamilyChooser.jsx";
 import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
 import { FolderLibraryAssetDetail } from "../docs/FolderLibraryAssetDetail.jsx";
+import { appendCapturedTextToStepPlaybook } from "../../lib/appendCapturedTextToStepPlaybook.js";
+import { useDocsStore } from "../../stores/docsStore.js";
+import { useObjectsStore } from "../../stores/objectsStore.js";
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -295,16 +299,24 @@ export function NodeWritingBlockStack({
   libraryOwnerKind = "document",
   libraryOwnerId = "",
   folderLibraryId = "",
+  documentTitle = "",
   onLibrarySlashAction = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
+  const addDoc = useDocsStore((s) => s.addDoc);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
+  const docs = useDocsStore((s) => s.docs);
+  const objects = useObjectsStore((s) => s.objects);
   const inputRefs = useRef({});
   const stackRef = useRef(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const [focusedBlockId, setFocusedBlockId] = useState(null);
   const [promptCapture, setPromptCapture] = useState(null);
+  /** @type {["choose"|"assets"|null, Function]} */
+  const [capturePhase, setCapturePhase] = useState(null);
+  const [captureStepsError, setCaptureStepsError] = useState("");
   const [savedPromptItemId, setSavedPromptItemId] = useState(null);
   const [savedPromptAssetId, setSavedPromptAssetId] = useState(null);
   const [pendingAssignClone, setPendingAssignClone] = useState(null);
@@ -511,6 +523,8 @@ export function NodeWritingBlockStack({
           libraryNameRefs: captureMeta.libraryNameRefs,
           librarySpeakRefs: captureMeta.librarySpeakRefs,
         });
+        setCapturePhase("choose");
+        setCaptureStepsError("");
       }
     }
     const mentions = text !== nextText
@@ -552,6 +566,53 @@ export function NodeWritingBlockStack({
         : {}),
     });
   }, [libraryOwnerId, updateBlockAt]);
+
+  const clearPromptCapture = useCallback(() => {
+    setPromptCapture(null);
+    setCapturePhase(null);
+    setCaptureStepsError("");
+  }, []);
+
+  const canCaptureToSteps = Boolean(
+    companyObjectId
+    && libraryOwnerKind === "document"
+    && String(libraryOwnerId || "").trim(),
+  );
+
+  const handleCaptureToSteps = useCallback(() => {
+    if (!promptCapture || !canCaptureToSteps) return;
+    const result = appendCapturedTextToStepPlaybook({
+      promptText: promptCapture.prompt,
+      sourceDocumentId: libraryOwnerId,
+      documentTitle,
+      objectId: companyObjectId,
+      docs,
+      objects,
+      addDoc,
+      updateDoc,
+    });
+    if (!result.ok) {
+      setCaptureStepsError(
+        result.reason === "no_company"
+          ? t("doc.library.captureFamilyStepsUnavailable")
+          : t("doc.library.captureStepsFailed"),
+      );
+      return;
+    }
+    clearPromptCapture();
+  }, [
+    promptCapture,
+    canCaptureToSteps,
+    libraryOwnerId,
+    documentTitle,
+    companyObjectId,
+    docs,
+    objects,
+    addDoc,
+    updateDoc,
+    clearPromptCapture,
+    t,
+  ]);
 
   const removeBlockAt = useCallback((blockIndex) => {
     updateBlocks(removeWritingBlockAt(blocksRef.current, blockIndex));
@@ -1618,16 +1679,29 @@ export function NodeWritingBlockStack({
         );
       })}
     </div>
-    {promptCapture ? (
+    {promptCapture && capturePhase === "choose" ? (
+      <LibraryCaptureFamilyChooser
+        promptPreview={promptCapture.prompt}
+        canSteps={canCaptureToSteps}
+        error={captureStepsError}
+        onPickAssets={() => {
+          setCaptureStepsError("");
+          setCapturePhase("assets");
+        }}
+        onPickSteps={handleCaptureToSteps}
+        onClose={clearPromptCapture}
+      />
+    ) : null}
+    {promptCapture && capturePhase === "assets" ? (
       <LibraryPromptCaptureModal
         prompt={promptCapture.prompt}
         libraryNameRefs={promptCapture.libraryNameRefs || []}
         librarySpeakRefs={promptCapture.librarySpeakRefs || []}
         ownerKind={libraryOwnerKind}
         ownerId={libraryOwnerId}
-        onClose={() => setPromptCapture(null)}
+        onClose={clearPromptCapture}
         onSaved={(item) => {
-          setPromptCapture(null);
+          clearPromptCapture();
           if (!item?.id) return;
           if (item.setId) setSavedPromptAssetId(item.setId);
           else setSavedPromptItemId(item.id);

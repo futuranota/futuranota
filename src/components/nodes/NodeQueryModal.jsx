@@ -2464,6 +2464,7 @@ export function NodeQueryModal({
                 libraryOwnerKind={entityNodeId ? "document" : "folder"}
                 libraryOwnerId={entityNodeId || resolvedParentDocId || ""}
                 folderLibraryId={entityNodeId ? (resolvedParentDocId || "") : ""}
+                documentTitle={displayQuery}
                 onLibrarySlashAction={setLibrarySlashAction}
               />
             </div>
