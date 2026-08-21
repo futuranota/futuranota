@@ -4,13 +4,14 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 
 /** Active preview variant */
-const ATTACHMENT_CLIPBOARD_VARIANT = "clipboard-v4";
+const ATTACHMENT_CLIPBOARD_VARIANT = "clipboard-v5";
 
 const ATTACHMENT_CLIPBOARD_SRC = {
   clipboard: "/uploads/clipboard.png",
   "clipboard-expanded-shorter": "/uploads/clipboard-expanded-shorter.png",
   "clipbloard-expanded-larger": "/uploads/clipbloard-expanded-larger.png",
   "clipboard-v4": "/uploads/clipboard-v4.webp",
+  "clipboard-v5": "/uploads/clipboard-v5.png",
 };
 
 /**

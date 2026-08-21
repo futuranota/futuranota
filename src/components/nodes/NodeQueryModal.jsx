@@ -1686,10 +1686,10 @@ export function NodeQueryModal({
                     type="button"
                     className="node-query-modal__doc-action node-query-modal__library"
                     onClick={() => setLibraryOpen(true)}
-                    title={t("doc.library.open")}
-                    aria-label={t("doc.library.openDocLibraryAria")}
+                    title={t("doc.library.openWithName", { title: displayQuery })}
+                    aria-label={t("doc.library.openDocLibraryAria", { title: displayQuery })}
                   >
-                    <span>{t("doc.library.open")}</span>
+                    <span>{t("doc.library.openWithName", { title: displayQuery })}</span>
                   </button>
                 ) : null}
                 <button
@@ -1771,10 +1771,10 @@ export function NodeQueryModal({
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__library"
                   onClick={() => setLibraryOpen(true)}
-                  title={t("doc.library.open")}
-                  aria-label={t("doc.library.openDocLibraryAria")}
+                  title={t("doc.library.openWithName", { title: displayQuery })}
+                  aria-label={t("doc.library.openDocLibraryAria", { title: displayQuery })}
                 >
-                  <span>{t("doc.library.open")}</span>
+                  <span>{t("doc.library.openWithName", { title: displayQuery })}</span>
                 </button>
               ) : null}
               <button

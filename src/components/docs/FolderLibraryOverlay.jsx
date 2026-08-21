@@ -13,6 +13,7 @@ import {
   addPromptClass,
   assignLibraryItemToSet,
   folderLibraryItemMatchesFilter,
+  libraryDocumentTitle,
   normalizeFolderLibraryFilterTab,
   normalizeLibraryOwnerKind,
   removeLibraryItem,
@@ -190,6 +191,11 @@ export function FolderLibraryOverlay({
     const docId = isDocumentRoot ? rootId : focusedDocumentId;
     const node = s.getNode?.(docId) ?? s.nodes?.[docId] ?? null;
     return String(node?.parentDocId || "").trim();
+  });
+  const documentRootTitle = useNodesStore((s) => {
+    if (!isDocumentRoot || !rootId) return "";
+    const node = s.getNode?.(rootId) ?? s.nodes?.[rootId] ?? null;
+    return libraryDocumentTitle(node);
   });
   const attachmentOwnerId = String(
     isDocumentRoot || focusedDocumentId
@@ -485,8 +491,12 @@ export function FolderLibraryOverlay({
   const overlayTitle = showingDocsIndex
     ? t("doc.library.docsTitle")
     : focusedGroup
-      ? focusedGroup.title
-      : t("doc.library.title");
+      ? t("doc.library.titleWithName", { title: focusedGroup.title })
+      : isDocumentRoot
+        ? t("doc.library.titleWithName", {
+          title: documentRootTitle || "Untitled",
+        })
+        : t("doc.library.title");
 
   const showCreate = !showingDocsIndex;
   const createOpensAsset = showingDocumentsTab && !focusedAssetId;

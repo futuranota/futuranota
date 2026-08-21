@@ -19158,7 +19158,8 @@ body.doc-content-resizing * {
 
 .folder-library-skill-detail--clipboard-expanded-shorter .folder-library-skill-detail__shell,
 .folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__shell,
-.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__shell {
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__shell,
+.folder-library-skill-detail--clipboard-v5 .folder-library-skill-detail__shell {
   max-height: min(94vh, 900px);
 }
 
@@ -19272,12 +19273,14 @@ body.doc-content-resizing * {
 }
 
 .folder-library-skill-detail--clipbloard-expanded-larger .folder-library-skill-detail__clipboard,
-.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard {
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard,
+.folder-library-skill-detail--clipboard-v5 .folder-library-skill-detail__clipboard {
   max-width: min(360px, 78%);
   max-height: 380px;
 }
 
-.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard-wrap {
+.folder-library-skill-detail--clipboard-v4 .folder-library-skill-detail__clipboard-wrap,
+.folder-library-skill-detail--clipboard-v5 .folder-library-skill-detail__clipboard-wrap {
   background: transparent;
 }
 
