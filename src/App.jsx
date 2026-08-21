@@ -32,6 +32,7 @@ import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
 import { useConfirmStore } from './stores/confirmStore.js';
+import { useAuthStore } from './stores/authStore.js';
 import { useNavigate } from 'react-router-dom';
 import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { useProCheckoutAbandonPrompt } from './lib/useProCheckoutAbandonPrompt.js';
@@ -51,6 +52,7 @@ import {
   stepPlaybookSessionFromRef,
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
+import { shareStepPlaybookAndCopy } from './lib/stepPlaybookShare.js';
 import { flushPersistenceSync } from './stores/middleware/persistenceMiddleware.js';
 import {
   loadCompanyUrlTableSession,
@@ -220,6 +222,7 @@ function Dashboard({ company, onBack }) {
   const [activeStepPlaybookSession, setActiveStepPlaybookSession] = useState(null);
   const activeStepPlaybookSessionRef = useRef(null);
   const stepPlaybookSaveLockRef = useRef(false);
+  const [stepPlaybookShareBusy, setStepPlaybookShareBusy] = useState(false);
   activeStepPlaybookSessionRef.current = activeStepPlaybookSession;
   const [activeUrlTableSession, setActiveUrlTableSession] = useState(null);
   const activeUrlTableSessionRef = useRef(null);
@@ -1222,6 +1225,45 @@ useEffect(() => {
     setActiveStepPlaybookSession(null);
   }, [askConfirm, t]);
 
+  const handleStepPlaybookShare = useCallback(async () => {
+    const current = activeStepPlaybookSessionRef.current;
+    if (!current) return;
+    if (!current.saved || !current.docId) {
+      setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
+      return;
+    }
+    const user = useAuthStore.getState().user;
+    if (!user?.id) {
+      setToast({ message: t('stepsLibrary.shareSignIn'), kind: 'warm' });
+      return;
+    }
+    if (stepPlaybookShareBusy) return;
+    setStepPlaybookShareBusy(true);
+    try {
+      const result = await shareStepPlaybookAndCopy({ session: current, user });
+      setToast({
+        message: result.copied
+          ? t('stepsLibrary.shareCopied')
+          : result.url,
+        kind: 'ok',
+      });
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (msg === 'SAVE_FIRST') {
+        setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
+      } else {
+        setToast({
+          message: msg.includes('step_playbook_shares')
+            ? msg
+            : t('stepsLibrary.shareError'),
+          kind: 'warm',
+        });
+      }
+    } finally {
+      setStepPlaybookShareBusy(false);
+    }
+  }, [stepPlaybookShareBusy, t]);
+
   const handleStepPlaybookSessionSaved = useCallback((finalizedSteps) => {
     if (stepPlaybookSaveLockRef.current) return;
     const current = activeStepPlaybookSessionRef.current;
@@ -1876,6 +1918,8 @@ useEffect(() => {
           onChange={handleStepPlaybookSessionChange}
           onCloseTab={handleStepPlaybookSessionClose}
           onSaved={handleStepPlaybookSessionSaved}
+          onShare={handleStepPlaybookShare}
+          shareBusy={stepPlaybookShareBusy}
         />
       ) : null}
 

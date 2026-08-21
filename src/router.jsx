@@ -14,6 +14,7 @@ import { TermsPage } from './marketing/pages/TermsPage.jsx';
 import { AuthCallbackPage } from './pages/AuthCallbackPage.jsx';
 import { AdminPage } from './admin/AdminPage.jsx';
 import { PlansPage } from './pages/PlansPage.jsx';
+import { SharedStepPlaybookPage } from './pages/SharedStepPlaybookPage.jsx';
 import { useAuthStore } from './stores/authStore.js';
 import { usePlanStore } from './stores/planStore.js';
 import { useEffect } from 'react';
@@ -73,6 +74,7 @@ export default function AppRouter() {
     const onApp = location.pathname === PATHS.app
       || location.pathname.startsWith(`${PATHS.app}/`);
     if (onApp || location.pathname === '/auth/callback') return;
+    if (location.pathname.startsWith('/s/')) return;
     if (consumeOAuthDashboardRedirect()) {
       navigate(PATHS.app, { replace: true });
     }
@@ -109,6 +111,7 @@ export default function AppRouter() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />
         <Route path="panel" element={<AdminPage />} />
+        <Route path="s/:token" element={<SharedStepPlaybookPage />} />
 
         <Route path="app/plans" element={
           <ProtectedRoute>

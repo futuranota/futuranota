@@ -664,11 +664,40 @@
     0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
-.step-playbook-dashboard-overlay__close {
+.step-playbook-dashboard-overlay__top-actions {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-playbook-dashboard-overlay__share {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 220, 200, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-playbook-dashboard-overlay__share:hover:not(:disabled) {
+  color: #e8e4dc;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.step-playbook-dashboard-overlay__share:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.step-playbook-dashboard-overlay__close {
+  position: static;
   width: 28px;
   height: 28px;
   border: none;
@@ -2388,5 +2417,114 @@
 .password-table-dashboard .doc-vault-block__eye:hover {
   color: rgba(255, 255, 255, 0.82);
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Public shared step playbook — /s/:token */
+.step-share-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 20px 16px 32px;
+  background: #0a0c10;
+  color: #e8e4dc;
+  --step-dashboard-bg: #12151c;
+  --step-card-bg: #12151c;
+  --step-input-bg: #12151c;
+  --scroll-bg: #0a0c10;
+}
+
+.step-share-page__chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto 18px;
+}
+
+.step-share-page__chrome .brand {
+  color: #e8e4dc;
+  text-decoration: none;
+}
+
+.step-share-page__author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.step-share-page__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8e4dc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.step-share-page__author-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.step-share-page__author-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8e4dc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-share-page__author-kind {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(232, 220, 200, 0.5);
+}
+
+.step-share-page__main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12px 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--step-dashboard-bg);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.step-share-page__main .doc-step-sequence {
+  margin: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.step-share-page__status,
+.step-share-page__empty {
+  max-width: 420px;
+  margin: 48px auto 0;
+  text-align: center;
+  color: rgba(232, 220, 200, 0.65);
+  font-size: 14px;
+}
+
+.step-share-page__home-link {
+  display: inline-block;
+  margin-top: 14px;
+  color: #79b8ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.step-share-page__home-link:hover {
+  text-decoration: underline;
 }
 

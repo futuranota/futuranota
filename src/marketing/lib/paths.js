@@ -15,6 +15,11 @@ export const PATHS = {
   terms: '/signup/terms',
 };
 
+/** @param {string} token */
+export function stepSharePath(token) {
+  return `/s/${encodeURIComponent(String(token || '').trim())}`;
+}
+
 export function sectionPath(slug) {
   if (!slug || slug === 'home') return PATHS.home;
   return PATHS[slug] ?? `/${slug}`;
