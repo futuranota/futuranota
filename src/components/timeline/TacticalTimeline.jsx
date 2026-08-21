@@ -964,6 +964,57 @@ export function TacticalTimeline({
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
   const chipClickTimerRef = useRef(null);
   const tacticalBodyRef = useRef(null);
+  const sheetRootRef = useRef(null);
+
+  // #region agent log
+  useEffect(() => {
+    const root = sheetRootRef.current;
+    const body = tacticalBodyRef.current;
+    const top = root?.querySelector?.(".tl-sheet-top");
+    const header = root?.querySelector?.(".tl-tactical-header");
+    const rootRect = root?.getBoundingClientRect?.();
+    const topRect = top?.getBoundingClientRect?.();
+    const headerRect = header?.getBoundingClientRect?.();
+    const bodyRect = body?.getBoundingClientRect?.();
+    fetch("http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "02032e" },
+      body: JSON.stringify({
+        sessionId: "02032e",
+        runId: "post-fix",
+        hypothesisId: "D",
+        location: "TacticalTimeline.jsx:layout-measure",
+        message: "timeline sheet layout metrics",
+        data: {
+          timelineSheet,
+          isSheetExpanded,
+          showTimelineData,
+          hasQueue,
+          companySelected: Boolean(filterObjectId),
+          queueLen: timelineDocQueue.length,
+          rowGroups: rowGroups.length,
+          objectRowCount,
+          rootH: rootRect ? Math.round(rootRect.height) : null,
+          topH: topRect ? Math.round(topRect.height) : null,
+          headerH: headerRect ? Math.round(headerRect.height) : null,
+          bodyH: bodyRect ? Math.round(bodyRect.height) : null,
+          bodyMounted: Boolean(body),
+          headerMounted: Boolean(header),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [
+    timelineSheet,
+    isSheetExpanded,
+    showTimelineData,
+    hasQueue,
+    filterObjectId,
+    timelineDocQueue.length,
+    rowGroups.length,
+    objectRowCount,
+  ]);
+  // #endregion
 
   useEffect(() => () => {
     if (chipClickTimerRef.current) {
@@ -1114,6 +1165,7 @@ export function TacticalTimeline({
 
   return (
     <div
+      ref={sheetRootRef}
       className={
         "timeline stacked tl-tactical"
         + (showTimelineData ? "" : " tl-tactical--empty")
@@ -1124,7 +1176,29 @@ export function TacticalTimeline({
         <button
           type="button"
           className="tl-sheet-toggle"
-          onClick={toggleTimelineSheet}
+          onClick={() => {
+            // #region agent log
+            fetch("http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "02032e" },
+              body: JSON.stringify({
+                sessionId: "02032e",
+                runId: "post-fix",
+                hypothesisId: "A",
+                location: "TacticalTimeline.jsx:toggle",
+                message: "timeline sheet toggle clicked",
+                data: {
+                  from: timelineSheet,
+                  next: timelineSheet === "expanded" ? "peek" : "expanded",
+                  showTimelineData,
+                  rowGroups: rowGroups.length,
+                },
+                timestamp: Date.now(),
+              }),
+            }).catch(() => {});
+            // #endregion
+            toggleTimelineSheet();
+          }}
           aria-expanded={isSheetExpanded}
           title={isSheetExpanded ? t("timeline.sheetCollapse") : t("timeline.sheetExpand")}
         >
@@ -1137,72 +1211,74 @@ export function TacticalTimeline({
           </span>
         </button>
       </div>
-      {showTimelineData ? (
-        <>
-          <div className="tl-tactical-header">
-            <span className="tl-tactical-header__title">
-              <b>{t("timeline.title")}</b>
-              <span className="tl-tactical-header__meta">
-                {t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
-                {" · "}
-                {t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
-                {timelineAgentSets.length > 0
-                  ? ` · ${t("timeline.sets", { count: timelineAgentSets.length, s: pluralS(timelineAgentSets.length) })}`
-                  : ""}
-                {activeGrid?.spanDays ? ` · ${t("timeline.span", { days: activeGrid.spanDays })}` : ""}
+      {isSheetExpanded ? (
+        showTimelineData ? (
+          <>
+            <div className="tl-tactical-header">
+              <span className="tl-tactical-header__title">
+                <b>{t("timeline.title")}</b>
+                <span className="tl-tactical-header__meta">
+                  {t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
+                  {" · "}
+                  {t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
+                  {timelineAgentSets.length > 0
+                    ? ` · ${t("timeline.sets", { count: timelineAgentSets.length, s: pluralS(timelineAgentSets.length) })}`
+                    : ""}
+                  {activeGrid?.spanDays ? ` · ${t("timeline.span", { days: activeGrid.spanDays })}` : ""}
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
 
-          <div className="tl-tactical-body" ref={tacticalBodyRef}>
-            <TimelineCrossLinks
-              links={inheritanceCrossLinks}
-              containerRef={tacticalBodyRef}
-            />
-            {rowGroups.length > 0 ? rowGroups.map((group, groupIndex) => (
-              <TacticalRowGroup
-                key={group.objectId}
-                group={group}
-                groupIndex={groupIndex}
-                docChildLinks={docChildLinks}
-                today={today}
-                now={now}
-                grid={activeGrid}
-                trackItemsById={trackItemsById}
-                docsById={docsById}
-                nodeEntitiesById={nodeEntitiesById}
-                objectsById={objectsById}
-                connections={connections}
-                focusedNoteId={focusedNoteId}
-                onChipClick={handleChipClick}
-                onChipDoubleClick={handleChipDoubleClick}
-                onChipRemove={handleChipRemove}
-                queuedDocIds={queuedDocIds}
-                rangeDrag={rangeDrag}
-                t={t}
+            <div className="tl-tactical-body" ref={tacticalBodyRef}>
+              <TimelineCrossLinks
+                links={inheritanceCrossLinks}
+                containerRef={tacticalBodyRef}
               />
-            )) : (
-              <TacticalDecorativeRuler grid={activeGrid} today={today} now={now} t={t} />
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="tl-tactical-header">
-            <span className="tl-tactical-header__title">
-              <b>{t("timeline.title")}</b>
-            </span>
-          </div>
-          <div className="tl-tactical-body">
-            <TacticalDecorativeRuler grid={emptyGrid} today={today} now={now} t={t} />
-            {hasQueue && !companySelected ? (
-              <p className="tl-tactical-empty-hint" role="status">
-                {t("timeline.selectCompanyHint")}
-              </p>
-            ) : null}
-          </div>
-        </>
-      )}
+              {rowGroups.length > 0 ? rowGroups.map((group, groupIndex) => (
+                <TacticalRowGroup
+                  key={group.objectId}
+                  group={group}
+                  groupIndex={groupIndex}
+                  docChildLinks={docChildLinks}
+                  today={today}
+                  now={now}
+                  grid={activeGrid}
+                  trackItemsById={trackItemsById}
+                  docsById={docsById}
+                  nodeEntitiesById={nodeEntitiesById}
+                  objectsById={objectsById}
+                  connections={connections}
+                  focusedNoteId={focusedNoteId}
+                  onChipClick={handleChipClick}
+                  onChipDoubleClick={handleChipDoubleClick}
+                  onChipRemove={handleChipRemove}
+                  queuedDocIds={queuedDocIds}
+                  rangeDrag={rangeDrag}
+                  t={t}
+                />
+              )) : (
+                <TacticalDecorativeRuler grid={activeGrid} today={today} now={now} t={t} />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="tl-tactical-header">
+              <span className="tl-tactical-header__title">
+                <b>{t("timeline.title")}</b>
+              </span>
+            </div>
+            <div className="tl-tactical-body">
+              <TacticalDecorativeRuler grid={emptyGrid} today={today} now={now} t={t} />
+              {hasQueue && !companySelected ? (
+                <p className="tl-tactical-empty-hint" role="status">
+                  {t("timeline.selectCompanyHint")}
+                </p>
+              ) : null}
+            </div>
+          </>
+        )
+      ) : null}
     </div>
   );
 }
