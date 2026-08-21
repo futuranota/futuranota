@@ -12,6 +12,16 @@ import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaReplyChips.js";
+import {
+  buildGinaDocActionsMenu,
+  buildGinaExportAppliedAck,
+  buildGinaExportFollowUpChips,
+  buildGinaExportPromptMessage,
+  buildGinaOrganizeAppliedAck,
+  buildGinaOrganizePromptMessage,
+  buildGinaOrganizeStyleChips,
+  buildGinaPdfToTextMessage,
+} from "../../lib/gina/ginaDocActionChips.js";
 import { buildGinaDocumentSyncOpening } from "../../lib/gina/ginaOpenings.js";
 import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
 import { GINA_RESET_DAY_RITUAL_PROTOCOL } from "../../lib/gina/ginaDayRitualReset.js";
@@ -771,6 +781,7 @@ function joinTranscript(finalParts, interim) {
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null, searchSequence?: { preludeMessage?: string } | null }>,
+ *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library") => void | Promise<void>,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
@@ -791,6 +802,7 @@ export function GinaChatCard({
   labels = {},
   onClose,
   onSendMessage,
+  onDocumentAction,
   allowMeetingMode = false,
   meetingDocumentTitle = "",
   initialMeetingMode = false,
@@ -824,7 +836,12 @@ export function GinaChatCard({
   const [enableDotVisible, setEnableDotVisible] = useState(false);
   /** In-doc: footer action button unlocks after chip «Algo más». */
   const [moreActionsEnabled, setMoreActionsEnabled] = useState(false);
+  const [docActionsMenuOpen, setDocActionsMenuOpen] = useState(false);
   const isDocumentSurface = Boolean(documentId);
+  const docActionsMenu = useMemo(
+    () => (isDocumentSurface ? buildGinaDocActionsMenu({ locale: chipLocale }) : []),
+    [isDocumentSurface, chipLocale],
+  );
 
   useEffect(() => {
     setMeetingMode(Boolean(initialMeetingMode));
@@ -1892,7 +1909,7 @@ export function GinaChatCard({
 
   return (
     <div
-      className={`gina-chat-card ${className}`.trim()}
+      className={`gina-chat-card ${docActionsMenuOpen ? "gina-chat-card--doc-menu-open" : ""} ${className}`.trim()}
       data-document-id={documentId || undefined}
     >
       <motion.div
@@ -2683,9 +2700,96 @@ export function GinaChatCard({
                             const label = chip.label || (chipLocale === "en" ? "Something else" : "Algo más");
                             const ack = labels.moreActionsAck
                               || (chipLocale === "en"
-                                ? "Tell me what you need for this document — pick an action below when you’re ready."
-                                : "Dime qué necesitas con este documento — elige una acción abajo cuando quieras.");
+                                ? "Tell me what you need for this document — pick an option below."
+                                : "Dime qué necesitas con este documento — elige una opción abajo.");
+                            const actionChips = buildGinaDocActionsMenu({ locale: chipLocale }).map((item) => ({
+                              ...item,
+                              text: item.label,
+                            }));
                             setMoreActionsEnabled(true);
+                            setDocActionsMenuOpen(true);
+                            setMessages((prev) => [
+                              ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
+                              { id: makeMsgId(), sender: "user", text: label },
+                              {
+                                id: makeMsgId(),
+                                sender: "ai",
+                                text: ack,
+                                visualization: null,
+                                chips: actionChips,
+                                refineRevealed: true,
+                              },
+                            ]);
+                            isAiAnimatingRef.current = false;
+                            setIsAiAnimating(false);
+                            return;
+                          }
+                          if (chip.kind === "doc_action") {
+                            const label = chip.label || chip.text || "";
+                            setDocActionsMenuOpen(false);
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i ? stashMessageChips(m) : m
+                            )));
+                            if (chip.action === "organize_prompt") {
+                              setMessages((prev) => [
+                                ...prev,
+                                { id: makeMsgId(), sender: "user", text: label },
+                                {
+                                  id: makeMsgId(),
+                                  sender: "ai",
+                                  text: buildGinaOrganizePromptMessage({ locale: chipLocale }),
+                                  visualization: null,
+                                  chips: buildGinaOrganizeStyleChips({ locale: chipLocale }),
+                                  refineRevealed: true,
+                                },
+                              ]);
+                              isAiAnimatingRef.current = false;
+                              setIsAiAnimating(false);
+                              return;
+                            }
+                            if (chip.action === "import_pdf") {
+                              setMessages((prev) => [
+                                ...prev,
+                                { id: makeMsgId(), sender: "user", text: label },
+                                {
+                                  id: makeMsgId(),
+                                  sender: "ai",
+                                  text: buildGinaPdfToTextMessage({ locale: chipLocale }),
+                                  visualization: null,
+                                  chips: null,
+                                  refineRevealed: true,
+                                },
+                              ]);
+                              isAiAnimatingRef.current = false;
+                              setIsAiAnimating(false);
+                              void Promise.resolve(onDocumentAction?.("import_pdf")).catch(() => {});
+                              return;
+                            }
+                            if (chip.action === "export_prompt") {
+                              setMessages((prev) => [
+                                ...prev,
+                                { id: makeMsgId(), sender: "user", text: label },
+                                {
+                                  id: makeMsgId(),
+                                  sender: "ai",
+                                  text: buildGinaExportPromptMessage({ locale: chipLocale }),
+                                  visualization: null,
+                                  chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
+                                  refineRevealed: true,
+                                },
+                              ]);
+                              isAiAnimatingRef.current = false;
+                              setIsAiAnimating(false);
+                              return;
+                            }
+                            return;
+                          }
+                          if (chip.kind === "doc_organize_style") {
+                            const label = chip.label || chip.text || "";
+                            const ack = buildGinaOrganizeAppliedAck({
+                              locale: chipLocale,
+                              styleId: chip.id,
+                            });
                             setMessages((prev) => [
                               ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
                               { id: makeMsgId(), sender: "user", text: label },
@@ -2699,6 +2803,32 @@ export function GinaChatCard({
                             ]);
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
+                            void Promise.resolve(onDocumentAction?.("organize")).catch(() => {});
+                            return;
+                          }
+                          if (chip.kind === "doc_export_dest") {
+                            const label = chip.label || chip.text || "";
+                            const action = chip.action === "save_pdf_library"
+                              ? "save_pdf_library"
+                              : "export_pdf";
+                            const ack = buildGinaExportAppliedAck({
+                              locale: chipLocale,
+                              action,
+                            });
+                            setMessages((prev) => [
+                              ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
+                              { id: makeMsgId(), sender: "user", text: label },
+                              {
+                                id: makeMsgId(),
+                                sender: "ai",
+                                text: ack,
+                                visualization: null,
+                                chips: null,
+                              },
+                            ]);
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            void Promise.resolve(onDocumentAction?.(action)).catch(() => {});
                             return;
                           }
                           if (chip.kind === "nav_back") {
@@ -2835,35 +2965,214 @@ export function GinaChatCard({
 
         {isDocumentSurface ? (
           <div className="gina-chat-card__actions-footer">
-            <button
-              type="button"
-              className={
-                "gina-chat-card__more-actions"
-                + (moreActionsEnabled ? " is-enabled" : "")
-              }
-              disabled={!moreActionsEnabled}
-              aria-disabled={!moreActionsEnabled}
-              aria-expanded={false}
-              aria-label={
-                labels.moreActionsAria
-                || (chipLocale === "en"
-                  ? "More actions for this document"
-                  : "Más acciones para este documento")
-              }
-              title={
-                moreActionsEnabled
-                  ? undefined
-                  : (labels.moreActionsDisabledHint
-                    || (chipLocale === "en"
-                      ? "Choose “Something else” above to unlock actions"
-                      : "Elige «Algo más» arriba para desbloquear acciones"))
-              }
-              onClick={() => {
-                /* Step 1: unlock only — action menu in a later brief. */
-              }}
-            >
-              {labels.moreActions || (chipLocale === "en" ? "Something else" : "Algo más")}
-            </button>
+            {moreActionsEnabled && docActionsMenuOpen ? (
+              <div
+                className="gina-chat-card__doc-actions-menu"
+                role="menu"
+                aria-label={
+                  labels.moreActionsMenuAria
+                  || (chipLocale === "en" ? "Document actions" : "Acciones del documento")
+                }
+              >
+                {docActionsMenu.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    className="gina-chat-card__doc-action-item"
+                    onClick={() => {
+                      setDocActionsMenuOpen(false);
+                      const label = item.label || "";
+                      if (item.action === "organize_prompt") {
+                        setMessages((prev) => [
+                          ...prev,
+                          { id: makeMsgId(), sender: "user", text: label },
+                          {
+                            id: makeMsgId(),
+                            sender: "ai",
+                            text: buildGinaOrganizePromptMessage({ locale: chipLocale }),
+                            visualization: null,
+                            chips: buildGinaOrganizeStyleChips({ locale: chipLocale }),
+                            refineRevealed: true,
+                          },
+                        ]);
+                        isAiAnimatingRef.current = false;
+                        setIsAiAnimating(false);
+                        return;
+                      }
+                      if (item.action === "import_pdf") {
+                        setMessages((prev) => [
+                          ...prev,
+                          { id: makeMsgId(), sender: "user", text: label },
+                          {
+                            id: makeMsgId(),
+                            sender: "ai",
+                            text: buildGinaPdfToTextMessage({ locale: chipLocale }),
+                            visualization: null,
+                            chips: null,
+                            refineRevealed: true,
+                          },
+                        ]);
+                        isAiAnimatingRef.current = false;
+                        setIsAiAnimating(false);
+                        void Promise.resolve(onDocumentAction?.("import_pdf")).catch(() => {});
+                        return;
+                      }
+                      if (item.action === "export_prompt") {
+                        setMessages((prev) => [
+                          ...prev,
+                          { id: makeMsgId(), sender: "user", text: label },
+                          {
+                            id: makeMsgId(),
+                            sender: "ai",
+                            text: buildGinaExportPromptMessage({ locale: chipLocale }),
+                            visualization: null,
+                            chips: buildGinaExportFollowUpChips({ locale: chipLocale }),
+                            refineRevealed: true,
+                          },
+                        ]);
+                        isAiAnimatingRef.current = false;
+                        setIsAiAnimating(false);
+                      }
+                    }}
+                  >
+                    <span className="gina-chat-card__doc-action-item-label">{item.label}</span>
+                    {item.hint ? (
+                      <span className="gina-chat-card__doc-action-item-hint">{item.hint}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="gina-chat-card__actions-footer-row">
+              <button
+                type="button"
+                className={
+                  "gina-chat-card__more-actions"
+                  + (moreActionsEnabled ? " is-enabled" : "")
+                  + (docActionsMenuOpen ? " is-open" : "")
+                }
+                disabled={!moreActionsEnabled}
+                aria-disabled={!moreActionsEnabled}
+                aria-expanded={moreActionsEnabled ? docActionsMenuOpen : false}
+                aria-haspopup="menu"
+                aria-label={
+                  labels.moreActionsAria
+                  || (chipLocale === "en"
+                    ? "Select document options"
+                    : "Seleccionar opciones del documento")
+                }
+                title={
+                  moreActionsEnabled
+                    ? undefined
+                    : (labels.moreActionsDisabledHint
+                      || (chipLocale === "en"
+                        ? "Choose “Something else” above to unlock options"
+                        : "Elige «Algo más» arriba para desbloquear opciones"))
+                }
+                onClick={() => {
+                  if (!moreActionsEnabled) return;
+                  setDocActionsMenuOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      const actionChips = buildGinaDocActionsMenu({ locale: chipLocale }).map((item) => ({
+                        ...item,
+                        text: item.label,
+                      }));
+                      setMessages((prev) => {
+                        const lastAi = [...prev].reverse().find((m) => m.sender === "ai");
+                        const hasDocActionChips = Array.isArray(lastAi?.chips)
+                          && lastAi.chips.some((c) => c?.kind === "doc_action");
+                        if (hasDocActionChips) {
+                          // Restore chips on last AI turn if they were stashed.
+                          return prev.map((m) => {
+                            if (m !== lastAi) return m;
+                            if (Array.isArray(m.chips) && m.chips.some((c) => c?.kind === "doc_action")) {
+                              return m;
+                            }
+                            if (Array.isArray(m.chipsRestorable)
+                              && m.chipsRestorable.some((c) => c?.kind === "doc_action")) {
+                              return {
+                                ...m,
+                                chips: m.chipsRestorable,
+                                chipsRestorable: null,
+                                refineRevealed: true,
+                              };
+                            }
+                            return {
+                              ...m,
+                              chips: actionChips,
+                              refineRevealed: true,
+                            };
+                          });
+                        }
+                        return [
+                          ...prev,
+                          {
+                            id: makeMsgId(),
+                            sender: "ai",
+                            text: chipLocale === "en"
+                              ? "Here are the actions I can run on this document:"
+                              : "Estas son las acciones que puedo correr en este documento:",
+                            visualization: null,
+                            chips: actionChips,
+                            refineRevealed: true,
+                          },
+                        ];
+                      });
+                      isAiAnimatingRef.current = false;
+                      setIsAiAnimating(false);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {labels.moreActions || (chipLocale === "en" ? "Select options" : "Seleccionar opciones")}
+              </button>
+              <div
+                className="gina-chat-card__composer gina-chat-card__composer--locked"
+                title={
+                  labels.composerLockedHint
+                  || (chipLocale === "en"
+                    ? "Typing and dictation stay locked here — use Select options"
+                    : "Escribir y dictar quedan bloqueados aquí — usa Seleccionar opciones")
+                }
+              >
+                <textarea
+                  ref={inputRef}
+                  className="gina-chat-card__input"
+                  placeholder={placeholder}
+                  value=""
+                  rows={1}
+                  disabled
+                  readOnly
+                  tabIndex={-1}
+                  aria-disabled="true"
+                  aria-label={labels.messageAria || "Message Gina"}
+                />
+                <button
+                  type="button"
+                  className="gina-chat-card__mic"
+                  disabled
+                  tabIndex={-1}
+                  aria-disabled="true"
+                  aria-label={micTitle}
+                  title={micTitle}
+                >
+                  <MicIcon />
+                </button>
+                <button
+                  type="button"
+                  className="gina-chat-card__send"
+                  disabled
+                  tabIndex={-1}
+                  aria-disabled="true"
+                  aria-label={labels.sendAria || "Send"}
+                >
+                  <SendIcon />
+                </button>
+              </div>
+            </div>
           </div>
         ) : isListening ? (
           <div

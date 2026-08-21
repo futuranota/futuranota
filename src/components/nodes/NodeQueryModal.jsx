@@ -1559,6 +1559,31 @@ export function NodeQueryModal({
     t,
   ]);
 
+  const handleGinaDocumentAction = useCallback((action) => {
+    const key = String(action || "").trim();
+    if (key === "organize") {
+      void handleOrganizeWritingText();
+      return;
+    }
+    if (key === "export_pdf") {
+      void handleExportWritingPdf();
+      return;
+    }
+    if (key === "save_pdf_library") {
+      void handleSaveWritingPdfToLibrary();
+      return;
+    }
+    if (key === "import_pdf") {
+      setGinaChatOpen(false);
+      setLibraryInitialTab("skill");
+      setLibraryOpen(true);
+    }
+  }, [
+    handleOrganizeWritingText,
+    handleExportWritingPdf,
+    handleSaveWritingPdfToLibrary,
+  ]);
+
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
@@ -2636,8 +2661,11 @@ export function NodeQueryModal({
         moreActionsAria: t("gina.moreActionsAria"),
         moreActionsDisabledHint: t("gina.moreActionsDisabledHint"),
         moreActionsAck: t("gina.moreActionsAck"),
+        moreActionsMenuAria: t("gina.moreActionsMenuAria"),
+        composerLockedHint: t("gina.composerLockedHint"),
       }}
       onSendMessage={handleGinaInDocSend}
+      onDocumentAction={handleGinaDocumentAction}
       onClose={() => setGinaChatOpen(false)}
     />
   ) : null;
