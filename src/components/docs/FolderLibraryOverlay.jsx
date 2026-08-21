@@ -30,6 +30,11 @@ import {
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
 import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
+import {
+  extractTextFromPdfData,
+  fetchPdfBytesFromUrl,
+  isPdfLibraryAttachment,
+} from "../../lib/importPdfText.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
@@ -153,8 +158,8 @@ function miniFichaClass(item, prefer) {
 
 /**
  * Folder / document library table.
- * Folder: header Attachments icon + contextual [+]; Prompt row with class chips.
- * Document: Assets + Prompt + Attachments icon. Attachments always read/write the
+ * Folder: Prompt row + Attachments tab; contextual [+].
+ * Document: Assets + Attachments + Prompt. Attachments always read/write the
  * parent folder corpus (same list as folder Library).
  */
 export function FolderLibraryOverlay({
@@ -163,6 +168,13 @@ export function FolderLibraryOverlay({
   ownerKind = "folder",
   ownerId,
   initialTab = null,
+  /** When true, PDF → text is enabled (document writing surface is empty). */
+  writingEmpty = false,
+  /**
+   * Import extracted PDF text into the open document writing area.
+   * @type {null|((payload: { text: string, tag?: string }) => Promise<void>|void)}
+   */
+  onImportPdfToWriting = null,
   onClose,
 }) {
   const { t } = useI18n();
@@ -237,6 +249,9 @@ export function FolderLibraryOverlay({
   const classDraftRef = useRef(null);
   const classEditRef = useRef(null);
   const libraryImageInputRef = useRef(null);
+  const [pdfToTextBusy, setPdfToTextBusy] = useState(false);
+  const [pdfToTextError, setPdfToTextError] = useState("");
+  const [pdfPickerOpen, setPdfPickerOpen] = useState(false);
 
   useEffect(() => {
     if (requestedTab) {
@@ -285,6 +300,11 @@ export function FolderLibraryOverlay({
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
+      if (pdfPickerOpen) {
+        event.preventDefault();
+        setPdfPickerOpen(false);
+        return;
+      }
       if (modalOpen || assetModalOpen || detailItemId) return;
       if (focusedAssetId) {
         event.preventDefault();
@@ -301,13 +321,36 @@ export function FolderLibraryOverlay({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, modalOpen, assetModalOpen, detailItemId, focusedAssetId, focusedDocumentId]);
+  }, [
+    onClose,
+    modalOpen,
+    assetModalOpen,
+    detailItemId,
+    focusedAssetId,
+    focusedDocumentId,
+    pdfPickerOpen,
+  ]);
 
   const showingDocumentsTab = showingDocumentGrid && filterTab === "documents";
   const showingAttachments = canUseAttachments && filterTab === "skill";
   const attachmentMutateKind = "folder";
   const attachmentMutateId = attachmentOwnerId;
   const items = showingAttachments ? folderAttachmentItems : itemsPrimary;
+  const canImportPdfToWriting = typeof onImportPdfToWriting === "function";
+  const pdfAttachmentItems = useMemo(
+    () => (showingAttachments
+      ? folderAttachmentItems.filter(
+        (item) => isPdfLibraryAttachment(item) && Boolean(item?.attachmentUrl),
+      )
+      : []),
+    [showingAttachments, folderAttachmentItems],
+  );
+
+  useEffect(() => {
+    if (showingAttachments) return;
+    setPdfPickerOpen(false);
+    setPdfToTextError("");
+  }, [showingAttachments]);
 
   const looseItems = useMemo(
     () => (showingDocumentGrid ? items.filter((item) => !item.setId) : items),
@@ -388,6 +431,64 @@ export function FolderLibraryOverlay({
       return;
     }
     openEdit(item);
+  };
+
+  const pdfToTextTitle = (() => {
+    if (pdfToTextError) return pdfToTextError;
+    if (!canImportPdfToWriting) return t("doc.library.pdfToTextUnavailable");
+    if (!writingEmpty) return t("doc.library.pdfToTextNeedEmpty");
+    if (!pdfAttachmentItems.length) return t("doc.library.pdfToTextNeedPdf");
+    return t("doc.library.pdfToTextTitle");
+  })();
+
+  const pdfToTextEnabled = canImportPdfToWriting
+    && writingEmpty
+    && !pdfToTextBusy
+    && pdfAttachmentItems.length > 0;
+
+  const importPdfAttachment = async (target) => {
+    if (!target?.attachmentUrl) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedPdf"));
+      return;
+    }
+    setPdfToTextError("");
+    setPdfPickerOpen(false);
+    setPdfToTextBusy(true);
+    try {
+      const bytes = await fetchPdfBytesFromUrl(target.attachmentUrl);
+      const extracted = await extractTextFromPdfData(bytes);
+      if (extracted.empty) {
+        setPdfToTextError(t("docs.importPdfEmpty"));
+        return;
+      }
+      await onImportPdfToWriting({
+        text: extracted.text,
+        tag: target.tag || target.attachmentName || "",
+      });
+    } catch (err) {
+      console.error("[pdfToText]", err);
+      setPdfToTextError(t("docs.importPdfFailed"));
+    } finally {
+      setPdfToTextBusy(false);
+    }
+  };
+
+  const handlePdfToText = async () => {
+    if (!canImportPdfToWriting || pdfToTextBusy) return;
+    if (!writingEmpty) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedEmpty"));
+      return;
+    }
+    if (!pdfAttachmentItems.length) {
+      setPdfToTextError(t("doc.library.pdfToTextNeedPdf"));
+      return;
+    }
+    if (pdfAttachmentItems.length === 1) {
+      await importPdfAttachment(pdfAttachmentItems[0]);
+      return;
+    }
+    setPdfToTextError("");
+    setPdfPickerOpen(true);
   };
 
   const handleDelete = (item) => {
@@ -658,41 +759,6 @@ export function FolderLibraryOverlay({
               <h2 className="folder-library-overlay__title">{overlayTitle}</h2>
             </div>
             <div className="folder-library-overlay__header-actions">
-              {canUseAttachments ? (
-                <button
-                  type="button"
-                  className={
-                    "folder-library-overlay__attachments"
-                    + (showingAttachments ? " is-active" : "")
-                  }
-                  aria-pressed={showingAttachments}
-                  aria-label={
-                    hasFolderAttachments
-                      ? t("doc.library.attachmentsWithFilesAria").replace(
-                        "{count}",
-                        String(folderAttachmentCount),
-                      )
-                      : t("doc.library.attachmentsAria")
-                  }
-                  title={
-                    hasFolderAttachments
-                      ? t("doc.library.attachmentsWithFilesTitle").replace(
-                        "{count}",
-                        String(folderAttachmentCount),
-                      )
-                      : t("doc.library.attachmentsAria")
-                  }
-                  onClick={() => setFilter("skill")}
-                >
-                  <img
-                    className="folder-library-overlay__attachments-icon"
-                    src="/uploads/attachment.svg"
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                  />
-                </button>
-              ) : null}
               {showHeaderPlus ? (
                 <button
                   type="button"
@@ -827,6 +893,35 @@ export function FolderLibraryOverlay({
                       <span>{t("doc.library.tabDocuments")}</span>
                     </button>
                   ) : null}
+                  {canUseAttachments ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={filterTab === "skill"}
+                      className={
+                        "folder-library-overlay__tab folder-library-overlay__tab--with-icon"
+                        + (filterTab === "skill" ? " is-active" : "")
+                      }
+                      onClick={() => setFilter("skill")}
+                      title={
+                        hasFolderAttachments
+                          ? t("doc.library.attachmentsWithFilesTitle").replace(
+                            "{count}",
+                            String(folderAttachmentCount),
+                          )
+                          : t("doc.library.attachmentsAria")
+                      }
+                    >
+                      <img
+                        className="folder-library-overlay__tab-icon"
+                        src="/uploads/attachment.svg"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                      />
+                      <span>{t("doc.library.tabSkills")}</span>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     role="tab"
@@ -839,6 +934,72 @@ export function FolderLibraryOverlay({
                   >
                     {t("doc.library.tabImages")}
                   </button>
+                  {showingAttachments && canImportPdfToWriting ? (
+                    <span
+                      className="folder-library-overlay__pdf-to-text-wrap"
+                      title={pdfToTextTitle}
+                    >
+                      <button
+                        type="button"
+                        className={
+                          "folder-library-overlay__pdf-to-text"
+                          + (pdfToTextBusy ? " is-loading" : "")
+                          + (pdfToTextError ? " is-error" : "")
+                          + (pdfPickerOpen ? " is-open" : "")
+                        }
+                        onClick={handlePdfToText}
+                        disabled={!pdfToTextEnabled}
+                        aria-busy={pdfToTextBusy}
+                        aria-expanded={pdfPickerOpen}
+                        aria-haspopup="dialog"
+                        aria-label={t("doc.library.pdfToText")}
+                      >
+                        {pdfToTextBusy
+                          ? t("doc.library.pdfToTextLoading")
+                          : t("doc.library.pdfToText")}
+                      </button>
+                      {pdfPickerOpen ? (
+                        <div
+                          className="folder-library-overlay__pdf-picker"
+                          role="dialog"
+                          aria-label={t("doc.library.pdfToTextPickerTitle")}
+                        >
+                          <div className="folder-library-overlay__pdf-picker-head">
+                            <span className="folder-library-overlay__pdf-picker-title">
+                              {t("doc.library.pdfToTextPickerTitle")}
+                            </span>
+                            <button
+                              type="button"
+                              className="folder-library-overlay__pdf-picker-close"
+                              onClick={() => setPdfPickerOpen(false)}
+                              aria-label={t("doc.library.close")}
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <ul className="folder-library-overlay__pdf-picker-list">
+                            {pdfAttachmentItems.map((item) => (
+                              <li key={item.id}>
+                                <button
+                                  type="button"
+                                  className="folder-library-overlay__pdf-picker-item"
+                                  disabled={pdfToTextBusy}
+                                  onClick={() => importPdfAttachment(item)}
+                                >
+                                  <span className="folder-library-overlay__pdf-picker-item-name">
+                                    {item.tag || item.attachmentName || "PDF"}
+                                  </span>
+                                  <span className="folder-library-overlay__pdf-picker-item-badge">
+                                    PDF
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </span>
+                  ) : null}
                   {filterTab === "image" ? (
                     <>
                       <button

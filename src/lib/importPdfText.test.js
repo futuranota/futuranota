@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
   extractTextFromPdfData,
+  isPdfLibraryAttachment,
   mergePdfTextIntoWritingBlocks,
   normalizePdfExtractedText,
   textItemsToPageText,
-  writingBlocksAreEffectivelyEmpty,
+  writingTextAreasAreEmpty,
 } from "./importPdfText.js";
 import {
   createEmptyTextBlock,
@@ -61,13 +62,41 @@ describe("mergePdfTextIntoWritingBlocks", () => {
   });
 });
 
-describe("writingBlocksAreEffectivelyEmpty", () => {
-  it("treats blank text as empty", () => {
-    expect(writingBlocksAreEffectivelyEmpty([createEmptyTextBlock("  ")])).toBe(true);
+describe("writingTextAreasAreEmpty", () => {
+  it("treats blank textareas as empty", () => {
+    expect(writingTextAreasAreEmpty([createEmptyTextBlock("  ")])).toBe(true);
   });
 
-  it("treats heading as content", () => {
-    expect(writingBlocksAreEffectivelyEmpty([createInlineH1Block("Hi")])).toBe(false);
+  it("ignores document-style H1 titles — only textareas count", () => {
+    expect(writingTextAreasAreEmpty([
+      createInlineH1Block("Doc heading"),
+      createEmptyTextBlock(""),
+    ])).toBe(true);
+  });
+
+  it("is not empty when a textarea has prose", () => {
+    expect(writingTextAreasAreEmpty([
+      createInlineH1Block(""),
+      createEmptyTextBlock("hello"),
+    ])).toBe(false);
+  });
+});
+
+describe("isPdfLibraryAttachment", () => {
+  it("detects pdf by kind, name, or category", () => {
+    expect(isPdfLibraryAttachment({ category: "pdf" })).toBe(true);
+    expect(isPdfLibraryAttachment({
+      category: "skill",
+      attachmentKind: "application/pdf",
+    })).toBe(true);
+    expect(isPdfLibraryAttachment({
+      category: "skill",
+      attachmentName: "notes.pdf",
+    })).toBe(true);
+    expect(isPdfLibraryAttachment({
+      category: "skill",
+      attachmentName: "readme.md",
+    })).toBe(false);
   });
 });
 

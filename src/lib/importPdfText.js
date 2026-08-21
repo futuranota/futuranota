@@ -59,31 +59,26 @@ export function normalizePdfExtractedText(text) {
 }
 
 /**
+ * PDF → text gate: only writing TEXT cells (textareas) count.
+ * Document title / H1–H3 / todos / other blocks do not disable the button.
  * @param {unknown} blocks
  */
-export function writingBlocksAreEffectivelyEmpty(blocks) {
+export function writingTextAreasAreEmpty(blocks) {
   const normalized = normalizeWritingBlocks(blocks);
-  return !normalized.some((block) => {
-    if (!block) return false;
-    if (block.type === NODE_BLOCK_TYPES.TEXT) {
-      return Boolean(String(block.text || "").trim());
-    }
-    if (
-      block.type === NODE_BLOCK_TYPES.H1
-      || block.type === NODE_BLOCK_TYPES.H2
-      || block.type === NODE_BLOCK_TYPES.H3
-    ) {
-      return Boolean(String(block.title || "").trim());
-    }
-    if (block.type === NODE_BLOCK_TYPES.CODE) {
-      return Boolean(String(block.code || "").trim());
-    }
-    return true;
-  });
+  const textBlocks = normalized.filter(
+    (block) => block?.type === NODE_BLOCK_TYPES.TEXT,
+  );
+  if (!textBlocks.length) return true;
+  return textBlocks.every((block) => !String(block.text || "").trim());
+}
+
+/** @deprecated Prefer writingTextAreasAreEmpty for PDF → text. */
+export function writingBlocksAreEffectivelyEmpty(blocks) {
+  return writingTextAreasAreEmpty(blocks);
 }
 
 /**
- * Drop extracted text into writing blocks (append, or replace empty doc).
+ * Drop extracted text into writing blocks (append, or replace empty textareas).
  * Keeps one TEXT cell with paragraph breaks so Organize can reshape next.
  *
  * @param {unknown} blocks
@@ -101,9 +96,23 @@ export function mergePdfTextIntoWritingBlocks(blocks, text) {
   }
 
   const current = normalizeWritingBlocks(blocks);
-  if (writingBlocksAreEffectivelyEmpty(current)) {
+  if (writingTextAreasAreEmpty(current)) {
+    const withoutEmptyText = current.filter(
+      (block) => !(block?.type === NODE_BLOCK_TYPES.TEXT && !String(block.text || "").trim()),
+    );
+    const onlyEmptyText = withoutEmptyText.length === 0;
+    if (onlyEmptyText) {
+      return {
+        blocks: ensureNodeWritingTail([createEmptyTextBlock(body)]),
+        changed: true,
+        empty: false,
+      };
+    }
     return {
-      blocks: ensureNodeWritingTail([createEmptyTextBlock(body)]),
+      blocks: ensureNodeWritingTail([
+        ...withoutEmptyText,
+        createEmptyTextBlock(body),
+      ]),
       changed: true,
       empty: false,
     };
@@ -179,4 +188,32 @@ export async function extractTextFromPdfFile(file) {
   }
   const buffer = await file.arrayBuffer();
   return extractTextFromPdfData(buffer);
+}
+
+/**
+ * True when a library attachment looks like a PDF (kind / name / url / category).
+ * @param {unknown} item
+ */
+export function isPdfLibraryAttachment(item) {
+  if (!item || typeof item !== "object") return false;
+  const category = String(item.category || "").toLowerCase();
+  if (category === "pdf") return true;
+  const kind = String(item.attachmentKind || "").toLowerCase();
+  if (kind.includes("pdf")) return true;
+  const name = String(item.attachmentName || item.tag || "").toLowerCase();
+  if (name.endsWith(".pdf")) return true;
+  const url = String(item.attachmentUrl || "").toLowerCase();
+  return url.includes(".pdf") || url.includes("application/pdf");
+}
+
+/**
+ * @param {string} url
+ * @returns {Promise<ArrayBuffer>}
+ */
+export async function fetchPdfBytesFromUrl(url) {
+  const href = String(url || "").trim();
+  if (!href) throw new Error("missing_url");
+  const response = await fetch(href);
+  if (!response.ok) throw new Error(`fetch_${response.status}`);
+  return response.arrayBuffer();
 }
