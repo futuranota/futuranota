@@ -14,7 +14,9 @@ import {
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeLibraryOwnerKind,
+  normalizeLibraryPresentation,
   normalizeWallColor,
+  resolveLibraryPresentation,
   resolveWallColor,
   updateLibraryItem,
 } from "../../lib/folderLibrary.js";
@@ -32,6 +34,14 @@ function initialPromptClass(item, defaultPromptClass) {
   return String(defaultPromptClass || "").trim();
 }
 
+function initialPresentation(item, defaultPresentation, initialMediaUrl) {
+  if (item) return resolveLibraryPresentation(item);
+  const fromProp = normalizeLibraryPresentation(defaultPresentation);
+  if (fromProp) return fromProp;
+  if (String(initialMediaUrl || "").trim()) return "visual";
+  return "prompt";
+}
+
 /**
  * New / edit library ficha modal — image (WebP) or skill (attachment).
  */
@@ -47,6 +57,8 @@ export function FolderLibraryElementModal({
   defaultPromptClass = "",
   /** Prefill photo when creating from the header + file picker. */
   initialMediaUrl = "",
+  /** `prompt` (default) | `visual` — image-only chip on the same Prompt tab. */
+  defaultPresentation = "",
   onClose,
   onSaved,
 }) {
@@ -86,10 +98,20 @@ export function FolderLibraryElementModal({
   const [classesOpen, setClassesOpen] = useState(
     () => Boolean(initialPromptClass(item, defaultPromptClass)),
   );
+  const [presentation, setPresentation] = useState(() => (
+    initialPresentation(item, defaultPresentation, initialMediaUrl)
+  ));
+  const [promptFieldOpen, setPromptFieldOpen] = useState(() => {
+    const mode = initialPresentation(item, defaultPresentation, initialMediaUrl);
+    if (mode !== "visual") return true;
+    return Boolean(String(item?.description || "").trim());
+  });
   const isSkillLike = category === "skill" || category === "pdf";
   const isVideoLike = category === "video";
   const showWallColor = category === "image" || category === "video" || category === "auto";
   const wallPreview = resolveWallColor(wallColor);
+  const isVisualMode = !isSkillLike && !isVideoLike && presentation === "visual";
+  const showPromptField = isSkillLike || !isVisualMode || promptFieldOpen;
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -229,12 +251,16 @@ export function FolderLibraryElementModal({
       setError(t("doc.library.nameRequired"));
       return;
     }
+    if (isVisualMode && !mediaUrl) {
+      setError(t("doc.library.imageRequired"));
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const payload = {
         tag: trimmed,
-        description,
+        description: isVisualMode && !promptFieldOpen ? "" : description,
         category,
         mediaUrl: isSkillLike ? null : mediaUrl,
         attachmentUrl: isSkillLike ? attachmentUrl : (item?.attachmentUrl || null),
@@ -243,6 +269,7 @@ export function FolderLibraryElementModal({
         wallColor: showWallColor ? wallColor : null,
         loop: Boolean(loop),
         promptClass: isSkillLike ? null : (promptClass || null),
+        presentation: isSkillLike || isVideoLike ? "prompt" : presentation,
       };
       if (isSkillLike) {
         payload.mediaUrl = null;
@@ -270,13 +297,17 @@ export function FolderLibraryElementModal({
     ? (uploading ? t("doc.library.uploading") : t("doc.library.uploadAttachmentTitle"))
     : isVideoLike
       ? (uploading ? t("doc.library.uploading") : null)
-      : (uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle"));
+      : isVisualMode
+        ? (uploading ? t("doc.library.uploading") : t("doc.library.uploadVisualTitle"))
+        : (uploading ? t("doc.library.uploading") : t("doc.library.uploadTitle"));
 
   const uploadHint = isSkillLike
     ? t("doc.library.uploadAttachmentHint")
     : isVideoLike
       ? null
-      : t("doc.library.uploadHint");
+      : isVisualMode
+        ? t("doc.library.uploadVisualHint")
+        : t("doc.library.uploadHint");
 
   const hasUploadPreview = isSkillLike ? Boolean(attachmentUrl) : Boolean(mediaUrl);
   const isImageLike = category === "image" || (!isSkillLike && !isVideoLike);
@@ -296,9 +327,19 @@ export function FolderLibraryElementModal({
     : isVideoLike
       ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
       : "image/*";
-  const showMediaPanel = isSkillLike || isVideoLike || Boolean(mediaUrl);
+  const showMediaPanel = isSkillLike || isVideoLike || isVisualMode || Boolean(mediaUrl);
   const openReferenceUpload = () => {
     fileInputRef.current?.click();
+  };
+  const setPresentationMode = (next) => {
+    const mode = next === "visual" ? "visual" : "prompt";
+    setPresentation(mode);
+    setError("");
+    if (mode === "prompt") {
+      setPromptFieldOpen(true);
+      return;
+    }
+    setPromptFieldOpen(Boolean(String(description || "").trim()));
   };
 
   return createPortal(
@@ -319,7 +360,10 @@ export function FolderLibraryElementModal({
           "folder-library-element-modal"
           + (isVideoLike ? " folder-library-element-modal--video" : "")
           + (isImageLike && !isSkillLike ? " folder-library-element-modal--prompt" : "")
-          + (isImageLike && !isSkillLike && mediaUrl ? " folder-library-element-modal--with-media" : "")
+          + (isImageLike && !isSkillLike && (mediaUrl || isVisualMode)
+            ? " folder-library-element-modal--with-media"
+            : "")
+          + (isVisualMode ? " folder-library-element-modal--visual" : "")
         }
       >
         <header className="folder-library-element-modal__head">
@@ -330,7 +374,9 @@ export function FolderLibraryElementModal({
                 ? t("doc.library.newSkillTitle")
                 : category === "video"
                   ? t("doc.library.newVideoTitle")
-                  : t("doc.library.newImageTitle"))}
+                  : isVisualMode
+                    ? t("doc.library.newVisualTitle")
+                    : t("doc.library.newImageTitle"))}
           </h2>
           <button
             type="button"
@@ -356,6 +402,38 @@ export function FolderLibraryElementModal({
               />
             </label>
 
+            {isImageLike ? (
+              <div
+                className="folder-library-element-modal__presentation"
+                role="group"
+                aria-label={t("doc.library.presentationAria")}
+              >
+                <button
+                  type="button"
+                  className={
+                    "folder-library-element-modal__presentation-btn"
+                    + (!isVisualMode ? " is-active" : "")
+                  }
+                  aria-pressed={!isVisualMode}
+                  onClick={() => setPresentationMode("prompt")}
+                >
+                  {t("doc.library.presentationPrompt")}
+                </button>
+                <button
+                  type="button"
+                  className={
+                    "folder-library-element-modal__presentation-btn"
+                    + (isVisualMode ? " is-active" : "")
+                  }
+                  aria-pressed={isVisualMode}
+                  onClick={() => setPresentationMode("visual")}
+                >
+                  {t("doc.library.presentationVisual")}
+                </button>
+              </div>
+            ) : null}
+
+            {showPromptField ? (
             <div className="folder-library-element-modal__field">
               {isSkillLike ? (
                 <span className="folder-library-element-modal__label">
@@ -405,6 +483,15 @@ export function FolderLibraryElementModal({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+            ) : isVisualMode ? (
+              <button
+                type="button"
+                className="folder-library-element-modal__add-prompt"
+                onClick={() => setPromptFieldOpen(true)}
+              >
+                {t("doc.library.addPromptField")}
+              </button>
+            ) : null}
 
             {isSkillLike ? (
               <label className="folder-library-element-modal__field">

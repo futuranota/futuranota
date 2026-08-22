@@ -69,6 +69,34 @@ describe("folderLibrary normalize", () => {
     expect(item?.promptClass).toBe("characters");
   });
 
+  it("defaults presentation to prompt and infers visual for legacy image-only", () => {
+    const withPrompt = normalizeFolderLibraryItem({
+      id: "a",
+      tag: "hero",
+      category: "image",
+      description: "matte can",
+    });
+    expect(withPrompt?.presentation).toBe("prompt");
+
+    const imageOnly = normalizeFolderLibraryItem({
+      id: "b",
+      tag: "ref",
+      category: "image",
+      mediaUrl: "/x.webp",
+    });
+    expect(imageOnly?.presentation).toBe("visual");
+
+    const explicit = normalizeFolderLibraryItem({
+      id: "c",
+      tag: "shot",
+      category: "image",
+      description: "optional note",
+      mediaUrl: "/y.webp",
+      presentation: "visual",
+    });
+    expect(explicit?.presentation).toBe("visual");
+  });
+
   it("migrates legacy imageRole into promptClass", () => {
     const item = normalizeFolderLibraryItem({
       id: "x",
@@ -194,6 +222,7 @@ describe("folderLibrary CRUD", () => {
       category: "image",
     });
     expect(created?.id).toMatch(/^LIB/);
+    expect(created?.presentation).toBe("prompt");
     expect(listFolderLibraryItems("folder1")).toHaveLength(1);
 
     const updated = updateFolderLibraryItem("folder1", created.id, {
@@ -205,6 +234,22 @@ describe("folderLibrary CRUD", () => {
 
     expect(removeFolderLibraryItem("folder1", created.id)).toBe(true);
     expect(listFolderLibraryItems("folder1")).toHaveLength(0);
+  });
+
+  it("persists visual presentation on create and can switch to prompt", () => {
+    const created = createFolderLibraryItem("folder1", {
+      tag: "plate",
+      category: "image",
+      mediaUrl: "/p.webp",
+      presentation: "visual",
+    });
+    expect(created?.presentation).toBe("visual");
+    const updated = updateFolderLibraryItem("folder1", created.id, {
+      presentation: "prompt",
+      description: "write me",
+    });
+    expect(updated?.presentation).toBe("prompt");
+    expect(updated?.description).toBe("write me");
   });
 
   it("rejects create without tag", () => {

@@ -3,6 +3,7 @@ import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
 import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
 
 /** @typedef {"auto"|"image"|"pdf"|"skill"|"video"} FolderLibraryCategory */
+/** @typedef {"prompt"|"visual"} LibraryPresentation */
 
 /**
  * @typedef {Object} FolderLibraryItem
@@ -19,6 +20,7 @@ import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
  * @property {string|null} setId Document library set this ficha belongs to (`null` = loose)
  * @property {boolean} loop Document Prompts: copy into assets instead of moving. Folder fichas always loop.
  * @property {string|null} promptClass User classification (`ambiente`, or legacy custom names)
+ * @property {LibraryPresentation} presentation Prompt text-first vs image-only (same Prompt tab)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -93,6 +95,42 @@ export function resolveWallColor(wallColor) {
 export function normalizePromptClass(value) {
   const raw = String(value || "").trim().slice(0, 48);
   return raw || null;
+}
+
+/**
+ * Explicit presentation only — null when missing / unknown (caller may infer).
+ * @param {unknown} value
+ * @returns {LibraryPresentation|null}
+ */
+export function normalizeLibraryPresentation(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "visual" || raw === "image" || raw === "image_only" || raw === "image-only") {
+    return "visual";
+  }
+  if (raw === "prompt" || raw === "text") return "prompt";
+  return null;
+}
+
+/**
+ * Prompt = text-first (default). Visual = image-only chip on the same Prompt tab.
+ * Legacy fichas without the field: media + empty description → visual; else prompt.
+ * @param {{ presentation?: unknown, description?: string|null, mediaUrl?: string|null }|null|undefined} item
+ * @returns {LibraryPresentation}
+ */
+export function resolveLibraryPresentation(item) {
+  const explicit = normalizeLibraryPresentation(item?.presentation);
+  if (explicit) return explicit;
+  const hasPrompt = Boolean(String(item?.description || "").trim());
+  const hasMedia = Boolean(String(item?.mediaUrl || "").trim());
+  if (hasMedia && !hasPrompt) return "visual";
+  return "prompt";
+}
+
+/**
+ * @param {{ presentation?: unknown, description?: string|null, mediaUrl?: string|null }|null|undefined} item
+ */
+export function isLibraryVisualPresentation(item) {
+  return resolveLibraryPresentation(item) === "visual";
 }
 
 /**
@@ -234,6 +272,11 @@ export function normalizeFolderLibraryItem(raw) {
   const loop = Boolean(raw.loop);
   const promptClass = normalizePromptClass(raw.promptClass)
     || normalizePromptClass(raw.imageRole);
+  const presentation = resolveLibraryPresentation({
+    presentation: raw.presentation,
+    description,
+    mediaUrl,
+  });
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -254,6 +297,7 @@ export function normalizeFolderLibraryItem(raw) {
     setId,
     loop,
     promptClass,
+    presentation,
     createdAt,
     updatedAt,
   };
@@ -290,6 +334,7 @@ export function normalizeFolderLibraryItems(value) {
  *   setId?: string|null,
  *   loop?: boolean,
  *   promptClass?: string|null,
+ *   presentation?: string|null,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -301,6 +346,7 @@ export function buildFolderLibraryItem(input = {}) {
   const mediaUrl = typeof input.mediaUrl === "string" && input.mediaUrl.trim()
     ? input.mediaUrl.trim()
     : null;
+  const description = String(input.description ?? "").trim();
   const attachmentUrl = typeof input.attachmentUrl === "string" && input.attachmentUrl.trim()
     ? input.attachmentUrl.trim()
     : null;
@@ -313,10 +359,15 @@ export function buildFolderLibraryItem(input = {}) {
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
   const wallColor = normalizeWallColor(input.wallColor);
+  const presentation = resolveLibraryPresentation({
+    presentation: input.presentation,
+    description,
+    mediaUrl,
+  });
   return {
     id: generateId("LIB"),
     tag,
-    description: String(input.description ?? "").trim(),
+    description,
     category,
     mediaUrl,
     mediaKind: mediaUrl ? (category === "video" ? "video" : "image") : null,
@@ -327,6 +378,7 @@ export function buildFolderLibraryItem(input = {}) {
     setId: normalizeLibrarySetId(input.setId),
     loop: Boolean(input.loop),
     promptClass: normalizePromptClass(input.promptClass),
+    presentation,
     createdAt: now,
     updatedAt: now,
   };

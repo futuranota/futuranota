@@ -9,7 +9,7 @@ import {
   useLibrarySets,
   usePromptClasses,
 } from "../../hooks/useLibraryItems.js";
-import { convertAndUploadDocImage, uploadDocAttachmentFile } from "../../lib/docImageStorage.js";
+import { uploadDocAttachmentFile } from "../../lib/docImageStorage.js";
 import { generateId } from "../../lib/ids.js";
 import {
   extractTextFromPdfData,
@@ -243,6 +243,7 @@ export function FolderLibraryOverlay({
   const [editingItem, setEditingItem] = useState(null);
   const [createCategory, setCreateCategory] = useState("image");
   const [createMediaUrl, setCreateMediaUrl] = useState("");
+  const [createPresentation, setCreatePresentation] = useState("prompt");
   const [lockCategory, setLockCategory] = useState(false);
   const [detailItemId, setDetailItemId] = useState(null);
   const [detailKind, setDetailKind] = useState(null);
@@ -253,7 +254,6 @@ export function FolderLibraryOverlay({
   const [classEditDraft, setClassEditDraft] = useState("");
   const classDraftRef = useRef(null);
   const classEditRef = useRef(null);
-  const libraryImageInputRef = useRef(null);
   const pdfAutoUploadInputRef = useRef(null);
   const autoPdfImportStartedRef = useRef(false);
   const [pdfToTextBusy, setPdfToTextBusy] = useState(false);
@@ -396,16 +396,17 @@ export function FolderLibraryOverlay({
     setFocusedAssetId(null);
   };
 
-  const openCreate = (category) => {
+  const openCreate = (category, presentation = "prompt") => {
     setEditingItem(null);
     setCreateCategory(category);
+    setCreatePresentation(presentation === "visual" ? "visual" : "prompt");
     setLockCategory(true);
     setModalOpen(true);
   };
 
   const openCreatePrompt = () => {
     setCreateMediaUrl("");
-    openCreate("image");
+    openCreate("image", "prompt");
   };
 
   const openEdit = (item) => {
@@ -695,17 +696,17 @@ export function FolderLibraryOverlay({
   const createOpensAsset = showingDocumentsTab && !focusedAssetId;
   const showingPromptRow = !showingDocsIndex;
   const gridItems = filteredItems;
-  const promptGridEmpty = !showingAttachments && !showingDocumentsTab && !showingDocsIndex
-    && gridItems.length === 0;
-  const showHeaderPlus = showCreate && (showingAttachments || !promptGridEmpty);
+  // Always show header [+] next to close (including empty Prompt).
+  const showHeaderPlus = showCreate;
 
   const handleHeaderCreate = () => {
     if (!showingAttachments && !createOpensAsset && !showingDocsIndex && !focusedAssetId) {
-      libraryImageInputRef.current?.click();
+      setCreateMediaUrl("");
+      openCreate("image", "visual");
       return;
     }
     if (focusedAssetId) {
-      openCreate("image");
+      openCreate("image", "visual");
       return;
     }
     if (createOpensAsset) {
@@ -716,28 +717,7 @@ export function FolderLibraryOverlay({
       openCreate("skill");
       return;
     }
-    openCreate("image");
-  };
-
-  const handleQuickFolderImage = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (!String(file.type || "").startsWith("image/")) return;
-    try {
-      const converted = await convertAndUploadDocImage(file, {
-        idPrefix: "LIBIMG",
-        scopeId: activeId || "folder-lib",
-        maxWidth: 1600,
-        maxHeight: 1600,
-        quality: 0.88,
-      });
-      if (!converted?.src) return;
-      setCreateMediaUrl(converted.src);
-      openCreate("image");
-    } catch {
-      /* keep the picker silent; user can retry */
-    }
+    openCreate("image", "visual");
   };
 
   const emptyGridKey = showingAttachments
@@ -856,19 +836,12 @@ export function FolderLibraryOverlay({
                   type="button"
                   className="folder-library-overlay__add"
                   onClick={handleHeaderCreate}
-                  title={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.addImageFromComputer")}
-                  aria-label={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.addImageFromComputer")}
+                  title={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.newVisualTitle")}
+                  aria-label={t(showingAttachments || createOpensAsset ? "doc.library.add" : "doc.library.newVisualTitle")}
                 >
                   +
                 </button>
               ) : null}
-              <input
-                ref={libraryImageInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={handleQuickFolderImage}
-              />
               <input
                 ref={pdfAutoUploadInputRef}
                 type="file"
@@ -1349,10 +1322,12 @@ export function FolderLibraryOverlay({
           defaultPromptClass={editingItem ? undefined : promptClassFilter}
           promptClasses={promptClasses}
           initialMediaUrl={editingItem ? "" : createMediaUrl}
+          defaultPresentation={editingItem ? undefined : createPresentation}
           onClose={() => {
             setModalOpen(false);
             setEditingItem(null);
             setCreateMediaUrl("");
+            setCreatePresentation("prompt");
             setLockCategory(false);
           }}
           onSaved={(saved) => {
@@ -1362,6 +1337,7 @@ export function FolderLibraryOverlay({
             setModalOpen(false);
             setEditingItem(null);
             setCreateMediaUrl("");
+            setCreatePresentation("prompt");
             setLockCategory(false);
           }}
         />

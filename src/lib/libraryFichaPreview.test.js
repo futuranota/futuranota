@@ -42,6 +42,17 @@ describe("libraryFichaPreview", () => {
     expect(resolveFichaPreviewKind(item, "image")).toBe("prompt");
   });
 
+  it("visual presentation prefers the photo even on Docs tiles", () => {
+    const item = {
+      category: "image",
+      description: "optional note",
+      mediaUrl: "/a.webp",
+      presentation: "visual",
+    };
+    expect(resolveFichaPreviewKind(item, libraryTilePrefer("document"))).toBe("image");
+    expect(fichaShowsMediaBadge(item, libraryTilePrefer("document"))).toBe(false);
+  });
+
   it("opens Library detail on Image when a photo exists", () => {
     expect(libraryFichaDetailMode("folder", { hasImage: true, hasRef: true })).toBe("image");
     expect(libraryFichaDetailMode("document", { hasImage: true, hasRef: true })).toBe("image");

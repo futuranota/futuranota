@@ -8,11 +8,13 @@ import {
   inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryItems,
+  normalizeLibraryPresentation,
   normalizePromptClass,
   normalizePromptClasses,
   normalizeLibrarySetId,
   normalizeLibrarySets,
   normalizeWallColor,
+  resolveLibraryPresentation,
 } from "./folderLibraryNormalize.js";
 
 export {
@@ -24,18 +26,21 @@ export {
   buildLibrarySet,
   folderLibraryItemMatchesFilter,
   inferAttachmentKind,
+  isLibraryVisualPresentation,
   isPromptClassAmbiente,
   normalizeFolderLibraryCategory,
   normalizeFolderLibraryFilterTab,
   libraryItemLoops,
   normalizeFolderLibraryItem,
   normalizeFolderLibraryItems,
+  normalizeLibraryPresentation,
   normalizePromptClass,
   normalizePromptClasses,
   normalizeLibrarySet,
   normalizeLibrarySetId,
   normalizeLibrarySets,
   normalizeWallColor,
+  resolveLibraryPresentation,
   resolveWallColor,
 } from "./folderLibraryNormalize.js";
 
@@ -381,12 +386,22 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? normalizePromptClass(patch.promptClass)
     : current.promptClass;
 
+  const nextDescription = patch.description !== undefined
+    ? String(patch.description).trim()
+    : current.description;
+
+  const presentation = resolveLibraryPresentation({
+    presentation: patch.presentation !== undefined
+      ? (normalizeLibraryPresentation(patch.presentation) || patch.presentation)
+      : current.presentation,
+    description: nextDescription,
+    mediaUrl,
+  });
+
   return {
     ...current,
     tag: nextTag,
-    description: patch.description !== undefined
-      ? String(patch.description).trim()
-      : current.description,
+    description: nextDescription,
     category,
     mediaUrl,
     mediaKind: mediaUrl
@@ -399,6 +414,7 @@ function applyLibraryItemPatch(current, patch = {}) {
     setId,
     loop,
     promptClass,
+    presentation,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -701,5 +717,6 @@ export function cloneLibraryItemIntoSet(ownerId, source, setId) {
     setId: nextSetId,
     loop: false,
     promptClass: source.promptClass,
+    presentation: source.presentation,
   });
 }

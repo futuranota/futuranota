@@ -89,15 +89,18 @@ Remember last tab per folder (`sessionStorage`). Video tab retired.
 | **setId** | Document set this ficha belongs to (`null` = loose). Folder fichas stay unset. |
 | **loop** | Create/edit modal toggle. Document Prompts: copy into assets instead of moving. Folder defaults on (assign from a folder source still clones). |
 | **promptClass** | Optional classification from the objects toggle list in create/edit (`ambiente` plus named overlay classes). Overlay chips still filter. |
+| **presentation** | `prompt` (text-first, default) or `visual` (image-only chip on the same Prompt tab). Visual hides the prompt field unless the user adds it; image required to save. |
 
 Owner-level **`promptClasses`**: named chips for the Prompt tab (`campaigns.prompt_classes` / `nodes.prompt_classes`). Empty classes persist until the user adds fichas.
 
 ### Prompt (live)
 
 - Create/edit: tag + **Prompt** (copy) + optional reference image via bottom image button (not a side column) + Loop toggle + objects toggle (class chips). Grid / Docs files illustrate the prompt text.
+- **Presentation toggle** in create/edit: **Prompt** | **Image**. Image mode = same ficha, no prompt field unless **+ Add prompt**; media panel always open; image required.
+- Header **+** / “Add image from computer” → upload then open modal in **Image** presentation. Grid **+** → **Prompt** presentation.
 - Open: detail — tag, Prompt \| Image switch, copy prompt, download WebP
-- Capture from document body: `--prompt text--` → name modal → ficha without image
-- Grid: real thumb or IMG badge; optional class label. Filter chips classify the same grid (not folders).
+- Capture from document body: `--prompt text--` → name modal → ficha without image (`presentation: prompt`)
+- Grid: real thumb or IMG badge; optional class label. Filter chips classify the same grid (not folders). Visual fichas prefer the photo even on Docs tiles.
 
 ### Attachments (live; category `skill`)
 

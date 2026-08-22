@@ -5,6 +5,8 @@
  * @typedef {"folder"|"document"} LibraryTileOwnerKind
  */
 
+import { isLibraryVisualPresentation } from "./folderLibraryNormalize.js";
+
 /** Small cue on prompt-first tiles that the ficha also has a reference photo. */
 export const LIBRARY_MEDIA_BADGE_SRC = "/uploads/img.svg";
 
@@ -52,16 +54,18 @@ export function fichaHasVisual(item) {
 
 /**
  * Library / Assets prefer the photo. Docs / Prompt prefer the written prompt.
+ * Visual presentation always prefers the photo (image-only chip).
  * If the preferred face is empty, fall back so an image-only ficha never looks blank.
  *
- * @param {{ description?: string|null, mediaUrl?: string|null, category?: string }|null|undefined} item
+ * @param {{ description?: string|null, mediaUrl?: string|null, category?: string, presentation?: string }|null|undefined} item
  * @param {FichaPreviewPrefer} [prefer]
  * @returns {FichaPreviewKind}
  */
 export function resolveFichaPreviewKind(item, prefer = "prompt") {
   const hasPrompt = Boolean(promptPreviewText(item));
   const hasVisual = fichaHasVisual(item);
-  if (prefer === "image") {
+  const facePrefer = isLibraryVisualPresentation(item) ? "image" : prefer;
+  if (facePrefer === "image") {
     if (hasVisual) return "image";
     if (hasPrompt) return "prompt";
     return "badge";
