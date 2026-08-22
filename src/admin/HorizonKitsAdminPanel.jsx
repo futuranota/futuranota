@@ -4,6 +4,7 @@ import {
   saveHorizonKits,
   uploadHorizonKitAsset,
 } from '../lib/horizonKitsAdmin.js';
+import { HorizonKitAssetSlot } from './HorizonKitAssetSlot.jsx';
 
 const EMPTY_KIT = {
   id: '',
@@ -182,6 +183,8 @@ export function HorizonKitsAdminPanel() {
     await persist(kits, header);
   }
 
+  const uploadBusy = Boolean(uploading);
+
   return (
     <div className="admin-panel">
       <div className="admin-panel__head">
@@ -203,212 +206,225 @@ export function HorizonKitsAdminPanel() {
         </p>
       ) : null}
 
-      <form className="admin-card" onSubmit={handleHeaderSave}>
-        <p className="admin-card__title" style={{ marginBottom: 12 }}>Page header</p>
-        <div className="admin-form-grid">
-          <label className="admin-field">
-            <span>Eyebrow</span>
-            <input
-              className="auth-split-input"
-              value={header.eyebrow}
-              onChange={(e) => setHeader((p) => ({ ...p, eyebrow: e.target.value }))}
-            />
-          </label>
-          <label className="admin-field">
-            <span>Link label</span>
-            <input
-              className="auth-split-input"
-              value={header.linkLabel}
-              onChange={(e) => setHeader((p) => ({ ...p, linkLabel: e.target.value }))}
-            />
-          </label>
-          <label className="admin-field" style={{ gridColumn: '1 / -1' }}>
-            <span>Title</span>
-            <input
-              className="auth-split-input"
-              value={header.title}
-              onChange={(e) => setHeader((p) => ({ ...p, title: e.target.value }))}
-            />
-          </label>
-          <label className="admin-field" style={{ gridColumn: '1 / -1' }}>
-            <span>Lead</span>
-            <textarea
-              className="auth-split-input"
-              rows={3}
-              value={header.lead}
-              onChange={(e) => setHeader((p) => ({ ...p, lead: e.target.value }))}
-            />
-          </label>
-        </div>
-        <div className="admin-form-actions">
-          <button type="submit" className="btn btn-ghost btn-sm" disabled={saving}>
-            Save header
-          </button>
-        </div>
-      </form>
-
-      {showForm ? (
-        <form className="admin-card" onSubmit={handleSave}>
-          <p className="admin-card__title" style={{ marginBottom: 12 }}>
-            {editIndex == null ? 'New kit' : 'Edit kit'}
-          </p>
+      <details className="admin-details admin-card">
+        <summary>Page header (/horizon)</summary>
+        <form onSubmit={handleHeaderSave} style={{ marginTop: 8 }}>
           <div className="admin-form-grid">
             <label className="admin-field">
-              <span>Title</span>
+              <span>Eyebrow</span>
               <input
                 className="auth-split-input"
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                required
+                value={header.eyebrow}
+                onChange={(e) => setHeader((p) => ({ ...p, eyebrow: e.target.value }))}
               />
             </label>
             <label className="admin-field">
-              <span>Tag</span>
+              <span>Link label</span>
               <input
                 className="auth-split-input"
-                value={form.tag}
-                placeholder="CERAMICS"
-                onChange={(e) => setForm((p) => ({ ...p, tag: e.target.value }))}
+                value={header.linkLabel}
+                onChange={(e) => setHeader((p) => ({ ...p, linkLabel: e.target.value }))}
               />
             </label>
             <label className="admin-field" style={{ gridColumn: '1 / -1' }}>
-              <span>Description</span>
+              <span>Title</span>
+              <input
+                className="auth-split-input"
+                value={header.title}
+                onChange={(e) => setHeader((p) => ({ ...p, title: e.target.value }))}
+              />
+            </label>
+            <label className="admin-field" style={{ gridColumn: '1 / -1' }}>
+              <span>Lead</span>
               <textarea
                 className="auth-split-input"
                 rows={3}
-                value={form.desc}
-                onChange={(e) => setForm((p) => ({ ...p, desc: e.target.value }))}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Cover image</span>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                disabled={Boolean(uploading)}
-                onChange={(e) => handleFile('image', e.target.files?.[0])}
-              />
-              {form.image ? (
-                <img
-                  src={form.image}
-                  alt=""
-                  style={{ marginTop: 8, width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8 }}
-                />
-              ) : null}
-            </label>
-            <label className="admin-field">
-              <span>ZIP attachment</span>
-              <input
-                type="file"
-                accept=".zip,application/zip"
-                disabled={Boolean(uploading)}
-                onChange={(e) => handleFile('zip', e.target.files?.[0])}
-              />
-              {form.downloadUrl ? (
-                <a href={form.downloadUrl} className="muted" style={{ fontSize: 12, marginTop: 6 }} download>
-                  {form.downloadUrl}
-                </a>
-              ) : (
-                <span className="muted" style={{ fontSize: 12 }}>Opcional. Preview tampoco es obligatorio.</span>
-              )}
-            </label>
-            <label className="admin-field">
-              <span>Preview URL (optional)</span>
-              <input
-                className="auth-split-input"
-                value={form.previewUrl}
-                placeholder="https://…"
-                onChange={(e) => setForm((p) => ({ ...p, previewUrl: e.target.value }))}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Blog (Tina)</span>
-              <select
-                className="auth-split-input"
-                value={form.blogSlug}
-                onChange={(e) => setForm((p) => ({ ...p, blogSlug: e.target.value }))}
-              >
-                <option value="">— None (Blogs / Horizon) —</option>
-                {blogs.map((blog) => (
-                  <option key={blog.slug} value={blog.slug}>
-                    {blog.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="admin-field">
-              <span>Kit type</span>
-              <select
-                className="auth-split-input"
-                value={form.kitType}
-                onChange={(e) => setForm((p) => ({ ...p, kitType: e.target.value }))}
-              >
-                <option value="instructions">Instructions only</option>
-                <option value="website-plugin">Website + plugin</option>
-              </select>
-            </label>
-            <label className="admin-field">
-              <span>Price label</span>
-              <input
-                className="auth-split-input"
-                value={form.price}
-                onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
-              />
-            </label>
-            <label className="admin-field" style={{ justifyContent: 'flex-end' }}>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
-                <input
-                  type="checkbox"
-                  checked={form.free}
-                  onChange={(e) => setForm((p) => ({
-                    ...p,
-                    free: e.target.checked,
-                    price: e.target.checked ? 'Free' : p.price === 'Free' ? '' : p.price,
-                  }))}
-                />
-                Free kit
-              </label>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={form.trend}
-                  onChange={(e) => setForm((p) => ({ ...p, trend: e.target.checked }))}
-                />
-                Trending
-              </label>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={form.hot}
-                  onChange={(e) => setForm((p) => ({ ...p, hot: e.target.checked }))}
-                />
-                Best seller
-              </label>
-            </label>
-            <label className="admin-field">
-              <span>Includes (one per line)</span>
-              <textarea
-                className="auth-split-input"
-                rows={3}
-                value={includesText}
-                onChange={(e) => setIncludesText(e.target.value)}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Org lines (optional)</span>
-              <textarea
-                className="auth-split-input"
-                rows={3}
-                value={orgText}
-                onChange={(e) => setOrgText(e.target.value)}
+                value={header.lead}
+                onChange={(e) => setHeader((p) => ({ ...p, lead: e.target.value }))}
               />
             </label>
           </div>
-          <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-            {uploading === 'image' ? 'Subiendo imagen…' : uploading === 'zip' ? 'Subiendo ZIP…' : null}
-          </p>
           <div className="admin-form-actions">
-            <button type="submit" className="btn btn-primary btn-sm" disabled={saving || Boolean(uploading)}>
+            <button type="submit" className="btn btn-ghost btn-sm" disabled={saving}>
+              Save header
+            </button>
+          </div>
+        </form>
+      </details>
+
+      {showForm ? (
+        <form className="admin-card" onSubmit={handleSave}>
+          <p className="admin-card__title" style={{ marginBottom: 16 }}>
+            {editIndex == null ? 'New kit' : 'Edit kit'}
+          </p>
+
+          <section className="admin-form-section">
+            <p className="admin-form-section__title">Copy</p>
+            <div className="admin-form-grid">
+              <label className="admin-field">
+                <span>Title</span>
+                <input
+                  className="auth-split-input"
+                  value={form.title}
+                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                  required
+                />
+              </label>
+              <label className="admin-field">
+                <span>Tag</span>
+                <input
+                  className="auth-split-input"
+                  value={form.tag}
+                  placeholder="CERAMICS"
+                  onChange={(e) => setForm((p) => ({ ...p, tag: e.target.value }))}
+                />
+              </label>
+              <label className="admin-field" style={{ gridColumn: '1 / -1' }}>
+                <span>Description</span>
+                <textarea
+                  className="auth-split-input"
+                  rows={3}
+                  value={form.desc}
+                  onChange={(e) => setForm((p) => ({ ...p, desc: e.target.value }))}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <p className="admin-form-section__title">Media</p>
+            <div className="admin-form-section__grid admin-form-section__grid--media">
+              <HorizonKitAssetSlot
+                kind="image"
+                value={form.image}
+                uploading={uploading === 'image'}
+                disabled={uploadBusy && uploading !== 'image'}
+                onFile={(file) => handleFile('image', file)}
+                onClear={() => setForm((p) => ({ ...p, image: '' }))}
+              />
+              <HorizonKitAssetSlot
+                kind="zip"
+                value={form.downloadUrl}
+                uploading={uploading === 'zip'}
+                disabled={uploadBusy && uploading !== 'zip'}
+                onFile={(file) => handleFile('zip', file)}
+                onClear={() => setForm((p) => ({ ...p, downloadUrl: '' }))}
+              />
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <p className="admin-form-section__title">Links</p>
+            <div className="admin-form-grid">
+              <label className="admin-field">
+                <span>Preview URL</span>
+                <input
+                  className="auth-split-input"
+                  value={form.previewUrl}
+                  placeholder="https://… (optional)"
+                  onChange={(e) => setForm((p) => ({ ...p, previewUrl: e.target.value }))}
+                />
+              </label>
+              <label className="admin-field">
+                <span>Blog (Tina)</span>
+                <select
+                  className="auth-split-input"
+                  value={form.blogSlug}
+                  onChange={(e) => setForm((p) => ({ ...p, blogSlug: e.target.value }))}
+                >
+                  <option value="">— None —</option>
+                  {blogs.map((blog) => (
+                    <option key={blog.slug} value={blog.slug}>
+                      {blog.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <p className="admin-form-section__title">Pricing</p>
+            <div className="admin-form-grid">
+              <label className="admin-field">
+                <span>Kit type</span>
+                <select
+                  className="auth-split-input"
+                  value={form.kitType}
+                  onChange={(e) => setForm((p) => ({ ...p, kitType: e.target.value }))}
+                >
+                  <option value="instructions">Instructions only</option>
+                  <option value="website-plugin">Website + plugin</option>
+                </select>
+              </label>
+              <label className="admin-field">
+                <span>Price label</span>
+                <input
+                  className="auth-split-input"
+                  value={form.price}
+                  disabled={form.free}
+                  onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
+                />
+              </label>
+              <div className="admin-form-section__badges" style={{ gridColumn: '1 / -1' }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.free}
+                    onChange={(e) => setForm((p) => ({
+                      ...p,
+                      free: e.target.checked,
+                      price: e.target.checked ? 'Free' : p.price === 'Free' ? '' : p.price,
+                    }))}
+                  />
+                  Free kit
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.trend}
+                    onChange={(e) => setForm((p) => ({ ...p, trend: e.target.checked }))}
+                  />
+                  Trending
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.hot}
+                    onChange={(e) => setForm((p) => ({ ...p, hot: e.target.checked }))}
+                  />
+                  Best seller
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <details className="admin-details">
+            <summary>Advanced</summary>
+            <div className="admin-form-grid" style={{ marginTop: 12 }}>
+              <label className="admin-field">
+                <span>Includes (one per line)</span>
+                <textarea
+                  className="auth-split-input"
+                  rows={3}
+                  value={includesText}
+                  onChange={(e) => setIncludesText(e.target.value)}
+                />
+              </label>
+              <label className="admin-field">
+                <span>Org lines (optional)</span>
+                <textarea
+                  className="auth-split-input"
+                  rows={3}
+                  value={orgText}
+                  onChange={(e) => setOrgText(e.target.value)}
+                />
+              </label>
+            </div>
+          </details>
+
+          <div className="admin-form-actions" style={{ marginTop: 16 }}>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={saving || uploadBusy}>
               {saving ? 'Saving…' : editIndex == null ? 'Create kit' : 'Save kit'}
             </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>
@@ -427,19 +443,10 @@ export function HorizonKitsAdminPanel() {
               <img
                 src={kit.image}
                 alt=""
-                style={{ width: 72, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                className="admin-kit-thumb"
               />
             ) : (
-              <div
-                style={{
-                  width: 72,
-                  height: 48,
-                  borderRadius: 6,
-                  background: '#151515',
-                  flexShrink: 0,
-                  opacity: 0.5,
-                }}
-              />
+              <div className="admin-kit-thumb--empty" aria-hidden />
             )}
             <div className="admin-card__main">
               <p className="admin-card__title">{kit.title}</p>

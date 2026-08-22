@@ -1489,3 +1489,281 @@
   letter-spacing: -0.02em;
 }
 
+/* ── Horizon kits admin ── */
+.admin-form-section {
+  margin-bottom: 20px;
+}
+
+.admin-form-section:last-child {
+  margin-bottom: 0;
+}
+
+.admin-form-section__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #888);
+  margin: 0 0 10px;
+}
+
+.admin-form-section__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.admin-form-section__grid--media {
+  align-items: start;
+}
+
+.admin-form-section__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  padding-top: 22px;
+}
+
+.admin-form-section__badges label {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-details {
+  margin-bottom: 12px;
+}
+
+.admin-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #e8e4dc);
+  list-style: none;
+  padding: 10px 0;
+}
+
+.admin-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-details > summary::before {
+  content: '▸ ';
+  opacity: 0.6;
+}
+
+.admin-details[open] > summary::before {
+  content: '▾ ';
+}
+
+.admin-kit-thumb {
+  width: 64px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.admin-kit-thumb--empty {
+  width: 64px;
+  height: 40px;
+  border-radius: 6px;
+  background: #151515;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.horizon-kit-asset-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.horizon-kit-asset-field__label {
+  font-size: 12px;
+}
+
+.horizon-kit-asset-slot__input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.horizon-kit-asset-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: #151515;
+  color: var(--text, #e8e4dc);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  text-align: center;
+}
+
+.horizon-kit-asset-slot:hover:not(:disabled),
+.horizon-kit-asset-slot--active:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: #1a1a1a;
+}
+
+.horizon-kit-asset-slot:disabled,
+.horizon-kit-asset-slot--busy {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.horizon-kit-asset-slot--cover {
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+}
+
+.horizon-kit-asset-slot--zip {
+  min-height: 92px;
+  flex-direction: row;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.horizon-kit-asset-slot--has-file.horizon-kit-asset-slot--cover {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  cursor: default;
+  border-style: solid;
+}
+
+.horizon-kit-asset-slot--has-file.horizon-kit-asset-slot--zip {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  cursor: default;
+  border-style: solid;
+}
+
+.horizon-kit-asset-slot__preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.horizon-kit-asset-slot__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.horizon-kit-asset-slot--cover:hover .horizon-kit-asset-slot__overlay,
+.horizon-kit-asset-slot--cover:focus-within .horizon-kit-asset-slot__overlay {
+  opacity: 1;
+}
+
+.horizon-kit-asset-slot__upload-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.85;
+}
+
+.horizon-kit-asset-slot--zip .horizon-kit-asset-slot__upload-icon {
+  flex-shrink: 0;
+}
+
+.horizon-kit-asset-slot__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.horizon-kit-asset-slot--zip .horizon-kit-asset-slot__copy {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.horizon-kit-asset-slot__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.horizon-kit-asset-slot__hint,
+.horizon-kit-asset-slot__formats {
+  font-size: 11px;
+  color: var(--muted, #888);
+  line-height: 1.35;
+}
+
+.horizon-kit-asset-slot__zip-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.horizon-kit-asset-slot__zip-icon {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--hud, #c9a87c);
+}
+
+.horizon-kit-asset-slot__zip-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.horizon-kit-asset-slot__zip-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.horizon-kit-asset-slot__zip-link {
+  font-size: 11px;
+  color: var(--hud, #c9a87c);
+  text-decoration: none;
+}
+
+.horizon-kit-asset-slot__zip-link:hover {
+  text-decoration: underline;
+}
+
+.horizon-kit-asset-slot__zip-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .admin-form-section__grid,
+  .admin-form-section__grid--media {
+    grid-template-columns: 1fr;
+  }
+}
+
