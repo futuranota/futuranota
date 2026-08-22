@@ -8,7 +8,7 @@ import {
   docBlocksFromBody,
   normalizeDocBlocks,
 } from "./docBlocks.js";
-import { markUrlTableDeleted } from "./urlTablesSync.js";
+import { markUrlTableDeleted, flushUrlTablesSync } from "./urlTablesSync.js";
 import { markUrlTableEntryDeleted } from "./urlTableSync.js";
 
 const PREVIEW_MAX = 120;
@@ -329,5 +329,8 @@ export function removeUrlTableFromDoc(table) {
 
   useUrlTableStore.getState().removeEntriesForTable(tableId);
   useUrlTablesStore.getState().removeTable(tableId);
+  flushUrlTablesSync().catch((err) => {
+    console.warn("[url-tables] Flush after table delete failed:", err);
+  });
   return { docRemoved: true };
 }

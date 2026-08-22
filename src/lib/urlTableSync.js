@@ -143,7 +143,8 @@ async function syncUrlTableToSupabase(entries) {
   }
 
   const now = new Date().toISOString();
-  const rows = entries.map((entry) => entryToRow(entry, userId, now));
+  const liveEntries = entries.filter((entry) => !pendingDeletedEntryIds.has(entry.id));
+  const rows = liveEntries.map((entry) => entryToRow(entry, userId, now));
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -165,10 +166,10 @@ async function syncUrlTableToSupabase(entries) {
     return false;
   }
 
-  const localIds = new Set(entries.map((entry) => entry.id));
+  const localIds = new Set(liveEntries.map((entry) => entry.id));
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
-    .filter((id) => !localIds.has(id));
+    .filter((id) => id && !localIds.has(id));
 
   if (orphanIds.length > 0) {
     const { error: deleteErr } = await supabase
@@ -182,8 +183,7 @@ async function syncUrlTableToSupabase(entries) {
     }
   }
 
-  // Remote now mirrors local: tombstoned rows were deleted as orphans.
-  pendingDeletedEntryIds.clear();
+  // Keep entry tombstones — clearing them let hydrates resurrect deleted rows.
   return true;
 }
 

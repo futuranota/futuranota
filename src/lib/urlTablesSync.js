@@ -163,36 +163,20 @@ export function markUrlTableDeleted(ids) {
 
 /**
  * Drop tombstones only after remote SELECT proves gone + grace window.
+ * URL table tombstones are NEVER auto-cleared — same resurrection race as companies.
  * @param {string} userId
  * @param {Set<string>} frozenDeleted
  */
 async function clearUrlTableTombstonesConfirmedAbsent(userId, frozenDeleted) {
-  const ids = [...frozenDeleted].filter(Boolean);
-  if (!ids.length) return;
-  const { data, error } = await supabase
-    .from("url_tables")
-    .select("id")
-    .eq("user_id", userId)
-    .in("id", ids);
-  if (error) {
-    console.warn(formatSupabaseError(error, "Verify url_tables tombstones"));
-    return;
+  // Keep tombstones forever so a racing hydrate/upsert cannot resurrect deleted tables.
+  // Orphan DELETE still removes remote rows; pending ids just stay excluded from merge.
+  void userId;
+  void frozenDeleted;
+  // #region agent log
+  if (frozenDeleted?.size) {
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix-v2',hypothesisId:'H-URL',location:'urlTablesSync.js:clearTombstones',message:'URL table tombstones kept (never auto-clear)',data:{pending:[...frozenDeleted]},timestamp:Date.now()})}).catch(()=>{});
   }
-  const stillRemote = new Set((data || []).map((row) => row?.id).filter(Boolean));
-  const now = Date.now();
-  const cleared = [];
-  for (const id of ids) {
-    if (stillRemote.has(id)) continue;
-    const markedAt = deletedTableMarkedAt.get(id);
-    if (markedAt == null || now - markedAt < TOMBSTONE_CLEAR_GRACE_MS) continue;
-    pendingDeletedTableIds.delete(id);
-    deletedTableMarkedAt.delete(id);
-    cleared.push(id);
-  }
-  if (cleared.length) {
-    removeIdsFromUrlTableTombstoneLedger(cleared);
-    writeUrlTableTombstoneLedger();
-  }
+  // #endregion
 }
 
 /** @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} tables */

@@ -650,8 +650,13 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
       : deletedNodeMarkedAt;
   for (const id of ids) {
     if (stillRemote.has(id)) continue;
-    // Missing markedAt ⇒ treat as "just now" so we never clear before grace
-    // (epoch-0 made tombstones expire instantly and let hydrates resurrect guests).
+    // Companies: NEVER auto-clear. A sibling tab / in-flight sync can re-upsert
+    // during grace; clearing the tombstone then lets hydrate resurrect forever.
+    if (table === "companies") {
+      heldForGrace.push(id);
+      continue;
+    }
+    // Missing markedAt ⇒ treat as "just now" so we never clear before grace.
     const markedAt = markedAtMap.get(id);
     if (markedAt == null || now - markedAt < TOMBSTONE_CLEAR_GRACE_MS) {
       heldForGrace.push(id);
@@ -663,7 +668,7 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
   }
   // #region agent log
   if (table === "companies" && (cleared.length || heldForGrace.length || stillRemote.size)) {
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix',hypothesisId:'H-D',location:'persistenceMiddleware.js:clearCompanyTombstones',message:'Company tombstone clear decision',data:{cleared,heldForGrace,stillRemote:[...stillRemote],pendingAfter:[...idSet]},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix-v2',hypothesisId:'H-D',location:'persistenceMiddleware.js:clearCompanyTombstones',message:'Company tombstone clear decision',data:{cleared,heldForGrace,stillRemote:[...stillRemote],pendingAfter:[...idSet],neverClearCompanies:true},timestamp:Date.now()})}).catch(()=>{});
   }
   // #endregion
   if (cleared.length) {
@@ -1493,12 +1498,14 @@ export function initPersistenceMiddleware(stores) {
   /** Instant UI paint from disk — do not seed default "yo" (remote may still arrive). */
   const paintLocalWorkspace = () => {
     try {
+      refreshTombstonesFromDisk();
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = sanitizePersistedSnapshot(parsed);
         if (data) {
           applyStateToStores(data);
+          stripPendingDeletesFromLiveStores();
           useUIStateStore.getState().setWorkspaceHydrated(true);
           return true;
         }
@@ -1892,7 +1899,7 @@ export function initPersistenceMiddleware(stores) {
       // #region agent log
       {
         const pickHd = (map) => Object.values(map || {}).filter((o) => /home\s*depot/i.test(String(o?.name || ""))).map((o) => ({ id: o.id, name: o.name, role: o.role || null }));
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix',hypothesisId:'H-C',location:'persistenceMiddleware.js:hydrateObjects',message:'Hydrate Home Depot objects remote vs safe apply',data:{deletesHappened,pendingCompanies:[...pendingDeletedCompanyIds],remoteHd:pickHd(hydratedState.objects),liveHd:pickHd(liveNow?.objects),safeHd:pickHd(safeObjects),applyHd:pickHd(objectsForApply),preferredLocal,preferredMemory},timestamp:Date.now()})}).catch(()=>{});
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix-v2',hypothesisId:'H-C',location:'persistenceMiddleware.js:hydrateObjects',message:'Hydrate Home Depot objects remote vs safe apply',data:{deletesHappened,pendingCompanies:[...pendingDeletedCompanyIds],remoteHd:pickHd(hydratedState.objects),liveHd:pickHd(liveNow?.objects),safeHd:pickHd(safeObjects),applyHd:pickHd(objectsForApply),preferredLocal,preferredMemory},timestamp:Date.now()})}).catch(()=>{});
       }
       // #endregion
       // #region agent log
@@ -2048,40 +2055,11 @@ export function initPersistenceMiddleware(stores) {
       const now = new Date().toISOString();
       const upsertOpts = { onConflict: "id" };
 
-      // 1. Companies — upsert remaining; orphan/tombstone purge runs after campaigns
-      // so FK CASCADE cannot race a still-present folder row.
-      const companiesRows = Object.values(state.objects || {})
-        .filter((co) => co?.id && !frozenDeletedCompanyIds.has(co.id))
-        .map((co) => ({
-        id: co.id,
-        user_id: userId,
-        name: co.name,
-        sector: co.description || "",
-        description: co.description || "",
-        brand: co.brand || co.name,
-        color: co.color || "mint",
-        role: co.role || "satellite",
-        cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
-        created_at: co.createdAt || now,
-        updated_at: now,
-      }));
+      // Companies upsert is deferred until AFTER campaigns/nodes so an in-flight
+      // sync that started before a delete cannot re-upsert a tombstoned corpus
+      // at the top of the loop, then lose the race to orphan cleanup.
 
-      let companiesUpsertOk = true;
-      if (companiesRows.length > 0) {
-        companiesUpsertOk = await runUpsert(
-          "Upsert companies",
-          supabase.from("companies").upsert(companiesRows, upsertOpts),
-        );
-        if (!companiesUpsertOk) {
-          criticalOk = false;
-          console.error(
-            "Upsert companies failed — skipping orphan delete to avoid wiping remote corpora",
-            { attemptedCount: companiesRows.length },
-          );
-        }
-      }
-
-      // 2. Campaigns (folders = doc_kind content)
+      // 1. Campaigns (folders = doc_kind content)
       const campaignsRows = Object.values(state.docs || {})
         .filter((doc) => doc?.id && !frozenDeletedDocIds.has(doc.id))
         .map((doc) => ({
@@ -2228,18 +2206,53 @@ export function initPersistenceMiddleware(stores) {
         await clearTombstonesConfirmedAbsent("nodes", userId, pendingDeletedNodeIds);
       }
 
+      // Companies last: re-arm tombstones + live strip so mid-flight deletes win.
+      refreshTombstonesFromDisk();
+      for (const id of pendingDeletedCompanyIds) frozenDeletedCompanyIds.add(id);
+      const liveCompaniesState = stripPendingDeletesFromState(getLocalState());
+      const companiesRows = Object.values(liveCompaniesState.objects || {})
+        .filter((co) => co?.id && !frozenDeletedCompanyIds.has(co.id))
+        .map((co) => ({
+        id: co.id,
+        user_id: userId,
+        name: co.name,
+        sector: co.description || "",
+        description: co.description || "",
+        brand: co.brand || co.name,
+        color: co.color || "mint",
+        role: co.role || "satellite",
+        cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
+        created_at: co.createdAt || now,
+        updated_at: now,
+      }));
+
+      let companiesUpsertOk = true;
+      if (companiesRows.length > 0) {
+        companiesUpsertOk = await runUpsert(
+          "Upsert companies",
+          supabase.from("companies").upsert(companiesRows, upsertOpts),
+        );
+        if (!companiesUpsertOk) {
+          criticalOk = false;
+          console.error(
+            "Upsert companies failed — skipping orphan delete to avoid wiping remote corpora",
+            { attemptedCount: companiesRows.length },
+          );
+        }
+      }
+
       // Empty local = last corpus deleted → orphan-delete still runs.
       const companyLocalIds = companiesRows.map((r) => r.id);
       const companiesOrphansOk = companiesUpsertOk
         ? await deleteOrphanRows("companies", userId, companyLocalIds)
         : false;
       const companiesTombstoneOk = companiesUpsertOk
-        ? await purgeTombstonedRows("companies", userId, pendingDeletedCompanyIds)
+        ? await purgeTombstonedRows("companies", userId, frozenDeletedCompanyIds)
         : false;
       // #region agent log
       {
         const hdUpsert = companiesRows.filter((r) => /home\s*depot/i.test(String(r.name || "")));
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix',hypothesisId:'H-B',location:'persistenceMiddleware.js:companiesPurge',message:'Companies upsert/orphan/tombstone purge result',data:{companiesUpsertOk,companiesOrphansOk,companiesTombstoneOk,pendingCompanies:[...pendingDeletedCompanyIds],frozenCompanies:[...frozenDeletedCompanyIds],homeDepotStillInUpsert:hdUpsert.map((r)=>({id:r.id,name:r.name,role:r.role})),companyLocalIdsCount:companyLocalIds.length},timestamp:Date.now()})}).catch(()=>{});
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'040b1a'},body:JSON.stringify({sessionId:'040b1a',runId:'post-fix-v2',hypothesisId:'H-B',location:'persistenceMiddleware.js:companiesPurge',message:'Companies upsert/orphan/tombstone purge result',data:{companiesUpsertOk,companiesOrphansOk,companiesTombstoneOk,pendingCompanies:[...pendingDeletedCompanyIds],frozenCompanies:[...frozenDeletedCompanyIds],homeDepotStillInUpsert:hdUpsert.map((r)=>({id:r.id,name:r.name,role:r.role})),companyLocalIdsCount:companyLocalIds.length},timestamp:Date.now()})}).catch(()=>{});
       }
       // #endregion
       if (pendingDeletedCompanyIds.size > 0 && !companiesTombstoneOk) {
@@ -2535,7 +2548,9 @@ export function initPersistenceMiddleware(stores) {
   });
 
   const handleStoreChange = () => {
-    const currentState = getLocalState();
+    refreshTombstonesFromDisk();
+    stripPendingDeletesFromLiveStores();
+    const currentState = stripPendingDeletesFromState(getLocalState());
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
     } catch (e) {
