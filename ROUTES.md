@@ -4,7 +4,8 @@ Referencia de URLs del proyecto (marketing + app + Tina CMS).
 
 **Base en desarrollo:** `http://localhost:5173`  
 **Admin Tina:** `http://localhost:5173/admin/index.html`  
-**Servidor Tina (dev):** `http://localhost:4001`
+**Servidor Tina (dev local):** `http://localhost:4001` (`npm run dev:tina`)  
+The public site reads Tina Cloud first, then local GraphQL, then `content/marketing/*.json`.
 
 ---
 

@@ -5,11 +5,11 @@ JSON under `content/marketing/` is the source of truth for the public marketing 
 ## Edit in Tina
 
 1. Copy `.env.example` to `.env.local` (Client ID, `TINA_TOKEN`, `TINA_SEARCH_TOKEN`, optional `TINA_PREVIEW_URL`).
-2. Run **`npm run dev`** — starts **Tina** (port **4001**) and **Vite** (port **5173**). Do **not** use `vite` alone.
+2. Run **`npm run dev:tina`** — starts **Tina** (port **4001**) and **Vite** (port **5173**). `npm run dev` is Vite only; `/admin` then talks to **Tina Cloud**, not these JSON files.
 3. Wait for **TinaCMS Dev Server is active** in the terminal.
 4. Open **http://localhost:5173/admin/index.html**.
 
-Changes are written back to the JSON files in this folder. Commit them like any other content.
+The public site (`/blogs/...`) reads Tina Cloud (or local GraphQL) first, then falls back to these JSON files. Cloud Save does **not** rewrite the JSON until you pull the GitHub commit Tina made — or save while `dev:tina` is writing to disk.
 
 ## Visual preview (editor + your site side by side)
 
@@ -21,7 +21,7 @@ The collection list and form-only view (e.g. `site.json` with Nav/Footer fields)
    ```bash
    lsof -ti:5173,5174,4001,9000 | xargs kill -9
    ```
-2. `npm run dev`
+2. `npm run dev:tina`
 3. Confirm Tina is up: `curl -I http://localhost:4001/src/main.tsx` → **200**
 4. Open **http://localhost:5173/admin/index.html**
 5. In the left sidebar, choose **Home page** (best first test — not Site).
@@ -64,7 +64,7 @@ The admin UI could not reach Tina’s dev server on **http://localhost:4001**.
 
 | Cause | Fix |
 |--------|-----|
-| Only `vite` / `npm run preview` running | Stop it; run `npm run dev` |
+| Only `vite` / `npm run preview` running | Stop it; run `npm run dev:tina` |
 | Port 5173 taken | Kill processes on 5173/5174/4001, then `npm run dev` |
 | Tina dev never started | Check terminal errors; confirm `.env.local` has `TINA_PUBLIC_CLIENT_ID` and `TINA_TOKEN` |
 
@@ -88,4 +88,4 @@ For hosted editing and previews, create a project at [tina.io](https://tina.io):
 2. **Content** (read-only) → `TINA_TOKEN`
 3. **Search** (indexer) → `TINA_SEARCH_TOKEN`
 
-All three go in `.env.local` (exact names). Required for `npm run build:tina`. Commit `tina/tina-lock.json` after running `npm run dev` once with credentials set.
+All three go in `.env.local` (exact names). Required for `npm run build:tina`. Commit `tina/tina-lock.json` after running `npm run dev:tina` once with credentials set.

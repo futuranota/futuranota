@@ -1,6 +1,6 @@
 /**
- * Marketing content loaders (Phase 1).
- * Source of truth: /content/marketing/*.json
+ * Marketing content loaders.
+ * Bundled JSON is the fallback; live pages prefer Tina Cloud / local GraphQL.
  * Editable via Tina CMS at /admin/index.html
  */
 
@@ -17,20 +17,24 @@ const blogModules = import.meta.glob('../../../content/marketing/blogs/*.json', 
 });
 
 function slugFromPath(path) {
-  const match = path.match(/\/([^/]+)\.json$/);
+  const match = String(path || '').match(/\/([^/]+)\.json$/);
   return match ? match[1] : '';
 }
 
-function withSlug(path, article) {
-  const fileSlug = slugFromPath(path);
-  return { ...article, slug: article.slug || fileSlug };
+/** Tina Cloud docs include `_sys`; local JSON only has fields. */
+export function normalizeBlogArticle(article, path = '') {
+  if (!article) return null;
+  const fromSys = String(article._sys?.filename || article._sys?.basename || '')
+    .replace(/\.json$/i, '');
+  const slug = article.slug || fromSys || slugFromPath(path);
+  return { ...article, slug };
 }
 
 const blogArticles = Object.entries(blogModules).map(([path, article]) =>
-  withSlug(path, article),
+  normalizeBlogArticle(article, path),
 );
 
-/** @returns {ReturnType<typeof withSlug>[]} */
+/** @returns {ReturnType<typeof normalizeBlogArticle>[]} */
 export function getBlogArticles() {
   return blogArticles;
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getBlogArticles, getBlogPageCategories, getBlogsPage } from '../lib/content.js';
+import { getBlogPageCategories, getBlogsPage } from '../lib/content.js';
+import { useTinaBlogArticles } from '../lib/useTinaBlogArticles.js';
 import { BlogFeaturedCard, BlogGridCard } from '../components/BlogArticleCard.jsx';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function countForCategory(catId, articles, categories) {
   if (catId === 'All') return articles.length;
-  return articles.filter((a) => a.cat.includes(catId)).length;
+  return articles.filter((a) => (a.cat || []).includes(catId)).length;
 }
 
 export function Blogs() {
@@ -14,7 +15,7 @@ export function Blogs() {
   const doc = pageTina?.document;
   const { wall } = doc ?? getBlogsPage();
   const categories = getBlogPageCategories();
-  const articles = getBlogArticles();
+  const articles = useTinaBlogArticles();
 
   const [searchParams] = useSearchParams();
   const catFromUrl = searchParams.get('cat');
@@ -27,7 +28,7 @@ export function Blogs() {
     }
   }, [catFromUrl, categories]);
 
-  const list = articles.filter((a) => active === 'All' || a.cat.includes(active));
+  const list = articles.filter((a) => active === 'All' || (a.cat || []).includes(active));
   const featured = list.find((a) => a.feat) || list[0];
   const rest = list.filter((a) => a !== featured);
 

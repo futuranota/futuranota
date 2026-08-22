@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTina } from 'tinacms/dist/react';
 import { BlogDocument } from '../../../tina/__generated__/types.js';
 import { getBlogArticleBySlug } from './content.js';
-import { fetchTinaBlogPost } from './tinaClient.js';
+import {
+  fetchTinaBlogPost,
+  shouldFetchTinaLive,
+  subscribeTinaRefresh,
+} from './tinaClient.js';
 
 /**
  * @param {string | undefined} slug
@@ -24,38 +28,47 @@ export function useTinaBlogPostLoader(slug) {
   );
 
   const [payload, setPayload] = useState(fallbackPayload);
-  const [graphqlReady, setGraphqlReady] = useState(!import.meta.env.DEV);
+  const [generation, setGeneration] = useState(0);
+  const [graphqlReady, setGraphqlReady] = useState(!shouldFetchTinaLive());
 
   useEffect(() => {
-    if (!slug || !staticArticle) {
+    if (!slug) {
       setGraphqlReady(true);
       return undefined;
     }
 
-    if (!import.meta.env.DEV) {
+    if (!shouldFetchTinaLive()) {
       setPayload(fallbackPayload);
       setGraphqlReady(true);
       return undefined;
     }
 
     let cancelled = false;
-    setGraphqlReady(false);
+    let first = true;
 
-    fetchTinaBlogPost(slug).then((resolved) => {
-      if (!cancelled) {
+    const load = () => {
+      if (first) setGraphqlReady(false);
+      fetchTinaBlogPost(slug).then((resolved) => {
+        if (cancelled) return;
         setPayload(resolved);
         setGraphqlReady(true);
-      }
-    });
+        if (!first) setGeneration((n) => n + 1);
+        first = false;
+      });
+    };
 
+    load();
+    const unsub = subscribeTinaRefresh(load);
     return () => {
       cancelled = true;
+      unsub();
     };
-  }, [slug, staticArticle, fallbackPayload]);
+  }, [slug, fallbackPayload]);
 
   return {
     payload,
     graphqlReady,
+    generation,
     staticArticle,
     hasQuery: Boolean(payload.query),
   };

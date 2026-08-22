@@ -30,7 +30,7 @@ Tras auth exitoso, **Enter Futura** lleva a `/app` (no de vuelta a la landing).
 
 Copy y datos de marketing viven en `content/marketing/*.json` y se cargan con `src/marketing/lib/content.js`.
 
-- Editar en el admin: `npm run dev` → http://localhost:5173/admin/index.html
+- Editar en el admin: `npm run dev:tina` → http://localhost:5173/admin/index.html
 - Más detalle: `content/README.md`
 
 ## Estructura de archivos
@@ -141,7 +141,7 @@ Import pack acepta v1 y v2.
 ## Dev
 
 ```bash
-npm run dev
+npm run dev:tina
 # http://localhost:5173/              → landing
 # http://localhost:5173/admin/index.html → Tina CMS
 # http://localhost:5173/app           → dashboard

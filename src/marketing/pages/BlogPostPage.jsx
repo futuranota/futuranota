@@ -10,6 +10,16 @@ function BlogPostContent() {
   const tina = useBlogPostTina();
   const article = tina?.article ?? (slug ? getBlogArticleBySlug(slug) : null);
 
+  if (tina?.loading && !article) {
+    return (
+      <section className="section">
+        <div className="container">
+          <p className="muted">Loading…</p>
+        </div>
+      </section>
+    );
+  }
+
   if (!article) {
     return (
       <section className="section">
@@ -29,15 +39,6 @@ function BlogPostContent() {
 
 export function BlogPostPage() {
   const { slug } = useParams();
-  const exists = slug && getBlogArticleBySlug(slug);
-
-  if (!exists) {
-    return (
-      <SubpageLayout>
-        <BlogPostContent />
-      </SubpageLayout>
-    );
-  }
 
   return (
     <BlogPostTinaProvider slug={slug}>

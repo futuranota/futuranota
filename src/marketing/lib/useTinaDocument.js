@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTina } from 'tinacms/dist/react';
-import { fetchTinaQuery } from './tinaClient.js';
+import {
+  fetchTinaQuery,
+  shouldFetchTinaLive,
+  subscribeTinaRefresh,
+} from './tinaClient.js';
 import { TINA_DOCUMENTS } from './tinaDocuments.js';
 
 /**
- * Loads a Tina document and keeps it live inside the admin preview iframe.
- * Embeds the generated GraphQL query in production so the postMessage bridge
- * hashes match Tina admin (live preview sync). In dev, fetches via GraphQL first.
+ * Fetch a Tina document (Cloud → local GraphQL → bundled JSON).
+ * `useTina` must mount only after this reports ready (see Site/Page providers).
  * @param {keyof typeof TINA_DOCUMENTS} docKey
  */
-export function useTinaDocument(docKey) {
+export function useTinaDocumentLoader(docKey) {
   const config = TINA_DOCUMENTS[docKey];
-  const { relativePath, rootKey, getStatic, formPath } = config;
+  const { relativePath, rootKey, getStatic } = config;
 
   const staticDoc = useMemo(() => getStatic(), [docKey]);
   const fallbackPayload = useMemo(
@@ -24,31 +27,57 @@ export function useTinaDocument(docKey) {
   );
 
   const [payload, setPayload] = useState(fallbackPayload);
-  const [graphqlReady, setGraphqlReady] = useState(!import.meta.env.DEV);
+  const [generation, setGeneration] = useState(0);
+  const [graphqlReady, setGraphqlReady] = useState(!shouldFetchTinaLive());
 
   useEffect(() => {
-    if (!import.meta.env.DEV) {
+    if (!shouldFetchTinaLive()) {
       setPayload(fallbackPayload);
       setGraphqlReady(true);
       return undefined;
     }
 
     let cancelled = false;
-    setGraphqlReady(false);
+    let first = true;
 
-    fetchTinaQuery(docKey, { relativePath }).then((resolved) => {
-      if (!cancelled) {
+    const load = () => {
+      if (first) setGraphqlReady(false);
+      fetchTinaQuery(docKey, { relativePath }).then((resolved) => {
+        if (cancelled) return;
         setPayload(resolved);
         setGraphqlReady(true);
-      }
-    });
+        if (!first) setGeneration((n) => n + 1);
+        first = false;
+      });
+    };
 
+    load();
+    const unsub = subscribeTinaRefresh(load);
     return () => {
       cancelled = true;
+      unsub();
     };
   }, [docKey, relativePath, fallbackPayload]);
 
-  const tinaKey = payload.query ? payload.query : 'static';
+  return {
+    payload,
+    generation,
+    graphqlReady,
+    staticDoc,
+    rootKey,
+    formPath: config.formPath,
+    hasQuery: Boolean(payload.query),
+  };
+}
+
+/**
+ * @param {keyof typeof TINA_DOCUMENTS} docKey
+ * @param {{ query: string, variables: Record<string, unknown>, data: Record<string, unknown> }} payload
+ */
+export function useTinaDocumentBridge(docKey, payload) {
+  const config = TINA_DOCUMENTS[docKey];
+  const { rootKey, getStatic, formPath } = config;
+  const staticDoc = getStatic();
 
   const { data: tinaData } = useTina({
     query: payload.query,
@@ -57,13 +86,11 @@ export function useTinaDocument(docKey) {
     experimental___selectFormByFormId: () => formPath,
   });
 
-  const document = tinaData?.[rootKey] ?? staticDoc;
-
   return {
-    document,
+    document: tinaData?.[rootKey] ?? staticDoc,
     tinaData,
     rootKey,
-    loading: !graphqlReady,
-    tinaKey,
+    loading: false,
+    tinaKey: payload.query,
   };
 }

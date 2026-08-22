@@ -1,6 +1,9 @@
 import { createContext, useContext } from 'react';
 import { tinaField } from 'tinacms/dist/react';
-import { useTinaDocument } from '../lib/useTinaDocument.js';
+import {
+  useTinaDocumentBridge,
+  useTinaDocumentLoader,
+} from '../lib/useTinaDocument.js';
 import { useTinaBlogPostBridge, useTinaBlogPostLoader } from '../lib/useTinaBlogPost.js';
 
 const SiteTinaContext = createContext(null);
@@ -8,10 +11,22 @@ const PageTinaContext = createContext(null);
 const BlogPostTinaContext = createContext(null);
 
 export function SiteTinaProvider({ children }) {
-  const value = useTinaDocument('site');
-  if (value.loading) return children;
+  const loader = useTinaDocumentLoader('site');
+  if (!loader.graphqlReady || !loader.hasQuery) return children;
   return (
-    <SiteTinaContext.Provider key={value.tinaKey} value={value}>
+    <SiteTinaDocumentBridge
+      key={`site-${loader.generation}`}
+      payload={loader.payload}
+    >
+      {children}
+    </SiteTinaDocumentBridge>
+  );
+}
+
+function SiteTinaDocumentBridge({ payload, children }) {
+  const value = useTinaDocumentBridge('site', payload);
+  return (
+    <SiteTinaContext.Provider value={value}>
       {children}
     </SiteTinaContext.Provider>
   );
@@ -19,10 +34,23 @@ export function SiteTinaProvider({ children }) {
 
 /** @param {{ docKey: import('../lib/tinaDocuments.js').TinaDocKey, children: import('react').ReactNode }} props */
 export function PageTinaProvider({ docKey, children }) {
-  const value = useTinaDocument(docKey);
-  if (value.loading) return children;
+  const loader = useTinaDocumentLoader(docKey);
+  if (!loader.graphqlReady || !loader.hasQuery) return children;
   return (
-    <PageTinaContext.Provider key={value.tinaKey} value={value}>
+    <PageTinaDocumentBridge
+      key={`${docKey}-${loader.generation}`}
+      docKey={docKey}
+      payload={loader.payload}
+    >
+      {children}
+    </PageTinaDocumentBridge>
+  );
+}
+
+function PageTinaDocumentBridge({ docKey, payload, children }) {
+  const value = useTinaDocumentBridge(docKey, payload);
+  return (
+    <PageTinaContext.Provider value={value}>
       {children}
     </PageTinaContext.Provider>
   );
@@ -33,11 +61,26 @@ export function BlogPostTinaProvider({ slug, children }) {
   const loader = useTinaBlogPostLoader(slug);
 
   if (!loader.graphqlReady || !loader.hasQuery) {
-    return children;
+    return (
+      <BlogPostTinaContext.Provider
+        value={{
+          article: loader.staticArticle,
+          tinaData: null,
+          rootKey: 'blog',
+          loading: true,
+        }}
+      >
+        {children}
+      </BlogPostTinaContext.Provider>
+    );
   }
 
   return (
-    <BlogPostTinaBridge slug={slug} payload={loader.payload}>
+    <BlogPostTinaBridge
+      key={`${slug}-${loader.generation}`}
+      slug={slug}
+      payload={loader.payload}
+    >
       {children}
     </BlogPostTinaBridge>
   );
@@ -46,7 +89,7 @@ export function BlogPostTinaProvider({ slug, children }) {
 function BlogPostTinaBridge({ slug, payload, children }) {
   const value = useTinaBlogPostBridge(slug, payload);
   return (
-    <BlogPostTinaContext.Provider key={value.tinaKey} value={value}>
+    <BlogPostTinaContext.Provider value={value}>
       {children}
     </BlogPostTinaContext.Provider>
   );
