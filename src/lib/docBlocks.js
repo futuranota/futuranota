@@ -13,6 +13,7 @@ import { mergeBlockMarkerRanges, normalizeMarkerRanges } from "./docTextMarkerRa
 import { mergeBlockBoldRanges, normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 import { normalizeWallColor } from "./folderLibraryNormalize.js";
+import { normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
 import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
 
@@ -794,6 +795,11 @@ function normalizeMoodboardSlot(slot) {
   const externalUrl = normalizeMoodboardExternalUrl(slot?.externalUrl);
   const hasImage = Boolean(src);
   const hasLink = Boolean(externalUrl);
+  const frameAspect = normalizeLibraryFrameAspect(slot?.frameAspect);
+  const sourceMediaUrl = typeof slot?.sourceMediaUrl === "string" && slot.sourceMediaUrl.trim()
+    ? slot.sourceMediaUrl.trim()
+    : "";
+  const wallColor = normalizeWallColor(slot?.wallColor);
   return {
     slotId: String(slot?.slotId || generateId("MBS")),
     src,
@@ -810,6 +816,9 @@ function normalizeMoodboardSlot(slot) {
     libraryItemId: String(slot?.libraryItemId || "").trim(),
     libraryOwnerKind: normalizeImageSplitLibraryOwnerKind(slot?.libraryOwnerKind),
     libraryOwnerId: String(slot?.libraryOwnerId || "").trim(),
+    frameAspect,
+    sourceMediaUrl,
+    wallColor,
   };
 }
 

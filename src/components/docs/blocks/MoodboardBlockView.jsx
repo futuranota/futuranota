@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
   MOODBOARD_BOARD_LAYOUTS,
@@ -32,8 +31,13 @@ import {
 import { useI18n } from "../../../i18n/useI18n.js";
 import { libraryItemToMoodboardSlotPatch } from "../../../lib/libraryImageCardPick.js";
 import {
+  LIBRARY_FRAME_ASPECT_OPTIONS,
+  bakeAndUploadLibraryFrame,
   moodboardCellCssAspectRatio,
   moodboardCellHeightOverWidth,
+  moodboardSlotFrameAspect,
+  moodboardSlotFrameLabel,
+  normalizeLibraryFrameAspect,
 } from "../../../lib/libraryFrameAspect.js";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
@@ -233,6 +237,9 @@ function emptySlot() {
     libraryItemId: "",
     libraryOwnerKind: "",
     libraryOwnerId: "",
+    frameAspect: null,
+    sourceMediaUrl: "",
+    wallColor: null,
   };
 }
 
@@ -450,8 +457,6 @@ export function MoodboardBlockView({
   libraryOwnerId = "",
 }) {
   const { t } = useI18n();
-  const fileInputRef = useRef(null);
-  const pendingUploadRef = useRef(null);
   const boardRef = useRef(null);
   const captionRef = useRef(null);
   const captionLimitTimerRef = useRef(null);
@@ -465,6 +470,8 @@ export function MoodboardBlockView({
   const [attachmentSlot, setAttachmentSlot] = useState(null);
   const [libraryPickerSlot, setLibraryPickerSlot] = useState(null);
   const [boardExpanded, setBoardExpanded] = useState(false);
+  const [frameBaking, setFrameBaking] = useState(false);
+  const [ratioMenuKey, setRatioMenuKey] = useState(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
   const [pendingOverlayKind, setPendingOverlayKind] = useState(null);
   const overlayDragRef = useRef(null);
@@ -561,18 +568,18 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Inline: share text-block ceiling. Expanded workspace: use viewport room.
+      // Inline: taller ceiling so 9:16 frames read clearly (not text-block cramped).
       let maxContentH;
       if (boardExpanded) {
         const viewportCap = typeof window !== "undefined"
-          ? Math.round(window.innerHeight * 0.68)
-          : 560;
-        maxContentH = Math.round(Math.max(280, Math.min(colInner * aspect * 1.2, viewportCap)));
+          ? Math.round(window.innerHeight * 0.72)
+          : 620;
+        maxContentH = Math.round(Math.max(320, Math.min(colInner * aspect * 1.25, viewportCap)));
       } else {
         const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
-          ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.9)
-          : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
-        maxContentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
+          ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)
+          : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.45);
+        maxContentH = Math.round(Math.max(260, Math.min(colInner * aspect, capped)));
       }
       const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
 
@@ -889,110 +896,122 @@ export function MoodboardBlockView({
 
   const slotKey = (colIndex, imageIndex) => `${colIndex}:${imageIndex}`;
 
-  const handleFilesForSlot = async (colIndex, imageIndex, files) => {
-    if (!isEdit) return;
-    const file = files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError(t("doc.imageBlock.invalidType"));
-      return;
-    }
-
-    const key = slotKey(colIndex, imageIndex);
-    setUploadingKey(key);
-    setError(null);
+  const openAttachmentModal = (colIndex, imageIndex, sizeClass) => {
     setActiveCol(colIndex);
-
-    try {
-      const converted = await convertAndUploadDocImage(file, {
-        idPrefix: `MB${colIndex}${imageIndex}`,
-        scopeId: block?.id,
-      });
-      if (!converted) {
-        setError(t("doc.imageBlock.convertFailed"));
-        return;
-      }
-
-      const nextImage = {
-        slotId: columns[colIndex]?.images?.[imageIndex]?.slotId,
-        src: converted.src,
-        name: converted.name,
-        alt: (file.name || "image").replace(/\.[^/.]+$/, ""),
-        width: converted.width,
-        height: converted.height,
-        imageSaved: true,
-        kind: "image",
-        externalUrl: columns[colIndex]?.images?.[imageIndex]?.externalUrl || "",
-        tagLabel: columns[colIndex]?.images?.[imageIndex]?.tagLabel || "",
-        libraryItemId: "",
-        libraryOwnerKind: "",
-        libraryOwnerId: "",
-      };
-
-      patchColumns((col, index) => {
-        if (index !== colIndex) return col;
-        const images = Array.isArray(col.images) ? [...col.images] : [];
-        while (images.length <= imageIndex) images.push(emptySlot());
-        images[imageIndex] = nextImage;
-        return createMoodboardColumn(col.recipe, {
-          images,
-          ...columnTextPatch(col),
-        });
-      });
-    } catch (err) {
-      setError(err?.message || t("doc.imageBlock.convertFailed"));
-    } finally {
-      setUploadingKey(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      pendingUploadRef.current = null;
-    }
+    setAttachmentSlot({ colIndex, imageIndex, sizeClass });
   };
 
-  const openFilePicker = (colIndex, imageIndex) => {
-    if (!isEdit) return;
-    pendingUploadRef.current = { colIndex, imageIndex };
-    setActiveCol(colIndex);
-    fileInputRef.current?.click();
-  };
-
-  const openAttachmentModal = (colIndex, imageIndex) => {
-    setActiveCol(colIndex);
-    setAttachmentSlot({ colIndex, imageIndex });
-  };
-
-  const openLibraryPicker = (colIndex, imageIndex) => {
+  const openLibraryPicker = (colIndex, imageIndex, sizeClass) => {
     if (!isEdit || !canPickLibrary) return;
     setActiveCol(colIndex);
-    setLibraryPickerSlot({ colIndex, imageIndex });
+    setLibraryPickerSlot({ colIndex, imageIndex, sizeClass });
   };
 
-  const handlePickLibraryItem = (item, ownerKind, ownerId) => {
-    if (!isEdit || !libraryPickerSlot) return;
-    const { colIndex, imageIndex } = libraryPickerSlot;
-    const resolvedOwnerId = String(ownerId || "").trim()
-      || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
-    const patch = libraryItemToMoodboardSlotPatch(item, ownerKind, resolvedOwnerId);
-    if (!patch) return;
-    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+  const applyFramedSlotImage = (colIndex, imageIndex, nextImage) => {
     patchColumns((col, index) => {
       if (index !== colIndex) return col;
       const images = Array.isArray(col.images) ? [...col.images] : [];
       while (images.length <= imageIndex) images.push(emptySlot());
-      images[imageIndex] = {
-        ...prev,
-        ...patch,
-        slotId: prev.slotId,
-        externalUrl: prev.externalUrl || "",
-        tagLabel: prev.tagLabel || "",
-      };
+      images[imageIndex] = nextImage;
       return createMoodboardColumn(col.recipe, {
         images,
         ...columnTextPatch(col),
       });
     });
-    setLibraryPickerSlot(null);
+  };
+
+  const handlePickLibraryItem = async (item, ownerKind, ownerId) => {
+    if (!isEdit || !libraryPickerSlot) return;
+    const { colIndex, imageIndex, sizeClass } = libraryPickerSlot;
+    const resolvedOwnerId = String(ownerId || "").trim()
+      || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
+    const patch = libraryItemToMoodboardSlotPatch(item, ownerKind, resolvedOwnerId);
+    if (!patch) return;
+    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    const targetFrame = moodboardSlotFrameAspect(
+      boardLayout,
+      sizeClass || "large",
+      colIndex,
+    );
+    const source = String(patch.src || "").trim();
+    const wall = item.wallColor || "#FFFFFF";
+    setFrameBaking(true);
     setError(null);
+    try {
+      let nextSrc = source;
+      let width = patch.width || 0;
+      let height = patch.height || 0;
+      if (source && targetFrame) {
+        const baked = await bakeAndUploadLibraryFrame({
+          srcUrl: source,
+          frameAspect: targetFrame,
+          wallColor: wall,
+          scopeId: block?.id || "moodboard",
+        });
+        nextSrc = baked.src;
+        width = baked.width;
+        height = baked.height;
+      }
+      applyFramedSlotImage(colIndex, imageIndex, {
+        ...prev,
+        ...patch,
+        slotId: prev.slotId,
+        src: nextSrc,
+        width,
+        height,
+        imageSaved: true,
+        kind: "image",
+        externalUrl: prev.externalUrl || "",
+        // Library name becomes the moodboard # tag (attach modal no longer in fill path).
+        tagLabel: prev.tagLabel || String(item.tag || "").trim().slice(0, MOODBOARD_TAG_MAX),
+        frameAspect: targetFrame,
+        sourceMediaUrl: source,
+        wallColor: wall,
+      });
+      setLibraryPickerSlot(null);
+      setAttachmentSlot(null);
+      setRatioMenuKey(null);
+    } catch (err) {
+      setError(err?.message || t("doc.moodboard.frameBakeFailed"));
+    } finally {
+      setFrameBaking(false);
+    }
+  };
+
+  const changeSlotFrame = async (colIndex, imageIndex, sizeClass, nextFrameRaw) => {
+    if (!isEdit) return;
+    const nextFrame = normalizeLibraryFrameAspect(nextFrameRaw);
+    if (!nextFrame) return;
+    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    const source = String(prev.sourceMediaUrl || prev.src || "").trim();
+    if (!source) return;
+    const wall = prev.wallColor || "#FFFFFF";
+    setFrameBaking(true);
+    setError(null);
+    setRatioMenuKey(null);
+    try {
+      const baked = await bakeAndUploadLibraryFrame({
+        srcUrl: source,
+        frameAspect: nextFrame,
+        wallColor: wall,
+        scopeId: block?.id || "moodboard",
+      });
+      applyFramedSlotImage(colIndex, imageIndex, {
+        ...prev,
+        src: baked.src,
+        width: baked.width,
+        height: baked.height,
+        imageSaved: true,
+        kind: "image",
+        frameAspect: nextFrame,
+        sourceMediaUrl: source,
+        wallColor: wall,
+      });
+    } catch (err) {
+      setError(err?.message || t("doc.moodboard.frameBakeFailed"));
+    } finally {
+      setFrameBaking(false);
+    }
   };
 
   const acceptAttachment = (draft) => {
@@ -1001,7 +1020,6 @@ export function MoodboardBlockView({
     const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
     const link = normalizeMoodboardExternalUrl(draft.externalUrl);
     const hasImage = Boolean(draft.imageSaved && draft.src);
-    const srcChanged = String(draft.src || "") !== String(prev.src || "");
     patchColumns((col, index) => {
       if (index !== colIndex) return col;
       const images = Array.isArray(col.images) ? [...col.images] : [];
@@ -1017,9 +1035,16 @@ export function MoodboardBlockView({
         kind: hasImage ? "image" : (link ? "file" : "image"),
         externalUrl: link,
         tagLabel: String(draft.tagLabel || "").trim().slice(0, MOODBOARD_TAG_MAX),
-        libraryItemId: srcChanged ? "" : (prev.libraryItemId || ""),
-        libraryOwnerKind: srcChanged ? "" : (prev.libraryOwnerKind || ""),
-        libraryOwnerId: srcChanged ? "" : (prev.libraryOwnerId || ""),
+        libraryItemId: draft.libraryItemId || prev.libraryItemId || "",
+        libraryOwnerKind: draft.libraryOwnerKind || prev.libraryOwnerKind || "",
+        libraryOwnerId: draft.libraryOwnerId || prev.libraryOwnerId || "",
+        frameAspect: hasImage
+          ? (normalizeLibraryFrameAspect(draft.frameAspect) || prev.frameAspect)
+          : null,
+        sourceMediaUrl: hasImage
+          ? (draft.sourceMediaUrl || prev.sourceMediaUrl || "")
+          : "",
+        wallColor: hasImage ? (draft.wallColor || prev.wallColor || null) : null,
       };
       return createMoodboardColumn(col.recipe, {
         images,
@@ -1134,10 +1159,17 @@ export function MoodboardBlockView({
     if (next !== cur) handleFieldChange({ caption: next });
   };
 
-  const canSave = savedImageCount > 0 && !uploadingKey;
+  const canSave = savedImageCount > 0 && !uploadingKey && !frameBaking;
   const attachmentImage = attachmentSlot
     ? (columns[attachmentSlot.colIndex]?.images?.[attachmentSlot.imageIndex] || emptySlot())
     : null;
+  const attachmentFrameAspect = attachmentSlot
+    ? moodboardSlotFrameAspect(
+      boardLayout,
+      attachmentSlot.sizeClass || "large",
+      attachmentSlot.colIndex,
+    )
+    : "9:16";
 
   const renderImageCell = (colIndex, imageIndex, sizeClass) => {
     const column = columns[colIndex] || createMoodboardColumn(null);
@@ -1156,6 +1188,11 @@ export function MoodboardBlockView({
     const tagOutside = showTag && sizeClass === "medium";
     const tagOverlay = showTag && !tagOutside;
     const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
+    const slotFrame = moodboardSlotFrameAspect(boardLayout, sizeClass, colIndex);
+    const slotFrameLabel = moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex);
+    const chipFrame = normalizeLibraryFrameAspect(image.frameAspect) || slotFrame;
+    const menuKey = slotKey(colIndex, imageIndex);
+    const ratioMenuOpen = ratioMenuKey === menuKey;
 
     const tagRow = showTag ? (
       <div
@@ -1193,7 +1230,7 @@ export function MoodboardBlockView({
                 type="button"
                 className="doc-moodboard__cell-hit"
                 aria-label={t("doc.moodboard.attachTitle")}
-                onClick={() => openAttachmentModal(colIndex, imageIndex)}
+                onClick={() => openAttachmentModal(colIndex, imageIndex, sizeClass)}
               >
                 <img
                   className={
@@ -1212,22 +1249,65 @@ export function MoodboardBlockView({
                 />
               </button>
               {tagOverlay ? tagRow : null}
+              {hasImage ? (
+                <div className="doc-moodboard__ratio-chip-wrap">
+                  <button
+                    type="button"
+                    className="doc-moodboard__ratio-chip"
+                    disabled={!isEdit || frameBaking || Boolean(uploadingKey)}
+                    aria-expanded={ratioMenuOpen}
+                    aria-label={t("doc.moodboard.ratioChipAria", { ratio: chipFrame })}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (!isEdit) return;
+                      setRatioMenuKey((prev) => (prev === menuKey ? null : menuKey));
+                    }}
+                  >
+                    {chipFrame}
+                  </button>
+                  {ratioMenuOpen && isEdit ? (
+                    <div
+                      className="doc-moodboard__ratio-menu"
+                      role="menu"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {LIBRARY_FRAME_ASPECT_OPTIONS.map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={chipFrame === id}
+                          className={
+                            "doc-moodboard__ratio-menu-btn"
+                            + (chipFrame === id ? " is-active" : "")
+                          }
+                          disabled={frameBaking}
+                          onClick={() => changeSlotFrame(colIndex, imageIndex, sizeClass, id)}
+                        >
+                          {id}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {isEdit ? (
                 <div className="doc-moodboard__media-actions">
                   <button
                     type="button"
                     className="doc-moodboard__media-btn"
-                    onClick={() => openAttachmentModal(colIndex, imageIndex)}
-                    disabled={Boolean(uploadingKey)}
+                    onClick={() => openAttachmentModal(colIndex, imageIndex, sizeClass)}
+                    disabled={Boolean(uploadingKey) || frameBaking}
                   >
-                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
+                    {t("doc.imageBlock.replace")}
                   </button>
                   {canPickLibrary ? (
                     <button
                       type="button"
                       className="doc-moodboard__media-btn"
-                      onClick={() => openLibraryPicker(colIndex, imageIndex)}
-                      disabled={Boolean(uploadingKey)}
+                      onClick={() => openLibraryPicker(colIndex, imageIndex, sizeClass)}
+                      disabled={Boolean(uploadingKey) || frameBaking}
                     >
                       {t("doc.moodboard.pickLibrary")}
                     </button>
@@ -1247,7 +1327,7 @@ export function MoodboardBlockView({
                     type="button"
                     className="doc-moodboard__media-btn"
                     onClick={() => clearImage(colIndex, imageIndex)}
-                    disabled={Boolean(uploadingKey)}
+                    disabled={Boolean(uploadingKey) || frameBaking}
                   >
                     {t("doc.imageBlock.remove")}
                   </button>
@@ -1270,48 +1350,23 @@ export function MoodboardBlockView({
             <div className="doc-moodboard__empty-slot">
               <button
                 type="button"
-                className={
-                  "doc-moodboard__dropzone"
-                  + (dragOver ? " doc-moodboard__dropzone--active" : "")
-                  + (uploading ? " doc-moodboard__dropzone--busy" : "")
+                className="doc-moodboard__ratio-ref"
+                disabled={!isEdit || frameBaking || !canPickLibrary}
+                title={
+                  canPickLibrary
+                    ? t("doc.moodboard.ratioCardHint")
+                    : t("doc.moodboard.libraryRequired")
                 }
-                disabled={Boolean(uploadingKey) || !isEdit}
-                onClick={() => isEdit && openAttachmentModal(colIndex, imageIndex)}
-                onDragEnter={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOverKey(key);
-                }}
-                onDragOver={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOverKey(key);
-                }}
-                onDragLeave={(event) => {
-                  event.preventDefault();
-                  setDragOverKey((prev) => (prev === key ? null : prev));
-                }}
-                onDrop={(event) => {
-                  if (!isEdit) return;
-                  event.preventDefault();
-                  setDragOverKey(null);
-                  handleFilesForSlot(colIndex, imageIndex, event.dataTransfer?.files);
+                onClick={() => {
+                  if (!isEdit || !canPickLibrary) return;
+                  openLibraryPicker(colIndex, imageIndex, sizeClass);
                 }}
               >
-                <span className="doc-moodboard__dropzone-title">
-                  {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
+                <span className="doc-moodboard__ratio-ref-label">{slotFrameLabel}</span>
+                <span className="doc-moodboard__ratio-ref-hint">
+                  {t("doc.moodboard.ratioCardHint")}
                 </span>
               </button>
-              {isEdit && canPickLibrary ? (
-                <button
-                  type="button"
-                  className="doc-moodboard__media-btn doc-moodboard__empty-library"
-                  onClick={() => openLibraryPicker(colIndex, imageIndex)}
-                  disabled={Boolean(uploadingKey)}
-                >
-                  {t("doc.moodboard.pickLibrary")}
-                </button>
-              ) : null}
             </div>
           )}
         </div>
@@ -1515,18 +1570,6 @@ export function MoodboardBlockView({
         + (boardExpanded ? " doc-moodboard--expanded" : "")
       }
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="doc-moodboard__input"
-        accept="image/*"
-        onChange={(event) => {
-          const pending = pendingUploadRef.current;
-          if (!pending) return;
-          handleFilesForSlot(pending.colIndex, pending.imageIndex, event.target.files);
-        }}
-      />
-
       {isEdit ? (
         <div className="doc-moodboard__toolbar" role="toolbar" aria-label={t("doc.moodboard.toolbarLabel")}>
           <div className="doc-moodboard__toolbar-group">
@@ -1936,6 +1979,17 @@ export function MoodboardBlockView({
         open={Boolean(attachmentSlot)}
         image={attachmentImage}
         readOnly={!isEdit}
+        frameAspect={attachmentFrameAspect}
+        canPickLibrary={canPickLibrary}
+        baking={frameBaking}
+        onRequestLibrary={() => {
+          if (!attachmentSlot) return;
+          openLibraryPicker(
+            attachmentSlot.colIndex,
+            attachmentSlot.imageIndex,
+            attachmentSlot.sizeClass || "large",
+          );
+        }}
         onClose={() => setAttachmentSlot(null)}
         onAccept={acceptAttachment}
       />

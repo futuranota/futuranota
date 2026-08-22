@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_TAG_MAX,
   normalizeMoodboardExternalUrl,
 } from "../../../lib/docBlocks.js";
+import {
+  libraryFrameCssAspectRatio,
+  normalizeLibraryFrameAspect,
+} from "../../../lib/libraryFrameAspect.js";
+import { resolveWallColor } from "../../../lib/folderLibrary.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
 const INFO_SRC = "/uploads/Info.svg";
@@ -19,8 +23,8 @@ function resolveAttachMode(image) {
 }
 
 /**
- * Attachments table for one moodboard slot:
- * Mode A — Image upload + Tag. Mode B — Document URL + file icon + Tag.
+ * Moodboard slot attachment panel — Library-first image mode + URL mode.
+ * Image mode: ratio reference frame, pick from Library, download framed product.
  */
 export function MoodboardAttachmentModal({
   open,
@@ -28,9 +32,14 @@ export function MoodboardAttachmentModal({
   readOnly = false,
   onClose,
   onAccept,
+  /** Target frame for this slot (`9:16`, …). */
+  frameAspect = "9:16",
+  canPickLibrary = false,
+  onRequestLibrary,
+  baking = false,
 }) {
   const { t } = useI18n();
-  const fileInputRef = useRef(null);
+  const resolvedFrame = normalizeLibraryFrameAspect(frameAspect) || "9:16";
   const [mode, setMode] = useState(() => resolveAttachMode(image));
   const [draft, setDraft] = useState(() => ({
     src: image?.src || "",
@@ -42,9 +51,15 @@ export function MoodboardAttachmentModal({
     externalUrl: String(image?.externalUrl || ""),
     tagLabel: String(image?.tagLabel || ""),
     slotId: image?.slotId || "",
+    frameAspect: normalizeLibraryFrameAspect(image?.frameAspect) || resolvedFrame,
+    sourceMediaUrl: String(image?.sourceMediaUrl || ""),
+    wallColor: image?.wallColor || null,
+    libraryItemId: String(image?.libraryItemId || ""),
+    libraryOwnerKind: String(image?.libraryOwnerKind || ""),
+    libraryOwnerId: String(image?.libraryOwnerId || ""),
   }));
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -59,10 +74,16 @@ export function MoodboardAttachmentModal({
       externalUrl: String(image?.externalUrl || ""),
       tagLabel: String(image?.tagLabel || ""),
       slotId: image?.slotId || "",
+      frameAspect: normalizeLibraryFrameAspect(image?.frameAspect) || resolvedFrame,
+      sourceMediaUrl: String(image?.sourceMediaUrl || ""),
+      wallColor: image?.wallColor || null,
+      libraryItemId: String(image?.libraryItemId || ""),
+      libraryOwnerKind: String(image?.libraryOwnerKind || ""),
+      libraryOwnerId: String(image?.libraryOwnerId || ""),
     });
     setError("");
-    setUploading(false);
-  }, [open, image]);
+    setDownloading(false);
+  }, [open, image, resolvedFrame]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -81,47 +102,42 @@ export function MoodboardAttachmentModal({
   const normalizedLink = normalizeMoodboardExternalUrl(draft.externalUrl);
   const hasImage = Boolean(draft.imageSaved && draft.src);
   const hasLink = Boolean(normalizedLink);
-  const canAccept = !uploading && !readOnly && (
+  const canAccept = !baking && !readOnly && (
     mode === "image" ? hasImage : hasLink
   );
-
-  const handleFiles = async (fileList) => {
-    if (readOnly) return;
-    const file = fileList?.[0];
-    if (!file) return;
-    if (!String(file.type || "").startsWith("image/")) {
-      setError(t("doc.imageBlock.invalidType"));
-      return;
-    }
-    setUploading(true);
-    setError("");
-    try {
-      const converted = await convertAndUploadDocImage(file, {
-        scopeId: image?.slotId || "moodboard",
-      });
-      if (!converted?.src) {
-        setError(t("doc.imageBlock.convertFailed"));
-        return;
-      }
-      setDraft((prev) => ({
-        ...prev,
-        src: converted.src,
-        name: converted.name || file.name || "",
-        alt: (file.name || "image").replace(/\.[^/.]+$/, ""),
-        width: converted.width || 0,
-        height: converted.height || 0,
-        imageSaved: true,
-      }));
-    } catch (err) {
-      setError(err?.message || t("doc.imageBlock.convertFailed"));
-    } finally {
-      setUploading(false);
-    }
-  };
+  const wallPreview = resolveWallColor(draft.wallColor || "#FFFFFF");
+  const frameCss = libraryFrameCssAspectRatio(draft.frameAspect || resolvedFrame) || "9 / 16";
+  const frameLabel = normalizeLibraryFrameAspect(draft.frameAspect || resolvedFrame) || resolvedFrame;
 
   const openExternal = () => {
     if (!normalizedLink) return;
     window.open(normalizedLink, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownload = async () => {
+    if (!draft.src || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(draft.src);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const base = String(draft.name || draft.tagLabel || "moodboard")
+        .trim()
+        .replace(/[^\w\-]+/g, "_")
+        .replace(/^_+|_+$/g, "") || "moodboard";
+      a.download = `${base}_${frameLabel.replace(":", "x")}.webp`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(draft.src, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleAccept = () => {
@@ -133,6 +149,7 @@ export function MoodboardAttachmentModal({
         externalUrl: "",
         imageSaved: true,
         tagLabel,
+        frameAspect: draft.frameAspect || resolvedFrame,
       });
       return;
     }
@@ -147,6 +164,9 @@ export function MoodboardAttachmentModal({
       imageSaved: Boolean(link),
       externalUrl: link,
       tagLabel,
+      frameAspect: null,
+      sourceMediaUrl: "",
+      wallColor: null,
     });
   };
 
@@ -167,7 +187,7 @@ export function MoodboardAttachmentModal({
           <div className="doc-moodboard-attach__head-copy">
             <h3 className="doc-moodboard-attach__title">{t("doc.moodboard.attachTitle")}</h3>
             <p className="doc-moodboard-attach__desc">
-              {t("doc.moodboard.attachDescription")}
+              {t("doc.moodboard.attachDescriptionLibrary")}
             </p>
           </div>
           <button
@@ -211,32 +231,61 @@ export function MoodboardAttachmentModal({
 
         {mode === "image" ? (
           <div className="doc-moodboard-attach__field">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="doc-moodboard__input"
-              disabled={readOnly}
-              onChange={(event) => {
-                handleFiles(event.target.files);
-                event.target.value = "";
+            <div
+              className={
+                "doc-moodboard-attach__ratio-frame"
+                + (hasImage ? " has-image" : "")
+              }
+              style={{
+                aspectRatio: frameCss,
+                backgroundColor: hasImage ? wallPreview : "#ffffff",
               }}
-            />
-            {hasImage ? (
-              <div className="doc-moodboard-attach__preview">
-                <img src={draft.src} alt={draft.alt || ""} draggable={false} />
-                {!readOnly ? (
-                  <div className="doc-moodboard-attach__preview-actions">
+            >
+              {hasImage ? (
+                <img
+                  className="doc-moodboard-attach__ratio-img"
+                  src={draft.src}
+                  alt={draft.alt || ""}
+                  draggable={false}
+                />
+              ) : (
+                <span className="doc-moodboard-attach__ratio-label">{frameLabel}</span>
+              )}
+            </div>
+
+            {!readOnly ? (
+              <div className="doc-moodboard-attach__library-actions">
+                <button
+                  type="button"
+                  className="doc-moodboard-attach__library-btn"
+                  disabled={baking || !canPickLibrary}
+                  onClick={() => onRequestLibrary?.()}
+                >
+                  {baking
+                    ? t("doc.moodboard.frameBaking")
+                    : t("doc.moodboard.pickLibrary")}
+                </button>
+                {!canPickLibrary ? (
+                  <p className="doc-moodboard-attach__library-hint">
+                    {t("doc.moodboard.libraryRequired")}
+                  </p>
+                ) : null}
+                {hasImage ? (
+                  <>
                     <button
                       type="button"
-                      disabled={uploading}
-                      onClick={() => fileInputRef.current?.click()}
+                      className="doc-moodboard-attach__download"
+                      disabled={downloading || baking}
+                      onClick={handleDownload}
                     >
-                      {t("doc.imageBlock.replace")}
+                      {downloading
+                        ? t("doc.library.downloading")
+                        : t("doc.moodboard.downloadFramed")}
                     </button>
                     <button
                       type="button"
-                      disabled={uploading}
+                      className="doc-moodboard-attach__clear"
+                      disabled={baking}
                       onClick={() => {
                         setDraft((prev) => ({
                           ...prev,
@@ -246,42 +295,32 @@ export function MoodboardAttachmentModal({
                           width: 0,
                           height: 0,
                           imageSaved: false,
+                          sourceMediaUrl: "",
+                          libraryItemId: "",
+                          libraryOwnerKind: "",
+                          libraryOwnerId: "",
                         }));
                       }}
                     >
                       {t("doc.imageBlock.remove")}
                     </button>
-                  </div>
+                  </>
                 ) : null}
               </div>
-            ) : (
-              <button
-                type="button"
-                className="doc-moodboard-attach__dropzone"
-                disabled={uploading || readOnly}
-                onClick={() => !readOnly && fileInputRef.current?.click()}
-                onDragOver={(event) => {
-                  if (readOnly) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onDrop={(event) => {
-                  if (readOnly) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleFiles(event.dataTransfer?.files);
-                }}
-              >
-                <span className="doc-moodboard-attach__dropzone-title">
-                  {uploading
-                    ? t("doc.imageBlock.uploading")
-                    : t("doc.moodboard.attachImageHint")}
-                </span>
-                <span className="doc-moodboard-attach__dropzone-formats">
-                  {t("doc.imageBlock.formats")}
-                </span>
-              </button>
-            )}
+            ) : hasImage ? (
+              <div className="doc-moodboard-attach__library-actions">
+                <button
+                  type="button"
+                  className="doc-moodboard-attach__download"
+                  disabled={downloading}
+                  onClick={handleDownload}
+                >
+                  {downloading
+                    ? t("doc.library.downloading")
+                    : t("doc.moodboard.downloadFramed")}
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="doc-moodboard-attach__field">

@@ -12998,7 +12998,8 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard__cell--empty {
-  background: rgba(0, 0, 0, 0.06);
+  /* Same wall beige as the board — ratio text sits on it, no white card */
+  background: #F1F1F1;
 }
 
 .doc-moodboard__img {
@@ -13671,23 +13672,212 @@ body.doc-content-resizing * {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 8px;
   width: 100%;
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
-  padding: 6px;
+  padding: 0;
 }
 
-.doc-moodboard__empty-slot .doc-moodboard__dropzone {
+.doc-moodboard__ratio-ref {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
   min-height: 0;
-  height: auto;
+  margin: 0;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 120ms ease;
 }
 
-.doc-moodboard__empty-library {
-  flex: 0 0 auto;
-  align-self: center;
+.doc-moodboard__ratio-ref:hover:not(:disabled),
+.doc-moodboard__ratio-ref:focus-visible {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.doc-moodboard__ratio-ref:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.doc-moodboard__ratio-ref-label {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  /* Stronger beige on board #F1F1F1 */
+  color: #a89f94;
+}
+
+.doc-moodboard__ratio-ref-hint {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: lowercase;
+  color: #b7aea3;
+}
+
+.doc-moodboard__ratio-chip-wrap {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 5;
+}
+
+.doc-moodboard__ratio-chip {
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(22, 26, 29, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: rgba(22, 26, 29, 0.72);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.doc-moodboard__ratio-chip:hover:not(:disabled) {
+  color: #161a1d;
+  border-color: rgba(22, 26, 29, 0.22);
+}
+
+.doc-moodboard__ratio-chip:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.doc-moodboard__ratio-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 72px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #151515;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.doc-moodboard__ratio-menu-btn {
+  margin: 0;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-moodboard__ratio-menu-btn:hover,
+.doc-moodboard__ratio-menu-btn.is-active {
+  color: #fff;
+  background: rgba(58, 111, 122, 0.28);
+}
+
+.doc-moodboard-attach__ratio-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 280px);
+  max-height: min(48vh, 360px);
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: #F1F1F1;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.doc-moodboard-attach__ratio-frame.has-image {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.doc-moodboard-attach__ratio-label {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #a89f94;
+}
+
+.doc-moodboard-attach__ratio-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.doc-moodboard-attach__library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.doc-moodboard-attach__library-btn,
+.doc-moodboard-attach__download {
+  margin: 0;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.doc-moodboard-attach__library-btn:hover:not(:disabled),
+.doc-moodboard-attach__download:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.doc-moodboard-attach__library-btn:disabled,
+.doc-moodboard-attach__download:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.doc-moodboard-attach__clear {
+  margin: 0;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.doc-moodboard-attach__library-hint {
+  width: 100%;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.38);
 }
 
 .doc-moodboard__dropzone:hover,
@@ -19628,6 +19818,18 @@ body.doc-content-resizing * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.folder-library-overlay__cell-frame {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .folder-library-overlay__cell--doc .folder-library-overlay__cell-meta {

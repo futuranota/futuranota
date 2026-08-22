@@ -225,3 +225,30 @@ export function moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex = 0
   if (Math.abs(wOverH - 3 / 2) < 0.001) return "3 / 2";
   return `${wOverH}`;
 }
+
+/**
+ * Slot target frame id for moodboard structure (publish presets).
+ * @param {string} boardLayout
+ * @param {string} sizeClass
+ * @param {number} [colIndex=0]
+ * @returns {LibraryFrameAspectId}
+ */
+export function moodboardSlotFrameAspect(boardLayout, sizeClass, colIndex = 0) {
+  const css = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
+  if (css === "9 / 16") return LIBRARY_FRAME_ASPECTS.PORTRAIT_9_16;
+  if (css === "16 / 9") return LIBRARY_FRAME_ASPECTS.LANDSCAPE_16_9;
+  if (css === "1 / 1") return LIBRARY_FRAME_ASPECTS.SQUARE_1_1;
+  if (css === "3 / 2") return LIBRARY_FRAME_ASPECTS.LANDSCAPE_3_2;
+  return LIBRARY_FRAME_ASPECTS.PORTRAIT_9_16;
+}
+
+/**
+ * Human label for empty-slot / chip (`9:16`, `3:2`, …).
+ * @param {string} boardLayout
+ * @param {string} sizeClass
+ * @param {number} [colIndex=0]
+ * @returns {string}
+ */
+export function moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex = 0) {
+  return moodboardSlotFrameAspect(boardLayout, sizeClass, colIndex);
+}

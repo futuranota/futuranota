@@ -752,6 +752,9 @@ export function FolderLibraryOverlay({
               {renderFichaFace(item, libraryTilePrefer("folder"))}
               <span className="folder-library-overlay__cell-meta">
                 <span className="folder-library-overlay__cell-tag">{item.tag}</span>
+                {item.frameAspect ? (
+                  <span className="folder-library-overlay__cell-frame">{item.frameAspect}</span>
+                ) : null}
                 {item.promptClass ? (
                   <span className="folder-library-overlay__cell-class">{item.promptClass}</span>
                 ) : null}

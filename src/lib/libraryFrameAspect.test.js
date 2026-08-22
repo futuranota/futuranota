@@ -6,6 +6,8 @@ import {
   libraryFrameWidthOverHeight,
   moodboardCellCssAspectRatio,
   moodboardCellHeightOverWidth,
+  moodboardSlotFrameAspect,
+  moodboardSlotFrameLabel,
   normalizeLibraryFrameAspect,
 } from "./libraryFrameAspect.js";
 import { normalizeFolderLibraryItem } from "./folderLibraryNormalize.js";
@@ -44,6 +46,8 @@ describe("libraryFrameAspect", () => {
     expect(moodboardCellHeightOverWidth("wide_narrow", "large", 1)).toBeCloseTo(16 / 9);
     expect(moodboardCellCssAspectRatio("thirds", "large")).toBe("9 / 16");
     expect(moodboardCellCssAspectRatio("thirds", "medium")).toBe("3 / 2");
+    expect(moodboardSlotFrameAspect("thirds", "large")).toBe("9:16");
+    expect(moodboardSlotFrameLabel("thirds", "medium")).toBe("3:2");
   });
 });
 

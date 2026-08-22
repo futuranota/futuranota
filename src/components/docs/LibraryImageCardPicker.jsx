@@ -51,7 +51,12 @@ function PickSection({ title, items, ownerKind, ownerId, onPick }) {
               onClick={() => onPick(item, ownerKind, ownerId)}
             >
               {renderPickFace(item)}
-              <span className="folder-library-overlay__cell-tag">{item.tag}</span>
+              <span className="folder-library-overlay__cell-meta">
+                <span className="folder-library-overlay__cell-tag">{item.tag}</span>
+                {item.frameAspect ? (
+                  <span className="folder-library-overlay__cell-frame">{item.frameAspect}</span>
+                ) : null}
+              </span>
             </button>
           </li>
         ))}

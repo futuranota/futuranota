@@ -92,13 +92,16 @@ export function FolderLibraryImageDetail({
     if (!item.mediaUrl || downloading) return;
     setDownloading(true);
     try {
+      // Prefer framed product (mediaUrl). Never fall back to sourceMediaUrl.
       const res = await fetch(item.mediaUrl);
       if (!res.ok) throw new Error("fetch failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = downloadFilename(item.tag);
+      const frame = String(item.frameAspect || "").trim().replace(":", "x");
+      const base = downloadFilename(item.tag).replace(/\.webp$/i, "");
+      a.download = frame ? `${base}_${frame}.webp` : `${base}.webp`;
       document.body.appendChild(a);
       a.click();
       a.remove();
