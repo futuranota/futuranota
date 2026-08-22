@@ -13,6 +13,7 @@ import { createIntegrationsHealthMiddleware } from './server/integrationsHealthH
 import { createEventsMiddleware } from './server/eventsHandler.js';
 import { createWebProxyMiddleware } from './server/webProxyHandler.js';
 import { createManagementMiddleware } from './server/managementHandler.js';
+import { createHorizonKitsMiddleware } from './server/horizonKitsHandler.js';
 import { createOrchestratorMiddleware } from './server/orchestratorHandler.js';
 import { createCampaignAnalystMiddleware } from './server/campaignAnalystHandler.js';
 import { createMarketingGuideMiddleware } from './server/marketingGuideHandler.js';
@@ -47,6 +48,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createWeatherForecastMiddleware());
       server.middlewares.use(createIntegrationsHealthMiddleware());
       server.middlewares.use(createManagementMiddleware());
+      server.middlewares.use(createHorizonKitsMiddleware());
       server.middlewares.use(createUsersMeMiddleware());
       server.middlewares.use(createOrchestratorMiddleware());
       server.middlewares.use(createCampaignAnalystMiddleware());

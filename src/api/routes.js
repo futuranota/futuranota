@@ -26,6 +26,7 @@ export const API_ROUTES = {
   managementGastos: "/api/admin/management/gastos",
   managementQuotas: "/api/admin/management/quotas",
   managementUsers: "/api/admin/management/users",
+  horizonKits: "/api/admin/horizon-kits",
   usersMe: "/api/users/me",
   usageLog: "/api/usage/log",
   webProxy: "/api/proxy",

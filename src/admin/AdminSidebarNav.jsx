@@ -40,6 +40,7 @@ const NAV_GROUPS = [
       { id: 'step-shares', title: 'Step Shares' },
       { id: 'signals', title: 'Signals' },
       { id: 'campaigns', title: 'Campaign Detector' },
+      { id: 'horizon-kits', title: 'Horizon kits' },
       { id: 'horizon', title: 'Horizon Scan' },
       { id: 'sources', title: 'Scan Sources' },
     ],
@@ -169,7 +170,7 @@ export function parseAdminNavSelection(navId) {
   if (SECTION_BY_NAV_ID[navId]) {
     return { tab: 'management', managementSection: SECTION_BY_NAV_ID[navId] };
   }
-  if (['signals', 'campaigns', 'horizon', 'sources', 'step-shares'].includes(navId)) {
+  if (['signals', 'campaigns', 'horizon', 'horizon-kits', 'sources', 'step-shares'].includes(navId)) {
     return { tab: navId };
   }
   if (navId === 'management') {

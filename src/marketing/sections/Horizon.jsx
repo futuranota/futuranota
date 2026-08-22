@@ -18,7 +18,7 @@ function normalizeItem(raw = {}, index = 0) {
   const free = Boolean(raw.free) || raw.price === 'Free';
 
   return {
-    key: raw.title || `horizon-item-${index}`,
+    key: raw.id || raw.title || `horizon-item-${index}`,
     tag: raw.tag || 'HORIZON',
     title: raw.title || '',
     desc: raw.desc || '',
@@ -36,6 +36,7 @@ function normalizeItem(raw = {}, index = 0) {
     downloadUrl,
     previewUrl,
     blogSlug,
+    image: typeof raw.image === 'string' ? raw.image.trim() : '',
     readHref: blogSlug ? blogPostPath(blogSlug) : `${PATHS.blogs}?cat=Horizon`,
   };
 }
@@ -51,8 +52,15 @@ function HorizonCard({ item }) {
 
   return (
     <article className="horizon-card card" data-screen-label={`horizon-${item.title}`}>
-      <div className="horizon-card__preview ph" style={{ aspectRatio: '16 / 10' }}>
-        <span className="ph__tag">kit preview · {item.tag.toLowerCase()}</span>
+      <div
+        className={`horizon-card__preview${item.image ? ' has-image' : ' ph'}`}
+        style={{ aspectRatio: '16 / 10' }}
+      >
+        {item.image ? (
+          <img className="horizon-card__preview-img" src={item.image} alt="" />
+        ) : (
+          <span className="ph__tag">kit preview · {item.tag.toLowerCase()}</span>
+        )}
         {item.free && <span className="chip chip--signal horizon-card__badge">Free</span>}
         {item.hot && !item.free && (
           <span className="chip chip--accent horizon-card__badge">
@@ -102,7 +110,11 @@ function HorizonCard({ item }) {
             {stat ? <span className="mono-sm faint">{stat}</span> : null}
           </div>
           <div className="horizon-card__cta">
-            <a href={item.downloadUrl} className="btn btn-sm btn-primary">
+            <a
+              href={item.downloadUrl}
+              className="btn btn-sm btn-primary"
+              {...(item.downloadUrl.endsWith('.zip') ? { download: true } : {})}
+            >
               Download &amp; import
             </a>
             {showPreview ? (

@@ -353,6 +353,8 @@ export default defineConfig({
             label: 'Horizon kits',
             list: true,
             fields: [
+              { type: 'string', name: 'id', label: 'Kit id' },
+              { type: 'image', name: 'image', label: 'Cover image' },
               { type: 'string', name: 'tag', label: 'Tag' },
               { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
               { type: 'string', name: 'desc', label: 'Description', ui: { component: 'textarea' } },

@@ -3,6 +3,10 @@
     "api/**/*.js": {
       "maxDuration": 30,
       "includeFiles": "content/agents/**"
+    },
+    "api/admin/horizon-kits.js": {
+      "maxDuration": 30,
+      "includeFiles": "content/marketing/**"
     }
   },
   "rewrites": [

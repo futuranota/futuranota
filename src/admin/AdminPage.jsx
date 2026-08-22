@@ -5,6 +5,7 @@ import { applyMarketingTheme } from '../marketing/lib/theme.js';
 import { SignalsAdminPanel } from './SignalsAdminPanel.jsx';
 import { CampaignDetectorAdminPanel } from './CampaignDetectorAdminPanel.jsx';
 import { HorizonScanAdminPanel } from './HorizonScanAdminPanel.jsx';
+import { HorizonKitsAdminPanel } from './HorizonKitsAdminPanel.jsx';
 import { ScanSourcesAdminPanel } from './ScanSourcesAdminPanel.jsx';
 import { StepPlaybookSharesAdminPanel } from './StepPlaybookSharesAdminPanel.jsx';
 import { ManagementAdminPanel } from './ManagementAdminPanel.jsx';
@@ -172,6 +173,9 @@ export function AdminPage() {
             </div>
             <div className={`admin-panel-view${tab === 'campaigns' ? '' : ' is-hidden'}`}>
               <CampaignDetectorAdminPanel onPublishedToSignals={handlePublishedToSignals} />
+            </div>
+            <div className={`admin-panel-view${tab === 'horizon-kits' ? '' : ' is-hidden'}`}>
+              <HorizonKitsAdminPanel />
             </div>
             <div className={`admin-panel-view${tab === 'horizon' ? '' : ' is-hidden'}`}>
               <HorizonScanAdminPanel onPublishedToSignals={handlePublishedToSignals} />
