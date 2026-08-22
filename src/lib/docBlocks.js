@@ -1,4 +1,8 @@
-import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
+import {
+  DEFAULT_CODE_LANGUAGE,
+  normalizeCodeLanguage,
+  normalizePromptFormat,
+} from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -186,13 +190,18 @@ export function stepUsesRecipeLayout(step) {
 
 export function createStepEntry(patch = {}) {
   const prompt = String(patch.prompt ?? "");
+  const promptFormat = normalizePromptFormat(patch.promptFormat, {
+    promptMd: patch.promptMd,
+  });
   return {
     id: patch.id || generateId("STEP"),
     images: normalizeStepImages(patch.images, patch),
     meta: String(patch.meta ?? ""),
     prompt,
     promptSaved: Boolean(patch.promptSaved) && Boolean(prompt.trim()),
-    promptMd: Boolean(patch.promptMd),
+    promptFormat,
+    /** Derived for older readers; prefer promptFormat. */
+    promptMd: promptFormat === "markdown",
     blocks: normalizeStepBlocks(migrateLegacyStepToBlocks(patch)),
   };
 }

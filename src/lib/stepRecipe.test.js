@@ -64,4 +64,28 @@ describe("step recipe fields", () => {
     ]);
     expect(steps[0].promptSaved).toBe(true);
   });
+
+  it("defaults promptFormat to text", () => {
+    expect(createStepEntry().promptFormat).toBe("text");
+    expect(createStepEntry().promptMd).toBe(false);
+  });
+
+  it("migrates legacy promptMd to markdown format", () => {
+    const step = createStepEntry({ prompt: "# Hello", promptMd: true });
+    expect(step.promptFormat).toBe("markdown");
+    expect(step.promptMd).toBe(true);
+  });
+
+  it("preserves promptFormat through finalize", () => {
+    const steps = finalizeStepSequence([
+      createStepEntry({ prompt: '{"a":1}', promptFormat: "json" }),
+    ]);
+    expect(steps[0].promptFormat).toBe("json");
+    expect(steps[0].promptSaved).toBe(true);
+    expect(steps[0].prompt).toBe('{"a":1}');
+  });
+
+  it("maps plaintext promptFormat to text", () => {
+    expect(createStepEntry({ promptFormat: "plaintext" }).promptFormat).toBe("text");
+  });
 });

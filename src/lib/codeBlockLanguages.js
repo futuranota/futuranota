@@ -35,3 +35,29 @@ export function codeLanguageLabel(language) {
   const match = CODE_BLOCK_LANGUAGES.find((entry) => entry.id === normalizeCodeLanguage(language));
   return match?.label ?? "JavaScript";
 }
+
+/** Prompt box formats: Text (default) + code languages (no duplicate plaintext). */
+export const DEFAULT_PROMPT_FORMAT = "text";
+
+export const PROMPT_FORMATS = [
+  { id: "text", label: "Text" },
+  ...CODE_BLOCK_LANGUAGES.filter((entry) => entry.id !== "plaintext"),
+];
+
+/**
+ * @param {unknown} format
+ * @param {{ promptMd?: boolean }} [opts]
+ */
+export function normalizePromptFormat(format, opts = {}) {
+  const raw = String(format ?? "").trim().toLowerCase();
+  if (raw === "plaintext") return DEFAULT_PROMPT_FORMAT;
+  if (PROMPT_FORMATS.some((entry) => entry.id === raw)) return raw;
+  if (!raw && Boolean(opts.promptMd)) return "markdown";
+  return DEFAULT_PROMPT_FORMAT;
+}
+
+export function promptFormatLabel(format) {
+  const id = normalizePromptFormat(format);
+  const match = PROMPT_FORMATS.find((entry) => entry.id === id);
+  return match?.label ?? "Text";
+}

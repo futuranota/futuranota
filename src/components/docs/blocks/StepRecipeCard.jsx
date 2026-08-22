@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import { copyToClipboard } from "../../../lib/copyToClipboard.js";
+import {
+  PROMPT_FORMATS,
+  normalizePromptFormat,
+  promptFormatLabel,
+} from "../../../lib/codeBlockLanguages.js";
+import { highlightCodeSnippet } from "../../../lib/highlightCodeSnippet.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 
@@ -136,13 +142,17 @@ export function StepRecipeCard({
   const interactive = Boolean(onChange) && !readOnly;
   const prompt = step?.prompt || "";
   const meta = step?.meta || "";
-  const promptMd = Boolean(step?.promptMd);
+  const promptFormat = normalizePromptFormat(step?.promptFormat, {
+    promptMd: step?.promptMd,
+  });
   const promptSaved = Boolean(step?.promptSaved && prompt.trim());
   const images = Array.isArray(step?.images) ? step.images : [];
   const hasImages = images.some((item) => Boolean(item?.src));
   const [mediaOpen, setMediaOpen] = useState(hasImages);
   const showMedia = hasImages || (interactive && mediaOpen);
   const showPlus = interactive && allowSecondImage && images.length === 1 && !addingSecond;
+  const isCodeFormat = promptFormat !== "text";
+  const isMarkdownFormat = promptFormat === "markdown";
 
   useEffect(() => {
     if (hasImages) setMediaOpen(true);
@@ -216,7 +226,15 @@ export function StepRecipeCard({
   };
 
   const showCopy = Boolean(prompt.trim());
-  const renderMarkdown = promptMd && (readOnly || promptSaved) && prompt.trim();
+  const showSavedRender = !interactive && (readOnly || promptSaved);
+  const renderMarkdown = showSavedRender && isMarkdownFormat && Boolean(prompt.trim());
+  const renderHighlighted = showSavedRender && isCodeFormat && !isMarkdownFormat && Boolean(prompt.trim());
+
+  const highlightedHtml = useMemo(
+    () => (renderHighlighted ? highlightCodeSnippet(prompt, promptFormat) : ""),
+    [prompt, promptFormat, renderHighlighted],
+  );
+
   const recipeClass = [
     "doc-step-recipe",
     compact ? "doc-step-recipe--compact" : "",
@@ -323,21 +341,65 @@ export function StepRecipeCard({
           </div>
           <div className="doc-step-recipe__prompt-box">
             {interactive ? (
-              <textarea
-                className="doc-step-recipe__textarea doc-step-recipe__textarea--prompt"
-                value={prompt}
-                rows={showMedia ? 6 : 10}
-                placeholder={t("doc.stepRecipe.promptPlaceholder")}
-                spellCheck
-                onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
-              />
+              <>
+                <div className="doc-step-recipe__prompt-tools doc-step-recipe__prompt-tools--format">
+                  <label className="doc-step-recipe__format-label">
+                    <span className="sr-only">{t("doc.stepRecipe.promptFormatAria")}</span>
+                    <select
+                      className="doc-step-recipe__format-select"
+                      value={promptFormat}
+                      aria-label={t("doc.stepRecipe.promptFormatAria")}
+                      onChange={(event) => {
+                        patchStep({
+                          promptFormat: normalizePromptFormat(event.target.value),
+                          promptSaved: false,
+                        });
+                      }}
+                    >
+                      {PROMPT_FORMATS.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.id === "text"
+                            ? t("doc.stepRecipe.promptFormatText")
+                            : entry.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <textarea
+                  className={[
+                    "doc-step-recipe__textarea",
+                    "doc-step-recipe__textarea--prompt",
+                    isCodeFormat ? "doc-step-recipe__textarea--mono" : "",
+                  ].filter(Boolean).join(" ")}
+                  value={prompt}
+                  rows={showMedia ? 6 : 10}
+                  placeholder={t("doc.stepRecipe.promptPlaceholder")}
+                  spellCheck={!isCodeFormat}
+                  onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
+                />
+              </>
             ) : renderMarkdown ? (
               <div className="doc-step-recipe__md">
                 <MarkdownPreview source={prompt} />
               </div>
+            ) : renderHighlighted ? (
+              <pre className="doc-step-recipe__prompt-text doc-step-recipe__prompt-text--code">
+                <code
+                  className="doc-code-block__highlight hljs"
+                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                />
+              </pre>
             ) : (
               <pre className="doc-step-recipe__prompt-text">{prompt.trim() || "—"}</pre>
             )}
+            {!interactive && isCodeFormat ? (
+              <span className="doc-step-recipe__format-badge" title={promptFormatLabel(promptFormat)}>
+                {promptFormat === "text"
+                  ? t("doc.stepRecipe.promptFormatText")
+                  : promptFormatLabel(promptFormat)}
+              </span>
+            ) : null}
             {showCopy ? (
               <button
                 type="button"
