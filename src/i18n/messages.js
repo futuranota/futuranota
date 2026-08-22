@@ -213,6 +213,10 @@ export const messages = {
         overlayContrastLabel: "Contrast",
         overlayContrastInk: "Ink",
         overlayContrastLight: "Light",
+        expand: "Expand",
+        collapse: "Collapse",
+        workspaceTitle: "Moodboard",
+        workspaceOpen: "Moodboard open in workspace",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",
@@ -1957,6 +1961,10 @@ export const messages = {
         overlayContrastLabel: "Contraste",
         overlayContrastInk: "Tinta",
         overlayContrastLight: "Claro",
+        expand: "Expandir",
+        collapse: "Cerrar",
+        workspaceTitle: "Moodboard",
+        workspaceOpen: "Moodboard abierto en workspace",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",

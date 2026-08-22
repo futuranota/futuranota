@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
@@ -452,6 +453,7 @@ export function MoodboardBlockView({
   const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
+  const [boardExpanded, setBoardExpanded] = useState(false);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
   const [pendingOverlayKind, setPendingOverlayKind] = useState(null);
   const overlayDragRef = useRef(null);
@@ -486,6 +488,24 @@ export function MoodboardBlockView({
       setSelectedOverlayId(null);
     }
   }, [overlays, selectedOverlayId]);
+
+  useEffect(() => {
+    if (!boardExpanded) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      // Attachment modal owns Escape while open (higher z-index).
+      if (attachmentSlot) return;
+      event.preventDefault();
+      setBoardExpanded(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [boardExpanded, attachmentSlot]);
 
   const pulseCaptionLimit = useCallback(() => {
     setCaptionAtLimit(true);
@@ -526,11 +546,19 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Full layout may exceed the shared text-block ceiling so short screenshots scale up.
-      const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
-        ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.9)
-        : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
-      const maxContentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
+      // Inline: share text-block ceiling. Expanded workspace: use viewport room.
+      let maxContentH;
+      if (boardExpanded) {
+        const viewportCap = typeof window !== "undefined"
+          ? Math.round(window.innerHeight * 0.68)
+          : 560;
+        maxContentH = Math.round(Math.max(280, Math.min(colInner * aspect * 1.2, viewportCap)));
+      } else {
+        const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
+          ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.9)
+          : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
+        maxContentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
+      }
       const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
 
       const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
@@ -550,10 +578,15 @@ export function MoodboardBlockView({
       requestAnimationFrame(sync);
     });
     ro.observe(board);
+    const onWinResize = () => {
+      if (boardExpanded) requestAnimationFrame(sync);
+    };
+    if (boardExpanded) window.addEventListener("resize", onWinResize);
     return () => {
       ro.disconnect();
+      window.removeEventListener("resize", onWinResize);
     };
-  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey]);
+  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey, boardExpanded]);
 
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
@@ -1390,8 +1423,14 @@ export function MoodboardBlockView({
     );
   };
 
-  return (
-    <div className={"doc-moodboard" + (moodboardSaved ? " doc-moodboard--saved" : "")}>
+  const moodboardTree = (
+    <div
+      className={
+        "doc-moodboard"
+        + (moodboardSaved ? " doc-moodboard--saved" : "")
+        + (boardExpanded ? " doc-moodboard--expanded" : "")
+      }
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -1450,6 +1489,28 @@ export function MoodboardBlockView({
       ) : null}
 
       <div className="doc-moodboard__board-wrap">
+        <button
+          type="button"
+          className={
+            "doc-moodboard__expand-btn"
+            + (boardExpanded ? " doc-moodboard__expand-btn--collapse" : "")
+          }
+          onClick={() => setBoardExpanded((prev) => !prev)}
+          aria-pressed={boardExpanded}
+          aria-label={
+            boardExpanded
+              ? t("doc.moodboard.collapse")
+              : t("doc.moodboard.expand")
+          }
+          title={
+            boardExpanded
+              ? t("doc.moodboard.collapse")
+              : t("doc.moodboard.expand")
+          }
+        >
+          {boardExpanded ? t("doc.moodboard.collapse") : t("doc.moodboard.expand")}
+        </button>
+
         {isEdit ? (
           <div
             className="doc-moodboard__overlay-rail"
@@ -1797,5 +1858,56 @@ export function MoodboardBlockView({
 
       {error ? <p className="doc-moodboard__error" role="alert">{error}</p> : null}
     </div>
+  );
+
+  if (!boardExpanded) return moodboardTree;
+
+  return (
+    <>
+      <div className="doc-moodboard doc-moodboard--workspace-stub">
+        <span className="doc-moodboard__workspace-stub-label">
+          {t("doc.moodboard.workspaceOpen")}
+        </span>
+        <button
+          type="button"
+          className="doc-moodboard__expand-btn doc-moodboard__expand-btn--stub"
+          onClick={() => setBoardExpanded(false)}
+        >
+          {t("doc.moodboard.collapse")}
+        </button>
+      </div>
+      {createPortal(
+        <div
+          className="doc-moodboard-workspace"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("doc.moodboard.workspaceTitle")}
+        >
+          <div className="doc-moodboard-workspace__shell">
+            <header className="doc-moodboard-workspace__header">
+              <span className="doc-moodboard-workspace__title">
+                {t("doc.moodboard.workspaceTitle")}
+              </span>
+              <button
+                type="button"
+                className="doc-moodboard-workspace__close"
+                onClick={() => setBoardExpanded(false)}
+                aria-label={t("doc.moodboard.collapse")}
+                title={t("doc.moodboard.collapse")}
+              >
+                ×
+              </button>
+            </header>
+            <div
+              className="doc-moodboard-workspace__body scroll-match-bg"
+              style={{ "--scroll-bg": "#151515" }}
+            >
+              {moodboardTree}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
