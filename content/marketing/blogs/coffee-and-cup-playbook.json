@@ -11,23 +11,27 @@
     "Horizon"
   ],
   "excerpt": "The best companion products do not compete with the hero — they complete the ritual. This is the playbook we use for coffee-and-cup launches. new upload",
-  "body": "A companion product works when it extends a moment the buyer already wants. Coffee brands do not need another bag; they need the cup that makes the morning feel finished.\nMap the ritual in three beats: anticipation, use, and share. Your companion should shine in the middle beat the part the hero product cannot own.\n\nPrice it as an add-on, not a downgrade. Bundle language matters: \"complete the set\" beats \"also available.\" Limit colorways so the decision stays fast\n\n----\n\nUse the launch window to test one hero SKU plus one companion. Measure attach rate, not total SKUs. When attach rate climbs, you have a repeatable playbook — not a one-off merch idea.",
   "blocks": [
     {
-      "_template": "paragraph",
-      "text": "A companion product works when it extends a moment the buyer already wants. Coffee brands do not need another bag; they need the cup that makes the morning feel finished."
+      "text": "A companion product works when it extends a moment the buyer already wants. Coffee brands do not need another bag; they need the cup that makes the morning feel finished.",
+      "_template": "paragraph"
     },
     {
-      "_template": "paragraph",
-      "text": "Map the ritual in three beats: anticipation, use, and share. Your companion should shine in the middle beat the part the hero product cannot own."
+      "text": "Map the ritual in three beats: anticipation, use, and share. Your companion should shine in the middle beat the part the hero product cannot own.",
+      "_template": "paragraph"
     },
     {
-      "_template": "paragraph",
-      "text": "Price it as an add-on, not a downgrade. Bundle language matters: \"complete the set\" beats \"also available.\" Limit colorways so the decision stays fast"
+      "text": "Price it as an add-on, not a downgrade. Bundle language matters: \"complete the set\" beats \"also available.\" Limit colorways so the decision stays fast",
+      "_template": "paragraph"
     },
     {
-      "_template": "paragraph",
-      "text": "Use the launch window to test one hero SKU plus one companion. Measure attach rate, not total SKUs. When attach rate climbs, you have a repeatable playbook — not a one-off merch idea."
+      "src": "/uploads/IMAGES/assitente-gina-moodboard.png",
+      "_template": "image"
+    },
+    {
+      "text": "Use the launch window to test one hero SKU plus one companion. Measure attach rate, not total SKUs. When attach rate climbs, you have a repeatable playbook — not a one-off merch idea.",
+      "_template": "paragraph"
     }
-  ]
+  ],
+  "body": "A companion product works when it extends a moment the buyer already wants. Coffee brands do not need another bag; they need the cup that makes the morning feel finished. \nMap the ritual in three beats: anticipation, use, and share. Your companion should shine in the middle beat the part the hero product cannot own.\n\nPrice it as an add-on, not a downgrade. Bundle language matters: \"complete the set\" beats \"also available.\" Limit colorways so the decision stays fast\n\n----\n\nUse the launch window to test one hero SKU plus one companion. Measure attach rate, not total SKUs. When attach rate climbs, you have a repeatable playbook — not a one-off merch idea."
 }
