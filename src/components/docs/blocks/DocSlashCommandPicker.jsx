@@ -41,6 +41,7 @@ export function DocSlashCommandPicker({
   createDocumentMode = false,
   onCreateDocument = null,
   createDocumentIconSrc = "/uploads/add-folder.svg",
+  createDocumentHoverIconSrc = "/uploads/add-folder-hover.svg",
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -89,6 +90,13 @@ export function DocSlashCommandPicker({
           <img
             className="doc-slash-command-picker__file-icon"
             src={createDocumentIconSrc}
+            alt=""
+            aria-hidden
+            draggable={false}
+          />
+          <img
+            className="doc-slash-command-picker__file-icon doc-slash-command-picker__file-icon--hover"
+            src={createDocumentHoverIconSrc}
             alt=""
             aria-hidden
             draggable={false}

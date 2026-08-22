@@ -12,6 +12,8 @@ import {
 const SHREDDER_OFF_SRC = "/uploads/trituradora-de-files-off.svg?v=c5";
 const SHREDDER_HOVER_SRC = "/uploads/trituradora-de-files-hover.svg?v=c5";
 const FILE_STICKER_SRC = "/uploads/file-sticker.svg";
+/** Same file art: gray layer → folder title accent (#dcb2a6); black strokes kept. */
+const FILE_STICKER_HOVER_SRC = "/uploads/file-sticker-hover.svg";
 
 /** Cached drag ghost — setDragImage needs a loaded element. */
 let fileStickerDragImg = null;
@@ -28,7 +30,7 @@ if (typeof Image !== "undefined") getFileStickerDragImage();
 /**
  * Static file sticker beside a folder document title.
  * Click opens the document; drag (when enabled) shreds via the demoledor.
- * Hover paints gray mesh on the title.
+ * Hover tints the sticker + linked title together (no title mesh).
  */
 export function FolderFileShredHandle({
   nodeId,
@@ -105,6 +107,13 @@ export function FolderFileShredHandle({
       <img
         className="folder-file-shred-handle__sticker"
         src={FILE_STICKER_SRC}
+        alt=""
+        aria-hidden
+        draggable={false}
+      />
+      <img
+        className="folder-file-shred-handle__sticker folder-file-shred-handle__sticker--hover"
+        src={FILE_STICKER_HOVER_SRC}
         alt=""
         aria-hidden
         draggable={false}

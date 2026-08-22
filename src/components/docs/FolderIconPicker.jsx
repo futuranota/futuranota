@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 export const FOLDER_ICON_EMPTY_SRC = "/uploads/Tag.svg";
 
 /**
  * Circular folder icon upload for content-mode document banners.
  * Empty state shows Tag.svg; custom icon is a Storage public URL (legacy data-URLs still render).
+ * Clear: visible × when custom, or right-click on the icon.
  */
 export function FolderIconPicker({
   icon = "",
@@ -13,6 +15,7 @@ export function FolderIconPicker({
   /** Doc / folder id — Storage path `{user}/{scopeId}/{FICON-…}.webp` */
   scopeId = "folder-icon",
 }) {
+  const { t } = useI18n();
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -70,10 +73,16 @@ export function FolderIconPicker({
         }}
         onContextMenu={handleClear}
         disabled={!canEdit || uploading}
-        aria-label={hasCustom ? "Change folder icon" : "Add folder icon"}
+        aria-label={
+          hasCustom
+            ? t("doc.folderIcon.change")
+            : t("doc.folderIcon.add")
+        }
         title={
           error
-            || (hasCustom ? "Click to replace · right-click to clear" : "Upload folder icon")
+            || (hasCustom
+              ? t("doc.folderIcon.changeHint")
+              : t("doc.folderIcon.addHint"))
         }
       >
         <img
@@ -86,6 +95,17 @@ export function FolderIconPicker({
           aria-hidden
         />
       </button>
+      {canEdit && hasCustom && !uploading ? (
+        <button
+          type="button"
+          className="doc-folder-icon-picker__clear"
+          onClick={handleClear}
+          aria-label={t("doc.folderIcon.clear")}
+          title={t("doc.folderIcon.clear")}
+        >
+          ×
+        </button>
+      ) : null}
       <input
         ref={inputRef}
         type="file"

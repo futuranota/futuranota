@@ -97,6 +97,13 @@ export const messages = {
       importObjectNeedCompany: "Select a company first to pin Import Object",
     },
     doc: {
+      folderIcon: {
+        add: "Add folder icon",
+        change: "Change folder icon",
+        addHint: "Upload folder icon",
+        changeHint: "Click to replace · × to clear",
+        clear: "Remove folder icon",
+      },
       imageBlock: {
         uploadLabel: "Upload image",
         uploadHint: "Drop here or click to choose a file",
@@ -1834,6 +1841,13 @@ export const messages = {
       importObjectNeedCompany: "Selecciona una compañía primero para fijar Import Object",
     },
     doc: {
+      folderIcon: {
+        add: "Agregar ícono del folder",
+        change: "Cambiar ícono del folder",
+        addHint: "Subir ícono del folder",
+        changeHint: "Clic para reemplazar · × para quitar",
+        clear: "Quitar ícono del folder",
+      },
       imageBlock: {
         uploadLabel: "Subir imagen",
         uploadHint: "Arrastrá aquí o hacé clic para elegir archivo",

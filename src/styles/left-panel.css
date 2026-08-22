@@ -4113,6 +4113,7 @@
 }
 
 .doc-folder-icon-picker {
+  position: relative;
   flex-shrink: 0;
   padding-left: 4px;
 }
@@ -4159,6 +4160,36 @@
   object-fit: contain;
   /* Match create-folder / shredder gray #64686A */
   filter: brightness(0) invert(39.5%);
+}
+
+.doc-folder-icon-picker__clear {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: #151515;
+  color: #b8b8b8;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.doc-folder-icon-picker__clear:hover {
+  background: rgba(201, 120, 120, 0.14);
+  border-color: rgba(201, 120, 120, 0.4);
+  color: #e8b0b0;
 }
 
 .lp-folder-custom-icon {
@@ -6286,6 +6317,8 @@
   overflow: hidden;
   background: rgb(22, 26, 29);
   --doc-body-track: rgb(22, 26, 29);
+  /* Exact match .doc-new-head-title — used by expand / layered icon hovers */
+  --folder-title-accent: #dcb2a6;
 }
 
 .doc-new-content-box--resizable {
@@ -6517,7 +6550,7 @@
 .doc-new-content-expand-btn:hover .doc-new-content-expand-btn__icon,
 .doc-new-content-expand-btn:focus-visible .doc-new-content-expand-btn__icon,
 .doc-new-content-expand-btn.is-focus .doc-new-content-expand-btn__icon {
-  background-color: #6a6d72;
+  background-color: var(--folder-title-accent, #dcb2a6);
   opacity: 1;
 }
 
@@ -6805,12 +6838,20 @@
   background-size: 4px 4px;
   background-repeat: repeat;
   background-position: 0.15px 0.15px;
+  transition: background-image 0.15s ease;
+}
+
+.doc-new-content-shrink-handle:hover::before,
+.doc-new-content-shrink-handle.is-active::before,
+.doc-new-content-shrink-handle:focus-visible::before {
+  background-image:
+    radial-gradient(circle, var(--folder-title-accent, #dcb2a6) 0.85px, transparent 0.85px);
 }
 
 .doc-new-content-shrink-handle:hover,
 .doc-new-content-shrink-handle.is-active,
 .doc-new-content-shrink-handle:focus-visible {
-  opacity: 0.72;
+  opacity: 0.92;
   outline: none;
 }
 
@@ -9447,6 +9488,27 @@ body.doc-content-resizing * {
   margin-bottom: 0;
 }
 
+/* Folder doc titles: idle = icon gray; accent only when file icon is hovered */
+.doc-block-stack__item--folder-doc .doc-h1-block__input,
+.doc-block-stack__item--folder-doc .doc-todo-plan__title-input {
+  color: #c5c5c5;
+  transition: color 0.15s ease;
+}
+
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:hover) .doc-h1-block__input,
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle.is-dragging) .doc-h1-block__input,
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:focus-visible) .doc-h1-block__input,
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:hover) .doc-todo-plan__title-input,
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle.is-dragging) .doc-todo-plan__title-input,
+.doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:focus-visible) .doc-todo-plan__title-input {
+  color: var(--folder-title-accent, #dcb2a6);
+}
+
+.doc-block-stack__item--folder-doc .doc-h1-block__input::placeholder,
+.doc-block-stack__item--folder-doc .doc-todo-plan__title-input::placeholder {
+  color: color-mix(in oklab, #c5c5c5 45%, transparent);
+}
+
 .doc-linked-macro-desc .folder-doc-row__desc-label {
   font-family: var(--font-doc);
   font-size: var(--font-doc-size);
@@ -9467,8 +9529,9 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
-/* Static file sticker beside title — always visible; hover = gray mesh on title. */
+/* Static file sticker beside title — always visible; hover = accent fill + black strokes. */
 .folder-file-shred-handle {
+  position: relative;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -9505,20 +9568,26 @@ body.doc-content-resizing * {
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  transition: opacity 0.15s ease;
 }
 
-/* Gray mesh on title while hovering / dragging the file sticker. */
-.doc-h1-block__header:has(.folder-file-shred-handle:hover) .doc-h1-block__input,
-.doc-h1-block__header:has(.folder-file-shred-handle.is-dragging) .doc-h1-block__input,
-.doc-todo-plan__header:has(.folder-file-shred-handle:hover) .doc-todo-plan__title-input,
-.doc-todo-plan__header:has(.folder-file-shred-handle.is-dragging) .doc-todo-plan__title-input {
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px);
-  background-size: 6px 6px;
-  background-color: rgba(255, 255, 255, 0.04);
+.folder-file-shred-handle__sticker--hover {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+}
+
+.folder-file-shred-handle:hover .folder-file-shred-handle__sticker:not(.folder-file-shred-handle__sticker--hover),
+.folder-file-shred-handle.is-dragging .folder-file-shred-handle__sticker:not(.folder-file-shred-handle__sticker--hover),
+.folder-file-shred-handle:focus-visible .folder-file-shred-handle__sticker:not(.folder-file-shred-handle__sticker--hover) {
+  opacity: 0;
+}
+
+.folder-file-shred-handle:hover .folder-file-shred-handle__sticker--hover,
+.folder-file-shred-handle.is-dragging .folder-file-shred-handle__sticker--hover,
+.folder-file-shred-handle:focus-visible .folder-file-shred-handle__sticker--hover {
+  opacity: 1;
 }
 
 /* Description excerpt: gray mesh across the full text on hover (visual only). */
@@ -10745,6 +10814,7 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-command-picker__btn--create-file {
+  position: relative;
   width: 24px;
   height: 24px;
   border: none;
@@ -10763,8 +10833,15 @@ body.doc-content-resizing * {
   opacity: 1;
   transition:
     opacity 0.15s ease,
-    transform 0.15s ease,
-    filter 0.15s ease;
+    transform 0.15s ease;
+}
+
+.doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon--hover {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  transform: none;
 }
 
 /* Expanded content focus: keep create-doc icon at 36px */
@@ -10789,16 +10866,23 @@ body.doc-content-resizing * {
   transform: none;
 }
 
-.doc-slash-command-picker__btn:hover .doc-slash-command-picker__file-icon,
-.doc-slash-command-picker__btn:focus-visible .doc-slash-command-picker__file-icon {
+.doc-slash-command-picker__btn:not(.doc-slash-command-picker__btn--create-file):hover .doc-slash-command-picker__file-icon,
+.doc-slash-command-picker__btn:not(.doc-slash-command-picker__btn--create-file):focus-visible .doc-slash-command-picker__file-icon {
   opacity: 1;
   filter: brightness(0.15);
 }
 
-.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon,
-.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon {
+.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon:not(.doc-slash-command-picker__file-icon--hover),
+.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon:not(.doc-slash-command-picker__file-icon--hover) {
+  opacity: 0;
   filter: none;
+  transform: scale(1.08);
+}
+
+.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon--hover,
+.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon--hover {
   opacity: 1;
+  filter: none;
   transform: scale(1.08);
 }
 
