@@ -6,6 +6,7 @@ import { SignalsAdminPanel } from './SignalsAdminPanel.jsx';
 import { CampaignDetectorAdminPanel } from './CampaignDetectorAdminPanel.jsx';
 import { HorizonScanAdminPanel } from './HorizonScanAdminPanel.jsx';
 import { ScanSourcesAdminPanel } from './ScanSourcesAdminPanel.jsx';
+import { StepPlaybookSharesAdminPanel } from './StepPlaybookSharesAdminPanel.jsx';
 import { ManagementAdminPanel } from './ManagementAdminPanel.jsx';
 import {
   AdminSidebarNav,
@@ -177,6 +178,9 @@ export function AdminPage() {
             </div>
             <div className={`admin-panel-view${tab === 'sources' ? '' : ' is-hidden'}`}>
               <ScanSourcesAdminPanel />
+            </div>
+            <div className={`admin-panel-view${tab === 'step-shares' ? '' : ' is-hidden'}`}>
+              <StepPlaybookSharesAdminPanel />
             </div>
             <div className={`admin-panel-view${tab === 'management' ? '' : ' is-hidden'}`}>
               <ManagementAdminPanel section={managementSection} />

@@ -52,7 +52,11 @@ import {
   stepPlaybookSessionFromRef,
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
-import { shareStepPlaybookAndCopy } from './lib/stepPlaybookShare.js';
+import {
+  upsertStepPlaybookShareRequest,
+  copyPublishedStepShare,
+} from './lib/stepPlaybookShare.js';
+import { isAdminSessionEmail } from './lib/adminPlanCredits.js';
 import { flushPersistenceSync } from './stores/middleware/persistenceMiddleware.js';
 import {
   loadCompanyUrlTableSession,
@@ -1225,14 +1229,18 @@ useEffect(() => {
     setActiveStepPlaybookSession(null);
   }, [askConfirm, t]);
 
-  const handleStepPlaybookShare = useCallback(async () => {
+  const handleStepPlaybookShareRequest = useCallback(async () => {
     const current = activeStepPlaybookSessionRef.current;
     if (!current) return false;
+    const user = useAuthStore.getState().user;
+    if (!isAdminSessionEmail(user?.email)) {
+      setToast({ message: t('stepsLibrary.shareBetaOnly'), kind: 'warm' });
+      return false;
+    }
     if (!current.saved || !current.docId) {
       setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
       return false;
     }
-    const user = useAuthStore.getState().user;
     if (!user?.id) {
       setToast({ message: t('stepsLibrary.shareSignIn'), kind: 'warm' });
       return false;
@@ -1240,7 +1248,49 @@ useEffect(() => {
     if (stepPlaybookShareBusy) return false;
     setStepPlaybookShareBusy(true);
     try {
-      const result = await shareStepPlaybookAndCopy({ session: current, user });
+      const row = await upsertStepPlaybookShareRequest({ session: current, user });
+      setToast({ message: t('stepsLibrary.shareRequestSent'), kind: 'ok' });
+      return row;
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (msg === 'SHARE_BETA_ONLY') {
+        setToast({ message: t('stepsLibrary.shareBetaOnly'), kind: 'warm' });
+      } else if (msg === 'SAVE_FIRST') {
+        setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
+      } else {
+        setToast({
+          message: msg.includes('step_playbook_shares')
+            ? msg
+            : t('stepsLibrary.shareRequestError'),
+          kind: 'warm',
+        });
+      }
+      return false;
+    } finally {
+      setStepPlaybookShareBusy(false);
+    }
+  }, [stepPlaybookShareBusy, t]);
+
+  const handleStepPlaybookShareCopy = useCallback(async () => {
+    const current = activeStepPlaybookSessionRef.current;
+    if (!current) return false;
+    const user = useAuthStore.getState().user;
+    if (!isAdminSessionEmail(user?.email)) {
+      setToast({ message: t('stepsLibrary.shareBetaOnly'), kind: 'warm' });
+      return false;
+    }
+    if (!current.saved || !current.docId) {
+      setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
+      return false;
+    }
+    if (!user?.id) {
+      setToast({ message: t('stepsLibrary.shareSignIn'), kind: 'warm' });
+      return false;
+    }
+    if (stepPlaybookShareBusy) return false;
+    setStepPlaybookShareBusy(true);
+    try {
+      const result = await copyPublishedStepShare({ session: current, user });
       if (!result.copied) {
         setToast({ message: result.url, kind: 'ok' });
         return false;
@@ -1248,7 +1298,11 @@ useEffect(() => {
       return true;
     } catch (err) {
       const msg = String(err?.message || '');
-      if (msg === 'SAVE_FIRST') {
+      if (msg === 'SHARE_BETA_ONLY') {
+        setToast({ message: t('stepsLibrary.shareBetaOnly'), kind: 'warm' });
+      } else if (msg === 'NOT_PUBLISHED') {
+        setToast({ message: t('stepsLibrary.shareAwaitingApproval'), kind: 'warm' });
+      } else if (msg === 'SAVE_FIRST') {
         setToast({ message: t('stepsLibrary.shareSaveFirst'), kind: 'warm' });
       } else {
         setToast({
@@ -1918,7 +1972,8 @@ useEffect(() => {
           onChange={handleStepPlaybookSessionChange}
           onCloseTab={handleStepPlaybookSessionClose}
           onSaved={handleStepPlaybookSessionSaved}
-          onShare={handleStepPlaybookShare}
+          onRequestShare={handleStepPlaybookShareRequest}
+          onCopyShare={handleStepPlaybookShareCopy}
           shareBusy={stepPlaybookShareBusy}
         />
       ) : null}

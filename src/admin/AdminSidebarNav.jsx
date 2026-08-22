@@ -37,6 +37,7 @@ const NAV_GROUPS = [
           { id: 'mgmt-storage', title: 'Storage & Quotas' },
         ],
       },
+      { id: 'step-shares', title: 'Step Shares' },
       { id: 'signals', title: 'Signals' },
       { id: 'campaigns', title: 'Campaign Detector' },
       { id: 'horizon', title: 'Horizon Scan' },
@@ -168,7 +169,7 @@ export function parseAdminNavSelection(navId) {
   if (SECTION_BY_NAV_ID[navId]) {
     return { tab: 'management', managementSection: SECTION_BY_NAV_ID[navId] };
   }
-  if (['signals', 'campaigns', 'horizon', 'sources'].includes(navId)) {
+  if (['signals', 'campaigns', 'horizon', 'sources', 'step-shares'].includes(navId)) {
     return { tab: navId };
   }
   if (navId === 'management') {

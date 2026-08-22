@@ -1386,3 +1386,106 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Step Shares — admin preview mirrors public /s/:token box size */
+.step-share-admin-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.step-share-admin-preview__backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: #0a0c10;
+  cursor: pointer;
+}
+
+.step-share-admin-preview__shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 0 0 32px;
+}
+
+.step-share-admin-preview__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 14px 16px 12px;
+  background: #0a0c10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.step-share-admin-preview__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(232, 220, 200, 0.45);
+}
+
+.step-share-admin-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.step-share-admin-preview__scan {
+  max-width: 760px;
+  margin: 10px auto 0;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: rgba(232, 220, 200, 0.78);
+  background: rgba(21, 21, 21, 0.9);
+}
+
+.step-share-admin-preview__scan--ok {
+  border-left: 3px solid var(--hud, #8ee9a3);
+}
+
+.step-share-admin-preview__scan--warn {
+  border-left: 3px solid #EAA65D;
+}
+
+.step-share-admin-preview__scan--flag {
+  border-left: 3px solid var(--warm, #ff8f7a);
+}
+
+.step-share-admin-preview__scan ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.step-share-admin-preview__page {
+  /* Reuse .step-share-page; keep page bg transparent so shell/backdrop show */
+  min-height: 0;
+  background: transparent;
+  padding-top: 12px;
+}
+
+.step-share-admin-preview__brand {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e8e4dc;
+  letter-spacing: -0.02em;
+}
+

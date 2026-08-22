@@ -666,19 +666,160 @@
 
 .step-playbook-dashboard-overlay__top-actions {
   position: absolute;
-  top: 10px;
+  top: 8px;
   right: 10px;
   z-index: 2;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+
+.step-playbook-dashboard-overlay__top-actions > * {
+  pointer-events: auto;
+}
+
+.step-playbook-share-bar__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.step-playbook-share-bar__table th,
+.step-playbook-share-bar__table td {
+  padding: 10px 12px;
+  font-size: 12px;
+  vertical-align: middle;
+  border: none;
+}
+
+.step-playbook-share-bar__table th {
+  width: 52px;
+  text-align: left;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+}
+
+.step-playbook-share-bar__url {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(232, 220, 200, 0.78);
+  user-select: text;
+}
+
+.step-playbook-share-bar__url--dim {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.step-playbook-share-bar__actions {
+  width: 168px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.step-playbook-share-bar__btn {
+  min-width: 88px;
+  height: 28px;
+  padding: 0 12px;
+  margin-right: 6px;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.step-playbook-share-bar__btn:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.step-playbook-share-bar__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.step-playbook-share-bar__btn--requested {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 220, 200, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.step-playbook-share-bar__btn--copied {
+  color: #111;
+  background: #cdffa5;
+}
+
+.step-playbook-share-bar__info-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.step-playbook-share-bar__info {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(232, 220, 200, 0.65);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-playbook-share-bar__info:hover {
+  color: #e8e4dc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.step-playbook-share-bar__popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: min(280px, calc(100vw - 48px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #151515;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.step-playbook-share-bar__popover-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e8e4dc;
+}
+
+.step-playbook-share-bar__popover-list {
+  margin: 0;
+  padding-left: 16px;
+  color: rgba(232, 220, 200, 0.72);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.step-playbook-share-bar__popover-list li + li {
+  margin-top: 6px;
 }
 
 .step-playbook-dashboard-overlay__share {
-  width: 28px;
-  height: 28px;
   min-height: 28px;
-  padding: 0;
+  min-width: 28px;
+  padding: 0 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
@@ -687,6 +828,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -696,14 +838,26 @@
 }
 
 .step-playbook-dashboard-overlay__share:disabled {
-  opacity: 0.55;
-  cursor: wait;
+  opacity: 0.85;
+  cursor: default;
+}
+
+.step-playbook-dashboard-overlay__share--requested {
+  min-width: 0;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 5px;
+  color: rgba(232, 220, 200, 0.62);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1;
 }
 
 .step-playbook-dashboard-overlay__share--copied {
-  color: #cdffa5;
-  border-color: rgba(205, 255, 165, 0.35);
-  background: rgba(205, 255, 165, 0.12);
+  color: #111;
+  border-color: rgba(205, 255, 165, 0.45);
+  background: #cdffa5;
 }
 
 .step-playbook-dashboard-overlay__share-icon {
@@ -717,18 +871,18 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  animation: step-share-check-pop 0.28s ease;
 }
 
-@keyframes step-share-check-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.step-playbook-dashboard-overlay__share-sent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .step-playbook-dashboard-overlay__close {
@@ -742,6 +896,7 @@
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .step-playbook-dashboard-overlay__close:hover {
@@ -780,11 +935,16 @@
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__header {
-  padding: 2px 36px 8px 0;
+  padding: 2px 72px 8px 0;
   min-height: 0;
   margin-bottom: 6px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.step-playbook-dashboard-overlay__body .doc-step-sequence__header-aside {
+  margin-right: 0;
+  gap: 8px;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-sequence__label {
@@ -929,14 +1089,16 @@
 
 .step-playbook-dashboard-overlay__body .doc-step-recipe__field--prompt {
   flex: 1 1 0;
-  min-height: 96px;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .step-playbook-dashboard-overlay__body .doc-step-recipe__preview,
 .step-playbook-dashboard-overlay__body .doc-step-recipe__drop,
 .step-playbook-dashboard-overlay__body .doc-step-recipe__img {
-  min-height: 160px;
+  min-height: 0;
   max-height: none;
   height: 100%;
   background: var(--step-dashboard-bg);
@@ -956,7 +1118,10 @@
 .step-playbook-dashboard-overlay__body .doc-step-recipe__textarea--prompt,
 .step-playbook-dashboard-overlay__body .doc-step-recipe__prompt-text,
 .step-playbook-dashboard-overlay__body .doc-step-recipe__md {
-  min-height: 72px;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: auto;
+  max-height: 100%;
   overflow: auto;
 }
 
@@ -2605,14 +2770,58 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+.step-share-page__main .doc-step-recipe,
+.step-share-admin-preview .doc-step-recipe {
+  height: min(520px, 70vh);
+  max-height: min(520px, 70vh);
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.step-share-page__main .doc-step-recipe__col--copy,
+.step-share-admin-preview .doc-step-recipe__col--copy {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.step-share-page__main .doc-step-recipe__field--prompt,
+.step-share-admin-preview .doc-step-recipe__field--prompt {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.step-share-page__main .doc-step-recipe__prompt-box,
+.step-share-admin-preview .doc-step-recipe__prompt-box {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .step-share-page__main .doc-step-recipe__meta-text,
 .step-share-page__main .doc-step-recipe__textarea--meta,
 .step-share-page__main .doc-step-recipe__textarea--prompt,
 .step-share-page__main .doc-step-recipe__prompt-text,
-.step-share-page__main .doc-step-recipe__md {
+.step-share-page__main .doc-step-recipe__md,
+.step-share-admin-preview .doc-step-recipe__textarea--prompt,
+.step-share-admin-preview .doc-step-recipe__prompt-text,
+.step-share-admin-preview .doc-step-recipe__md {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
+}
+
+.step-share-page__main .doc-step-recipe__textarea--prompt,
+.step-share-page__main .doc-step-recipe__prompt-text,
+.step-share-page__main .doc-step-recipe__md,
+.step-share-admin-preview .doc-step-recipe__textarea--prompt,
+.step-share-admin-preview .doc-step-recipe__prompt-text,
+.step-share-admin-preview .doc-step-recipe__md {
+  min-height: 0;
+  flex: 1 1 auto;
+  height: auto;
+  max-height: 100%;
+  overflow: auto;
 }
 
 .step-share-page__main .doc-step-sequence__nav-btn {
