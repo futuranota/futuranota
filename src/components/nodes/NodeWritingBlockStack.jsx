@@ -1432,6 +1432,8 @@ export function NodeWritingBlockStack({
               <MoodboardBlockView
                 block={block}
                 slashGhostHints={slashGhostHints}
+                folderLibraryId={folderLibraryId}
+                libraryOwnerId={libraryOwnerId}
                 onChange={(patch) => {
                   const patchHasSavedImage = Array.isArray(patch.columns)
                     && countMoodboardSavedImages(patch) > 0;

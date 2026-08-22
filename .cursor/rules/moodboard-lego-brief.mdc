@@ -16,5 +16,5 @@ Before implementing Moodboard / attachments / Drive-file pieces:
 2. **Studio is out of scope** until Moodboard LEGO is done.
 3. Keep the **legacy 2-image moodboard** until an explicit migrate/replace is requested.
 4. Stack is **Vite + React + Zustand + Supabase** — do not scaffold Next.js App Router from external briefs.
-5. Images = local/WebP (or existing upload path). **Google Drive is for files only** (store `file_id` + open `/view`).
+5. Images = local/WebP, **or Library pick** (`libraryItemId` + same `mediaUrl` as `src`, no re-upload). **Google Drive is for files only** (store `file_id` + open `/view`). Google Images / external image host = later.
 6. Board = banner-width **LEGO grid** (frames L/M/S, note, file) + toolbar; click frame → attachments table → Accept → linkable tag in prose.

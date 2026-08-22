@@ -67,8 +67,10 @@ El Moodboard es el **tablero de visión**: piezas (imágenes, notas, @info, file
 ### Imágenes vs files
 | Tipo | Fuente | Qué se guarda |
 |---|---|---|
-| Image / frame | Upload local (como image-split WebP) | src / storage URL + dims + celda |
-| Document / file | **Google Drive Picker** | `drive_file_id`, nombre, mime, `webViewLink`, icono |
+| Image / frame | Upload local **o** Library pick (ficha con `mediaUrl`) | `src` (misma URL) + dims + celda; si Library: `libraryItemId` + `libraryOwnerKind` + `libraryOwnerId` |
+| Document / file | **Google Drive Picker** (link) | `externalUrl` / file icon — no bytes en Supabase |
+
+Library pick: no re-upload. Google Images / host externo = fase posterior.
 
 UI file piece: **icono + título + descripción** → click abre Drive (`/view` MVP).
 

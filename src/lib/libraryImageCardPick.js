@@ -16,6 +16,44 @@ export function isImageCardLibraryPick(item) {
 }
 
 /**
+ * Moodboard frames need a real photo (not prompt-only fichas).
+ * @param {{ category?: string, description?: string|null, mediaUrl?: string|null }|null|undefined} item
+ */
+export function isMoodboardLibraryPick(item) {
+  if (!item) return false;
+  const cat = String(item.category || "").trim().toLowerCase();
+  if (cat !== "image" && cat !== "auto") return false;
+  return fichaHasVisual(item);
+}
+
+/**
+ * Map a library ficha onto a moodboard slot (photo pointer, no re-upload).
+ * Caller should merge slotId / tagLabel / externalUrl from the previous slot.
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} item
+ * @param {"folder"|"document"|string} [ownerKind]
+ * @param {string} [ownerId]
+ */
+export function libraryItemToMoodboardSlotPatch(item, ownerKind = "document", ownerId = "") {
+  if (!item || !isMoodboardLibraryPick(item)) return null;
+  const src = String(item.mediaUrl || "").trim();
+  if (!src) return null;
+  const tag = String(item.tag || "").trim();
+  const kind = ownerKind === "folder" ? "folder" : "document";
+  return {
+    src,
+    name: tag,
+    alt: tag,
+    width: 0,
+    height: 0,
+    imageSaved: true,
+    kind: "image",
+    libraryItemId: String(item.id || "").trim(),
+    libraryOwnerKind: kind,
+    libraryOwnerId: String(ownerId || "").trim(),
+  };
+}
+
+/**
  * @param {unknown} value
  */
 export function normalizeImageSplitLibraryPrompt(value) {

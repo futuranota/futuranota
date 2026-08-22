@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   imageSplitHasFill,
   isImageCardLibraryPick,
+  isMoodboardLibraryPick,
   libraryItemToImageSplitPatch,
+  libraryItemToMoodboardSlotPatch,
   resolveImageSplitLibraryLink,
   syncImageSplitPromptToLibrary,
 } from "./libraryImageCardPick.js";
@@ -13,6 +15,47 @@ describe("libraryImageCardPick", () => {
     expect(isImageCardLibraryPick({ category: "image", description: "walk the hall" })).toBe(true);
     expect(isImageCardLibraryPick({ category: "skill", mediaUrl: "/a.webp" })).toBe(false);
     expect(isImageCardLibraryPick({ category: "image" })).toBe(false);
+  });
+
+  it("moodboard picks require a photo", () => {
+    expect(isMoodboardLibraryPick({ category: "image", mediaUrl: "/a.webp" })).toBe(true);
+    expect(isMoodboardLibraryPick({ category: "image", description: "only text" })).toBe(false);
+    expect(isMoodboardLibraryPick({ category: "skill", mediaUrl: "/a.webp" })).toBe(false);
+  });
+
+  it("maps a visual ficha onto a moodboard slot without re-upload fields", () => {
+    const patch = libraryItemToMoodboardSlotPatch(
+      {
+        id: "lib9",
+        tag: "hero_ref",
+        category: "image",
+        description: "optional note",
+        mediaUrl: "/hero.webp",
+      },
+      "folder",
+      "folder1",
+    );
+    expect(patch).toEqual({
+      src: "/hero.webp",
+      name: "hero_ref",
+      alt: "hero_ref",
+      width: 0,
+      height: 0,
+      imageSaved: true,
+      kind: "image",
+      libraryItemId: "lib9",
+      libraryOwnerKind: "folder",
+      libraryOwnerId: "folder1",
+    });
+  });
+
+  it("rejects prompt-only fichas for moodboard slots", () => {
+    expect(libraryItemToMoodboardSlotPatch({
+      id: "lib0",
+      tag: "cue",
+      category: "image",
+      description: "no photo",
+    }, "document")).toBeNull();
   });
 
   it("copies photo + metadata without touching the right-hand story", () => {

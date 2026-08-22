@@ -807,6 +807,9 @@ function normalizeMoodboardSlot(slot) {
     kind: hasImage ? "image" : (hasLink ? "file" : "image"),
     externalUrl,
     tagLabel: String(slot?.tagLabel ?? "").trim().slice(0, MOODBOARD_TAG_MAX),
+    libraryItemId: String(slot?.libraryItemId || "").trim(),
+    libraryOwnerKind: normalizeImageSplitLibraryOwnerKind(slot?.libraryOwnerKind),
+    libraryOwnerId: String(slot?.libraryOwnerId || "").trim(),
   };
 }
 

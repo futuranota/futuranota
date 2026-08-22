@@ -217,6 +217,9 @@ export const messages = {
         collapse: "Collapse",
         workspaceTitle: "Moodboard",
         workspaceOpen: "Moodboard open in workspace",
+        pickLibrary: "Library",
+        libraryPickerTitle: "Insert from library",
+        libraryPickerEmpty: "No library photos yet. Add an Image ficha in Library first.",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",
@@ -1973,6 +1976,9 @@ export const messages = {
         collapse: "Cerrar",
         workspaceTitle: "Moodboard",
         workspaceOpen: "Moodboard abierto en workspace",
+        pickLibrary: "Biblioteca",
+        libraryPickerTitle: "Insertar de la librería",
+        libraryPickerEmpty: "Todavía no hay fotos en Biblioteca. Agregá una ficha Image primero.",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",
