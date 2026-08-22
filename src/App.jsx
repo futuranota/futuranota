@@ -389,6 +389,9 @@ function Dashboard({ company, onBack }) {
     if (result.added > 0) {
       parts.push(`${result.added} doc${result.added === 1 ? "" : "s"}`);
     }
+    if (result.filesAdded > 0) {
+      parts.push(`${result.filesAdded} file${result.filesAdded === 1 ? "" : "s"}`);
+    }
     if (result.setsAdded > 0) {
       parts.push(`${result.setsAdded} set${result.setsAdded === 1 ? "" : "s"}`);
     }

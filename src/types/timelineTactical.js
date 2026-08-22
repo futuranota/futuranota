@@ -5,6 +5,8 @@
 
 /** @typedef {'free' | 'queue' | 'inherit-obj'} CanvasMode */
 
+/** @typedef {'folders' | 'doc-wire'} TimelineViewMode */
+
 /** @typedef {'family' | 'doc' | 'children'} TimelineFocusLevel */
 
 /**

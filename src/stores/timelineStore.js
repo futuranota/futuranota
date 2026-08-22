@@ -12,6 +12,10 @@ import {
   resolveParentDocIdForCanvasNode,
 } from "../lib/timelineSelection.js";
 import {
+  isTimelineFileCanvasNode,
+  pushFileToTimelineQueue,
+} from "../lib/timelineFileQueue.js";
+import {
   captureTimelineDocSnapshot,
   resolveQueuedDocTimelineDate,
 } from "../lib/timelineDocSnapshot.js";
@@ -67,6 +71,8 @@ export const useTimelineStore = create(
       timelineQueueMode: false,
       /** Doc ids queued for timeline insert (accumulates while queue mode is on). */
       timelineDocQueue: [],
+      /** File (macronodo) entity ids queued for the doc-wire rail. */
+      timelineFileQueue: [],
       /** Optional headline block id per queued doc (from canvas child selection). */
       timelineDocQueueFocusByDocId: {},
       /** Snapshot anchor dates + macronodos per queued doc (persists without canvas). */
@@ -102,6 +108,8 @@ export const useTimelineStore = create(
        */
       tacticalLoupe: null,
       tacticalPairStretches: [],
+      /** v1 folder rows vs v2 single doc-wire rail. */
+      timelineViewMode: "folders",
 
       getEffectiveCanvasMode: () => {
         const s = get();
@@ -135,6 +143,10 @@ export const useTimelineStore = create(
 
       setPrimaryTimelineObjectId: (objectId) => {
         set({ primaryTimelineObjectId: objectId || null });
+      },
+
+      setTimelineViewMode: (mode) => {
+        set({ timelineViewMode: mode === "doc-wire" ? "doc-wire" : "folders" });
       },
 
       setTimelineFocus: (focus) => {
@@ -338,6 +350,7 @@ export const useTimelineStore = create(
 
       clearTimelineDocQueue: () => set({
         timelineDocQueue: [],
+        timelineFileQueue: [],
         timelineDocQueueFocusByDocId: {},
         timelineDocSnapshotsByDocId: {},
         timelineExcludedChildrenByDocId: {},
@@ -432,6 +445,13 @@ export const useTimelineStore = create(
                 : set.completedAt,
             };
           }),
+        }));
+      },
+
+      removeTimelineFileFromQueue: (entityId) => {
+        if (!entityId) return;
+        set((state) => ({
+          timelineFileQueue: (state.timelineFileQueue || []).filter((id) => id !== entityId),
         }));
       },
 
@@ -605,6 +625,9 @@ export const useTimelineStore = create(
 
         const prevQueue = get().timelineDocQueue;
         let queue = prevQueue;
+        let fileQueue = [...(get().timelineFileQueue || [])];
+        let filesAdded = 0;
+        let filesTouched = 0;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
         const snapshots = { ...get().timelineDocSnapshotsByDocId };
         const dateNodeIds = new Set(get().timelineDateNodeIds);
@@ -668,6 +691,19 @@ export const useTimelineStore = create(
                 }
               }
             }
+            continue;
+          }
+          if (isTimelineFileCanvasNode(node, nodeEntitiesById)) {
+            filesTouched += 1;
+            const entityId = node.noteId || null;
+            const nextFiles = pushFileToTimelineQueue(fileQueue, entityId);
+            if (nextFiles.length !== fileQueue.length) filesAdded += 1;
+            fileQueue = nextFiles;
+            continue;
+          }
+          // Folder cards (DOCUMENT) only belong on the folder rail — never
+          // when the user is inserting canvas files for the doc-wire view.
+          if (get().timelineViewMode === "doc-wire") {
             continue;
           }
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
@@ -756,7 +792,7 @@ export const useTimelineStore = create(
         const prevQueueSet = new Set(prevQueue);
         added = [...touchedDocIds].filter((id) => queue.includes(id) && !prevQueueSet.has(id)).length;
 
-        if (!touchedDocIds.size && !dateNodesTouched) {
+        if (!touchedDocIds.size && !dateNodesTouched && !filesTouched) {
           return {
             ok: false,
             code: "NO_DOCS",
@@ -845,6 +881,10 @@ export const useTimelineStore = create(
 
         set({
           timelineDocQueue: queue,
+          timelineFileQueue: fileQueue,
+          timelineViewMode: filesTouched > 0 || filesAdded > 0
+            ? "doc-wire"
+            : get().timelineViewMode,
           timelineDocQueueFocusByDocId: focusByDocId,
           timelineDocSnapshotsByDocId: snapshots,
           timelineExcludedChildrenByDocId: excluded,
@@ -861,10 +901,11 @@ export const useTimelineStore = create(
         return {
           ok: true,
           added,
+          filesAdded,
           setsAdded,
           datesAdded,
           replacedCampaigns: removedCampaignIds.length,
-          refreshed: added === 0 && setsAdded === 0 && datesAdded === 0,
+          refreshed: added === 0 && filesAdded === 0 && setsAdded === 0 && datesAdded === 0,
         };
       },
 

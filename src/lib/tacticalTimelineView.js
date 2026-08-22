@@ -21,6 +21,9 @@ import { resolveObjectStroke, softColorFromStroke } from "./objectColors.js";
 import { buildTimelineChains } from "./timelineChains.js";
 import {
   CONNECTION_KIND_CROSS_FAMILY_DOC,
+  CONNECTION_KIND_CROSS_FAMILY_OTHER,
+  CONNECTION_KIND_INTRA_DOC,
+  CONNECTION_KIND_INTRA_FAMILY_CHILD,
   CONNECTION_KIND_INTRA_FAMILY_DOC,
 } from "./timelineGraph.js";
 import {
@@ -48,11 +51,15 @@ import {
   resolveCampaignSourceTitle,
 } from "./campaignDocSource.js";
 import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
+import { resolveFileRailDisplayDate } from "./timelineFileQueue.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
   CONNECTION_KIND_INTRA_FAMILY_DOC,
   CONNECTION_KIND_CROSS_FAMILY_DOC,
+  CONNECTION_KIND_INTRA_DOC,
+  CONNECTION_KIND_INTRA_FAMILY_CHILD,
+  CONNECTION_KIND_CROSS_FAMILY_OTHER,
 ]);
 
 /**
@@ -246,8 +253,10 @@ function buildMarkerColumnIndexFromRows(orderedRows) {
     if (row.rowKind !== "object") continue;
     for (const col of row.columns || []) {
       for (const item of col.items) {
-        if (item.dataType && item.dataType !== "document") continue;
+        if (item.dataType === "agent-set") continue;
+        if (item.timeMarker) continue;
         index.set(item.nodeId, col);
+        if (item.entityId) index.set(item.entityId, col);
         if (item.docId) {
           index.set(item.docId, col);
           index.set(`virtual-${item.docId}`, col);
@@ -390,7 +399,11 @@ export function buildDocDimensionSegmentsByRow(
 
     for (const row of orderedRows) {
       if (row.rowKind !== "object") continue;
-      if (row.objectId !== c.fromObjectId && row.objectId !== c.toObjectId) continue;
+      if (
+        !row.isDocWire
+        && row.objectId !== c.fromObjectId
+        && row.objectId !== c.toObjectId
+      ) continue;
       const list = byRowId.get(row.id);
       if (list) list.push(clipped);
     }
@@ -1482,6 +1495,132 @@ export function buildTacticalObjectRows(params) {
     displayRows: orderedRows,
     inheritanceCrossLinks: orderedRows
       .flatMap((r) => r.inheritanceCrossLinks || []),
+  };
+}
+
+export const DOC_WIRE_ROW_ID = "object-doc-wire";
+
+/**
+ * Timeline v2: one rail of queued **files** (TEXT chips), not parent folders.
+ * Unscheduled files still appear (today, no past-due). Order: schedule → queue.
+ * @param {Parameters<typeof buildTacticalObjectRows>[0] & { timelineFileQueue?: string[] }} params
+ */
+export function buildTacticalDocWireRow(params) {
+  const folderView = buildTacticalObjectRows(params);
+  const {
+    timelineFileQueue = [],
+    pairStretches = [],
+    today = new Date(),
+    rangeOverride = null,
+    docsById = {},
+    nodeEntitiesById = {},
+    canvasNodes = [],
+    objectsById = {},
+    filterObjectId = null,
+  } = params || {};
+
+  const fileQueue = Array.isArray(timelineFileQueue) ? timelineFileQueue : [];
+  const queueIndex = new Map(fileQueue.map((id, i) => [id, i]));
+  const nodeByCanvasNoteId = new Map();
+  for (const node of canvasNodes || []) {
+    if (node?.noteId) nodeByCanvasNoteId.set(node.noteId, node);
+  }
+
+  /** @type {object[]} */
+  const markers = [];
+
+  if (fileQueue.length) {
+    for (const entityId of fileQueue) {
+      const entity = nodeEntitiesById[entityId];
+      if (!entity) continue;
+      const parentDocId = entity.parentDocId || null;
+      const parent = parentDocId ? docsById[parentDocId] : null;
+      if (filterObjectId && parent?.parentObjectId && parent.parentObjectId !== filterObjectId) {
+        continue;
+      }
+      const rail = resolveFileRailDisplayDate(entity, today);
+      if (!rail) continue;
+      const canvasNode = nodeByCanvasNoteId.get(entityId);
+      markers.push({
+        nodeId: canvasNode?.id || `entity-${entityId}`,
+        date: rail.date,
+        docId: parentDocId,
+        dataType: entity.dataType || "text",
+        entityId,
+        childKey: entityId,
+        queuedFile: true,
+        unscheduled: rail.unscheduled,
+        completed: Boolean(entity.completed),
+        sourceObjectId: parent?.parentObjectId || null,
+        sourceObjectName: parent?.title || "",
+        objectColor: resolveObjectStroke(
+          objectsById[parent?.parentObjectId] || null,
+        ),
+      });
+    }
+  }
+
+  if (markers.length) {
+    markers.sort((a, b) => {
+      if (a.unscheduled !== b.unscheduled) return a.unscheduled ? 1 : -1;
+      const ta = a.date.getTime();
+      const tb = b.date.getTime();
+      if (ta !== tb) return ta - tb;
+      const qa = queueIndex.get(a.entityId) ?? 1e9;
+      const qb = queueIndex.get(b.entityId) ?? 1e9;
+      if (qa !== qb) return qa - qb;
+      return String(a.entityId || "").localeCompare(String(b.entityId || ""));
+    });
+  }
+
+  const columns = buildTimelineColumns(markers);
+  const displayRow = {
+    id: DOC_WIRE_ROW_ID,
+    rowKind: "object",
+    objectId: filterObjectId || "doc-wire",
+    objectName: "Documents",
+    label: "Documents",
+    objectColor: "var(--hud)",
+    colorSoft: "transparent",
+    isCorpus: false,
+    isPrimary: false,
+    isInheritLayer: false,
+    hasCrossLink: false,
+    isDocWire: true,
+    columns,
+    chain: null,
+  };
+
+  const markerDates = columns.map((c) => c.date).filter(Boolean);
+  const displayGrid = buildTacticalDisplayGrid(markerDates, today, {
+    rangeOverride,
+    queueDocCount: fileQueue.length,
+    now: today,
+  });
+
+  const classifiedConnections = folderView.classifiedConnections || [];
+  const dimensionSegmentsByRow = buildDocDimensionSegmentsByRow(
+    [displayRow],
+    displayGrid,
+    classifiedConnections,
+    today,
+  );
+
+  displayRow.rail = buildRowTimelineRail(displayRow.columns, displayGrid, {
+    segments: dimensionSegmentsByRow.get(displayRow.id) || [],
+    pairStretches: (pairStretches || []).filter(
+      (s) => s && String(s.rowId) === String(displayRow.id),
+    ),
+    markerDates,
+    now: today,
+    docsById,
+  });
+
+  return {
+    ...folderView,
+    grid: displayGrid,
+    displayRows: markers.length ? [displayRow] : [],
+    inheritanceCrossLinks: [],
   };
 }
 

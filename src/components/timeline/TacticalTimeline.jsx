@@ -5,6 +5,7 @@ import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
 import {
   buildDocChildLinks,
   buildTacticalObjectRows,
+  buildTacticalDocWireRow,
   buildTacticalDisplayGrid,
   groupDisplayRowsByObject,
   resolveDaysLeftCenterPct,
@@ -32,6 +33,35 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { TimelineEventChip, TimelineCalendarIcon } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 import { TimelineCrossLinks } from "./TimelineCrossLinks.jsx";
+
+function TacticalViewModeToggle({ viewMode, onChange, t }) {
+  return (
+    <div className="tl-tactical-view-toggle" role="group" aria-label={t("timeline.viewModeAria")}>
+      <button
+        type="button"
+        className={
+          "tl-tactical-view-toggle__btn"
+          + (viewMode === "folders" ? " is-active" : "")
+        }
+        aria-pressed={viewMode === "folders"}
+        onClick={() => onChange("folders")}
+      >
+        {t("timeline.viewFolders")}
+      </button>
+      <button
+        type="button"
+        className={
+          "tl-tactical-view-toggle__btn"
+          + (viewMode === "doc-wire" ? " is-active" : "")
+        }
+        aria-pressed={viewMode === "doc-wire"}
+        onClick={() => onChange("doc-wire")}
+      >
+        {t("timeline.viewDocWire")}
+      </button>
+    </div>
+  );
+}
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   const family = resolveParentTagFamilyStyle(objectId, objectsById);
@@ -355,7 +385,10 @@ function TacticalObjectRow({
       break;
     }
   }
-  const objectNameLabel = useTranslatedText(row.objectName);
+  const translatedObjectName = useTranslatedText(row.objectName);
+  const objectNameLabel = row.isDocWire
+    ? t("timeline.viewDocWire")
+    : translatedObjectName;
   const visibleSegments = segments;
 
   const rowClass = [
@@ -365,6 +398,7 @@ function TacticalObjectRow({
     isGuestStrip ? "is-inherit-guest" : "",
     isChildRow ? "is-child-row" : "",
     row.hasCrossLink ? "is-linked-row" : "",
+    row.isDocWire ? "is-doc-wire" : "",
     nudgeRail ? "is-rail-nudge" : "",
   ].filter(Boolean).join(" ");
 
@@ -661,8 +695,8 @@ function TacticalObjectRow({
                         today,
                         { completed: resolveMarkerCompleted(marker, nodeEntitiesById, docsById) },
                       );
-                      const isPastDue = !isTimeMarker && schedule.kind === "past-due";
-                      const isPending = !isTimeMarker && schedule.kind === "pending";
+                      const isPastDue = !isTimeMarker && !marker.unscheduled && schedule.kind === "past-due";
+                      const isPending = !isTimeMarker && !marker.unscheduled && schedule.kind === "pending";
                       const isCompleted = !isTimeMarker && schedule.kind === "completed";
                       const fallbackName = isTimeMarker
                         ? (marker.title || "Date").trim()
@@ -698,6 +732,7 @@ function TacticalObjectRow({
                       const canRemove = isTimeMarker
                         || isAgentSet
                         || isQueuedDoc
+                        || marker.queuedFile
                         || (isMacronodo && marker.childKey);
                       const macronodoGreen = "#86A296";
 
@@ -834,7 +869,10 @@ export function TacticalTimeline({
   onOpenNode,
 }) {
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
+  const timelineViewMode = useTimelineStore((s) => s.timelineViewMode);
+  const setTimelineViewMode = useTimelineStore((s) => s.setTimelineViewMode);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
+  const timelineFileQueue = useTimelineStore((s) => s.timelineFileQueue);
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
@@ -851,6 +889,7 @@ export function TacticalTimeline({
   const toggleExpandedDocId = useTimelineStore((s) => s.toggleExpandedDocId);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
+  const removeTimelineFileFromQueue = useTimelineStore((s) => s.removeTimelineFileFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
   const removeTimelineDateNode = useTimelineStore((s) => s.removeTimelineDateNode);
@@ -888,29 +927,35 @@ export function TacticalTimeline({
   );
 
   const view = useMemo(
-    () => buildTacticalObjectRows({
-      canvasNodes,
-      connections,
-      docsById,
-      nodeEntitiesById,
-      objectsById,
-      objectTimelineTitles,
-      timelineDocQueue,
-      timelineDocSnapshotsByDocId,
-      timelineExcludedChildrenByDocId,
-      timelineAgentSets,
-      timelineDateNodeIds,
-      timelineDateSnapshotsById,
-      timelineGuestLinksById,
-      expandedDocIds,
-      today: now,
-      filterObjectId,
-      inheritObjMode,
-      primaryTimelineObjectId,
-      rangeOverride: tacticalRangeOverride,
-      loupe: tacticalLoupe,
-      pairStretches: tacticalPairStretches,
-    }),
+    () => {
+      const params = {
+        canvasNodes,
+        connections,
+        docsById,
+        nodeEntitiesById,
+        objectsById,
+        objectTimelineTitles,
+        timelineDocQueue,
+        timelineFileQueue,
+        timelineDocSnapshotsByDocId,
+        timelineExcludedChildrenByDocId,
+        timelineAgentSets,
+        timelineDateNodeIds,
+        timelineDateSnapshotsById,
+        timelineGuestLinksById,
+        expandedDocIds,
+        today: now,
+        filterObjectId,
+        inheritObjMode,
+        primaryTimelineObjectId,
+        rangeOverride: tacticalRangeOverride,
+        loupe: tacticalLoupe,
+        pairStretches: tacticalPairStretches,
+      };
+      return timelineViewMode === "doc-wire"
+        ? buildTacticalDocWireRow(params)
+        : buildTacticalObjectRows(params);
+    },
     [
       canvasNodes,
       connections,
@@ -919,6 +964,7 @@ export function TacticalTimeline({
       objectsById,
       objectTimelineTitles,
       timelineDocQueue,
+      timelineFileQueue,
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
@@ -933,6 +979,7 @@ export function TacticalTimeline({
       tacticalRangeOverride,
       tacticalLoupe,
       tacticalPairStretches,
+      timelineViewMode,
     ],
   );
 
@@ -946,12 +993,21 @@ export function TacticalTimeline({
     [displayRows, expandedDocIds],
   );
   const rangeDrag = useTacticalRangeDrag(grid);
-  const hasQueue = timelineDocQueue.length > 0
-    || timelineAgentSets.length > 0
-    || timelineDateNodeIds.length > 0;
+  const hasFolderQueue = timelineDocQueue.length > 0;
+  const hasFileQueue = (timelineFileQueue || []).length > 0;
+  const hasQueue = timelineViewMode === "doc-wire"
+    ? (hasFileQueue
+      || timelineAgentSets.length > 0
+      || timelineDateNodeIds.length > 0)
+    : (hasFolderQueue
+      || timelineAgentSets.length > 0
+      || timelineDateNodeIds.length > 0);
   // All companies (no filter) stays private — only show row data for a selected company.
   const companySelected = Boolean(filterObjectId);
-  const showTimelineData = hasQueue && companySelected;
+  // Doc-wire always shows when a company is selected (files may be empty).
+  const showTimelineData = companySelected && (
+    timelineViewMode === "doc-wire" || hasQueue
+  );
   const emptyGrid = useMemo(
     () => buildTacticalDisplayGrid([], now, {
       rangeOverride: tacticalRangeOverride,
@@ -1146,6 +1202,10 @@ export function TacticalTimeline({
   };
 
   const handleChipRemove = (marker) => {
+    if (marker.queuedFile && marker.entityId) {
+      removeTimelineFileFromQueue(marker.entityId);
+      return;
+    }
     if (marker.timeMarker && marker.nodeId) {
       removeTimelineDateNode(marker.nodeId);
       return;
@@ -1218,15 +1278,27 @@ export function TacticalTimeline({
               <span className="tl-tactical-header__title">
                 <b>{t("timeline.title")}</b>
                 <span className="tl-tactical-header__meta">
-                  {t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
+                  {timelineViewMode === "doc-wire"
+                    ? t("timeline.viewDocWire")
+                    : t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
                   {" · "}
-                  {t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
+                  {timelineViewMode === "doc-wire"
+                    ? t("timeline.files", {
+                      count: timelineFileQueue.length,
+                      s: pluralS(timelineFileQueue.length),
+                    })
+                    : t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
                   {timelineAgentSets.length > 0
                     ? ` · ${t("timeline.sets", { count: timelineAgentSets.length, s: pluralS(timelineAgentSets.length) })}`
                     : ""}
                   {activeGrid?.spanDays ? ` · ${t("timeline.span", { days: activeGrid.spanDays })}` : ""}
                 </span>
               </span>
+              <TacticalViewModeToggle
+                viewMode={timelineViewMode}
+                onChange={setTimelineViewMode}
+                t={t}
+              />
             </div>
 
             <div className="tl-tactical-body" ref={tacticalBodyRef}>
@@ -1257,7 +1329,14 @@ export function TacticalTimeline({
                   t={t}
                 />
               )) : (
-                <TacticalDecorativeRuler grid={activeGrid} today={today} now={now} t={t} />
+                <>
+                  <TacticalDecorativeRuler grid={activeGrid} today={today} now={now} t={t} />
+                  {timelineViewMode === "doc-wire" && !hasFileQueue ? (
+                    <p className="tl-tactical-empty-hint" role="status">
+                      {t("timeline.docWireEmptyHint")}
+                    </p>
+                  ) : null}
+                </>
               )}
             </div>
           </>
@@ -1267,6 +1346,11 @@ export function TacticalTimeline({
               <span className="tl-tactical-header__title">
                 <b>{t("timeline.title")}</b>
               </span>
+              <TacticalViewModeToggle
+                viewMode={timelineViewMode}
+                onChange={setTimelineViewMode}
+                t={t}
+              />
             </div>
             <div className="tl-tactical-body">
               <TacticalDecorativeRuler grid={emptyGrid} today={today} now={now} t={t} />

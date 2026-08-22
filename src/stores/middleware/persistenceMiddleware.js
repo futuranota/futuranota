@@ -867,9 +867,14 @@ function debounce(fn, delay) {
   return debounced;
 }
 
+function normalizeTimelineViewMode(value) {
+  return value === "doc-wire" ? "doc-wire" : "folders";
+}
+
 function pickTimelineUiState(state) {
   return {
     timelineDocQueue: Array.isArray(state.timelineDocQueue) ? state.timelineDocQueue : [],
+    timelineFileQueue: Array.isArray(state.timelineFileQueue) ? state.timelineFileQueue : [],
     timelineDocQueueFocusByDocId: state.timelineDocQueueFocusByDocId || {},
     timelineDocSnapshotsByDocId: state.timelineDocSnapshotsByDocId || {},
     timelineExcludedChildrenByDocId: state.timelineExcludedChildrenByDocId || {},
@@ -879,6 +884,7 @@ function pickTimelineUiState(state) {
     timelineGuestLinksById: state.timelineGuestLinksById || {},
     expandedDocIds: Array.isArray(state.expandedDocIds) ? state.expandedDocIds : [],
     primaryTimelineObjectId: state.primaryTimelineObjectId || null,
+    timelineViewMode: normalizeTimelineViewMode(state.timelineViewMode),
     currentTier: typeof state.currentTier === "string" ? state.currentTier : "all",
   };
 }
@@ -899,6 +905,7 @@ function filterTimelineUiToExistingDocs(ui, docIds) {
   return {
     ...ui,
     timelineDocQueue: (ui.timelineDocQueue || []).filter((docId) => docSet.has(docId)),
+    timelineFileQueue: Array.isArray(ui.timelineFileQueue) ? ui.timelineFileQueue : [],
     timelineDocQueueFocusByDocId: filterMap(ui.timelineDocQueueFocusByDocId),
     timelineDocSnapshotsByDocId: filterMap(ui.timelineDocSnapshotsByDocId),
     timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
@@ -920,6 +927,7 @@ function emptyWorkspaceSnapshot() {
     timelines: {},
     currentTier: "all",
     timelineDocQueue: [],
+    timelineFileQueue: [],
     timelineDocQueueFocusByDocId: {},
     timelineDocSnapshotsByDocId: {},
     timelineExcludedChildrenByDocId: {},
@@ -929,6 +937,7 @@ function emptyWorkspaceSnapshot() {
     timelineGuestLinksById: {},
     expandedDocIds: [],
     primaryTimelineObjectId: null,
+    timelineViewMode: "folders",
     scheduledAutoRunEnabled: true,
     scheduledCompletedTaskKeys: [],
     deletedDocIds: [],
@@ -1385,6 +1394,7 @@ export function initPersistenceMiddleware(stores) {
     timelines: useTimelineStore.getState().timelines,
     currentTier: useTimelineStore.getState().currentTier,
     timelineDocQueue: useTimelineStore.getState().timelineDocQueue,
+    timelineFileQueue: useTimelineStore.getState().timelineFileQueue,
     timelineDocQueueFocusByDocId: useTimelineStore.getState().timelineDocQueueFocusByDocId,
     timelineDocSnapshotsByDocId: useTimelineStore.getState().timelineDocSnapshotsByDocId,
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
@@ -1394,6 +1404,7 @@ export function initPersistenceMiddleware(stores) {
     timelineGuestLinksById: useTimelineStore.getState().timelineGuestLinksById,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
     primaryTimelineObjectId: useTimelineStore.getState().primaryTimelineObjectId,
+    timelineViewMode: useTimelineStore.getState().timelineViewMode,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
     scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
     deletedDocIds: [...pendingDeletedDocIds],
@@ -1451,9 +1462,11 @@ export function initPersistenceMiddleware(stores) {
       Array.isArray(stripped.timelineDocQueue)
       || Array.isArray(stripped.timelineDateNodeIds)
       || stripped.timelineGuestLinksById
+      || stripped.timelineViewMode
     ) {
       useTimelineStore.setState({
         timelineDocQueue: Array.isArray(stripped.timelineDocQueue) ? stripped.timelineDocQueue : [],
+        timelineFileQueue: Array.isArray(stripped.timelineFileQueue) ? stripped.timelineFileQueue : [],
         timelineDocQueueFocusByDocId: stripped.timelineDocQueueFocusByDocId || {},
         timelineDocSnapshotsByDocId: stripped.timelineDocSnapshotsByDocId || {},
         timelineExcludedChildrenByDocId: stripped.timelineExcludedChildrenByDocId || {},
@@ -1463,6 +1476,7 @@ export function initPersistenceMiddleware(stores) {
         timelineGuestLinksById: stripped.timelineGuestLinksById || {},
         expandedDocIds: Array.isArray(stripped.expandedDocIds) ? stripped.expandedDocIds : [],
         primaryTimelineObjectId: stripped.primaryTimelineObjectId || null,
+        timelineViewMode: stripped.timelineViewMode === "doc-wire" ? "doc-wire" : "folders",
       });
     }
     if (typeof stripped.scheduledAutoRunEnabled === "boolean"
@@ -1948,6 +1962,7 @@ export function initPersistenceMiddleware(stores) {
       const filteredTimelineUi = filterTimelineUiToExistingDocs(timelineUi, docIds);
       useTimelineStore.setState({
         timelineDocQueue: filteredTimelineUi.timelineDocQueue,
+        timelineFileQueue: filteredTimelineUi.timelineFileQueue || [],
         timelineDocQueueFocusByDocId: filteredTimelineUi.timelineDocQueueFocusByDocId,
         timelineDocSnapshotsByDocId: filteredTimelineUi.timelineDocSnapshotsByDocId,
         timelineExcludedChildrenByDocId: filteredTimelineUi.timelineExcludedChildrenByDocId,
@@ -1957,6 +1972,7 @@ export function initPersistenceMiddleware(stores) {
         timelineGuestLinksById: filteredTimelineUi.timelineGuestLinksById || {},
         expandedDocIds: filteredTimelineUi.expandedDocIds,
         primaryTimelineObjectId: filteredTimelineUi.primaryTimelineObjectId,
+        timelineViewMode: filteredTimelineUi.timelineViewMode,
         currentTier: filteredTimelineUi.currentTier,
         tier: filteredTimelineUi.currentTier,
       });
