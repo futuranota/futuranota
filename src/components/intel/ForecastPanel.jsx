@@ -150,8 +150,8 @@ export function ForecastPanel({ today = new Date() }) {
 
       {status === "ready" && forecast?.days?.length ? (
         <div className="forecast-panel__days">
-          {forecast.days.map((day, i) => (
-            <ForecastDayAccordion key={day.id} day={day} defaultOpen={i === 0} />
+          {forecast.days.map((day) => (
+            <ForecastDayAccordion key={day.id} day={day} defaultOpen={false} />
           ))}
         </div>
       ) : null}

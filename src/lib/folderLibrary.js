@@ -16,6 +16,7 @@ import {
   normalizeWallColor,
   resolveLibraryPresentation,
 } from "./folderLibraryNormalize.js";
+import { normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
 
 export {
   FOLDER_LIBRARY_CATEGORIES,
@@ -377,6 +378,16 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? normalizeWallColor(patch.wallColor)
     : current.wallColor;
 
+  const frameAspect = patch.frameAspect !== undefined
+    ? normalizeLibraryFrameAspect(patch.frameAspect)
+    : (current.frameAspect ?? null);
+
+  const sourceMediaUrl = patch.sourceMediaUrl !== undefined
+    ? (typeof patch.sourceMediaUrl === "string" && patch.sourceMediaUrl.trim()
+      ? patch.sourceMediaUrl.trim()
+      : null)
+    : (current.sourceMediaUrl ?? null);
+
   const setId = patch.setId !== undefined
     ? normalizeLibrarySetId(patch.setId)
     : current.setId;
@@ -411,6 +422,8 @@ function applyLibraryItemPatch(current, patch = {}) {
     attachmentName: attachmentUrl ? attachmentName : null,
     attachmentKind,
     wallColor,
+    frameAspect,
+    sourceMediaUrl,
     setId,
     loop,
     promptClass,
@@ -714,6 +727,8 @@ export function cloneLibraryItemIntoSet(ownerId, source, setId) {
     attachmentName: source.attachmentName,
     attachmentKind: source.attachmentKind,
     wallColor: source.wallColor,
+    frameAspect: source.frameAspect,
+    sourceMediaUrl: source.sourceMediaUrl,
     setId: nextSetId,
     loop: false,
     promptClass: source.promptClass,

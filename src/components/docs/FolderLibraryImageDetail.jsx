@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { copyToClipboard } from "../../lib/copyToClipboard.js";
 import { resolveWallColor } from "../../lib/folderLibrary.js";
+import { libraryFrameCssAspectRatio } from "../../lib/libraryFrameAspect.js";
 import { libraryFichaDetailMode } from "../../lib/libraryFichaPreview.js";
 
 /**
@@ -203,8 +204,16 @@ export function FolderLibraryImageDetail({
             </div>
           ) : (
             <div
-              className="folder-library-image-detail__image-pane"
-              style={{ backgroundColor: resolveWallColor(item.wallColor) }}
+              className={
+                "folder-library-image-detail__image-pane"
+                + (item.frameAspect ? " folder-library-image-detail__image-pane--framed" : "")
+              }
+              style={{
+                backgroundColor: resolveWallColor(item.wallColor),
+                ...(libraryFrameCssAspectRatio(item.frameAspect)
+                  ? { aspectRatio: libraryFrameCssAspectRatio(item.frameAspect) }
+                  : {}),
+              }}
             >
               {hasImage ? (
                 <>

@@ -1,5 +1,6 @@
 import { fichaHasVisual, promptPreviewText } from "./libraryFichaPreview.js";
 import { normalizeWallColor } from "./folderLibraryNormalize.js";
+import { libraryFramePixelSize, normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
 
 /** Keep in sync with BANNER_HEADLINE_MAX in docBlocks.js (avoid importing that module here). */
 const LIBRARY_PROMPT_MAX = 280;
@@ -39,12 +40,14 @@ export function libraryItemToMoodboardSlotPatch(item, ownerKind = "document", ow
   if (!src) return null;
   const tag = String(item.tag || "").trim();
   const kind = ownerKind === "folder" ? "folder" : "document";
+  const frame = normalizeLibraryFrameAspect(item.frameAspect);
+  const dims = frame ? libraryFramePixelSize(frame, 1080) : null;
   return {
     src,
     name: tag,
     alt: tag,
-    width: 0,
-    height: 0,
+    width: dims?.width || 0,
+    height: dims?.height || 0,
     imageSaved: true,
     kind: "image",
     libraryItemId: String(item.id || "").trim(),

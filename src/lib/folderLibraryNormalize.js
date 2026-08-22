@@ -1,6 +1,7 @@
 import { generateId } from "./ids.js";
 import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
 import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
+import { normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
 
 /** @typedef {"auto"|"image"|"pdf"|"skill"|"video"} FolderLibraryCategory */
 /** @typedef {"prompt"|"visual"} LibraryPresentation */
@@ -17,6 +18,8 @@ import { normalizeLibrarySpeakRefs } from "./docLibrarySpeakRefs.js";
  * @property {string|null} attachmentName
  * @property {string|null} attachmentKind
  * @property {string|null} wallColor Preview wall / production hex behind image or video (`#RRGGBB`)
+ * @property {import("./libraryFrameAspect.js").LibraryFrameAspectId|null} frameAspect Target publish frame (contain + wall fill)
+ * @property {string|null} sourceMediaUrl Original photo before frame bake (null when mediaUrl is still the source)
  * @property {string|null} setId Document library set this ficha belongs to (`null` = loose)
  * @property {boolean} loop Document Prompts: copy into assets instead of moving. Folder fichas always loop.
  * @property {string|null} promptClass User classification (`ambiente`, or legacy custom names)
@@ -268,6 +271,10 @@ export function normalizeFolderLibraryItem(raw) {
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
   const wallColor = normalizeWallColor(raw.wallColor);
+  const frameAspect = normalizeLibraryFrameAspect(raw.frameAspect);
+  const sourceMediaUrl = typeof raw.sourceMediaUrl === "string" && raw.sourceMediaUrl.trim()
+    ? raw.sourceMediaUrl.trim()
+    : null;
   const setId = normalizeLibrarySetId(raw.setId);
   const loop = Boolean(raw.loop);
   const promptClass = normalizePromptClass(raw.promptClass)
@@ -294,6 +301,8 @@ export function normalizeFolderLibraryItem(raw) {
     attachmentName,
     attachmentKind,
     wallColor,
+    frameAspect,
+    sourceMediaUrl,
     setId,
     loop,
     promptClass,
@@ -331,6 +340,8 @@ export function normalizeFolderLibraryItems(value) {
  *   attachmentName?: string|null,
  *   attachmentKind?: string|null,
  *   wallColor?: string|null,
+ *   frameAspect?: string|null,
+ *   sourceMediaUrl?: string|null,
  *   setId?: string|null,
  *   loop?: boolean,
  *   promptClass?: string|null,
@@ -359,6 +370,10 @@ export function buildFolderLibraryItem(input = {}) {
       : inferAttachmentKind(attachmentName || "", ""))
     : null;
   const wallColor = normalizeWallColor(input.wallColor);
+  const frameAspect = normalizeLibraryFrameAspect(input.frameAspect);
+  const sourceMediaUrl = typeof input.sourceMediaUrl === "string" && input.sourceMediaUrl.trim()
+    ? input.sourceMediaUrl.trim()
+    : null;
   const presentation = resolveLibraryPresentation({
     presentation: input.presentation,
     description,
@@ -375,6 +390,8 @@ export function buildFolderLibraryItem(input = {}) {
     attachmentName,
     attachmentKind,
     wallColor,
+    frameAspect,
+    sourceMediaUrl,
     setId: normalizeLibrarySetId(input.setId),
     loop: Boolean(input.loop),
     promptClass: normalizePromptClass(input.promptClass),

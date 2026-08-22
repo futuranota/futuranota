@@ -31,6 +31,10 @@ import {
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { libraryItemToMoodboardSlotPatch } from "../../../lib/libraryImageCardPick.js";
+import {
+  moodboardCellCssAspectRatio,
+  moodboardCellHeightOverWidth,
+} from "../../../lib/libraryFrameAspect.js";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
 
@@ -42,11 +46,11 @@ const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
 /** Gap between stacked recipe cells (mirrors .doc-moodboard__recipe gap). */
 const RECIPE_GAP = 8;
-/** Height / col-width ratios — halves needs a taller board so 50% frames feel full. */
-const BOARD_ASPECT_DEFAULT = 1.25;
-const BOARD_ASPECT_HALVES = 1.55;
-/** Full-width column: landscape-friendly but tall enough for short screenshots. */
-const BOARD_ASPECT_FULL = 0.82;
+/** Height / col-width — locked to publish frames (9:16 / 1:1 / 16:9). */
+const BOARD_ASPECT_DEFAULT = 16 / 9; // thirds: large 9:16
+const BOARD_ASPECT_HALVES = 1; // 1:1
+/** Full-width column: 16:9 landscape. */
+const BOARD_ASPECT_FULL = 9 / 16;
 /** Orange sticky aspect (mirrors .doc-moodboard__sticky 223/82). */
 const STICKY_ASPECT = 82 / 223;
 
@@ -387,13 +391,14 @@ function imageNaturalHeightAtWidth(image, colW) {
 }
 
 /**
- * Estimate content-area height from saved image dims. Returns null when no column
- * contributes intrinsic height (empty / notes-only / missing dims) → caller uses maxH.
+ * Estimate content-area height from locked slot aspects (publish frames).
+ * Falls back to natural image dims only when a recipe has no slot target.
  * @param {object[]} columns
  * @param {number[]} colWidths
+ * @param {string} boardLayout
  * @returns {number|null}
  */
-function estimateMoodboardContentHeight(columns, colWidths) {
+function estimateMoodboardContentHeight(columns, colWidths, boardLayout = MOODBOARD_BOARD_LAYOUTS.THIRDS) {
   let maxH = 0;
   let any = false;
   for (let i = 0; i < columns.length; i += 1) {
@@ -404,19 +409,17 @@ function estimateMoodboardContentHeight(columns, colWidths) {
     let colH = null;
 
     if (col.recipe === MOODBOARD_RECIPES.LARGE) {
-      colH = imageNaturalHeightAtWidth(images[0], colW);
+      const slotHow = moodboardCellHeightOverWidth(boardLayout, "large", i);
+      colH = colW * slotHow;
+      const natural = imageNaturalHeightAtWidth(images[0], colW);
+      // Prefer slot lock; natural only if somehow missing slot.
+      if (!(colH > 0) && natural != null) colH = natural;
     } else if (col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK) {
-      const h0 = imageNaturalHeightAtWidth(images[0], colW);
-      const h1 = imageNaturalHeightAtWidth(images[1], colW);
-      if (h0 != null || h1 != null) {
-        const known = h0 ?? h1;
-        colH = (h0 ?? known) + (h1 ?? known) + RECIPE_GAP;
-      }
+      const slotHow = moodboardCellHeightOverWidth(boardLayout, "medium", i);
+      colH = 2 * colW * slotHow + RECIPE_GAP;
     } else if (col.recipe === MOODBOARD_RECIPES.SEMI_STICKY) {
-      const imgH = imageNaturalHeightAtWidth(images[0], colW);
-      if (imgH != null) {
-        colH = imgH + colW * STICKY_ASPECT + RECIPE_GAP;
-      }
+      const slotHow = moodboardCellHeightOverWidth(boardLayout, "semi", i);
+      colH = colW * slotHow + colW * STICKY_ASPECT + RECIPE_GAP;
     }
     // medium_sticky: no intrinsic height — inherits max from siblings.
 
@@ -574,7 +577,11 @@ export function MoodboardBlockView({
       const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
 
       const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
-      const estimated = estimateMoodboardContentHeight(columnsRef.current, colWidths);
+      const estimated = estimateMoodboardContentHeight(
+        columnsRef.current,
+        colWidths,
+        boardLayout,
+      );
       const nextH = estimated != null
         ? Math.min(maxH, estimated + BOARD_PAD_TOP + BOARD_CAPTION_STRIP)
         : maxH;
@@ -1148,6 +1155,7 @@ export function MoodboardBlockView({
     // Medium stack has vertical room above each frame — keep the tag outside.
     const tagOutside = showTag && sizeClass === "medium";
     const tagOverlay = showTag && !tagOutside;
+    const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
 
     const tagRow = showTag ? (
       <div
@@ -1177,6 +1185,7 @@ export function MoodboardBlockView({
             + (isFileIcon ? " doc-moodboard__cell--file" : "")
           }
           data-mb-slot={image.slotId || undefined}
+          style={{ aspectRatio: cellAspect }}
         >
           {saved ? (
             <>

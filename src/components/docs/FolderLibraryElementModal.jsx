@@ -20,6 +20,12 @@ import {
   resolveWallColor,
   updateLibraryItem,
 } from "../../lib/folderLibrary.js";
+import {
+  LIBRARY_FRAME_ASPECT_OPTIONS,
+  bakeAndUploadLibraryFrame,
+  libraryFrameCssAspectRatio,
+  normalizeLibraryFrameAspect,
+} from "../../lib/libraryFrameAspect.js";
 
 const CATEGORY_LABEL_KEYS = {
   auto: "doc.library.categoryAuto",
@@ -85,6 +91,14 @@ export function FolderLibraryElementModal({
   const [attachmentKind, setAttachmentKind] = useState(item?.attachmentKind || null);
   const [wallHexDraft, setWallHexDraft] = useState(item?.wallColor || "");
   const [wallColor, setWallColor] = useState(item?.wallColor || null);
+  const [frameAspect, setFrameAspect] = useState(
+    () => normalizeLibraryFrameAspect(item?.frameAspect),
+  );
+  const [sourceMediaUrl, setSourceMediaUrl] = useState(
+    () => (typeof item?.sourceMediaUrl === "string" && item.sourceMediaUrl.trim()
+      ? item.sourceMediaUrl.trim()
+      : null),
+  );
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -203,6 +217,7 @@ export function FolderLibraryElementModal({
       });
       if (converted?.src) {
         setMediaUrl(converted.src);
+        setSourceMediaUrl(null);
         if (category === "auto") setCategory("image");
       }
     } catch (err) {
@@ -245,7 +260,7 @@ export function FolderLibraryElementModal({
     setAttachmentKind(inferAttachmentKind(name, ""));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = tag.trim();
     if (!trimmed) {
       setError(t("doc.library.nameRequired"));
@@ -258,15 +273,44 @@ export function FolderLibraryElementModal({
     setSaving(true);
     setError("");
     try {
+      let nextMediaUrl = isSkillLike ? null : mediaUrl;
+      let nextSourceMediaUrl = isSkillLike ? null : sourceMediaUrl;
+      let nextFrameAspect = isSkillLike || isVideoLike
+        ? null
+        : normalizeLibraryFrameAspect(frameAspect);
+
+      if (
+        !isSkillLike
+        && !isVideoLike
+        && nextFrameAspect
+        && nextMediaUrl
+      ) {
+        const source = nextSourceMediaUrl || nextMediaUrl;
+        const baked = await bakeAndUploadLibraryFrame({
+          srcUrl: source,
+          frameAspect: nextFrameAspect,
+          wallColor: wallColor || FOLDER_LIBRARY_DEFAULT_WALL,
+          scopeId: uploadScopeId,
+        });
+        nextSourceMediaUrl = source;
+        nextMediaUrl = baked.src;
+      } else if (!nextFrameAspect && nextSourceMediaUrl) {
+        // Cleared frame → restore original photo as the product.
+        nextMediaUrl = nextSourceMediaUrl;
+        nextSourceMediaUrl = null;
+      }
+
       const payload = {
         tag: trimmed,
         description: isVisualMode && !promptFieldOpen ? "" : description,
         category,
-        mediaUrl: isSkillLike ? null : mediaUrl,
+        mediaUrl: nextMediaUrl,
         attachmentUrl: isSkillLike ? attachmentUrl : (item?.attachmentUrl || null),
         attachmentName: isSkillLike ? attachmentName : (item?.attachmentName || null),
         attachmentKind: isSkillLike ? attachmentKind : (item?.attachmentKind || null),
         wallColor: showWallColor ? wallColor : null,
+        frameAspect: nextFrameAspect,
+        sourceMediaUrl: nextSourceMediaUrl,
         loop: Boolean(loop),
         promptClass: isSkillLike ? null : (promptClass || null),
         presentation: isSkillLike || isVideoLike ? "prompt" : presentation,
@@ -274,6 +318,8 @@ export function FolderLibraryElementModal({
       if (isSkillLike) {
         payload.mediaUrl = null;
         payload.wallColor = null;
+        payload.frameAspect = null;
+        payload.sourceMediaUrl = null;
       }
       const saved = editing
         ? updateLibraryItem(kind, resolvedOwnerId, item.id, payload)
@@ -284,6 +330,8 @@ export function FolderLibraryElementModal({
       }
       onSaved?.(saved);
       onClose?.();
+    } catch (err) {
+      setError(err?.message || t("doc.library.frameBakeFailed"));
     } finally {
       setSaving(false);
     }
@@ -655,12 +703,16 @@ export function FolderLibraryElementModal({
                 + (isVideoLike ? " folder-library-element-modal__drop--video" : "")
                 + (dragOver ? " is-dragover" : "")
                 + (hasUploadPreview ? " has-media" : "")
+                + (isImageLike && frameAspect ? " folder-library-element-modal__drop--framed" : "")
               }
-              style={
-                showWallColor && mediaUrl
+              style={{
+                ...(showWallColor && mediaUrl
                   ? { backgroundColor: wallPreview }
-                  : undefined
-              }
+                  : {}),
+                ...(isImageLike && libraryFrameCssAspectRatio(frameAspect)
+                  ? { aspectRatio: libraryFrameCssAspectRatio(frameAspect) }
+                  : {}),
+              }}
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
               onDragEnter={(e) => {
@@ -731,6 +783,45 @@ export function FolderLibraryElementModal({
                 </>
               )}
             </button>
+            {showWallColor && isImageLike ? (
+              <div className="folder-library-element-modal__field folder-library-element-modal__field--frame">
+                <span className="folder-library-element-modal__label">
+                  {t("doc.library.frameAspectLabel")}
+                </span>
+                <div
+                  className="folder-library-element-modal__frame-row"
+                  role="group"
+                  aria-label={t("doc.library.frameAspectLabel")}
+                >
+                  <button
+                    type="button"
+                    className={
+                      "folder-library-element-modal__frame-btn"
+                      + (!frameAspect ? " is-active" : "")
+                    }
+                    onClick={() => setFrameAspect(null)}
+                  >
+                    {t("doc.library.frameAspectNone")}
+                  </button>
+                  {LIBRARY_FRAME_ASPECT_OPTIONS.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={
+                        "folder-library-element-modal__frame-btn"
+                        + (frameAspect === id ? " is-active" : "")
+                      }
+                      onClick={() => setFrameAspect(id)}
+                    >
+                      {id}
+                    </button>
+                  ))}
+                </div>
+                <p className="folder-library-element-modal__frame-hint">
+                  {t("doc.library.frameAspectHint")}
+                </p>
+              </div>
+            ) : null}
             {showWallColor ? (
               <div className="folder-library-element-modal__field folder-library-element-modal__field--wall">
                 <div className="library-asset-prompt-label">

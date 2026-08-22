@@ -24,7 +24,7 @@ function TempPair({ high, low }) {
   );
 }
 
-export function ForecastDayAccordion({ day, defaultOpen = true }) {
+export function ForecastDayAccordion({ day, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   const [periodMode, setPeriodMode] = useState("day");
   const wind = day.wind || {};
