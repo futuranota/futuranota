@@ -129,3 +129,11 @@ export function blogTinaProps(subpath) {
   if (!ctx?.tinaData?.blog) return {};
   return tinaField(ctx.tinaData.blog, subpath);
 }
+
+/** Visual-edit props for a block inside `article.blocks`. */
+export function blogBlockTinaProps(index, subpath) {
+  const ctx = useContext(BlogPostTinaContext);
+  const block = ctx?.tinaData?.blog?.blocks?.[index];
+  if (!block) return {};
+  return subpath ? tinaField(block, subpath) : tinaField(ctx.tinaData.blog, 'blocks', index);
+}

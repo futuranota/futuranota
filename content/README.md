@@ -52,7 +52,7 @@ TINA_PREVIEW_URL=http://localhost:5173
 ### What is already wired in code
 
 - `useTina` + `tinaField` on marketing pages (visual editing in the preview iframe).
-- Blog posts: open `blogs/your-slug.json` in admin → Preview opens `/blogs/your-slug` → click title, excerpt, or body in the iframe to edit inline.
+- Blog posts: open `blogs/your-slug.json` in admin → **Article sections** → add **Heading**, **Paragraph**, or **Image** (as many as you need). Cover image stays the hero / card thumbnail.
 - `ui.previewUrl` and `ui.router` in `tina/config.ts`.
 - Tina GraphQL client loads **only in dev**; production uses static JSON.
 
@@ -78,7 +78,7 @@ The admin UI could not reach Tina’s dev server on **http://localhost:4001**.
 | `how.json` | How it works |
 | `marketplace.json` | Marketplace kits |
 | `blogs-page.json` | Blogs wall + category filters |
-| `blogs/*.json` | Individual articles |
+| `blogs/*.json` | Individual articles (`blocks`: heading / paragraph / image) |
 
 ## Tina Cloud (optional)
 

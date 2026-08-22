@@ -1,16 +1,49 @@
 import { Link } from 'react-router-dom';
 import { getBlogPageCategories } from '../lib/content.js';
 import { PATHS } from '../lib/paths.js';
-import { blogTinaProps } from '../context/TinaVisualEditing.jsx';
+import { blogBlockTinaProps, blogTinaProps } from '../context/TinaVisualEditing.jsx';
+import { articleBlocks, blogBlockKind, resolveTinaImage } from '../lib/blogBlocks.js';
 import { BlogLazyImage, blogImageSrc } from '../components/BlogLazyImage.jsx';
 
-function BlogBody({ body }) {
-  if (!body) return null;
-  return body.split('\n\n').filter(Boolean).map((paragraph) => (
-    <p key={paragraph.slice(0, 48)} className="blog-post__p muted">
-      {paragraph}
-    </p>
-  ));
+function BlogBlock({ block, index }) {
+  const kind = blogBlockKind(block);
+
+  if (kind === 'heading' && block.text) {
+    return (
+      <h2 className="h3 blog-post__h" {...blogBlockTinaProps(index, 'text')}>
+        {block.text}
+      </h2>
+    );
+  }
+
+  if (kind === 'paragraph' && block.text) {
+    return (
+      <p className="blog-post__p muted" {...blogBlockTinaProps(index, 'text')}>
+        {block.text}
+      </p>
+    );
+  }
+
+  if (kind === 'image') {
+    const src = resolveTinaImage(block.src);
+    if (!src) return null;
+    return (
+      <figure className="blog-post__figure" {...blogBlockTinaProps(index, 'src')}>
+        <BlogLazyImage
+          src={src}
+          alt={block.alt || ''}
+          mediaClassName="blog-post__inline-media blog-card__media"
+        />
+        {block.caption ? (
+          <figcaption className="blog-post__caption faint mono-sm" {...blogBlockTinaProps(index, 'caption')}>
+            {block.caption}
+          </figcaption>
+        ) : null}
+      </figure>
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -18,6 +51,7 @@ function BlogBody({ body }) {
  */
 export function BlogPost({ article }) {
   const categories = getBlogPageCategories();
+  const blocks = articleBlocks(article);
 
   return (
     <article className="section blog-post" data-screen-label="blog-post">
@@ -60,8 +94,14 @@ export function BlogPost({ article }) {
           />
         </div>
 
-        <div className="blog-post__body prose" {...blogTinaProps('body')}>
-          <BlogBody body={article.body} />
+        <div className="blog-post__body prose" {...blogTinaProps('blocks')}>
+          {blocks.map((block, index) => (
+            <BlogBlock
+              key={`${blogBlockKind(block)}-${index}`}
+              block={block}
+              index={index}
+            />
+          ))}
         </div>
       </div>
     </article>

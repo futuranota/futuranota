@@ -506,7 +506,46 @@ export default defineConfig({
           { type: 'boolean', name: 'feat', label: 'Featured on home' },
           { type: 'string', name: 'cat', label: 'Categories', list: true },
           { type: 'string', name: 'excerpt', label: 'Excerpt', ui: { component: 'textarea' } },
-          { type: 'string', name: 'body', label: 'Body', ui: { component: 'textarea' } },
+          {
+            type: 'object',
+            name: 'blocks',
+            label: 'Article sections',
+            list: true,
+            templates: [
+              {
+                name: 'heading',
+                label: 'Heading',
+                fields: [{ type: 'string' as const, name: 'text', label: 'Heading' }],
+              },
+              {
+                name: 'paragraph',
+                label: 'Paragraph',
+                fields: [
+                  {
+                    type: 'string' as const,
+                    name: 'text',
+                    label: 'Text',
+                    ui: { component: 'textarea' },
+                  },
+                ],
+              },
+              {
+                name: 'image',
+                label: 'Image',
+                fields: [
+                  { type: 'image' as const, name: 'src', label: 'Image' },
+                  { type: 'string' as const, name: 'alt', label: 'Alt text' },
+                  { type: 'string' as const, name: 'caption', label: 'Caption' },
+                ],
+              },
+            ],
+          },
+          {
+            type: 'string',
+            name: 'body',
+            label: 'Legacy body (unused if sections exist)',
+            ui: { component: 'textarea' },
+          },
         ],
       },
     ],

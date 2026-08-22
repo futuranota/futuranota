@@ -10,5 +10,23 @@
     "Horizon"
   ],
   "excerpt": "Pre-launch pages should capture intent, not explain your entire roadmap. Keep them narrow and urgent.",
-  "body": "A pre-launch page has one job: trade attention for permission. Email, waitlist, or deposit — pick one primary action and remove the rest.\n\nLead with the object and the window. Visitors should understand what ships, when it closes, and why now in the first screen. Social proof can wait until screen two.\n\nUse a single CTA repeated at natural scroll breaks. Secondary links kill conversion on short windows. If you need FAQs, answer objections in three bullets, not twelve.\n\nPair the page with outbound that uses the same headline verbatim. Mismatched copy between ad and page is the fastest way to burn a launch week. Import a Futura kit when you need the structure without rebuilding from scratch."
+  "body": "A pre-launch page has one job: trade attention for permission. Email, waitlist, or deposit — pick one primary action and remove the rest.\n\nLead with the object and the window. Visitors should understand what ships, when it closes, and why now in the first screen. Social proof can wait until screen two.\n\nUse a single CTA repeated at natural scroll breaks. Secondary links kill conversion on short windows. If you need FAQs, answer objections in three bullets, not twelve.\n\nPair the page with outbound that uses the same headline verbatim. Mismatched copy between ad and page is the fastest way to burn a launch week. Import a Futura kit when you need the structure without rebuilding from scratch.",
+  "blocks": [
+    {
+      "_template": "paragraph",
+      "text": "A pre-launch page has one job: trade attention for permission. Email, waitlist, or deposit — pick one primary action and remove the rest."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Lead with the object and the window. Visitors should understand what ships, when it closes, and why now in the first screen. Social proof can wait until screen two."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Use a single CTA repeated at natural scroll breaks. Secondary links kill conversion on short windows. If you need FAQs, answer objections in three bullets, not twelve."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Pair the page with outbound that uses the same headline verbatim. Mismatched copy between ad and page is the fastest way to burn a launch week. Import a Futura kit when you need the structure without rebuilding from scratch."
+    }
+  ]
 }

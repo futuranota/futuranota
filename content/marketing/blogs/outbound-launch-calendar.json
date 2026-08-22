@@ -4,7 +4,28 @@
   "author": "Editorial",
   "read": "5 min",
   "feat": false,
-  "cat": ["Sales", "Marketing"],
+  "cat": [
+    "Sales",
+    "Marketing"
+  ],
   "excerpt": "Outbound fails when it ignores the campaign clock. Align sequences to the same beats buyers already feel.",
-  "body": "Treat outbound as a calendar overlay, not a parallel funnel. Your first touch should reference the same window the market is already watching.\n\nT minus 7: pattern interrupt tied to the hero launch. T minus 3: proof — a screenshot, a metric, a maker story. T zero: direct ask with a single link. T plus 2: last call before the window closes.\n\nPersonalize the object, not the paragraph. One line that proves you know their niche beats a bespoke essay they will not read.\n\nStop sequences when the window closes. Nothing erodes trust faster than pitching urgency on a dead campaign. Futura kits include outbound shells timed to the same calendar as the landing page."
+  "body": "Treat outbound as a calendar overlay, not a parallel funnel. Your first touch should reference the same window the market is already watching.\n\nT minus 7: pattern interrupt tied to the hero launch. T minus 3: proof — a screenshot, a metric, a maker story. T zero: direct ask with a single link. T plus 2: last call before the window closes.\n\nPersonalize the object, not the paragraph. One line that proves you know their niche beats a bespoke essay they will not read.\n\nStop sequences when the window closes. Nothing erodes trust faster than pitching urgency on a dead campaign. Futura kits include outbound shells timed to the same calendar as the landing page.",
+  "blocks": [
+    {
+      "_template": "paragraph",
+      "text": "Treat outbound as a calendar overlay, not a parallel funnel. Your first touch should reference the same window the market is already watching."
+    },
+    {
+      "_template": "paragraph",
+      "text": "T minus 7: pattern interrupt tied to the hero launch. T minus 3: proof — a screenshot, a metric, a maker story. T zero: direct ask with a single link. T plus 2: last call before the window closes."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Personalize the object, not the paragraph. One line that proves you know their niche beats a bespoke essay they will not read."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Stop sequences when the window closes. Nothing erodes trust faster than pitching urgency on a dead campaign. Futura kits include outbound shells timed to the same calendar as the landing page."
+    }
+  ]
 }

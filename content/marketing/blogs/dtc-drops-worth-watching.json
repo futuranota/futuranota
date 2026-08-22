@@ -4,7 +4,29 @@
   "author": "Editorial",
   "read": "5 min",
   "feat": false,
-  "cat": ["Trends", "Commerce", "Horizon"],
+  "cat": [
+    "Trends",
+    "Commerce",
+    "Horizon"
+  ],
   "excerpt": "Not every drop is a signal. These are the patterns that leave real whitespace for companion makers.",
-  "body": "Watch drops that sell a story, not just a SKU. When a brand ships a limited object with a hard close date, the audience is trained to act — that is your window.\n\nGaps appear in three places: unbundled accessories, post-purchase education, and community proof. If the hero brand skips all three, a focused companion can own the follow-up.\n\nIgnore vanity metrics. Follow sell-through speed, waitlist size, and restock silence. Fast sell-through with no restock plan means demand is leaking somewhere you can catch.\n\nFutura Nota surfaces these windows early so you are not reverse-engineering a campaign after the spike. Spot the drop, name the gap, ship the companion before attention cools."
+  "body": "Watch drops that sell a story, not just a SKU. When a brand ships a limited object with a hard close date, the audience is trained to act — that is your window.\n\nGaps appear in three places: unbundled accessories, post-purchase education, and community proof. If the hero brand skips all three, a focused companion can own the follow-up.\n\nIgnore vanity metrics. Follow sell-through speed, waitlist size, and restock silence. Fast sell-through with no restock plan means demand is leaking somewhere you can catch.\n\nFutura Nota surfaces these windows early so you are not reverse-engineering a campaign after the spike. Spot the drop, name the gap, ship the companion before attention cools.",
+  "blocks": [
+    {
+      "_template": "paragraph",
+      "text": "Watch drops that sell a story, not just a SKU. When a brand ships a limited object with a hard close date, the audience is trained to act — that is your window."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Gaps appear in three places: unbundled accessories, post-purchase education, and community proof. If the hero brand skips all three, a focused companion can own the follow-up."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Ignore vanity metrics. Follow sell-through speed, waitlist size, and restock silence. Fast sell-through with no restock plan means demand is leaking somewhere you can catch."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Futura Nota surfaces these windows early so you are not reverse-engineering a campaign after the spike. Spot the drop, name the gap, ship the companion before attention cools."
+    }
+  ]
 }

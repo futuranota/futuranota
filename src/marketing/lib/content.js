@@ -10,6 +10,7 @@ import horizon from '../../../content/marketing/horizon.json';
 import how from '../../../content/marketing/how.json';
 import marketplace from '../../../content/marketing/marketplace.json';
 import blogsPage from '../../../content/marketing/blogs-page.json';
+import { articleBlocks } from './blogBlocks.js';
 
 const blogModules = import.meta.glob('../../../content/marketing/blogs/*.json', {
   eager: true,
@@ -27,7 +28,8 @@ export function normalizeBlogArticle(article, path = '') {
   const fromSys = String(article._sys?.filename || article._sys?.basename || '')
     .replace(/\.json$/i, '');
   const slug = article.slug || fromSys || slugFromPath(path);
-  return { ...article, slug };
+  const blocks = articleBlocks({ ...article, slug });
+  return { ...article, slug, blocks };
 }
 
 const blogArticles = Object.entries(blogModules).map(([path, article]) =>

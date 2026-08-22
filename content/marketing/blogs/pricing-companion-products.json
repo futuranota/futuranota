@@ -6,8 +6,33 @@
   "read": "6 min",
   "feat": false,
   "cat": [
+    "Sales",
     "Entrepreneur"
   ],
   "excerpt": "Short windows punish overthinking. Price companions to attach, not to maximize margin on day one.",
-  "body": "Companion pricing is attach-rate math, not premium-brand math. If the hero product is $48, your companion should feel like a painless yes — often 15–35% of hero price for physical, lower for digital.\n \nAnchor to the ritual, not the BOM. Buyers pay for completion: \"finish the set,\" \"ship ready,\" \"skip the hunt.\" Show the time saved, not the grams of material.\n\nUse one visible price and one bundle. Decoy tiers waste cognitive load in a 72-hour window. If you need upsell, make it a post-purchase email, not a checkout fork.\n\nTest price against speed: would you rather learn optimal margin or ship before the campaign ends? Makers who win short windows choose speed, then iterate on the next detection."
+  "body": "Companion pricing is attach-rate math, not premium-brand math. If the hero product is $48, your companion should feel like a painless yes — often 15–35% of hero price for physical, lower for digital.\n\nAnchor to the ritual, not the BOM. Buyers pay for completion: \"finish the set,\" \"ship ready,\" \"skip the hunt.\" Show the time saved, not the grams of material.\n\nUse one visible price and one bundle. Decoy tiers waste cognitive load in a 72-hour window. If you need upsell, make it a post-purchase email, not a checkout fork.\n\nTest price against speed: would you rather learn optimal margin or ship before the campaign ends? Makers who win short windows choose speed, then iterate on the next detection.",
+  "blocks": [
+    {
+      "_template": "paragraph",
+      "text": "Companion pricing is attach-rate math, not premium-brand math. If the hero product is $48, your companion should feel like a painless yes — often 15–35% of hero price for physical, lower for digital."
+    },
+    {
+      "_template": "image",
+      "src": "/uploads/IMAGES/assitente-gina-moodboard.png",
+      "alt": "gina_taking_notes",
+      "caption": "Gina-taking-notes"
+    },
+    {
+      "_template": "paragraph",
+      "text": "Anchor to the ritual, not the BOM. Buyers pay for completion: \"finish the set,\" \"ship ready,\" \"skip the hunt.\" Show the time saved, not the grams of material."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Use one visible price and one bundle. Decoy tiers waste cognitive load in a 72-hour window. If you need upsell, make it a post-purchase email, not a checkout fork."
+    },
+    {
+      "_template": "paragraph",
+      "text": "Test price against speed: would you rather learn optimal margin or ship before the campaign ends? Makers who win short windows choose speed, then iterate on the next detection."
+    }
+  ]
 }
