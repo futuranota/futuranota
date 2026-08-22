@@ -3,9 +3,12 @@ import {
   imageSplitHasFill,
   isImageCardLibraryPick,
   isMoodboardLibraryPick,
+  findLibraryItemBySlot,
   libraryItemToImageSplitPatch,
   libraryItemToMoodboardSlotPatch,
+  moodboardSlotPersistedSrcForLibrary,
   resolveImageSplitLibraryLink,
+  resolveMoodboardSlotPresentation,
   syncImageSplitPromptToLibrary,
 } from "./libraryImageCardPick.js";
 
@@ -164,6 +167,58 @@ describe("libraryImageCardPick", () => {
       ownerKind: "folder",
       ownerId: "folder1",
       itemId: "lib1",
+    });
+  });
+
+  describe("moodboard slot presentation", () => {
+    const catalogs = [{
+      ownerKind: "folder",
+      ownerId: "folder1",
+      items: [{
+        id: "lib9",
+        tag: "hero",
+        mediaUrl: "/baked.webp",
+        sourceMediaUrl: "/raw.webp",
+        frameAspect: "9:16",
+        wallColor: "#ff0000",
+      }],
+    }];
+
+    it("uses baked library mediaUrl when slot frame matches", () => {
+      const slot = {
+        libraryItemId: "lib9",
+        libraryOwnerKind: "folder",
+        libraryOwnerId: "folder1",
+        frameAspect: "9:16",
+      };
+      const item = findLibraryItemBySlot(slot, catalogs);
+      const pres = resolveMoodboardSlotPresentation(slot, item);
+      expect(pres.mode).toBe("baked");
+      expect(pres.displaySrc).toBe("/baked.webp");
+      expect(pres.downloadSourceUrl).toBe("/raw.webp");
+      expect(moodboardSlotPersistedSrcForLibrary("9:16", item)).toBe("/baked.webp");
+    });
+
+    it("uses contain preview when slot frame differs from library", () => {
+      const slot = {
+        libraryItemId: "lib9",
+        libraryOwnerKind: "folder",
+        libraryOwnerId: "folder1",
+        frameAspect: "3:2",
+        wallColor: "#00ff00",
+      };
+      const item = findLibraryItemBySlot(slot, catalogs);
+      const pres = resolveMoodboardSlotPresentation(slot, item);
+      expect(pres.mode).toBe("contain");
+      expect(pres.displaySrc).toBe("/raw.webp");
+      expect(pres.wallColor).toBe("#00FF00");
+      expect(moodboardSlotPersistedSrcForLibrary("3:2", item)).toBe("");
+    });
+
+    it("legacy slot uses src with cover mode", () => {
+      const pres = resolveMoodboardSlotPresentation({ src: "/legacy.webp" }, null);
+      expect(pres.mode).toBe("legacy");
+      expect(pres.displaySrc).toBe("/legacy.webp");
     });
   });
 });

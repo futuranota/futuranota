@@ -13002,11 +13002,20 @@ body.doc-content-resizing * {
   background: #F1F1F1;
 }
 
+.doc-moodboard__cell--preview {
+  /* Contain preview: wall fill behind letterboxed library source */
+}
+
 .doc-moodboard__img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+}
+
+.doc-moodboard__img--contain {
+  object-fit: contain;
   object-position: center;
 }
 

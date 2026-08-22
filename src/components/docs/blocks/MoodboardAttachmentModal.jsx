@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MOODBOARD_FILE_ICON_SRC,
@@ -6,20 +6,33 @@ import {
   normalizeMoodboardExternalUrl,
 } from "../../../lib/docBlocks.js";
 import {
+  bakeLibraryFrameBlob,
   libraryFrameCssAspectRatio,
   normalizeLibraryFrameAspect,
 } from "../../../lib/libraryFrameAspect.js";
 import { resolveWallColor } from "../../../lib/folderLibrary.js";
+import {
+  findLibraryItemBySlot,
+  resolveMoodboardSlotPresentation,
+} from "../../../lib/libraryImageCardPick.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
 const INFO_SRC = "/uploads/Info.svg";
 
-/** @param {{ src?: string, externalUrl?: string }|null} image */
+/** @param {{ src?: string, externalUrl?: string, libraryItemId?: string }|null} image */
 function resolveAttachMode(image) {
   const hasSrc = Boolean(image?.src);
+  const hasLibrary = Boolean(String(image?.libraryItemId || "").trim());
   const hasLink = Boolean(normalizeMoodboardExternalUrl(image?.externalUrl));
-  if (hasLink && !hasSrc) return "url";
+  if (hasLink && !hasSrc && !hasLibrary) return "url";
   return "image";
+}
+
+function slotHasImage(draft) {
+  return Boolean(
+    draft?.imageSaved
+    && (String(draft?.src || "").trim() || String(draft?.libraryItemId || "").trim()),
+  );
 }
 
 /**
@@ -36,7 +49,7 @@ export function MoodboardAttachmentModal({
   frameAspect = "9:16",
   canPickLibrary = false,
   onRequestLibrary,
-  baking = false,
+  libraryCatalogs = [],
 }) {
   const { t } = useI18n();
   const resolvedFrame = normalizeLibraryFrameAspect(frameAspect) || "9:16";
@@ -47,7 +60,7 @@ export function MoodboardAttachmentModal({
     alt: image?.alt || "",
     width: image?.width || 0,
     height: image?.height || 0,
-    imageSaved: Boolean(image?.imageSaved && image?.src),
+    imageSaved: Boolean(image?.imageSaved && (image?.src || image?.libraryItemId)),
     externalUrl: String(image?.externalUrl || ""),
     tagLabel: String(image?.tagLabel || ""),
     slotId: image?.slotId || "",
@@ -70,7 +83,7 @@ export function MoodboardAttachmentModal({
       alt: image?.alt || "",
       width: image?.width || 0,
       height: image?.height || 0,
-      imageSaved: Boolean(image?.imageSaved && image?.src),
+      imageSaved: Boolean(image?.imageSaved && (image?.src || image?.libraryItemId)),
       externalUrl: String(image?.externalUrl || ""),
       tagLabel: String(image?.tagLabel || ""),
       slotId: image?.slotId || "",
@@ -97,17 +110,24 @@ export function MoodboardAttachmentModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  const presentation = useMemo(() => {
+    const libraryItem = findLibraryItemBySlot(draft, libraryCatalogs);
+    return resolveMoodboardSlotPresentation(draft, libraryItem);
+  }, [draft, libraryCatalogs]);
+
   if (!open || typeof document === "undefined") return null;
 
   const normalizedLink = normalizeMoodboardExternalUrl(draft.externalUrl);
-  const hasImage = Boolean(draft.imageSaved && draft.src);
+  const hasImage = slotHasImage(draft) && Boolean(presentation.displaySrc || draft.libraryItemId);
   const hasLink = Boolean(normalizedLink);
-  const canAccept = !baking && !readOnly && (
+  const canAccept = !readOnly && (
     mode === "image" ? hasImage : hasLink
   );
-  const wallPreview = resolveWallColor(draft.wallColor || "#FFFFFF");
+  const wallPreview = resolveWallColor(presentation.wallColor || draft.wallColor || "#FFFFFF");
   const frameCss = libraryFrameCssAspectRatio(draft.frameAspect || resolvedFrame) || "9 / 16";
   const frameLabel = normalizeLibraryFrameAspect(draft.frameAspect || resolvedFrame) || resolvedFrame;
+  const previewSrc = presentation.displaySrc || draft.src;
+  const containPreview = hasImage && presentation.mode === "contain";
 
   const openExternal = () => {
     if (!normalizedLink) return;
@@ -115,12 +135,16 @@ export function MoodboardAttachmentModal({
   };
 
   const handleDownload = async () => {
-    if (!draft.src || downloading) return;
+    const sourceUrl = presentation.downloadSourceUrl;
+    if (!sourceUrl || downloading) return;
     setDownloading(true);
+    setError("");
     try {
-      const res = await fetch(draft.src);
-      if (!res.ok) throw new Error("fetch failed");
-      const blob = await res.blob();
+      const { blob } = await bakeLibraryFrameBlob({
+        srcUrl: sourceUrl,
+        frameAspect: presentation.frameAspect || frameLabel,
+        wallColor: presentation.wallColor || draft.wallColor || "#FFFFFF",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -133,8 +157,8 @@ export function MoodboardAttachmentModal({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch {
-      window.open(draft.src, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err?.message || t("doc.moodboard.frameBakeFailed"));
     } finally {
       setDownloading(false);
     }
@@ -150,6 +174,7 @@ export function MoodboardAttachmentModal({
         imageSaved: true,
         tagLabel,
         frameAspect: draft.frameAspect || resolvedFrame,
+        sourceMediaUrl: "",
       });
       return;
     }
@@ -167,6 +192,9 @@ export function MoodboardAttachmentModal({
       frameAspect: null,
       sourceMediaUrl: "",
       wallColor: null,
+      libraryItemId: "",
+      libraryOwnerKind: "",
+      libraryOwnerId: "",
     });
   };
 
@@ -238,13 +266,16 @@ export function MoodboardAttachmentModal({
               }
               style={{
                 aspectRatio: frameCss,
-                backgroundColor: hasImage ? wallPreview : "#ffffff",
+                backgroundColor: hasImage ? wallPreview : "#F1F1F1",
               }}
             >
-              {hasImage ? (
+              {hasImage && previewSrc ? (
                 <img
-                  className="doc-moodboard-attach__ratio-img"
-                  src={draft.src}
+                  className={
+                    "doc-moodboard-attach__ratio-img"
+                    + (containPreview ? " doc-moodboard-attach__ratio-img--contain" : "")
+                  }
+                  src={previewSrc}
                   alt={draft.alt || ""}
                   draggable={false}
                 />
@@ -258,12 +289,10 @@ export function MoodboardAttachmentModal({
                 <button
                   type="button"
                   className="doc-moodboard-attach__library-btn"
-                  disabled={baking || !canPickLibrary}
+                  disabled={!canPickLibrary}
                   onClick={() => onRequestLibrary?.()}
                 >
-                  {baking
-                    ? t("doc.moodboard.frameBaking")
-                    : t("doc.moodboard.pickLibrary")}
+                  {t("doc.moodboard.pickLibrary")}
                 </button>
                 {!canPickLibrary ? (
                   <p className="doc-moodboard-attach__library-hint">
@@ -275,7 +304,7 @@ export function MoodboardAttachmentModal({
                     <button
                       type="button"
                       className="doc-moodboard-attach__download"
-                      disabled={downloading || baking}
+                      disabled={downloading || !presentation.downloadSourceUrl}
                       onClick={handleDownload}
                     >
                       {downloading
@@ -285,7 +314,6 @@ export function MoodboardAttachmentModal({
                     <button
                       type="button"
                       className="doc-moodboard-attach__clear"
-                      disabled={baking}
                       onClick={() => {
                         setDraft((prev) => ({
                           ...prev,
@@ -299,6 +327,7 @@ export function MoodboardAttachmentModal({
                           libraryItemId: "",
                           libraryOwnerKind: "",
                           libraryOwnerId: "",
+                          frameAspect: resolvedFrame,
                         }));
                       }}
                     >
@@ -312,7 +341,7 @@ export function MoodboardAttachmentModal({
                 <button
                   type="button"
                   className="doc-moodboard-attach__download"
-                  disabled={downloading}
+                  disabled={downloading || !presentation.downloadSourceUrl}
                   onClick={handleDownload}
                 >
                   {downloading

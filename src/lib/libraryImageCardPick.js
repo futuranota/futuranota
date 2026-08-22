@@ -177,3 +177,132 @@ export function syncImageSplitPromptToLibrary(block, catalogs) {
     description: normalizeImageSplitLibraryPrompt(block?.libraryPrompt),
   };
 }
+
+/**
+ * Moodboard slot has a fillable image (src, library link, or external link).
+ * @param {{ src?: string, libraryItemId?: string, externalUrl?: string, imageSaved?: boolean }|null|undefined} slot
+ */
+export function moodboardSlotHasImage(slot) {
+  if (!slot) return false;
+  const src = String(slot.src || "").trim();
+  const libraryItemId = String(slot.libraryItemId || "").trim();
+  const externalUrl = String(slot.externalUrl || "").trim();
+  return Boolean(src || libraryItemId || externalUrl);
+}
+
+/**
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} item
+ * @returns {string}
+ */
+export function libraryItemDownloadSourceUrl(item) {
+  if (!item) return "";
+  const source = String(item.sourceMediaUrl || "").trim();
+  if (source) return source;
+  return String(item.mediaUrl || "").trim();
+}
+
+/**
+ * Find library ficha for a moodboard slot.
+ * @param {{ libraryItemId?: string, libraryOwnerKind?: string, libraryOwnerId?: string, src?: string }|null|undefined} slot
+ * @param {LibraryCatalog[]} catalogs
+ * @returns {import("./folderLibraryNormalize.js").FolderLibraryItem|null}
+ */
+export function findLibraryItemBySlot(slot, catalogs = []) {
+  const link = resolveImageSplitLibraryLink(slot, catalogs);
+  if (!link) return null;
+  for (const catalog of catalogs) {
+    if (catalog.ownerKind !== link.ownerKind || catalog.ownerId !== link.ownerId) continue;
+    const hit = (catalog.items || []).find(
+      (item) => String(item?.id || "").trim() === link.itemId,
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * Persisted src when library frame matches slot frame (shared bucket URL, no upload).
+ * @param {string} slotFrame
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} item
+ * @returns {string}
+ */
+export function moodboardSlotPersistedSrcForLibrary(slotFrame, item) {
+  if (!item) return "";
+  const libFrame = normalizeLibraryFrameAspect(item.frameAspect);
+  const target = normalizeLibraryFrameAspect(slotFrame);
+  if (!libFrame || !target || libFrame !== target) return "";
+  return String(item.mediaUrl || "").trim();
+}
+
+/**
+ * @typedef {{ mode: "baked"|"contain"|"legacy", displaySrc: string, downloadSourceUrl: string, wallColor: string|null, frameAspect: string|null }} MoodboardSlotPresentation
+ */
+
+/**
+ * Resolve moodboard cell preview + download source (no upload on pick).
+ * @param {{ src?: string, libraryItemId?: string, frameAspect?: string|null, wallColor?: string|null, sourceMediaUrl?: string }|null|undefined} slot
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} libraryItem
+ * @returns {MoodboardSlotPresentation}
+ */
+export function resolveMoodboardSlotPresentation(slot, libraryItem) {
+  const slotSrc = String(slot?.src || "").trim();
+  const slotFrame = normalizeLibraryFrameAspect(slot?.frameAspect);
+  const slotWall = normalizeWallColor(slot?.wallColor);
+  const libraryItemId = String(slot?.libraryItemId || "").trim();
+
+  if (!libraryItemId && slotSrc) {
+    return {
+      mode: "legacy",
+      displaySrc: slotSrc,
+      downloadSourceUrl: String(slot?.sourceMediaUrl || "").trim() || slotSrc,
+      wallColor: slotWall,
+      frameAspect: slotFrame,
+    };
+  }
+
+  if (libraryItem) {
+    const libFrame = normalizeLibraryFrameAspect(libraryItem.frameAspect);
+    const downloadSourceUrl = libraryItemDownloadSourceUrl(libraryItem);
+    const wallColor = slotWall || normalizeWallColor(libraryItem.wallColor);
+    const mediaUrl = String(libraryItem.mediaUrl || "").trim();
+
+    if (slotFrame && libFrame === slotFrame && mediaUrl) {
+      return {
+        mode: "baked",
+        displaySrc: mediaUrl,
+        downloadSourceUrl,
+        wallColor,
+        frameAspect: slotFrame,
+      };
+    }
+
+    const previewSrc = downloadSourceUrl || mediaUrl;
+    if (previewSrc) {
+      return {
+        mode: "contain",
+        displaySrc: previewSrc,
+        downloadSourceUrl: downloadSourceUrl || previewSrc,
+        wallColor,
+        frameAspect: slotFrame,
+      };
+    }
+  }
+
+  if (slotSrc) {
+    return {
+      mode: "legacy",
+      displaySrc: slotSrc,
+      downloadSourceUrl: String(slot?.sourceMediaUrl || "").trim() || slotSrc,
+      wallColor: slotWall,
+      frameAspect: slotFrame,
+    };
+  }
+
+  return {
+    mode: "contain",
+    displaySrc: "",
+    downloadSourceUrl: "",
+    wallColor: slotWall,
+    frameAspect: slotFrame,
+  };
+}

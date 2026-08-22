@@ -793,7 +793,8 @@ export function applyTodoSlashToImageSplit(block, _bodyValue) {
 function normalizeMoodboardSlot(slot) {
   const src = slot?.src || "";
   const externalUrl = normalizeMoodboardExternalUrl(slot?.externalUrl);
-  const hasImage = Boolean(src);
+  const libraryItemId = String(slot?.libraryItemId || "").trim();
+  const hasImage = Boolean(src) || Boolean(libraryItemId);
   const hasLink = Boolean(externalUrl);
   const frameAspect = normalizeLibraryFrameAspect(slot?.frameAspect);
   const sourceMediaUrl = typeof slot?.sourceMediaUrl === "string" && slot.sourceMediaUrl.trim()
@@ -905,7 +906,11 @@ export function countMoodboardSavedImages(block) {
   for (const column of columns) {
     const images = Array.isArray(column?.images) ? column.images : [];
     for (const image of images) {
-      if (image?.imageSaved && (image?.src || image?.externalUrl)) count += 1;
+      if (image?.imageSaved && (
+        image?.src
+        || image?.libraryItemId
+        || image?.externalUrl
+      )) count += 1;
     }
   }
   return count;
