@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
   MOODBOARD_BOARD_LAYOUTS,
+  MOODBOARD_BOARD_SURFACES,
   MOODBOARD_CAPTION_MAX,
   MOODBOARD_CAPTION_MAX_LINES,
   MOODBOARD_FILE_ICON_SRC,
@@ -23,6 +24,7 @@ import {
   createMoodboardOverlay,
   moodboardColumnCountForLayout,
   normalizeMoodboardBoardLayout,
+  normalizeMoodboardBoardSurface,
   normalizeMoodboardExternalUrl,
   normalizeMoodboardOverlays,
   normalizeMoodboardPointerContrast,
@@ -37,7 +39,6 @@ import {
   resolveMoodboardSlotPresentation,
 } from "../../../lib/libraryImageCardPick.js";
 import {
-  LIBRARY_FRAME_ASPECT_OPTIONS,
   libraryFramePixelSize,
   moodboardCellCssAspectRatio,
   moodboardCellHeightOverWidth,
@@ -65,6 +66,7 @@ const BOARD_ASPECT_FULL = 9 / 16;
 const STICKY_ASPECT = 82 / 223;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
+const EXPAND_ALL_SRC = "/uploads/expandall.svg";
 
 const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.TWISTED, labelKey: "doc.moodboard.overlayTwisted" },
@@ -477,7 +479,6 @@ export function MoodboardBlockView({
   const [attachmentSlot, setAttachmentSlot] = useState(null);
   const [libraryPickerSlot, setLibraryPickerSlot] = useState(null);
   const [boardExpanded, setBoardExpanded] = useState(false);
-  const [ratioMenuKey, setRatioMenuKey] = useState(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
   const [pendingOverlayKind, setPendingOverlayKind] = useState(null);
   const overlayDragRef = useRef(null);
@@ -494,6 +495,7 @@ export function MoodboardBlockView({
   );
 
   const boardLayout = normalizeMoodboardBoardLayout(block?.boardLayout);
+  const boardSurface = normalizeMoodboardBoardSurface(block?.boardSurface);
   const columnCount = moodboardColumnCountForLayout(boardLayout);
   const columns = Array.isArray(block?.columns) && block.columns.length === columnCount
     ? block.columns
@@ -580,7 +582,7 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Inline: taller ceiling so 9:16 frames read clearly (not text-block cramped).
+      // Inline: full 9:16 column height so frames are not cropped; Expand stays taller.
       let maxContentH;
       if (boardExpanded) {
         const viewportCap = typeof window !== "undefined"
@@ -590,8 +592,8 @@ export function MoodboardBlockView({
       } else {
         const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
           ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)
-          : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.45);
-        maxContentH = Math.round(Math.max(260, Math.min(colInner * aspect, capped)));
+          : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.65);
+        maxContentH = Math.round(Math.max(220, Math.min(colInner * aspect, capped)));
       }
       const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
 
@@ -906,6 +908,13 @@ export function MoodboardBlockView({
     handleFieldChange({ boardLayout: layout, columns: resized });
   };
 
+  const setBoardSurface = (nextSurface) => {
+    if (!isEdit) return;
+    const surface = normalizeMoodboardBoardSurface(nextSurface);
+    if (surface === boardSurface) return;
+    handleFieldChange({ boardSurface: surface });
+  };
+
   const slotKey = (colIndex, imageIndex) => `${colIndex}:${imageIndex}`;
 
   const openAttachmentModal = (colIndex, imageIndex, sizeClass) => {
@@ -966,36 +975,6 @@ export function MoodboardBlockView({
     });
     setLibraryPickerSlot(null);
     setAttachmentSlot(null);
-    setRatioMenuKey(null);
-  };
-
-  const changeSlotFrame = (colIndex, imageIndex, sizeClass, nextFrameRaw) => {
-    if (!isEdit) return;
-    const nextFrame = normalizeLibraryFrameAspect(nextFrameRaw);
-    if (!nextFrame) return;
-    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
-    const libraryItem = findLibraryItemBySlot(prev, libraryCatalogs);
-    const hasSource = Boolean(
-      libraryItem
-      || String(prev.src || "").trim()
-      || String(prev.libraryItemId || "").trim(),
-    );
-    if (!hasSource) return;
-    const wall = prev.wallColor || libraryItem?.wallColor || "#FFFFFF";
-    const persistedSrc = moodboardSlotPersistedSrcForLibrary(nextFrame, libraryItem);
-    const dims = libraryFramePixelSize(nextFrame, 1080);
-    setRatioMenuKey(null);
-    applyFramedSlotImage(colIndex, imageIndex, {
-      ...prev,
-      src: persistedSrc,
-      width: dims?.width || prev.width || 0,
-      height: dims?.height || prev.height || 0,
-      imageSaved: true,
-      kind: "image",
-      frameAspect: nextFrame,
-      sourceMediaUrl: "",
-      wallColor: wall,
-    });
   };
 
   const acceptAttachment = (draft) => {
@@ -1175,11 +1154,7 @@ export function MoodboardBlockView({
     const tagOutside = showTag && sizeClass === "medium";
     const tagOverlay = showTag && !tagOutside;
     const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
-    const slotFrame = moodboardSlotFrameAspect(boardLayout, sizeClass, colIndex);
     const slotFrameLabel = moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex);
-    const chipFrame = normalizeLibraryFrameAspect(image.frameAspect) || slotFrame;
-    const menuKey = slotKey(colIndex, imageIndex);
-    const ratioMenuOpen = ratioMenuKey === menuKey;
 
     const tagRow = showTag ? (
       <div
@@ -1253,48 +1228,6 @@ export function MoodboardBlockView({
                 />
               </button>
               {tagOverlay ? tagRow : null}
-              {hasImage ? (
-                <div className="doc-moodboard__ratio-chip-wrap">
-                  <button
-                    type="button"
-                    className="doc-moodboard__ratio-chip"
-                    disabled={!isEdit || Boolean(uploadingKey)}
-                    aria-expanded={ratioMenuOpen}
-                    aria-label={t("doc.moodboard.ratioChipAria", { ratio: chipFrame })}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (!isEdit) return;
-                      setRatioMenuKey((prev) => (prev === menuKey ? null : menuKey));
-                    }}
-                  >
-                    {chipFrame}
-                  </button>
-                  {ratioMenuOpen && isEdit ? (
-                    <div
-                      className="doc-moodboard__ratio-menu"
-                      role="menu"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {LIBRARY_FRAME_ASPECT_OPTIONS.map((id) => (
-                        <button
-                          key={id}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={chipFrame === id}
-                          className={
-                            "doc-moodboard__ratio-menu-btn"
-                            + (chipFrame === id ? " is-active" : "")
-                          }
-                          onClick={() => changeSlotFrame(colIndex, imageIndex, sizeClass, id)}
-                        >
-                          {id}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
               {isEdit ? (
                 <div className="doc-moodboard__media-actions">
                   {canPickLibrary ? (
@@ -1595,6 +1528,35 @@ export function MoodboardBlockView({
             </div>
           </div>
           <div className="doc-moodboard__toolbar-group">
+            <span className="doc-moodboard__toolbar-hint">{t("doc.moodboard.surfaceLabel")}</span>
+            <div className="doc-moodboard__toolbar-actions" role="group" aria-label={t("doc.moodboard.surfaceLabel")}>
+              <button
+                type="button"
+                className={
+                  "doc-moodboard__toolbar-btn"
+                  + (boardSurface === MOODBOARD_BOARD_SURFACES.SOLID
+                    ? " doc-moodboard__toolbar-btn--active"
+                    : "")
+                }
+                onClick={() => setBoardSurface(MOODBOARD_BOARD_SURFACES.SOLID)}
+              >
+                {t("doc.moodboard.surfaceSolid")}
+              </button>
+              <button
+                type="button"
+                className={
+                  "doc-moodboard__toolbar-btn"
+                  + (boardSurface === MOODBOARD_BOARD_SURFACES.TRANSPARENT
+                    ? " doc-moodboard__toolbar-btn--active"
+                    : "")
+                }
+                onClick={() => setBoardSurface(MOODBOARD_BOARD_SURFACES.TRANSPARENT)}
+              >
+                {t("doc.moodboard.surfaceTransparent")}
+              </button>
+            </div>
+          </div>
+          <div className="doc-moodboard__toolbar-group">
             <span className="doc-moodboard__toolbar-hint">
               {t("doc.moodboard.toolbarHint", { n: activeCol + 1 })}
             </span>
@@ -1639,7 +1601,13 @@ export function MoodboardBlockView({
               : t("doc.moodboard.expand")
           }
         >
-          {boardExpanded ? t("doc.moodboard.collapse") : t("doc.moodboard.expand")}
+          <img
+            className="doc-moodboard__expand-btn-icon"
+            src={EXPAND_ALL_SRC}
+            alt=""
+            aria-hidden
+            draggable={false}
+          />
         </button>
 
         {isEdit ? (
@@ -1685,6 +1653,7 @@ export function MoodboardBlockView({
           className={
             "doc-moodboard__board"
             + ` doc-moodboard__board--${boardLayout}`
+            + ` doc-moodboard__board--surface-${boardSurface}`
             + (pendingOverlayKind ? " doc-moodboard__board--place-overlay" : "")
           }
           ref={boardRef}

@@ -466,6 +466,23 @@ export function normalizeMoodboardBoardLayout(value) {
   return MOODBOARD_BOARD_LAYOUT_SET.has(raw) ? raw : MOODBOARD_BOARD_LAYOUTS.THIRDS;
 }
 
+/** Board canvas fill: solid light board vs transparent (inherits doc surface). */
+export const MOODBOARD_BOARD_SURFACES = {
+  SOLID: "solid",
+  TRANSPARENT: "transparent",
+};
+
+const MOODBOARD_BOARD_SURFACE_SET = new Set(Object.values(MOODBOARD_BOARD_SURFACES));
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeMoodboardBoardSurface(value) {
+  const raw = String(value ?? "");
+  return MOODBOARD_BOARD_SURFACE_SET.has(raw) ? raw : MOODBOARD_BOARD_SURFACES.SOLID;
+}
+
 /**
  * @param {string} layout
  * @returns {number}
@@ -1030,6 +1047,7 @@ export function createMoodboardOverlay(kind, patch = {}) {
 
 function normalizeMoodboardBlock(block) {
   const boardLayout = normalizeMoodboardBoardLayout(block?.boardLayout);
+  const boardSurface = normalizeMoodboardBoardSurface(block?.boardSurface);
   const columns = migrateLegacyMoodboardColumns({ ...block, boardLayout });
   const savedCount = countMoodboardSavedImages({ columns });
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
@@ -1044,6 +1062,7 @@ function normalizeMoodboardBlock(block) {
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
     boardLayout,
+    boardSurface,
     columns,
     a,
     b,
@@ -2162,6 +2181,8 @@ export function docBlocksToBody(blocks) {
         const normalized = normalizeMoodboardBlock(block);
         return `::moodboard\n${JSON.stringify({
           caption: normalized.caption,
+          boardLayout: normalized.boardLayout,
+          boardSurface: normalized.boardSurface,
           columns: normalized.columns,
           body: normalized.body,
           ...(Array.isArray(normalized.tagRefs) && normalized.tagRefs.length > 0
