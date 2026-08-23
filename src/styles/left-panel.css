@@ -12736,6 +12736,8 @@ body.doc-content-resizing * {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -13335,13 +13337,17 @@ body.doc-content-resizing * {
   position: relative;
   z-index: 1;
   flex: 1 1 auto;
-  width: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
-  margin: 6px 10px 12px 12px;
-  padding: 0;
+  margin: 6px 0 12px;
+  /* Extra left pad — Permanent Marker glyphs overhang the first letter. */
+  padding: 0 14px 0 16px;
   border: none;
   resize: none;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
   background: transparent;
   outline: none;
   font-family: "Permanent Marker", cursive;
@@ -13351,7 +13357,8 @@ body.doc-content-resizing * {
   color: rgba(45, 43, 43, 0.84);
   text-transform: uppercase;
   white-space: pre-wrap;
-  word-break: break-word;
+  /* Wrap at word boundaries; break only if a single word won't fit. */
+  word-break: normal;
   overflow-wrap: break-word;
   box-sizing: border-box;
 }
