@@ -40,6 +40,9 @@
   --signal-soft: oklch(0.81 0.150 159 / 0.14);
   --signal-line: oklch(0.81 0.150 159 / 0.42);
 
+  --font-report: "Quicksand", system-ui, sans-serif;
+  --brand-brush: #f4a4be;
+
   --radius:    14px;
   --radius-sm: 10px;
   --radius-lg: 22px;

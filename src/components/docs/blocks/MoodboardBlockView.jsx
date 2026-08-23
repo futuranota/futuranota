@@ -50,12 +50,12 @@ import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
 
 /** Board geometry — must mirror .doc-moodboard__board padding/gap in left-panel.css. */
-const BOARD_PAD_X = 16;
-const BOARD_PAD_TOP = 16;
+const BOARD_PAD_X = 6;
+const BOARD_PAD_TOP = 6;
 /** Bottom strip for float actions (caption no longer needs a tall strip). */
-const BOARD_CAPTION_STRIP = 28;
+const BOARD_CAPTION_STRIP = 20;
 /** Expanded workspace: symmetric pad (mirrors .doc-moodboard--expanded .doc-moodboard__board). */
-const BOARD_PAD_EXPANDED = 8;
+const BOARD_PAD_EXPANDED = 4;
 /** Inline document height vs full 9:16 column (expand uses full avail). */
 const INLINE_HEIGHT_FACTOR = 0.72;
 const BOARD_GAP = 10;
@@ -432,9 +432,16 @@ function imageNaturalHeightAtWidth(image, colW) {
  * @param {object[]} columns
  * @param {number[]} colWidths
  * @param {string} boardLayout
+ * @param {{ mediumRecipeGap?: number }} [options]
  * @returns {number|null}
  */
-function estimateMoodboardContentHeight(columns, colWidths, boardLayout = MOODBOARD_BOARD_LAYOUTS.THIRDS) {
+function estimateMoodboardContentHeight(
+  columns,
+  colWidths,
+  boardLayout = MOODBOARD_BOARD_LAYOUTS.THIRDS,
+  options = {},
+) {
+  const mediumRecipeGap = options.mediumRecipeGap ?? RECIPE_GAP;
   let maxH = 0;
   let any = false;
   for (let i = 0; i < columns.length; i += 1) {
@@ -452,7 +459,7 @@ function estimateMoodboardContentHeight(columns, colWidths, boardLayout = MOODBO
       if (!(colH > 0) && natural != null) colH = natural;
     } else if (col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK) {
       const slotHow = moodboardCellHeightOverWidth(boardLayout, "medium", i);
-      colH = 2 * colW * slotHow + RECIPE_GAP;
+      colH = 2 * colW * slotHow + mediumRecipeGap;
     } else if (col.recipe === MOODBOARD_RECIPES.SEMI_STICKY) {
       const slotHow = moodboardCellHeightOverWidth(boardLayout, "semi", i);
       colH = colW * slotHow + colW * STICKY_ASPECT + RECIPE_GAP;
@@ -607,7 +614,17 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Inline: compact standard height; Expand fills workspace body (no scroll).
+
+      const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
+      const estimated = estimateMoodboardContentHeight(
+        columnsRef.current,
+        colWidths,
+        boardLayout,
+        { mediumRecipeGap: RECIPE_GAP },
+      );
+
+      // Inline: compact designed height (never grow for publish aspects).
+      // Expand: fill workspace body budget (no scroll).
       let maxContentH;
       if (boardExpanded) {
         const bodyEl = workspaceBodyRef.current;
@@ -625,18 +642,15 @@ export function MoodboardBlockView({
           ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)
           : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.65);
         maxContentH = Math.round(
-          Math.max(220, Math.min(colInner * aspect * INLINE_HEIGHT_FACTOR, lineCap)),
+          Math.max(
+            220,
+            Math.min(colInner * aspect * INLINE_HEIGHT_FACTOR, lineCap),
+          ),
         );
       }
       const maxH = maxContentH + padTop + padBottom;
 
-      const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
-      const estimated = estimateMoodboardContentHeight(
-        columnsRef.current,
-        colWidths,
-        boardLayout,
-      );
-      const nextH = estimated != null
+      const nextH = boardExpanded && estimated != null
         ? Math.min(maxH, estimated + padTop + padBottom)
         : maxH;
 
@@ -1221,7 +1235,8 @@ export function MoodboardBlockView({
           }
           data-mb-slot={image.slotId || undefined}
           style={{
-            aspectRatio: cellAspect,
+            // Inline: flex fills designed board height. Expand: lock publish aspect.
+            ...(boardExpanded ? { aspectRatio: cellAspect } : {}),
             ...(containPreview && presentation.wallColor
               ? { backgroundColor: resolveWallColor(presentation.wallColor) }
               : {}),

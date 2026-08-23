@@ -19,18 +19,18 @@ body.marketing-body {
   --signal-line: oklch(0.48 0.15 159 / 0.35);
 }
 
-/* Highlighter logo — white on dark nav, green tint on hover */
+/* Highlighter logo — body follows nav text; brush stays brand pink via .fn-mark__brush */
 body.marketing-body .brand__mark {
   color: #ffffff;
 }
 body.marketing-body .brand:hover .brand__mark {
-  color: var(--signal);
+  color: #ffffff;
 }
 :root[data-theme="light"] body.marketing-body .brand__mark {
   color: var(--text);
 }
 :root[data-theme="light"] body.marketing-body .brand:hover .brand__mark {
-  color: var(--signal);
+  color: var(--text);
 }
 
 /* Labels & circled chips — mint signal */

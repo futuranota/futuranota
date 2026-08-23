@@ -182,7 +182,7 @@ export function moodboardCellHeightOverWidth(boardLayout, sizeClass, colIndex = 
   const size = String(sizeClass || "large");
 
   if (size === "medium") {
-    // 3:2 landscape stack cells
+    // 3:2 landscape stack — default moodboard medium frame
     return 2 / 3;
   }
 

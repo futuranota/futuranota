@@ -12598,9 +12598,69 @@ body.doc-content-resizing * {
   display: none;
 }
 
-/* Expanded: even board padding (was 16 top / 28 bottom). */
+/* Expanded: tight even board padding vs the base. */
 .doc-moodboard--expanded .doc-moodboard__board {
-  padding: 8px;
+  padding: 4px;
+}
+
+/*
+ * Inline document: slots flex-fill the compact board; expanded keeps publish aspect + full bleed.
+ * Filled-cell inset: 3px (tight preview mat).
+ */
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__col {
+  justify-content: stretch;
+  min-height: 0;
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--large .doc-moodboard__cell-wrap,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--semi .doc-moodboard__cell-wrap,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--medium .doc-moodboard__cell-wrap,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--medium-sticky .doc-moodboard__cell-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--large .doc-moodboard__cell,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--semi .doc-moodboard__cell,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--medium .doc-moodboard__cell,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--medium-sticky .doc-moodboard__cell {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  aspect-ratio: auto;
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__recipe--medium {
+  gap: 8px;
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__cell:not(.doc-moodboard__cell--empty) {
+  padding: 3px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__cell-hit {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__cell-hit,
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__img {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Inline preview: fill the designed slot (light crop OK); expand keeps cover bleed. */
+.doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__img:not(.doc-moodboard__img--file) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .doc-moodboard__overlay-rail {
@@ -12676,7 +12736,7 @@ body.doc-content-resizing * {
   align-content: stretch;
   gap: 10px;
   width: 100%;
-  padding: 16px 16px 28px;
+  padding: 6px 6px 20px;
   box-sizing: border-box;
   border-radius: 5px;
   background: #F1F1F1;
