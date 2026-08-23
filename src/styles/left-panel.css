@@ -12493,16 +12493,16 @@ body.doc-content-resizing * {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 16px;
+  padding: 12px 12px;
   box-sizing: border-box;
   background: #0a0c10;
 }
 
 .doc-moodboard-workspace__shell {
   position: relative;
-  width: min(1180px, calc(100vw - 32px));
-  height: min(92vh, 920px);
-  max-height: 92vh;
+  width: min(1180px, calc(100vw - 24px));
+  height: min(94vh, 920px);
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
   border: 1px solid #25292f;
@@ -12519,9 +12519,9 @@ body.doc-content-resizing * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid #313338;
   background: transparent;
 }
@@ -12531,6 +12531,49 @@ body.doc-content-resizing * {
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #7d7e81;
+}
+
+.doc-moodboard-workspace__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.doc-moodboard-workspace__expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #313338;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.doc-moodboard-workspace__expand:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-moodboard-workspace__expand-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  opacity: 0.72;
+  transform: rotate(180deg);
+  filter: invert(1);
+}
+
+.doc-moodboard-workspace__expand:hover .doc-moodboard-workspace__expand-icon {
+  opacity: 1;
 }
 
 .doc-moodboard-workspace__close {
@@ -12557,23 +12600,23 @@ body.doc-content-resizing * {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 12px 8px 20px;
+  padding: 6px 6px 10px;
   box-sizing: border-box;
 }
 
 .doc-moodboard-workspace__body .doc-moodboard {
   max-width: 100%;
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .doc-moodboard-workspace__body .doc-moodboard__board-wrap {
   max-width: 100%;
 }
 
+/* Expand control lives in the workspace header while expanded. */
 .doc-moodboard--expanded .doc-moodboard__expand-btn {
-  top: 12px;
-  right: 12px;
+  display: none;
 }
 
 .doc-moodboard__overlay-rail {

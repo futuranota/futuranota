@@ -484,6 +484,7 @@ export function MoodboardBlockView({
 }) {
   const { t } = useI18n();
   const boardRef = useRef(null);
+  const workspaceBodyRef = useRef(null);
   const captionRef = useRef(null);
   const captionLimitTimerRef = useRef(null);
   const [dragOverKey, setDragOverKey] = useState(null);
@@ -599,13 +600,20 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Inline: full 9:16 column height so frames are not cropped; Expand stays taller.
+      // Inline: full 9:16 column height so frames are not cropped; Expand uses body avail.
       let maxContentH;
       if (boardExpanded) {
-        const viewportCap = typeof window !== "undefined"
-          ? Math.round(window.innerHeight * 0.72)
-          : 620;
-        maxContentH = Math.round(Math.max(320, Math.min(colInner * aspect * 1.25, viewportCap)));
+        const bodyEl = workspaceBodyRef.current;
+        const bodyAvail = bodyEl?.clientHeight > 0
+          ? bodyEl.clientHeight
+          : Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.82);
+        // Leave room for edit toolbar + caption strip so the board isn't clipped.
+        const chromeSlack = isEdit ? 56 : 8;
+        const boardBudget = Math.max(240, bodyAvail - chromeSlack);
+        const pad = BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
+        maxContentH = Math.round(
+          Math.max(220, Math.min(colInner * aspect * 1.25, boardBudget - pad)),
+        );
       } else {
         const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
           ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)
@@ -635,6 +643,8 @@ export function MoodboardBlockView({
       requestAnimationFrame(sync);
     });
     ro.observe(board);
+    const bodyEl = workspaceBodyRef.current;
+    if (boardExpanded && bodyEl) ro.observe(bodyEl);
     const onWinResize = () => {
       if (boardExpanded) requestAnimationFrame(sync);
     };
@@ -643,7 +653,7 @@ export function MoodboardBlockView({
       ro.disconnect();
       window.removeEventListener("resize", onWinResize);
     };
-  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey, boardExpanded]);
+  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey, boardExpanded, isEdit]);
 
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
@@ -2041,17 +2051,35 @@ export function MoodboardBlockView({
               <span className="doc-moodboard-workspace__title">
                 {t("doc.moodboard.workspaceTitle")}
               </span>
-              <button
-                type="button"
-                className="doc-moodboard-workspace__close"
-                onClick={() => setBoardExpanded(false)}
-                aria-label={t("doc.moodboard.collapse")}
-                title={t("doc.moodboard.collapse")}
-              >
-                ×
-              </button>
+              <div className="doc-moodboard-workspace__header-actions">
+                <button
+                  type="button"
+                  className="doc-moodboard-workspace__expand"
+                  onClick={() => setBoardExpanded(false)}
+                  aria-label={t("doc.moodboard.collapse")}
+                  title={t("doc.moodboard.collapse")}
+                >
+                  <img
+                    className="doc-moodboard-workspace__expand-icon"
+                    src={EXPAND_ALL_SRC}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="doc-moodboard-workspace__close"
+                  onClick={() => setBoardExpanded(false)}
+                  aria-label={t("doc.moodboard.collapse")}
+                  title={t("doc.moodboard.collapse")}
+                >
+                  ×
+                </button>
+              </div>
             </header>
             <div
+              ref={workspaceBodyRef}
               className="doc-moodboard-workspace__body scroll-match-bg"
               style={{ "--scroll-bg": "#151515" }}
             >
