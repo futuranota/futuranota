@@ -167,10 +167,27 @@ const RECIPE_OPTIONS = [
 ];
 
 const LAYOUT_OPTIONS = [
-  { id: MOODBOARD_BOARD_LAYOUTS.THIRDS, labelKey: "doc.moodboard.layoutThirds" },
-  { id: MOODBOARD_BOARD_LAYOUTS.HALVES, labelKey: "doc.moodboard.layoutHalves" },
-  { id: MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW, labelKey: "doc.moodboard.layoutWideNarrow" },
-  { id: MOODBOARD_BOARD_LAYOUTS.FULL, labelKey: "doc.moodboard.layoutFull" },
+  {
+    id: MOODBOARD_BOARD_LAYOUTS.THIRDS,
+    labelKey: "doc.moodboard.layoutThirds",
+    iconSrc: "/uploads/first-block.svg",
+  },
+  {
+    id: MOODBOARD_BOARD_LAYOUTS.HALVES,
+    labelKey: "doc.moodboard.layoutHalves",
+    iconSrc: "/uploads/second-block.svg",
+  },
+  {
+    id: MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW,
+    labelKey: "doc.moodboard.layoutWideNarrow",
+    iconSrc: "/uploads/third-block.svg",
+  },
+  {
+    id: MOODBOARD_BOARD_LAYOUTS.FULL,
+    labelKey: "doc.moodboard.layoutFull",
+    iconSrc: "/uploads/full-block.svg",
+    showFullLabel: true,
+  },
 ];
 
 /**
@@ -1517,12 +1534,24 @@ export function MoodboardBlockView({
                   key={option.id}
                   type="button"
                   className={
-                    "doc-moodboard__toolbar-btn"
+                    "doc-moodboard__toolbar-btn doc-moodboard__toolbar-btn--layout"
+                    + (option.showFullLabel ? " doc-moodboard__toolbar-btn--layout-full" : "")
                     + (boardLayout === option.id ? " doc-moodboard__toolbar-btn--active" : "")
                   }
                   onClick={() => setBoardLayout(option.id)}
+                  aria-label={t(option.labelKey)}
+                  title={t(option.labelKey)}
                 >
-                  {t(option.labelKey)}
+                  <img
+                    className="doc-moodboard__toolbar-layout-icon"
+                    src={option.iconSrc}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                  {option.showFullLabel ? (
+                    <span className="doc-moodboard__toolbar-layout-full">full</span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1558,7 +1587,7 @@ export function MoodboardBlockView({
           </div>
           <div className="doc-moodboard__toolbar-group">
             <span className="doc-moodboard__toolbar-hint">
-              {t("doc.moodboard.toolbarHint", { n: activeCol + 1 })}
+              {t("doc.moodboard.toolbarHint")}
             </span>
             <div className="doc-moodboard__toolbar-actions">
               {recipeOptionsForColumn(boardLayout, activeCol).map((option) => (

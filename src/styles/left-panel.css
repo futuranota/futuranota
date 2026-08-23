@@ -12352,6 +12352,42 @@ body.doc-content-resizing * {
   box-shadow: 0 0 0 1px rgba(22, 26, 29, 0.08);
 }
 
+.doc-moodboard__toolbar-btn--layout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.doc-moodboard__toolbar-btn--layout-full {
+  padding-inline: 8px 10px;
+}
+
+.doc-moodboard__toolbar-layout-icon {
+  display: block;
+  width: 28px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.doc-moodboard__toolbar-btn--active .doc-moodboard__toolbar-layout-icon {
+  opacity: 1;
+}
+
+.doc-moodboard__toolbar-layout-full {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: inherit;
+  line-height: 1;
+}
+
 /* Board grid: default thirds; --halves / --wide_narrow override columns.
    Bottom padding is a slim strip for float actions (see BOARD_CAPTION_STRIP). */
 .doc-moodboard__board-wrap {
@@ -12853,6 +12889,12 @@ body.doc-content-resizing * {
   background: rgba(0, 0, 0, 0.025);
 }
 
+/* Transparent board: selector boxes must read as clearly as on white. */
+.doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__col--empty {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .doc-moodboard--saved .doc-moodboard__col--empty {
   border-color: transparent;
   background: transparent;
@@ -12871,6 +12913,7 @@ body.doc-content-resizing * {
 
 .doc-moodboard--saved .doc-moodboard__col-picker {
   visibility: hidden;
+  pointer-events: none;
 }
 
 .doc-moodboard__col-picker-label {
@@ -13086,7 +13129,24 @@ body.doc-content-resizing * {
   border-color: rgba(22, 26, 29, 0.22);
 }
 
-/* Transparent board: hide strokes when saved; show them while editing. */
+/*
+ * After a column recipe is chosen: soften slot chrome (stroke + ratio text)
+ * so the structure reads lighter than the empty “Elige una estructura” box.
+ */
+.doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-solid .doc-moodboard__cell--empty {
+  background: rgba(241, 241, 241, 0.55);
+  border-color: rgba(22, 26, 29, 0.12);
+}
+
+.doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-solid .doc-moodboard__ratio-ref-label {
+  color: rgba(168, 159, 148, 0.72);
+}
+
+.doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-solid .doc-moodboard__ratio-ref-hint {
+  color: rgba(183, 174, 163, 0.7);
+}
+
+/* Transparent board defaults (saved / non-edit fallthrough). */
 .doc-moodboard__board--surface-transparent .doc-moodboard__cell {
   border-color: transparent;
 }
@@ -13096,31 +13156,54 @@ body.doc-content-resizing * {
   border-color: transparent;
 }
 
+/* Transparent + editing: soft strokes on filled cells; softer empty slots after recipe. */
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__cell {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__cell--empty {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__recipe-btn {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__col-picker-label {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.52);
 }
 
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__ratio-ref-label {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.26);
 }
 
 .doc-moodboard:not(.doc-moodboard--saved) .doc-moodboard__board--surface-transparent .doc-moodboard__ratio-ref-hint {
-  color: rgba(255, 255, 255, 0.34);
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/*
+ * Saved (white or transparent): only content remains — no column strokes,
+ * empty-slot ratio numerals, or upload chrome.
+ */
+.doc-moodboard--saved .doc-moodboard__cell {
+  border-color: transparent;
+}
+
+.doc-moodboard--saved .doc-moodboard__cell--empty {
+  background: transparent;
+  border-color: transparent;
+}
+
+.doc-moodboard--saved .doc-moodboard__empty-slot {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.doc-moodboard--saved .doc-moodboard__col-clear {
+  display: none;
 }
 
 .doc-moodboard__cell--preview {
@@ -13830,11 +13913,11 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard__board--surface-transparent .doc-moodboard__ratio-ref-label {
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.26);
 }
 
 .doc-moodboard__board--surface-transparent .doc-moodboard__ratio-ref-hint {
-  color: rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.2);
 }
 
 .doc-moodboard__ratio-ref:hover:not(:disabled),
