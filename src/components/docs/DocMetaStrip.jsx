@@ -73,6 +73,7 @@ function MetaChip({
   infoText = "",
   infoAria = "",
   statusTone = null,
+  hideLabel = false,
 }) {
   const empty = value == null || value === "" || value === "—";
   const display = empty ? (placeholder ?? emptyDisplay) : value;
@@ -135,7 +136,7 @@ function MetaChip({
       }
       title={!empty && !infoText && !hoverText ? String(value) : undefined}
     >
-      {!(statusTone && !empty) ? (
+      {!(hideLabel || (statusTone && !empty)) ? (
         <span className="doc-meta-chip-k">
           {label}
           {infoText ? (
@@ -421,6 +422,7 @@ export function DocMetaStrip({
                 asTag
                 tagVariant="dept"
                 hoverText={categoryHoverText}
+                hideLabel
               />
               {showFolderSchedule ? (
                 <>

@@ -35,6 +35,8 @@ import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 import { TimelineCrossLinks } from "./TimelineCrossLinks.jsx";
 
 function TacticalViewModeToggle({ viewMode, onChange, t }) {
+  const foldersLabel = t("timeline.viewFolders");
+  const docWireLabel = t("timeline.viewDocWire");
   return (
     <div className="tl-tactical-view-toggle" role="group" aria-label={t("timeline.viewModeAria")}>
       <button
@@ -44,9 +46,11 @@ function TacticalViewModeToggle({ viewMode, onChange, t }) {
           + (viewMode === "folders" ? " is-active" : "")
         }
         aria-pressed={viewMode === "folders"}
+        aria-label={foldersLabel}
+        title={foldersLabel}
         onClick={() => onChange("folders")}
       >
-        {t("timeline.viewFolders")}
+        <img src="/uploads/box-closed.svg" alt="" aria-hidden draggable={false} />
       </button>
       <button
         type="button"
@@ -55,9 +59,11 @@ function TacticalViewModeToggle({ viewMode, onChange, t }) {
           + (viewMode === "doc-wire" ? " is-active" : "")
         }
         aria-pressed={viewMode === "doc-wire"}
+        aria-label={docWireLabel}
+        title={docWireLabel}
         onClick={() => onChange("doc-wire")}
       >
-        {t("timeline.viewDocWire")}
+        <img src="/uploads/accounting.svg" alt="" aria-hidden draggable={false} />
       </button>
     </div>
   );

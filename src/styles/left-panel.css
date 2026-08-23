@@ -10783,6 +10783,7 @@ body.doc-content-resizing * {
   background: transparent;
   opacity: 1;
   box-shadow: none;
+  color: #c5c5c5;
 }
 
 .doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon {
@@ -10793,16 +10794,8 @@ body.doc-content-resizing * {
   background: transparent;
   opacity: 1;
   transition:
-    opacity 0.15s ease,
+    color 0.15s ease,
     transform 0.15s ease;
-}
-
-.doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon--hover {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  opacity: 0;
-  transform: none;
 }
 
 /* Expanded content focus: keep create-doc icon at 36px */
@@ -10825,6 +10818,7 @@ body.doc-content-resizing * {
   opacity: 1;
   box-shadow: none;
   transform: none;
+  color: var(--folder-title-accent, var(--doc-accent, #ffffff));
 }
 
 .doc-slash-command-picker__btn:not(.doc-slash-command-picker__btn--create-file):hover .doc-slash-command-picker__file-icon,
@@ -10833,17 +10827,8 @@ body.doc-content-resizing * {
   filter: brightness(0.15);
 }
 
-.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon:not(.doc-slash-command-picker__file-icon--hover),
-.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon:not(.doc-slash-command-picker__file-icon--hover) {
-  opacity: 0;
-  filter: none;
-  transform: scale(1.08);
-}
-
-.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon--hover,
-.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon--hover {
-  opacity: 1;
-  filter: none;
+.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon,
+.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon {
   transform: scale(1.08);
 }
 
@@ -18986,10 +18971,11 @@ body.doc-content-resizing * {
   margin-left: auto;
   margin-right: 28px;
   padding: 4px 10px;
-  border: 1px solid color-mix(in oklab, var(--doc-accent, #ffffff) 35%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
   background: transparent;
-  color: var(--doc-accent, #ffffff);
+  color: rgba(255, 255, 255, 0.55);
+  opacity: 0.45;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -18998,9 +18984,10 @@ body.doc-content-resizing * {
 }
 
 .doc-folder-library-trigger:hover {
-  border-color: color-mix(in oklab, var(--doc-accent, #ffffff) 55%, transparent);
-  color: var(--doc-accent, #ffffff);
-  background: color-mix(in oklab, var(--doc-accent, #ffffff) 10%, transparent);
+  opacity: 0.72;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .folder-library-overlay,

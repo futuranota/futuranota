@@ -1971,9 +1971,35 @@ textarea.field {
 }
 .canvas-tool:hover { background: var(--panel-2); color: var(--text); }
 .canvas-tool.active {
-  background: var(--hud-soft);
-  color: var(--hud);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--hud) 30%, transparent) inset;
+  background: rgba(244, 164, 190, 0.12);
+  color: #f4a4be;
+  box-shadow: 0 0 0 1px rgba(244, 164, 190, 0.3) inset;
+}
+.canvas-toolbar .btn.primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, #f4a4be 16%, transparent),
+    color-mix(in oklab, #f4a4be 8%, transparent)
+  );
+  border-color: color-mix(in oklab, #f4a4be 40%, transparent);
+  color: #f4a4be;
+  box-shadow: 0 0 0 1px color-mix(in oklab, #f4a4be 15%, transparent) inset;
+}
+.canvas-toolbar .btn.primary:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, #f4a4be 22%, transparent),
+    color-mix(in oklab, #f4a4be 12%, transparent)
+  );
+}
+.canvas-wrap .pill.ok {
+  color: #f4a4be;
+  border-color: color-mix(in oklab, #f4a4be 35%, var(--glass-border));
+  background: rgba(244, 164, 190, 0.12);
+}
+.canvas-wrap .pill.ok .dot {
+  background: #f4a4be;
+  box-shadow: 0 0 6px rgba(244, 164, 190, 0.5);
 }
 .canvas-tool svg { width: 14px; height: 14px; }
 
@@ -2175,13 +2201,13 @@ textarea.field {
 }
 .btn-timeline-select.is-active {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--hud) 45%, transparent),
-    0 0 12px color-mix(in oklab, var(--hud) 25%, transparent);
+    0 0 0 1px color-mix(in oklab, #f4a4be 45%, transparent),
+    0 0 12px color-mix(in oklab, #f4a4be 25%, transparent);
 }
 .btn-scheduled-auto.is-active {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--cool) 45%, transparent),
-    0 0 12px color-mix(in oklab, var(--cool) 25%, transparent);
+    0 0 0 1px color-mix(in oklab, #f4a4be 45%, transparent),
+    0 0 12px color-mix(in oklab, #f4a4be 25%, transparent);
 }
 .btn-import-object.is-active {
   color: var(--warm);
@@ -2288,16 +2314,33 @@ textarea.field {
   pointer-events: auto;
   max-width: 380px;
   padding: 20px 24px;
-  background: color-mix(in oklab, var(--panel-solid) 65%, transparent);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
+  background: color-mix(in oklab, var(--panel-solid) 38%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+  border: 1px solid var(--glass-border-2);
   border-radius: var(--radius-lg);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 40px rgba(0, 0, 0, 0.28);
   text-align: center;
   display: flex;
   flex-direction: column;
   gap: 10px;
   align-items: center;
+}
+.canvas-empty-card .btn.primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, #f4a4be 16%, transparent),
+    color-mix(in oklab, #f4a4be 8%, transparent)
+  );
+  border-color: color-mix(in oklab, #f4a4be 40%, transparent);
+  color: #f4a4be;
+  box-shadow: 0 0 0 1px color-mix(in oklab, #f4a4be 15%, transparent) inset;
+}
+.canvas-empty-card .btn.primary:hover {
+  background: color-mix(in oklab, #f4a4be 14%, transparent);
+  border-color: color-mix(in oklab, #f4a4be 50%, transparent);
 }
 .canvas-empty-card h3 {
   margin: 4px 0 0;
@@ -5259,14 +5302,22 @@ textarea.note-form-field {
   appearance: none;
   border: 0;
   margin: 0;
-  padding: 4px 9px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--dim);
   background: transparent;
   cursor: pointer;
-  line-height: 1.2;
+  line-height: 0;
+}
+.tl-tactical-view-toggle__btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+  opacity: 0.55;
+  filter: brightness(0) invert(0.72);
+  pointer-events: none;
 }
 .tl-tactical-view-toggle__btn + .tl-tactical-view-toggle__btn {
   border-left: 1px solid var(--hairline, #313338);
@@ -5274,6 +5325,10 @@ textarea.note-form-field {
 .tl-tactical-view-toggle__btn.is-active {
   color: #fff;
   background: color-mix(in oklab, #fff 8%, #151515);
+}
+.tl-tactical-view-toggle__btn.is-active img {
+  opacity: 0.95;
+  filter: brightness(0) invert(1);
 }
 .tl-tactical-header__title {
   display: flex;

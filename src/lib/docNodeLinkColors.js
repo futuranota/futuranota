@@ -1,6 +1,7 @@
 /** Link color presets for documents — white = queries without node links. */
 export const DOC_NODE_LINK_COLORS = [
   { id: "mint", label: "Mint", stroke: "#85da99", soft: "rgba(133, 218, 153, 0.12)" },
+  { id: "sky", label: "Sky", stroke: "#B9E5FE", soft: "rgba(185, 229, 254, 0.12)" },
   { id: "rose", label: "Pink", stroke: "#c7a1a1", soft: "rgba(199, 161, 161, 0.12)" },
   { id: "white", label: "White", stroke: "#ffffff", soft: "rgba(255, 255, 255, 0.14)" },
 ];
