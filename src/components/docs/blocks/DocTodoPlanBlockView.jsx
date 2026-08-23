@@ -32,7 +32,7 @@ export function DocTodoPlanBlockView({
   listTitle,
   onListTitleChange,
   queryEnabled = false,
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   linksEnabled = true,
   items,
   focusItemId = null,

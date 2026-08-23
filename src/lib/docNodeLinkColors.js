@@ -1,11 +1,16 @@
-/** Link color presets for documents — dark = queries without node links. */
+/** Link color presets for documents — white = queries without node links. */
 export const DOC_NODE_LINK_COLORS = [
   { id: "mint", label: "Mint", stroke: "#85da99", soft: "rgba(133, 218, 153, 0.12)" },
-  { id: "rose", label: "Rose", stroke: "#c7a1a1", soft: "rgba(199, 161, 161, 0.12)" },
-  { id: "dark", label: "No link", stroke: "#212121", soft: "rgba(33, 33, 33, 0.35)" },
+  { id: "rose", label: "Pink", stroke: "#c7a1a1", soft: "rgba(199, 161, 161, 0.12)" },
+  { id: "white", label: "White", stroke: "#ffffff", soft: "rgba(255, 255, 255, 0.14)" },
 ];
 
-export const NO_NODE_LINK_COLOR_ID = "dark";
+export const NO_NODE_LINK_COLOR_ID = "white";
+
+/** Legacy id → current id (persisted docs may still say "dark"). */
+const LEGACY_NODE_LINK_COLOR_IDS = {
+  dark: "white",
+};
 
 const DEFAULT_NODE_LINK_COLOR = DOC_NODE_LINK_COLORS.find((c) => c.id === NO_NODE_LINK_COLOR_ID)
   || DOC_NODE_LINK_COLORS[0];
@@ -15,7 +20,8 @@ export function isNoNodeLinkMode(nodeLinkColor) {
 }
 
 export function normalizeNodeLinkColorId(value) {
-  const id = typeof value === "string" ? value.trim() : "";
+  const raw = typeof value === "string" ? value.trim() : "";
+  const id = LEGACY_NODE_LINK_COLOR_IDS[raw] || raw;
   return DOC_NODE_LINK_COLORS.some((c) => c.id === id) ? id : DEFAULT_NODE_LINK_COLOR.id;
 }
 
@@ -24,7 +30,7 @@ export function getDocNodeLinkColorPreset(id) {
   return DOC_NODE_LINK_COLORS.find((c) => c.id === normalized) || DEFAULT_NODE_LINK_COLOR;
 }
 
-/** Per-title link color; unset blocks stay unlinked (dark / no handle). */
+/** Per-title link color; unset blocks stay unlinked (white / no handle). */
 export function resolveBlockNodeLinkColor(block) {
   return normalizeNodeLinkColorId(block?.nodeLinkColor ?? NO_NODE_LINK_COLOR_ID);
 }

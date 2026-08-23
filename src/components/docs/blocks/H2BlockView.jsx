@@ -4,7 +4,7 @@ export function H2BlockView({
   value,
   onChange,
   queryEnabled = false,
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   linksEnabled = true,
   onKeyDown,
   autoFocus = false,

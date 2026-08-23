@@ -209,7 +209,7 @@ export function appendCapturedTextToStepPlaybook({
     [block],
     {
       docKind: "standard",
-      nodeLinkColor: "dark",
+      nodeLinkColor: "white",
     },
   );
 

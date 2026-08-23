@@ -317,7 +317,7 @@ export function DocMetaStrip({
   onSubcategoryDocIdsChange,
   allDocs = null,
   docId = null,
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,

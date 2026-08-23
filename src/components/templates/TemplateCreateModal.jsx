@@ -15,7 +15,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
   const [parentId, setParentId] = useState(fallbackParent);
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
-  const [nodeLinkColor, setNodeLinkColor] = useState("dark");
+  const [nodeLinkColor, setNodeLinkColor] = useState("white");
   const titleRef = useRef(null);
 
   useEffect(() => {

@@ -7,7 +7,7 @@ export function TodoBlockView({
   listTitle,
   onListTitleChange,
   queryEnabled = false,
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   linksEnabled = true,
   items,
   focusItemId = null,

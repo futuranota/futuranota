@@ -1407,7 +1407,7 @@ function buildDocCreateSnapshot({
     scheduleFinishDate: scheduleFinishDate ?? "",
     campaignActive: Boolean(campaignActive),
     subcategoryDocIds: Array.isArray(subcategoryDocIds) ? [...subcategoryDocIds] : [],
-    nodeLinkColor: nodeLinkColor ?? "dark",
+    nodeLinkColor: nodeLinkColor ?? "white",
     parentId: parentId ?? "",
     knowledgeImport: knowledgeImport ?? null,
   });
@@ -1448,7 +1448,7 @@ function DocCreateModal({
   const [scheduleFinishDate, setScheduleFinishDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(createMode === "campaign");
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
-  const [nodeLinkColor, setNodeLinkColor] = useState("dark");
+  const [nodeLinkColor, setNodeLinkColor] = useState("white");
   const [knowledgeImport, setKnowledgeImport] = useState(null);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const titleRef = useRef(null);
@@ -1556,7 +1556,7 @@ function DocCreateModal({
       scheduleFinishDate: "",
       campaignActive: createMode === "campaign",
       subcategoryDocIds: [],
-      nodeLinkColor: "dark",
+      nodeLinkColor: "white",
       parentId: fallbackParent,
       knowledgeImport: null,
     });
@@ -3247,7 +3247,7 @@ export function LeftPanel({
             ? null
             : (data.scheduleFinishAt ?? data.scheduleStartAt ?? null),
           campaignActive: isCampaignFolder,
-          nodeLinkColor: data.nodeLinkColor ?? "dark",
+          nodeLinkColor: data.nodeLinkColor ?? "white",
           knowledgeImport: data.knowledgeImport ?? null,
         },
       );

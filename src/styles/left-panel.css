@@ -4052,6 +4052,8 @@
   min-height: 312px;
   height: auto;
   overflow: hidden;
+  --folder-title-accent: #ffffff;
+  --doc-accent: #ffffff;
 }
 
 .doc-new-head {
@@ -4333,7 +4335,7 @@
   font-weight: 700;
   line-height: 1.22;
   letter-spacing: 0.02em;
-  color: #dcb2a6;
+  color: var(--folder-title-accent, #ffffff);
   outline: none;
   resize: none;
   overflow: hidden;
@@ -4352,7 +4354,7 @@
 }
 
 .doc-new-head-title::placeholder {
-  color: #dcb2a6;
+  color: var(--folder-title-accent, #ffffff);
   opacity: 0.55;
 }
 
@@ -6299,8 +6301,6 @@
   overflow: hidden;
   background: rgb(22, 26, 29);
   --doc-body-track: rgb(22, 26, 29);
-  /* Exact match .doc-new-head-title — used by expand / layered icon hovers */
-  --folder-title-accent: #dcb2a6;
 }
 
 .doc-new-content-box--resizable {
@@ -6532,7 +6532,7 @@
 .doc-new-content-expand-btn:hover .doc-new-content-expand-btn__icon,
 .doc-new-content-expand-btn:focus-visible .doc-new-content-expand-btn__icon,
 .doc-new-content-expand-btn.is-focus .doc-new-content-expand-btn__icon {
-  background-color: var(--folder-title-accent, #dcb2a6);
+  background-color: var(--folder-title-accent, #ffffff);
   opacity: 1;
 }
 
@@ -6827,7 +6827,7 @@
 .doc-new-content-shrink-handle.is-active::before,
 .doc-new-content-shrink-handle:focus-visible::before {
   background-image:
-    radial-gradient(circle, var(--folder-title-accent, #dcb2a6) 0.85px, transparent 0.85px);
+    radial-gradient(circle, var(--folder-title-accent, #ffffff) 0.85px, transparent 0.85px);
 }
 
 .doc-new-content-shrink-handle:hover,
@@ -9483,7 +9483,7 @@ body.doc-content-resizing * {
 .doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:hover) .doc-todo-plan__title-input,
 .doc-block-stack__item--folder-doc:has(.folder-file-shred-handle.is-dragging) .doc-todo-plan__title-input,
 .doc-block-stack__item--folder-doc:has(.folder-file-shred-handle:focus-visible) .doc-todo-plan__title-input {
-  color: var(--folder-title-accent, #dcb2a6);
+  color: var(--folder-title-accent, #ffffff);
 }
 
 .doc-block-stack__item--folder-doc .doc-h1-block__input::placeholder,
@@ -9562,6 +9562,7 @@ body.doc-content-resizing * {
   inset: 0;
   margin: auto;
   opacity: 0;
+  color: var(--folder-title-accent, #ffffff);
 }
 
 .folder-file-shred-handle:hover .folder-file-shred-handle__sticker:not(.folder-file-shred-handle__sticker--hover),
@@ -18783,10 +18784,10 @@ body.doc-content-resizing * {
   margin-left: auto;
   margin-right: 28px;
   padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in oklab, var(--doc-accent, #ffffff) 35%, transparent);
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--doc-accent, #ffffff);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -18795,9 +18796,9 @@ body.doc-content-resizing * {
 }
 
 .doc-folder-library-trigger:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  color: #fff;
-  background: rgba(255, 255, 255, 0.04);
+  border-color: color-mix(in oklab, var(--doc-accent, #ffffff) 55%, transparent);
+  color: var(--doc-accent, #ffffff);
+  background: color-mix(in oklab, var(--doc-accent, #ffffff) 10%, transparent);
 }
 
 .folder-library-overlay,

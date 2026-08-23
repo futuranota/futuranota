@@ -49,7 +49,7 @@ export function TemplateMetaStrip({
   onTemplateSubcategoryDocIdsChange,
   allDocs = null,
   excludeDocId = null,
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   onNodeLinkColorChange,
 }) {
   const [expanded, setExpanded] = useState(false);

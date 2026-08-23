@@ -33,7 +33,7 @@ export function emptyDocCampaignFields() {
     timelineSourceNodeId: null,
     /** Manual Documents list order (left panel); null = sort by title. */
     sidebarOrder: null,
-    nodeLinkColor: "dark",
+    nodeLinkColor: "white",
     /** Story (descriptive) or Quick (title + direct link) presentation for linked docs. */
     viewMode: FOLDER_VIEW_MODE_QUICK,
     knowledgeImport: null,

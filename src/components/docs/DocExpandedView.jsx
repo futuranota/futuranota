@@ -223,7 +223,7 @@ function buildDocEditorDraft({
     scheduleStartDate: scheduleStartDate ?? "",
     scheduleFinishDate: scheduleFinishDate ?? "",
     campaignActive: Boolean(campaignActive),
-    nodeLinkColor: nodeLinkColor ?? "dark",
+    nodeLinkColor: nodeLinkColor ?? "white",
     parentId: parentId ?? "",
     docKind: docKind ?? "standard",
     templateKind: templateKind ?? null,
@@ -246,7 +246,7 @@ function buildDocPersistSnapshot({
   scheduleFinishAt = null,
   campaignActive = false,
   parentObjectId = "",
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   docKind = "standard",
   templateKind = null,
   subcategoryDocIds = [],
@@ -275,7 +275,7 @@ function buildDocPersistSnapshot({
     scheduleFinishAt: resolvedScheduleFinish,
     campaignActive: Boolean(campaignActive),
     parentObjectId: parentObjectId || "",
-    nodeLinkColor: nodeLinkColor ?? "dark",
+    nodeLinkColor: nodeLinkColor ?? "white",
     docKind: docKind ?? "standard",
     templateKind: templateKind ?? null,
     subcategoryDocIds: ids,
@@ -329,7 +329,7 @@ export function DocExpandedView({
   const [draftScheduleStartDate, setDraftScheduleStartDate] = useState("");
   const [draftScheduleFinishDate, setDraftScheduleFinishDate] = useState("");
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
-  const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("dark");
+  const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("white");
   const [draftParentId, setDraftParentId] = useState("");
   const [draftDocKind, setDraftDocKind] = useState("standard");
   const [draftTemplateKind, setDraftTemplateKind] = useState(null);
@@ -479,8 +479,8 @@ export function DocExpandedView({
       ? (cached.campaignActive ?? Boolean(normalized.campaignActive))
       : Boolean(normalized.campaignActive);
     const loadedNodeLinkColor = useCachedDraft
-      ? (cached.nodeLinkColor ?? normalized.nodeLinkColor ?? "dark")
-      : (normalized.nodeLinkColor ?? "dark");
+      ? (cached.nodeLinkColor ?? normalized.nodeLinkColor ?? "white")
+      : (normalized.nodeLinkColor ?? "white");
     const loadedParentId = useCachedDraft
       ? (cached.parentId ?? d.parentObjectId ?? "")
       : (d.parentObjectId ?? "");

@@ -145,7 +145,7 @@ export function persistStepPlaybookSession(session, {
       [block],
       {
         docKind: "standard",
-        nodeLinkColor: "dark",
+        nodeLinkColor: "white",
       },
     );
 

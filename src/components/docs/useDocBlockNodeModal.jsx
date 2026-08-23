@@ -63,7 +63,7 @@ export function useDocBlockNodeModal({
   createdDate,
   docId = null,
   docTitle = "New document",
-  nodeLinkColor = "dark",
+  nodeLinkColor = "white",
   onInsertToCanvas,
   /** Parent folder metadata; reservation gates/clamps the document schedule picker. */
   parentFolderDoc = null,

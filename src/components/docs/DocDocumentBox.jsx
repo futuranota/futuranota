@@ -25,6 +25,8 @@ import {
   isNoNodeLinkMode,
   normalizeNodeLinkColorId,
   resolveBlockNodeLinkColor,
+  getDocNodeLinkColorPreset,
+  NO_NODE_LINK_COLOR_ID,
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
 import { DocParentHeadPicker } from "./DocParentHeadPicker.jsx";
@@ -120,7 +122,7 @@ export function DocDocumentBox({
   campaignActive = false,
   onCampaignActiveChange,
   deferCampaignStatusToChildren = false,
-  nodeLinkColor = "dark",
+  nodeLinkColor = NO_NODE_LINK_COLOR_ID,
   onNodeLinkColorChange,
   docKind = "standard",
   templateKind = null,
@@ -341,8 +343,10 @@ export function DocDocumentBox({
     if (linkableFocusIndex >= 0) {
       return resolveBlockNodeLinkColor(normalizedBlocks[linkableFocusIndex]);
     }
-    return nodeLinkColor;
+    return normalizeNodeLinkColorId(nodeLinkColor);
   }, [linkableFocusIndex, normalizedBlocks, nodeLinkColor]);
+
+  const linkAccentStroke = getDocNodeLinkColorPreset(metaStripNodeLinkColor).stroke;
 
   const handleMetaNodeLinkColorChange = useCallback(
     (color) => {
@@ -670,6 +674,10 @@ export function DocDocumentBox({
         + (contentFocusMode ? " doc-new-inner--content-focus" : "")
         + (padTestFolder ? " doc-new-inner--pad-test" : "")
       }
+      style={{
+        "--folder-title-accent": linkAccentStroke,
+        "--doc-accent": linkAccentStroke,
+      }}
     >
       {contentFocusMode ? (
         <header className="doc-focus-top">
