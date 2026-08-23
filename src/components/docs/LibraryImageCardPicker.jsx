@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { listAllLibraryCatalogs } from "../../lib/folderLibrary.js";
@@ -7,6 +7,10 @@ import { fichaHasVisual } from "../../lib/libraryFichaPreview.js";
 import { flattenVisualPicksFromCatalogs } from "../../lib/libraryImageCardPick.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
+
+function pickRowKey(ownerKind, ownerId, itemId) {
+  return `${ownerKind}:${ownerId}:${itemId}`;
+}
 
 function renderPickFace(item) {
   if (fichaHasVisual(item)) {
@@ -25,7 +29,7 @@ function renderPickFace(item) {
   );
 }
 
-function PickGrid({ title, items, emptyMessage, onPick }) {
+function PickGrid({ title, items, emptyMessage, onPick, selectedKey }) {
   return (
     <section className="library-image-card-picker__section">
       {title ? (
@@ -35,26 +39,37 @@ function PickGrid({ title, items, emptyMessage, onPick }) {
         <p className="library-image-card-picker__grid-empty">{emptyMessage}</p>
       ) : (
         <ul className="folder-library-overlay__grid library-image-card-picker__grid">
-          {items.map((row) => (
-            <li
-              key={`${row.ownerKind}:${row.ownerId}:${row.item.id}`}
-              className="folder-library-overlay__cell"
-            >
-              <button
-                type="button"
-                className="folder-library-overlay__cell-main"
-                onClick={() => onPick(row.item, row.ownerKind, row.ownerId)}
+          {items.map((row) => {
+            const key = pickRowKey(row.ownerKind, row.ownerId, row.item.id);
+            const isSelected = selectedKey === key;
+            return (
+              <li
+                key={key}
+                className={
+                  "folder-library-overlay__cell"
+                  + (isSelected ? " is-selected" : "")
+                }
               >
-                {renderPickFace(row.item)}
-                <span className="folder-library-overlay__cell-meta">
-                  <span className="folder-library-overlay__cell-tag">{row.item.tag}</span>
-                  {row.item.frameAspect ? (
-                    <span className="folder-library-overlay__cell-frame">{row.item.frameAspect}</span>
-                  ) : null}
-                </span>
-              </button>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  className={
+                    "folder-library-overlay__cell-main"
+                    + (isSelected ? " is-selected" : "")
+                  }
+                  aria-pressed={isSelected}
+                  onClick={() => onPick(row.item, row.ownerKind, row.ownerId)}
+                >
+                  {renderPickFace(row.item)}
+                  <span className="folder-library-overlay__cell-meta">
+                    <span className="folder-library-overlay__cell-tag">{row.item.tag}</span>
+                    {row.item.frameAspect ? (
+                      <span className="folder-library-overlay__cell-frame">{row.item.frameAspect}</span>
+                    ) : null}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -64,6 +79,9 @@ function PickGrid({ title, items, emptyMessage, onPick }) {
 /**
  * Pick a visual library ficha into an Image card or Moodboard frame.
  * Vertical grid: parent-folder assets, then remaining workspace images (no duplicates).
+ *
+ * When `onNext` is provided (moodboard), clicks stage a selection and Next continues.
+ * Without `onNext` (ImageSplit), click commits immediately via `onPick`.
  */
 export function LibraryImageCardPicker({
   folderId = "",
@@ -72,11 +90,17 @@ export function LibraryImageCardPicker({
   titleKey = "doc.imageSplit.libraryPickerTitle",
   onPick,
   onClose,
+  onNext,
+  nextLabelKey = "doc.moodboard.libraryNext",
+  /** Allow Next without a fresh pick (slot already has an image). */
+  nextEnabled = false,
 }) {
   void layout;
   const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
   const nodes = useNodesStore((s) => s.nodes);
+  const stageMode = typeof onNext === "function";
+  const [selectedKey, setSelectedKey] = useState(null);
 
   const resolvedDocumentId = String(documentId || "").trim();
   const resolvedFolderId = useMemo(() => {
@@ -109,6 +133,17 @@ export function LibraryImageCardPicker({
   }, [resolvedFolderId, docs, t]);
 
   const segmentedEmpty = folderStrip.length === 0 && allStrip.length === 0;
+
+  const handlePick = (item, ownerKind, ownerId) => {
+    if (stageMode) {
+      setSelectedKey(pickRowKey(ownerKind, ownerId, item?.id));
+      onPick?.(item, ownerKind, ownerId);
+      return;
+    }
+    onPick?.(item, ownerKind, ownerId);
+  };
+
+  const canNext = stageMode && (Boolean(selectedKey) || nextEnabled);
 
   return createPortal(
     <div
@@ -150,7 +185,8 @@ export function LibraryImageCardPicker({
                   title={t("doc.imageSplit.libraryPickerFolderAssets", { title: folderTitle })}
                   items={folderStrip}
                   emptyMessage={t("doc.imageSplit.libraryPickerEmptyFolderAssets")}
-                  onPick={onPick}
+                  onPick={handlePick}
+                  selectedKey={stageMode ? selectedKey : null}
                 />
                 <hr className="library-image-card-picker__divider" />
               </>
@@ -159,10 +195,27 @@ export function LibraryImageCardPicker({
               title={t("doc.imageSplit.libraryPickerAllImages")}
               items={allStrip}
               emptyMessage={t("doc.imageSplit.libraryPickerEmptyAll")}
-              onPick={onPick}
+              onPick={handlePick}
+              selectedKey={stageMode ? selectedKey : null}
             />
           </div>
         )}
+
+        {stageMode ? (
+          <footer className="library-image-card-picker__footer">
+            <button
+              type="button"
+              className="library-image-card-picker__next"
+              disabled={!canNext}
+              onClick={() => {
+                if (!canNext) return;
+                onNext?.();
+              }}
+            >
+              {t(nextLabelKey)}
+            </button>
+          </footer>
+        ) : null}
       </div>
     </div>,
     document.body,
