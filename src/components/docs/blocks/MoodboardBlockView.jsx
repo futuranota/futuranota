@@ -54,8 +54,8 @@ const BOARD_PAD_X = 6;
 const BOARD_PAD_TOP = 6;
 /** Bottom strip for float actions (caption no longer needs a tall strip). */
 const BOARD_CAPTION_STRIP = 20;
-/** Expanded workspace: symmetric pad (mirrors .doc-moodboard--expanded .doc-moodboard__board). */
-const BOARD_PAD_EXPANDED = 4;
+/** Expanded workspace: symmetric pad on white board base (mirrors CSS expand board). */
+const BOARD_PAD_EXPANDED = 6;
 /** Inline document height vs full 9:16 column. */
 const INLINE_HEIGHT_FACTOR = 0.72;
 /** Expand: min extra content height above inline equivalent (visible jump). */
@@ -63,8 +63,6 @@ const EXPAND_MIN_DELTA_PX = 24;
 /** Overlay shell max height (mirrors .doc-moodboard-workspace__body max-height). */
 const EXPAND_OVERLAY_MAX_PX = 840;
 const EXPAND_OVERLAY_MAX_VH = 0.88;
-/** Expand: subtract from computed content height (shorter overlay card). */
-const EXPAND_HEIGHT_TRIM_PX = 100;
 /** Temporary: hide green tag chips on board (tag still editable in attach). */
 const SHOW_MOODBOARD_SLOT_TAGS = false;
 const BOARD_GAP = 10;
@@ -473,7 +471,7 @@ function estimateMoodboardContentHeight(
       colH = 2 * colW * slotHow + mediumRecipeGap;
     } else if (col.recipe === MOODBOARD_RECIPES.SEMI_STICKY) {
       const slotHow = moodboardCellHeightOverWidth(boardLayout, "semi", i);
-      colH = colW * slotHow + colW * STICKY_ASPECT + RECIPE_GAP;
+      colH = colW * slotHow + colW * STICKY_ASPECT + mediumRecipeGap;
     }
     // medium_sticky: no intrinsic height — inherits max from siblings.
 
@@ -647,6 +645,7 @@ export function MoodboardBlockView({
         const boardBudget = Math.max(240, overlayMax - chromeSlack);
         const pad = padTop + padBottom;
         const budgetContent = Math.max(220, boardBudget - pad);
+        // Never shorter than publish slot geometry — trim clips 9:16 bottom pad + sticky.
         if (estimated != null) {
           maxContentH = Math.round(
             Math.min(
@@ -662,7 +661,6 @@ export function MoodboardBlockView({
             ),
           );
         }
-        maxContentH = Math.max(220, maxContentH - EXPAND_HEIGHT_TRIM_PX);
       } else {
         const lineCap = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
           ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)

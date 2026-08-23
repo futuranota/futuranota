@@ -12506,24 +12506,24 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.42);
 }
 
-/* Floating moodboard workspace (no nested card / title bar). */
+/* Expanded moodboard: wide overlay card — webapp still visible around edges. */
 .doc-moodboard-workspace {
   position: fixed;
   inset: 0;
   z-index: 10070;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: max(28px, 5vh) max(20px, 4vw);
   box-sizing: border-box;
-  background: #151515;
+  background: rgba(0, 0, 0, 0.48);
 }
 
 .doc-moodboard-workspace__float-actions {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 10080;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -12532,8 +12532,8 @@ body.doc-content-resizing * {
   transition: opacity 140ms ease;
 }
 
-.doc-moodboard-workspace:hover .doc-moodboard-workspace__float-actions,
-.doc-moodboard-workspace:focus-within .doc-moodboard-workspace__float-actions,
+.doc-moodboard-workspace__body:hover .doc-moodboard-workspace__float-actions,
+.doc-moodboard-workspace__body:focus-within .doc-moodboard-workspace__float-actions,
 .doc-moodboard-workspace__float-actions:hover,
 .doc-moodboard-workspace__float-actions:focus-within {
   opacity: 1;
@@ -12603,18 +12603,22 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard-workspace__body {
-  width: min(1180px, 100%);
-  height: 100%;
+  position: relative;
+  width: min(980px, 90vw);
+  max-height: min(88vh, 840px);
+  height: auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   padding: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
 }
 
 .doc-moodboard-workspace__body .doc-moodboard {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   max-width: 100%;
   width: 100%;
@@ -12624,7 +12628,7 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard-workspace__body .doc-moodboard__board-wrap {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   max-width: 100%;
 }
@@ -12634,13 +12638,107 @@ body.doc-content-resizing * {
   display: none;
 }
 
-/* Expanded: tight even board padding vs the base. */
+/* Expanded: symmetric white-base padding (top = sides = bottom). */
 .doc-moodboard--expanded .doc-moodboard__board {
+  padding: 6px;
+  align-items: start;
+  grid-template-rows: auto;
+}
+
+.doc-moodboard--expanded .doc-moodboard__col {
+  height: auto;
+  align-self: start;
+  justify-content: flex-start;
+}
+
+/* Expand: show full photo inside padded cell (no cover-zoom). */
+.doc-moodboard--expanded .doc-moodboard__img:not(.doc-moodboard__img--file) {
+  object-fit: contain;
+  object-position: center;
+}
+
+.doc-moodboard--expanded .doc-moodboard__recipe--medium {
+  gap: 4px;
+}
+
+.doc-moodboard--expanded .doc-moodboard__recipe--semi {
+  gap: 4px;
+}
+
+.doc-moodboard--expanded .doc-moodboard__cell:not(.doc-moodboard__cell--empty) {
   padding: 4px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.doc-moodboard--expanded .doc-moodboard__cell-hit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.doc-moodboard--expanded .doc-moodboard__cell-hit,
+.doc-moodboard--expanded .doc-moodboard__img:not(.doc-moodboard__img--file) {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Expand: image slots keep publish aspect (no stretch to board bottom). */
+.doc-moodboard--expanded .doc-moodboard__recipe--large .doc-moodboard__cell,
+.doc-moodboard--expanded .doc-moodboard__recipe--semi .doc-moodboard__cell,
+.doc-moodboard--expanded .doc-moodboard__recipe--medium .doc-moodboard__cell {
+  flex: 0 0 auto;
+  height: auto;
+  max-height: none;
+}
+
+.doc-moodboard--expanded .doc-moodboard__recipe--large,
+.doc-moodboard--expanded .doc-moodboard__recipe--semi,
+.doc-moodboard--expanded .doc-moodboard__recipe--medium {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.doc-moodboard--expanded .doc-moodboard__recipe--large .doc-moodboard__cell-wrap,
+.doc-moodboard--expanded .doc-moodboard__recipe--semi .doc-moodboard__cell-wrap,
+.doc-moodboard--expanded .doc-moodboard__recipe--medium .doc-moodboard__cell-wrap {
+  flex: 0 0 auto;
+}
+
+.doc-moodboard--expanded .doc-moodboard__recipe--medium-sticky {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.doc-moodboard--expanded .doc-moodboard__cell {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.doc-moodboard--expanded .doc-moodboard__cell-hit {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* Fit inside padded cell — symmetric mat on all sides (incl. bottom). */
+.doc-moodboard--expanded .doc-moodboard__cell-hit .doc-moodboard__img:not(.doc-moodboard__img--file) {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 /*
- * Inline document: slots flex-fill the compact board; expanded keeps publish aspect + full bleed.
+ * Inline document: slots flex-fill the compact board; expanded keeps publish aspect.
  * Filled-cell inset: 3px (tight preview mat).
  */
 .doc-moodboard:not(.doc-moodboard--expanded) .doc-moodboard__col {
@@ -13339,6 +13437,10 @@ body.doc-content-resizing * {
   height: 100%;
   object-fit: cover;
   object-position: center;
+}
+
+.doc-moodboard__img:not(.doc-moodboard__img--file) {
+  border-radius: 4px;
 }
 
 .doc-moodboard__img--contain {
