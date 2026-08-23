@@ -2,7 +2,6 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { launchDateInputFromIso } from "../../lib/docDates.js";
-import { useI18n } from "../../i18n/useI18n.js";
 import { DocStatusChip } from "./FolderDocumentRow.jsx";
 import {
   resolveDocWorkStatus,
@@ -44,11 +43,9 @@ export function LinkedMacronodeStatusBadge({ nodeId }) {
 
 export function LinkedMacronodeDescription({
   nodeId,
-  onContinue,
   showDescription = true,
   showStatus = true,
 }) {
-  const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
   const visibleStatus = useDocStatusChipVisibility(node);
   const workStatus = showStatus ? visibleStatus : null;
@@ -56,12 +53,6 @@ export function LinkedMacronodeDescription({
   const hasExcerpt = showDescription && Boolean(excerpt);
 
   if (!nodeId || (!hasExcerpt && !workStatus)) return null;
-
-  const open = (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-    onContinue?.();
-  };
 
   const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
 
@@ -76,14 +67,12 @@ export function LinkedMacronodeDescription({
   return (
     <div className="doc-linked-macro-desc">
       <span className="folder-doc-row__desc-excerpt">{excerpt}</span>
-      {" "}
-      <button
-        type="button"
-        className="folder-doc-row__continue"
-        onClick={open}
-      >
-        {t("sidebar.continueReading")}
-      </button>
+      {statusChip ? (
+        <>
+          {" "}
+          {statusChip}
+        </>
+      ) : null}
     </div>
   );
 }

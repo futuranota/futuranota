@@ -1765,7 +1765,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               {isDocBlockLinkedToNode(block) ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
-                  onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
                   showStatus={!linkedBlockUsesStoryPresentation(block, folderViewMode)}
                 />
@@ -2331,7 +2330,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               {isDocBlockLinkedToNode(block) ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
-                  onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
                   showStatus={!linkedBlockUsesStoryPresentation(block, folderViewMode)}
                 />

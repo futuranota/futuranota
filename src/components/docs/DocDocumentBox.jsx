@@ -29,7 +29,6 @@ import {
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
 import { DocParentHeadPicker } from "./DocParentHeadPicker.jsx";
 import { DocDepartmentHeadPicker } from "./DocDepartmentHeadPicker.jsx";
-import { FolderIconPicker } from "./FolderIconPicker.jsx";
 import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
 import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
@@ -761,12 +760,13 @@ export function DocDocumentBox({
               onParentIdChange={onParentIdChange}
               objects={objects}
             />
-          ) : isContentMode && onIconChange ? (
-            <>
-              <FolderIconPicker
-                icon={icon}
-                onIconChange={onIconChange}
-                scopeId={docId || "folder-icon"}
+          ) : isContentMode ? (
+            <div className="doc-new-head-dept">
+              <img
+                className="doc-new-head-icon doc-new-head-icon--departments"
+                src="/uploads/Departments.svg"
+                alt=""
+                aria-hidden
               />
               <DocDepartmentHeadPicker
                 departmentId={departmentId}
@@ -775,15 +775,7 @@ export function DocDocumentBox({
                 departments={departments}
                 objectId={parentId}
               />
-            </>
-          ) : isContentMode ? (
-            <DocDepartmentHeadPicker
-              departmentId={departmentId}
-              onDepartmentIdChange={onDepartmentIdChange}
-              onCategoryChange={onCategoryChange}
-              departments={departments}
-              objectId={parentId}
-            />
+            </div>
           ) : (
             <>
               <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />

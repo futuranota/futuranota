@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   findDepartmentById,
-  formatDepartmentOfLabel,
   listDepartmentsForObject,
 } from "../../lib/departments.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
-const LOCKED_ICON = "/uploads/locked.svg";
-const UNLOCKED_ICON = "/uploads/unlocked.svg";
+const SORTING_ICON = "/uploads/sorting-05.svg";
 
 /**
- * Head-level department picker for folders (next to folder icon).
- * Lock toggle: locked = picker disabled; unlocked = can open menu.
- * Lock tones from SVG refs — swap `lockTone` ("a" | "b") to compare.
- *   a = #A1A1A1 (locked.svg) · b = #343330 (unlocked.svg)
+ * Head-level department picker for folders (next to Departments.svg).
+ * Label is read-only; sorting-05.svg (hover) opens the change menu.
  */
 export function DocDepartmentHeadPicker({
   departmentId = null,
@@ -21,12 +17,9 @@ export function DocDepartmentHeadPicker({
   onCategoryChange,
   departments = [],
   objectId = null,
-  /** @type {"a"|"b"} SVG refill colors — change to pick preferred look */
-  lockTone = "a",
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [locked, setLocked] = useState(true);
   const rootRef = useRef(null);
 
   const options = useMemo(
@@ -40,9 +33,8 @@ export function DocDepartmentHeadPicker({
   );
 
   const canAssign = Boolean(onDepartmentIdChange);
-  const canPick = canAssign && !locked;
   const label = selected
-    ? formatDepartmentOfLabel(selected)
+    ? String(selected.category || "").trim() || t("sidebar.departmentUnassigned")
     : t("sidebar.departmentUnassigned");
 
   useEffect(() => {
@@ -56,12 +48,8 @@ export function DocDepartmentHeadPicker({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  useEffect(() => {
-    if (locked) setOpen(false);
-  }, [locked]);
-
   const pick = (id) => {
-    if (!canPick) return;
+    if (!canAssign) return;
     onDepartmentIdChange?.(id || null);
     if (!id || id !== departmentId) {
       onCategoryChange?.("");
@@ -69,74 +57,51 @@ export function DocDepartmentHeadPicker({
     setOpen(false);
   };
 
-  const toggleLock = (e) => {
-    e.stopPropagation();
-    if (!canAssign) return;
-    setLocked((v) => !v);
-  };
-
   return (
     <div
       className={
         "doc-department-head-picker"
-        + (locked ? " is-locked" : " is-unlocked")
-        + (lockTone === "b" ? " doc-department-head-picker--lock-tone-b" : " doc-department-head-picker--lock-tone-a")
+        + (open ? " is-open" : "")
+        + (!selected ? " is-empty" : "")
       }
       ref={rootRef}
     >
       <div className="doc-department-head-picker__row">
-        <button
-          type="button"
+        <span
           className={
-            "doc-department-head-picker__trigger"
-            + (canPick ? " is-clickable" : "")
-            + (open ? " is-open" : "")
+            "doc-department-of-label"
             + (!selected ? " is-empty" : "")
-            + (locked ? " is-locked" : "")
           }
-          onClick={(e) => {
-            e.stopPropagation();
-            if (canPick) setOpen((v) => !v);
-          }}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-label={label}
-          disabled={!canPick}
+          title={label}
         >
-          <span className="doc-department-of-label">{label}</span>
-        </button>
+          {label}
+        </span>
         {canAssign ? (
           <button
             type="button"
             className={
-              "doc-department-lock"
-              + (locked ? " is-locked" : " is-unlocked")
+              "doc-department-sort"
+              + (open ? " is-open" : "")
             }
-            onClick={toggleLock}
-            aria-pressed={locked}
-            aria-label={
-              locked
-                ? t("sidebar.departmentUnlock")
-                : t("sidebar.departmentLock")
-            }
-            title={
-              locked
-                ? t("sidebar.departmentUnlock")
-                : t("sidebar.departmentLock")
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((v) => !v);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-label={t("sidebar.departmentChange")}
+            title={t("sidebar.departmentChange")}
           >
-            <span
-              className="doc-department-lock__icon"
-              style={{
-                WebkitMaskImage: `url(${locked ? LOCKED_ICON : UNLOCKED_ICON})`,
-                maskImage: `url(${locked ? LOCKED_ICON : UNLOCKED_ICON})`,
-              }}
+            <img
+              className="doc-department-sort__icon"
+              src={SORTING_ICON}
+              alt=""
               aria-hidden
             />
           </button>
         ) : null}
       </div>
-      {open && canPick ? (
+      {open && canAssign ? (
         <ul className="doc-department-head-picker__menu" role="listbox">
           <li>
             <button

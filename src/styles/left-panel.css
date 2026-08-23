@@ -2172,32 +2172,30 @@
 .doc-department-of-label {
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
+  margin-left: 0;
   color: rgba(255, 255, 255, 0.55);
+  opacity: 0.45;
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.doc-department-of-label.is-empty {
+  opacity: 0.45;
 }
 
 .doc-department-head-picker {
-  /* SVG ref fills: locked.svg #A1A1A1 · unlocked.svg #343330 — swap tone class to compare */
-  --dept-lock-tone-a: #A1A1A1;
-  --dept-lock-tone-b: #343330;
-  --dept-lock-color: var(--dept-lock-tone-a);
   position: relative;
   z-index: 2;
   flex: 1;
   min-width: 0;
-  margin-left: 4px;
-}
-
-.doc-department-head-picker--lock-tone-a {
-  --dept-lock-color: var(--dept-lock-tone-a);
-}
-
-.doc-department-head-picker--lock-tone-b {
-  --dept-lock-color: var(--dept-lock-tone-b);
+  margin-left: 0;
 }
 
 .doc-department-head-picker__row {
@@ -2208,78 +2206,48 @@
   max-width: 100%;
 }
 
-.doc-department-head-picker__trigger {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-  margin: 0;
-  padding: 2px 0 2px 2px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  cursor: default;
-  text-align: left;
-}
-
-.doc-department-head-picker__trigger .doc-department-of-label {
-  margin-left: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.doc-department-head-picker__trigger.is-clickable {
-  cursor: pointer;
-}
-
-.doc-department-head-picker__trigger.is-clickable:hover,
-.doc-department-head-picker__trigger.is-open {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.doc-department-head-picker__trigger.is-locked,
-.doc-department-head-picker__trigger:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
-.doc-department-head-picker__trigger.is-empty .doc-department-of-label {
-  opacity: 0.45;
-}
-
-.doc-department-lock {
+.doc-department-sort {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: auto;
-  height: auto;
+  width: 22px;
+  height: 22px;
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 4px;
   background: transparent;
   cursor: pointer;
   line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
 }
 
-.doc-department-lock:hover {
-  background: transparent;
-  opacity: 0.85;
+.doc-department-head-picker:hover .doc-department-sort,
+.doc-department-head-picker:focus-within .doc-department-sort,
+.doc-department-sort.is-open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.doc-department-lock__icon {
+.doc-department-sort:hover,
+.doc-department-sort.is-open {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-department-sort__icon {
   display: block;
   width: 14px;
   height: 14px;
-  background-color: var(--dept-lock-color);
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
+  object-fit: contain;
+  opacity: 0.72;
+}
+
+.doc-department-sort:hover .doc-department-sort__icon,
+.doc-department-sort.is-open .doc-department-sort__icon {
+  opacity: 1;
 }
 
 .doc-department-head-picker__menu {
@@ -4105,11 +4073,25 @@
   margin-bottom: 12px;
 }
 
+.doc-new-head-dept {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
 .doc-new-head-icon {
   width: 28px;
   height: 29px;
   flex-shrink: 0;
   object-fit: contain;
+}
+
+.doc-new-head-icon--departments {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .doc-folder-icon-picker {
@@ -9527,6 +9509,10 @@ body.doc-content-resizing * {
   line-height: var(--font-doc-line-height);
   letter-spacing: var(--font-doc-letter-spacing);
   color: #fff;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 /* Static file sticker beside title — always visible; hover = accent fill + black strokes. */
@@ -9588,32 +9574,6 @@ body.doc-content-resizing * {
 .folder-file-shred-handle.is-dragging .folder-file-shred-handle__sticker--hover,
 .folder-file-shred-handle:focus-visible .folder-file-shred-handle__sticker--hover {
   opacity: 1;
-}
-
-/* Description excerpt: gray mesh across the full text on hover (visual only). */
-.doc-linked-macro-desc .folder-doc-row__desc-excerpt {
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-.doc-linked-macro-desc .folder-doc-row__desc-excerpt:hover {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px);
-  background-size: 6px 6px;
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-.doc-linked-macro-desc .folder-doc-row__continue {
-  font-size: 9px;
-  font-weight: 700;
-  color: #6555EF;
-  text-decoration-color: #6555EF;
-}
-
-.doc-linked-macro-desc .folder-doc-row__continue:hover {
-  color: #6555EF;
-  filter: brightness(1.08);
 }
 
 /* H1 block — same scale as To do header */

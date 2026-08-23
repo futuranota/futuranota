@@ -28,6 +28,11 @@ No inventa corpus. No edita el **body** del documento.
 | **Google Drive** | Transformar doc a otro formato + botón enviar al Drive del user (después) |
 | **URLs / tabla** | Informar filas (cookies, comisión, etc.); llenar listados por pedido |
 | **Folder library** | Fichas del folder (tips / trailer / attachment). Gina **recuerda y muestra** en el mismo chat del día — mismo modelo que la UI (ver `folder-library.mdc`). LIVE CORPUS ONLY |
+| **Doc ops (PDF / Biblioteca / Organizar)** | Gradúan del float al chat (ver `gina-float-to-skill-pipeline.mdc`). Después: pulir voz/syntax de Organizar y exports |
+
+## Cómo shippeamos skills nuevas
+
+Ver `gina-float-to-skill-pipeline.mdc`: **float → skill Gina → pulir voz**. No dejar floats permanentes en el documento.
 
 ## Orden de build (seguir este orden)
 

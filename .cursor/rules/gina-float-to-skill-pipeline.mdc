@@ -1,0 +1,33 @@
+---
+description: Product pipeline — float UI first, then graduate to Gina skills (PDF/Organizar pattern)
+alwaysApply: true
+---
+
+# Float → Gina skill pipeline
+
+When we **create or modify** document/workspace capabilities (export PDF, save to Library, Organizar, and similar), follow this product order. Do not skip to voice or permanent chrome without the assistant path.
+
+## Pipeline
+
+1. **Float / temporary UI** — Ship a floating button (or small surface) so the action is testable in the document UI.
+2. **Graduate to Gina** — Once the behavior is solid, wire it as an **Asistente skill** (chat chips / tools / confirm flow). Keep the underlying handlers; remove or retire the float when Gina owns the action.
+3. **Polish voice / wording later** — How the user asks (e.g. “organizá el file”, PDF vs Library) is a follow-up pass. Do not block shipping the skill on perfect phrasing banks.
+
+## Live example (done)
+
+- Document focus floats **PDF** · **A Biblioteca** · **Organizar** were removed from the writing surface.
+- Same capabilities stay available via **Gina** in chat (handlers remain in the doc shell for the assistant).
+- Later: polish Organizar / export **voice and syntax** (see `gina-capability-roadmap.mdc` / syntax banks).
+
+## Rules while building
+
+- Prefer **Gina as the long-term home** for document ops (export, library save, organize) — not permanent float clutter.
+- Floats are a **dev/product scaffold**, not the final UX.
+- When removing a float, confirm Gina (or another explicit entry) still reaches the same action.
+- Do not invent new permanent left-rail / overlay buttons for actions that belong in Assistance unless the user asks.
+
+## Related
+
+- `gina-capability-roadmap.mdc` — build order of skills
+- `gina-iteration-workflow.mdc` — fix → test link → wording variants
+- `assistant-single-card-roadmap.mdc` — Asistente as protagonist
