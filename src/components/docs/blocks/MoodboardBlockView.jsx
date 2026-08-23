@@ -54,6 +54,10 @@ const BOARD_PAD_X = 16;
 const BOARD_PAD_TOP = 16;
 /** Bottom strip for float actions (caption no longer needs a tall strip). */
 const BOARD_CAPTION_STRIP = 28;
+/** Expanded workspace: symmetric pad (mirrors .doc-moodboard--expanded .doc-moodboard__board). */
+const BOARD_PAD_EXPANDED = 8;
+/** Inline document height vs full 9:16 column (expand uses full avail). */
+const INLINE_HEIGHT_FACTOR = 0.72;
 const BOARD_GAP = 10;
 /** Gap between stacked recipe cells (mirrors .doc-moodboard__recipe gap). */
 const RECIPE_GAP = 8;
@@ -587,7 +591,10 @@ export function MoodboardBlockView({
       const width = board.clientWidth;
       if (!(width > 0)) return;
       const gaps = Math.max(0, columnCount - 1);
-      const contentW = Math.max(1, width - BOARD_PAD_X * 2 - BOARD_GAP * gaps);
+      const padX = boardExpanded ? BOARD_PAD_EXPANDED : BOARD_PAD_X;
+      const padTop = boardExpanded ? BOARD_PAD_EXPANDED : BOARD_PAD_TOP;
+      const padBottom = boardExpanded ? BOARD_PAD_EXPANDED : BOARD_CAPTION_STRIP;
+      const contentW = Math.max(1, width - padX * 2 - BOARD_GAP * gaps);
       // Max height from the widest column so halves / wide+narrow / full stay readable.
       let colInner;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
@@ -600,27 +607,28 @@ export function MoodboardBlockView({
       let aspect = BOARD_ASPECT_DEFAULT;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
-      // Inline: full 9:16 column height so frames are not cropped; Expand uses body avail.
+      // Inline: compact standard height; Expand fills workspace body (no scroll).
       let maxContentH;
       if (boardExpanded) {
         const bodyEl = workspaceBodyRef.current;
         const bodyAvail = bodyEl?.clientHeight > 0
           ? bodyEl.clientHeight
-          : Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.82);
-        // Leave room for edit toolbar + caption strip so the board isn't clipped.
-        const chromeSlack = isEdit ? 56 : 8;
+          : Math.round((typeof window !== "undefined" ? window.innerHeight : 800) - 16);
+        const chromeSlack = isEdit ? 56 : 0;
         const boardBudget = Math.max(240, bodyAvail - chromeSlack);
-        const pad = BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
+        const pad = padTop + padBottom;
         maxContentH = Math.round(
-          Math.max(220, Math.min(colInner * aspect * 1.25, boardBudget - pad)),
+          Math.max(220, Math.min(colInner * aspect, boardBudget - pad)),
         );
       } else {
-        const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
+        const lineCap = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
           ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 2.15)
           : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.65);
-        maxContentH = Math.round(Math.max(220, Math.min(colInner * aspect, capped)));
+        maxContentH = Math.round(
+          Math.max(220, Math.min(colInner * aspect * INLINE_HEIGHT_FACTOR, lineCap)),
+        );
       }
-      const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
+      const maxH = maxContentH + padTop + padBottom;
 
       const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
       const estimated = estimateMoodboardContentHeight(
@@ -629,7 +637,7 @@ export function MoodboardBlockView({
         boardLayout,
       );
       const nextH = estimated != null
-        ? Math.min(maxH, estimated + BOARD_PAD_TOP + BOARD_CAPTION_STRIP)
+        ? Math.min(maxH, estimated + padTop + padBottom)
         : maxH;
 
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));
@@ -2041,50 +2049,47 @@ export function MoodboardBlockView({
       </div>
       {createPortal(
         <div
-          className="doc-moodboard-workspace"
+          className={
+            "doc-moodboard-workspace"
+            + (boardSurface === MOODBOARD_BOARD_SURFACES.TRANSPARENT
+              ? " doc-moodboard-workspace--surface-transparent"
+              : "")
+          }
           role="dialog"
           aria-modal="true"
           aria-label={t("doc.moodboard.workspaceTitle")}
         >
-          <div className="doc-moodboard-workspace__shell">
-            <header className="doc-moodboard-workspace__header">
-              <span className="doc-moodboard-workspace__title">
-                {t("doc.moodboard.workspaceTitle")}
-              </span>
-              <div className="doc-moodboard-workspace__header-actions">
-                <button
-                  type="button"
-                  className="doc-moodboard-workspace__expand"
-                  onClick={() => setBoardExpanded(false)}
-                  aria-label={t("doc.moodboard.collapse")}
-                  title={t("doc.moodboard.collapse")}
-                >
-                  <img
-                    className="doc-moodboard-workspace__expand-icon"
-                    src={EXPAND_ALL_SRC}
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                  />
-                </button>
-                <button
-                  type="button"
-                  className="doc-moodboard-workspace__close"
-                  onClick={() => setBoardExpanded(false)}
-                  aria-label={t("doc.moodboard.collapse")}
-                  title={t("doc.moodboard.collapse")}
-                >
-                  ×
-                </button>
-              </div>
-            </header>
-            <div
-              ref={workspaceBodyRef}
-              className="doc-moodboard-workspace__body scroll-match-bg"
-              style={{ "--scroll-bg": "#151515" }}
+          <div className="doc-moodboard-workspace__float-actions">
+            <button
+              type="button"
+              className="doc-moodboard-workspace__expand"
+              onClick={() => setBoardExpanded(false)}
+              aria-label={t("doc.moodboard.collapse")}
+              title={t("doc.moodboard.collapse")}
             >
-              {moodboardTree}
-            </div>
+              <img
+                className="doc-moodboard-workspace__expand-icon"
+                src={EXPAND_ALL_SRC}
+                alt=""
+                aria-hidden
+                draggable={false}
+              />
+            </button>
+            <button
+              type="button"
+              className="doc-moodboard-workspace__close"
+              onClick={() => setBoardExpanded(false)}
+              aria-label={t("doc.moodboard.collapse")}
+              title={t("doc.moodboard.collapse")}
+            >
+              ×
+            </button>
+          </div>
+          <div
+            ref={workspaceBodyRef}
+            className="doc-moodboard-workspace__body"
+          >
+            {moodboardTree}
           </div>
         </div>,
         document.body,
