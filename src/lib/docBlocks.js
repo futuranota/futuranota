@@ -521,10 +521,12 @@ export const MOODBOARD_RECIPE_SLOTS = {
   [MOODBOARD_RECIPES.MEDIUM_STICKY]: 0,
 };
 
-/** Sticky note copy (semi_sticky / medium_sticky). Soft cap; UI clamps to the note box height. */
+/** Sticky note copy (semi_sticky orange). Soft cap; UI clamps to the note box height. */
 export const MOODBOARD_STICKY_MAX = 360;
+/** Notes body (medium_sticky). Higher than orange sticky — card is taller. */
+export const MOODBOARD_NOTES_BODY_MAX = 900;
 /** Absolute max lines for medium_sticky Notes body (adaptive clamp may be lower). */
-export const MOODBOARD_NOTES_MAX_LINES = 16;
+export const MOODBOARD_NOTES_MAX_LINES = 36;
 /** Notes card title (medium_sticky — Playwrite). */
 export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */
@@ -868,10 +870,13 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
   const stickyTitle = Object.prototype.hasOwnProperty.call(patch, "stickyTitle")
     ? String(patch.stickyTitle ?? "").slice(0, MOODBOARD_STICKY_TITLE_MAX)
     : titleDefault;
+  const stickyTextMax = resolved === MOODBOARD_RECIPES.MEDIUM_STICKY
+    ? MOODBOARD_NOTES_BODY_MAX
+    : MOODBOARD_STICKY_MAX;
   return {
     recipe: resolved,
     images,
-    stickyText: String(patch.stickyText ?? "").slice(0, MOODBOARD_STICKY_MAX),
+    stickyText: String(patch.stickyText ?? "").slice(0, stickyTextMax),
     stickyTitle,
     infoLabel: String(patch.infoLabel ?? "").slice(0, MOODBOARD_INFO_MAX),
   };

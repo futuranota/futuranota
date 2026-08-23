@@ -8,6 +8,7 @@ import {
   MOODBOARD_CAPTION_MAX_LINES,
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_NOTES_BG_SRC,
+  MOODBOARD_NOTES_BODY_MAX,
   MOODBOARD_NOTES_CIRC_SRC,
   MOODBOARD_NOTES_MAX_LINES,
   MOODBOARD_NOTES_TITLE_DEFAULT,
@@ -364,12 +365,12 @@ function clampStickyText(el, raw) {
 }
 
 /**
- * Clamp Notes body to char limit, available box height, and adaptive line cap (≤16).
+ * Clamp Notes body to char limit and available box height (full clientHeight).
  * @param {HTMLTextAreaElement|null} el
  * @param {string} raw
  */
 function clampNotesText(el, raw) {
-  const capped = String(raw ?? "").slice(0, MOODBOARD_STICKY_MAX);
+  const capped = String(raw ?? "").slice(0, MOODBOARD_NOTES_BODY_MAX);
   const maxH = el?.clientHeight ?? 0;
   if (!el || !(maxH > 0)) return capped;
   const { lineHeight } = measureBodyLineMetrics(el);
@@ -646,6 +647,7 @@ export function MoodboardBlockView({
         const pad = padTop + padBottom;
         const budgetContent = Math.max(220, boardBudget - pad);
         // Never shorter than publish slot geometry — trim clips 9:16 bottom pad + sticky.
+        // Notes-only (medium_sticky): estimated is null — fill overlay budget so paper isn't short.
         if (estimated != null) {
           maxContentH = Math.round(
             Math.min(
@@ -654,12 +656,8 @@ export function MoodboardBlockView({
             ),
           );
         } else {
-          maxContentH = Math.round(
-            Math.min(
-              Math.max(colInner * aspect, inlineEquivalent + EXPAND_MIN_DELTA_PX),
-              budgetContent,
-            ),
-          );
+          // Notes-only column: fill overlay budget so textured paper isn't short.
+          maxContentH = Math.round(Math.max(220, budgetContent));
         }
       } else {
         const lineCap = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
@@ -1540,8 +1538,8 @@ export function MoodboardBlockView({
               {isEdit ? (
                 <textarea
                   className="doc-moodboard__notes-body"
-                  maxLength={MOODBOARD_STICKY_MAX}
-                  rows={3}
+                  maxLength={MOODBOARD_NOTES_BODY_MAX}
+                  rows={12}
                   value={column.stickyText || ""}
                   placeholder={t("doc.moodboard.stickyPlaceholder")}
                   aria-label={t("doc.moodboard.stickyLabel")}
