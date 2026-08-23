@@ -1021,14 +1021,32 @@ export function ImageSplitBlockView({
                   </button>
                 </div>
               ) : null}
-              <img
-                className="doc-image-split__img"
-                src={block.src}
-                alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
-                width={block.width || undefined}
-                height={block.height || undefined}
-                draggable={false}
-              />
+              {isEdit ? (
+                <button
+                  type="button"
+                  className="doc-image-split__img-btn"
+                  onClick={() => setLibraryPickerOpen(true)}
+                  aria-label={t("doc.imageSplit.pickLibrary")}
+                >
+                  <img
+                    className="doc-image-split__img"
+                    src={block.src}
+                    alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
+                    width={block.width || undefined}
+                    height={block.height || undefined}
+                    draggable={false}
+                  />
+                </button>
+              ) : (
+                <img
+                  className="doc-image-split__img"
+                  src={block.src}
+                  alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
+                  width={block.width || undefined}
+                  height={block.height || undefined}
+                  draggable={false}
+                />
+              )}
               {renderMediaBar()}
             </div>
           ) : showingPrompt ? (

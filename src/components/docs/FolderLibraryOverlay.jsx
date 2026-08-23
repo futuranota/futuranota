@@ -53,7 +53,7 @@ import { LibrarySetInputModal } from "./LibrarySetInputModal.jsx";
 const SCOPE_OPTIONS = [
   { id: "workspace", labelKey: "doc.library.scopeWorkspace", iconSrc: "/uploads/docs-main.svg" },
   { id: "folder", labelKey: "doc.library.scopeFolder", iconSrc: "/uploads/folder-main.svg" },
-  { id: "docs", labelKey: "doc.library.scopeDocs", iconSrc: "/uploads/Todo.svg" },
+  { id: "docs", labelKey: "doc.library.scopeDocs", iconSrc: "/uploads/folder-view.svg" },
 ];
 
 const FILTER_STORAGE_PREFIX = "fn-folder-library-filter:";
@@ -1103,25 +1103,6 @@ export function FolderLibraryOverlay({
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={filterTab === "prompt"}
-                    className={
-                      "folder-library-overlay__prompt-label"
-                      + (filterTab === "prompt" ? " is-active" : "")
-                    }
-                    onClick={() => setFilter("prompt")}
-                  >
-                    <img
-                      className="folder-library-overlay__tab-icon"
-                      src="/uploads/CursorText.svg"
-                      alt=""
-                      aria-hidden
-                      draggable={false}
-                    />
-                    <span>{t("doc.library.tabImages")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
                     aria-selected={filterTab === "visual"}
                     className={
                       "folder-library-overlay__prompt-label"
@@ -1193,6 +1174,25 @@ export function FolderLibraryOverlay({
                       ) : null}
                     </span>
                   ) : null}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={filterTab === "prompt"}
+                    className={
+                      "folder-library-overlay__prompt-label"
+                      + (filterTab === "prompt" ? " is-active" : "")
+                    }
+                    onClick={() => setFilter("prompt")}
+                  >
+                    <img
+                      className="folder-library-overlay__tab-icon"
+                      src="/uploads/CursorText.svg"
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                    <span>{t("doc.library.tabImages")}</span>
+                  </button>
                   {filterTab === "prompt" ? (
                     <>
                       <button

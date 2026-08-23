@@ -1222,8 +1222,18 @@ export function MoodboardBlockView({
               <button
                 type="button"
                 className="doc-moodboard__cell-hit"
-                aria-label={t("doc.moodboard.attachTitle")}
-                onClick={() => openAttachmentModal(colIndex, imageIndex, sizeClass)}
+                aria-label={
+                  canPickLibrary
+                    ? t("doc.moodboard.libraryPickerTitle")
+                    : t("doc.moodboard.attachTitle")
+                }
+                onClick={() => {
+                  if (canPickLibrary) {
+                    openLibraryPicker(colIndex, imageIndex, sizeClass);
+                    return;
+                  }
+                  openAttachmentModal(colIndex, imageIndex, sizeClass);
+                }}
               >
                 <img
                   className={
@@ -1287,14 +1297,6 @@ export function MoodboardBlockView({
               ) : null}
               {isEdit ? (
                 <div className="doc-moodboard__media-actions">
-                  <button
-                    type="button"
-                    className="doc-moodboard__media-btn"
-                    onClick={() => openAttachmentModal(colIndex, imageIndex, sizeClass)}
-                    disabled={Boolean(uploadingKey)}
-                  >
-                    {t("doc.imageBlock.replace")}
-                  </button>
                   {canPickLibrary ? (
                     <button
                       type="button"
@@ -1302,9 +1304,18 @@ export function MoodboardBlockView({
                       onClick={() => openLibraryPicker(colIndex, imageIndex, sizeClass)}
                       disabled={Boolean(uploadingKey)}
                     >
-                      {t("doc.moodboard.pickLibrary")}
+                      {t("doc.imageBlock.replace")}
                     </button>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      className="doc-moodboard__media-btn"
+                      onClick={() => openAttachmentModal(colIndex, imageIndex, sizeClass)}
+                      disabled={Boolean(uploadingKey)}
+                    >
+                      {t("doc.imageBlock.replace")}
+                    </button>
+                  )}
                   {externalUrl ? (
                     <button
                       type="button"

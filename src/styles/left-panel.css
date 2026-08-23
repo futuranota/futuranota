@@ -11457,6 +11457,17 @@ body.doc-content-resizing * {
   object-position: center;
 }
 
+.doc-image-split__img-btn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
 .doc-image-split__media-actions {
   position: absolute;
   left: 6px;
