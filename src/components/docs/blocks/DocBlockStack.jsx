@@ -1970,6 +1970,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               slashGhostHints={slashGhostHints}
               folderLibraryId={folderLibraryId}
               libraryOwnerId={libraryOwnerId}
+              libraryOwnerKind={libraryOwnerKind}
               autoFocusBody={
                 focusBlockId === block.id
                 && countMoodboardSavedImages(block) > 0

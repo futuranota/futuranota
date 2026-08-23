@@ -25,6 +25,8 @@ export {
   PROMPT_CLASS_AMBIENTE,
   buildFolderLibraryItem,
   buildLibrarySet,
+  folderLibraryItemHasPromptText,
+  folderLibraryItemHasVisualMedia,
   folderLibraryItemMatchesFilter,
   inferAttachmentKind,
   isLibraryVisualPresentation,

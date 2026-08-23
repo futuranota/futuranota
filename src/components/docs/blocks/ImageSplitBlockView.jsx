@@ -1245,6 +1245,7 @@ export function ImageSplitBlockView({
 
       {libraryPickerOpen ? (
         <LibraryImageCardPicker
+          layout="segmentedStrip"
           folderId={pickerFolderId}
           documentId={pickerDocumentId}
           onPick={handlePickLibraryItem}

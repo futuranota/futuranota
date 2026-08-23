@@ -461,6 +461,7 @@ export function MoodboardBlockView({
   slashGhostHints: _slashGhostHints,
   folderLibraryId = "",
   libraryOwnerId = "",
+  libraryOwnerKind = "folder",
 }) {
   const { t } = useI18n();
   const boardRef = useRef(null);
@@ -483,7 +484,9 @@ export function MoodboardBlockView({
   const overlaysRef = useRef([]);
 
   const pickerFolderId = String(folderLibraryId || "").trim();
-  const pickerDocumentId = String(libraryOwnerId || "").trim();
+  const pickerDocumentId = libraryOwnerKind === "document"
+    ? String(libraryOwnerId || "").trim()
+    : "";
   const canPickLibrary = Boolean(pickerFolderId || pickerDocumentId);
   const libraryCatalogs = useMemo(
     () => listHintedLibraryCatalogs({ folderId: pickerFolderId, documentId: pickerDocumentId }),
@@ -1986,6 +1989,7 @@ export function MoodboardBlockView({
 
       {libraryPickerSlot ? (
         <LibraryImageCardPicker
+          layout="segmentedStrip"
           folderId={pickerFolderId}
           documentId={pickerDocumentId}
           requireVisual

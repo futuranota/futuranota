@@ -2,13 +2,14 @@ import { createPortal } from "react-dom";
 import { useMemo } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
-import { fichaHasVisual, libraryTilePrefer, LIBRARY_MEDIA_BADGE_SRC, fichaShowsMediaBadge, promptPreviewText, resolveFichaPreviewKind } from "../../lib/libraryFichaPreview.js";
-import { isImageCardLibraryPick, isMoodboardLibraryPick } from "../../lib/libraryImageCardPick.js";
+import { listAllLibraryCatalogs } from "../../lib/folderLibrary.js";
+import { fichaHasVisual } from "../../lib/libraryFichaPreview.js";
+import { flattenVisualPicksFromCatalogs } from "../../lib/libraryImageCardPick.js";
+import { useDocsStore } from "../../stores/docsStore.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 
 function renderPickFace(item) {
-  const prefer = libraryTilePrefer("folder");
-  const kind = resolveFichaPreviewKind(item, prefer);
-  if (kind === "image" && fichaHasVisual(item)) {
+  if (fichaHasVisual(item)) {
     return (
       <img
         className="folder-library-overlay__cell-img"
@@ -18,79 +19,96 @@ function renderPickFace(item) {
     );
   }
   return (
-    <>
-      <span className="folder-library-overlay__cell-prompt">
-        {promptPreviewText(item)}
-      </span>
-      {fichaShowsMediaBadge(item, prefer) ? (
-        <img
-          className="folder-library-overlay__cell-media-badge"
-          src={LIBRARY_MEDIA_BADGE_SRC}
-          alt=""
-          aria-hidden
-          draggable={false}
-        />
-      ) : null}
-    </>
+    <span className="folder-library-overlay__cell-prompt">
+      {String(item?.tag || "").trim() || "—"}
+    </span>
   );
 }
 
-function PickSection({ title, items, ownerKind, ownerId, onPick }) {
-  if (!items.length) return null;
+function PickGrid({ title, items, emptyMessage, onPick }) {
   return (
     <section className="library-image-card-picker__section">
       {title ? (
         <h3 className="library-image-card-picker__section-title">{title}</h3>
       ) : null}
-      <ul className="folder-library-overlay__grid library-image-card-picker__grid">
-        {items.map((item) => (
-          <li key={`${ownerKind}:${item.id}`} className="folder-library-overlay__cell">
-            <button
-              type="button"
-              className="folder-library-overlay__cell-main"
-              onClick={() => onPick(item, ownerKind, ownerId)}
+      {items.length === 0 ? (
+        <p className="library-image-card-picker__grid-empty">{emptyMessage}</p>
+      ) : (
+        <ul className="folder-library-overlay__grid library-image-card-picker__grid">
+          {items.map((row) => (
+            <li
+              key={`${row.ownerKind}:${row.ownerId}:${row.item.id}`}
+              className="folder-library-overlay__cell"
             >
-              {renderPickFace(item)}
-              <span className="folder-library-overlay__cell-meta">
-                <span className="folder-library-overlay__cell-tag">{item.tag}</span>
-                {item.frameAspect ? (
-                  <span className="folder-library-overlay__cell-frame">{item.frameAspect}</span>
-                ) : null}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+              <button
+                type="button"
+                className="folder-library-overlay__cell-main"
+                onClick={() => onPick(row.item, row.ownerKind, row.ownerId)}
+              >
+                {renderPickFace(row.item)}
+                <span className="folder-library-overlay__cell-meta">
+                  <span className="folder-library-overlay__cell-tag">{row.item.tag}</span>
+                  {row.item.frameAspect ? (
+                    <span className="folder-library-overlay__cell-frame">{row.item.frameAspect}</span>
+                  ) : null}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 /**
- * Pick a folder/document Prompt ficha into an Image card or Moodboard frame.
- * @param {{ requireVisual?: boolean, titleKey?: string, emptyKey?: string }} props
+ * Pick a visual library ficha into an Image card or Moodboard frame.
+ * Vertical grid: parent-folder assets, then remaining workspace images (no duplicates).
  */
 export function LibraryImageCardPicker({
   folderId = "",
   documentId = "",
-  requireVisual = false,
+  layout = "segmentedStrip",
   titleKey = "doc.imageSplit.libraryPickerTitle",
-  emptyKey = "doc.imageSplit.libraryPickerEmpty",
   onPick,
   onClose,
 }) {
+  void layout;
   const { t } = useI18n();
-  const folderItems = useLibraryItems("folder", folderId);
-  const documentItems = useLibraryItems("document", documentId);
-  const folderPicks = useMemo(
-    () => folderItems.filter(requireVisual ? isMoodboardLibraryPick : isImageCardLibraryPick),
-    [folderItems, requireVisual],
-  );
-  const documentPicks = useMemo(
-    () => documentItems.filter(requireVisual ? isMoodboardLibraryPick : isImageCardLibraryPick),
-    [documentItems, requireVisual],
-  );
-  const showFolderLabel = Boolean(folderId && documentId);
-  const empty = folderPicks.length === 0 && documentPicks.length === 0;
+  const docs = useDocsStore((s) => s.docs);
+  const nodes = useNodesStore((s) => s.nodes);
+
+  const resolvedDocumentId = String(documentId || "").trim();
+  const resolvedFolderId = useMemo(() => {
+    const fromProp = String(folderId || "").trim();
+    if (fromProp) return fromProp;
+    if (!resolvedDocumentId) return "";
+    const node = nodes?.[resolvedDocumentId];
+    return String(node?.parentDocId || "").trim();
+  }, [folderId, resolvedDocumentId, nodes]);
+
+  const folderItems = useLibraryItems("folder", resolvedFolderId);
+
+  const folderStrip = useMemo(() => {
+    const items = Array.isArray(folderItems) ? folderItems : [];
+    return flattenVisualPicksFromCatalogs([
+      { ownerKind: "folder", ownerId: resolvedFolderId, items },
+    ]);
+  }, [folderItems, resolvedFolderId]);
+
+  const allStrip = useMemo(() => {
+    return flattenVisualPicksFromCatalogs(listAllLibraryCatalogs(), {
+      excludeFolderId: resolvedFolderId,
+    });
+  }, [docs, nodes, resolvedFolderId, folderItems]);
+
+  const folderTitle = useMemo(() => {
+    if (!resolvedFolderId) return t("doc.imageSplit.libraryPickerScopeFolder");
+    const folder = docs?.[resolvedFolderId];
+    return String(folder?.title || "").trim() || t("doc.imageSplit.libraryPickerScopeFolder");
+  }, [resolvedFolderId, docs, t]);
+
+  const segmentedEmpty = folderStrip.length === 0 && allStrip.length === 0;
 
   return createPortal(
     <div
@@ -119,24 +137,28 @@ export function LibraryImageCardPicker({
             ×
           </button>
         </header>
-        {empty ? (
+
+        {segmentedEmpty ? (
           <p className="library-image-card-picker__empty">
-            {t(emptyKey)}
+            {t("doc.imageSplit.libraryPickerEmptyStrips")}
           </p>
         ) : (
           <div className="library-image-card-picker__body">
-            <PickSection
-              title={showFolderLabel ? t("doc.imageSplit.libraryPickerFolder") : ""}
-              items={folderPicks}
-              ownerKind="folder"
-              ownerId={folderId}
-              onPick={onPick}
-            />
-            <PickSection
-              title={showFolderLabel || documentId ? t("doc.imageSplit.libraryPickerDocument") : ""}
-              items={documentPicks}
-              ownerKind="document"
-              ownerId={documentId}
+            {resolvedFolderId ? (
+              <>
+                <PickGrid
+                  title={t("doc.imageSplit.libraryPickerFolderAssets", { title: folderTitle })}
+                  items={folderStrip}
+                  emptyMessage={t("doc.imageSplit.libraryPickerEmptyFolderAssets")}
+                  onPick={onPick}
+                />
+                <hr className="library-image-card-picker__divider" />
+              </>
+            ) : null}
+            <PickGrid
+              title={t("doc.imageSplit.libraryPickerAllImages")}
+              items={allStrip}
+              emptyMessage={t("doc.imageSplit.libraryPickerEmptyAll")}
               onPick={onPick}
             />
           </div>

@@ -3,6 +3,8 @@ import {
   imageSplitHasFill,
   isImageCardLibraryPick,
   isMoodboardLibraryPick,
+  flattenVisualPicksFromCatalogs,
+  flattenAttachmentPicksFromCatalogs,
   findLibraryItemBySlot,
   libraryItemToImageSplitPatch,
   libraryItemToMoodboardSlotPatch,
@@ -24,6 +26,36 @@ describe("libraryImageCardPick", () => {
     expect(isMoodboardLibraryPick({ category: "image", mediaUrl: "/a.webp" })).toBe(true);
     expect(isMoodboardLibraryPick({ category: "image", description: "only text" })).toBe(false);
     expect(isMoodboardLibraryPick({ category: "skill", mediaUrl: "/a.webp" })).toBe(false);
+  });
+
+  it("flattens workspace visuals and excludes one folder catalog", () => {
+    const catalogs = [
+      {
+        ownerKind: "folder",
+        ownerId: "folderA",
+        items: [
+          { id: "a1", category: "image", mediaUrl: "/a1.webp" },
+          { id: "a2", category: "image", description: "prompt only" },
+        ],
+      },
+      {
+        ownerKind: "document",
+        ownerId: "doc1",
+        items: [{ id: "d1", category: "image", mediaUrl: "/d1.webp" }],
+      },
+      {
+        ownerKind: "folder",
+        ownerId: "folderB",
+        items: [{ id: "b1", category: "image", mediaUrl: "/b1.webp" }],
+      },
+    ];
+    const all = flattenVisualPicksFromCatalogs(catalogs);
+    expect(all.map((row) => row.item.id)).toEqual(["a1", "d1", "b1"]);
+    const rest = flattenVisualPicksFromCatalogs(catalogs, { excludeFolderId: "folderA" });
+    expect(rest.map((row) => `${row.ownerKind}:${row.ownerId}:${row.item.id}`)).toEqual([
+      "document:doc1:d1",
+      "folder:folderB:b1",
+    ]);
   });
 
   it("maps a visual ficha onto a moodboard slot without re-upload fields", () => {
@@ -220,5 +252,23 @@ describe("libraryImageCardPick", () => {
       expect(pres.mode).toBe("legacy");
       expect(pres.displaySrc).toBe("/legacy.webp");
     });
+  });
+});
+
+describe("flattenAttachmentPicksFromCatalogs", () => {
+  it("keeps skill/pdf and skips image fichas", () => {
+    const catalogs = [
+      {
+        ownerKind: "folder",
+        ownerId: "f1",
+        items: [
+          { id: "a1", category: "skill", tag: "pdf1" },
+          { id: "i1", category: "image", mediaUrl: "/x.webp" },
+          { id: "a2", category: "pdf", tag: "doc" },
+        ],
+      },
+    ];
+    const rows = flattenAttachmentPicksFromCatalogs(catalogs);
+    expect(rows.map((r) => r.item.id)).toEqual(["a1", "a2"]);
   });
 });

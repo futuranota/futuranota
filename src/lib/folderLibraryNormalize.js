@@ -52,9 +52,16 @@ export const FOLDER_LIBRARY_CATEGORIES = /** @type {const} */ ([
   "video",
 ]);
 
-/** Tabs shown in the library table. Video tab retired; folder has no All tab. */
+/**
+ * Tabs shown in the library table.
+ * `prompt` = image/auto fichas with written description.
+ * `visual` = image/auto fichas with a photo.
+ * A ficha with both text + photo appears in both tabs.
+ * Legacy stored value `image` migrates to `prompt`.
+ */
 export const FOLDER_LIBRARY_FILTER_TABS = /** @type {const} */ ([
-  "image",
+  "prompt",
+  "visual",
   "skill",
 ]);
 
@@ -188,24 +195,50 @@ export function normalizeFolderLibraryCategory(value) {
 
 /**
  * @param {unknown} value
- * @returns {"documents"|"image"|"skill"}
+ * @returns {"documents"|"prompt"|"visual"|"skill"}
  */
 export function normalizeFolderLibraryFilterTab(value) {
   const raw = String(value || "").trim().toLowerCase();
-  if (raw === "image" || raw === "skill") return raw;
+  if (raw === "prompt" || raw === "visual" || raw === "skill") return raw;
   if (raw === "documents" || raw === "docs") return "documents";
-  // Legacy "all" / "video" tabs → Images (folder default).
-  return "image";
+  // Legacy "image" / "all" / "video" → Prompt (previous default Prompt tab).
+  if (raw === "image" || raw === "all" || raw === "video" || raw === "images") {
+    return raw === "images" || raw === "visual" ? "visual" : "prompt";
+  }
+  return "prompt";
+}
+
+/**
+ * Image/auto ficha with written prompt text.
+ * @param {FolderLibraryItem|null|undefined} item
+ */
+export function folderLibraryItemHasPromptText(item) {
+  if (!item) return false;
+  const cat = String(item.category || "").trim().toLowerCase();
+  if (cat !== "image" && cat !== "auto") return false;
+  return Boolean(String(item.description || "").trim());
+}
+
+/**
+ * Image/auto ficha with a photo.
+ * @param {FolderLibraryItem|null|undefined} item
+ */
+export function folderLibraryItemHasVisualMedia(item) {
+  if (!item) return false;
+  const cat = String(item.category || "").trim().toLowerCase();
+  if (cat !== "image" && cat !== "auto") return false;
+  return Boolean(String(item.mediaUrl || "").trim());
 }
 
 /**
  * @param {FolderLibraryItem} item
- * @param {"documents"|"image"|"skill"|string} tab
+ * @param {"documents"|"prompt"|"visual"|"skill"|"image"|string} tab
  */
 export function folderLibraryItemMatchesFilter(item, tab) {
   if (!item) return false;
   if (tab === "documents") return true;
-  if (tab === "image") return item.category === "image" || item.category === "auto";
+  if (tab === "prompt" || tab === "image") return folderLibraryItemHasPromptText(item);
+  if (tab === "visual") return folderLibraryItemHasVisualMedia(item);
   if (tab === "skill") return item.category === "skill" || item.category === "pdf";
   return true;
 }

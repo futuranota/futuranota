@@ -1,4 +1,5 @@
 import { fichaHasVisual, promptPreviewText } from "./libraryFichaPreview.js";
+import { listAllLibraryCatalogs, listLibraryItems } from "./folderLibrary.js";
 import { normalizeWallColor } from "./folderLibraryNormalize.js";
 import { libraryFramePixelSize, normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
 
@@ -25,6 +26,92 @@ export function isMoodboardLibraryPick(item) {
   const cat = String(item.category || "").trim().toLowerCase();
   if (cat !== "image" && cat !== "auto") return false;
   return fichaHasVisual(item);
+}
+
+/**
+ * Flatten visual fichas from catalogs, optionally excluding one folder owner.
+ * @param {Array<{ ownerKind?: string, ownerId?: string, items?: unknown[] }>} catalogs
+ * @param {{ excludeFolderId?: string }} [opts]
+ * @returns {Array<{ ownerKind: "folder"|"document", ownerId: string, item: object }>}
+ */
+export function flattenVisualPicksFromCatalogs(catalogs, { excludeFolderId = "" } = {}) {
+  const exclude = String(excludeFolderId || "").trim();
+  const out = [];
+  const seen = new Set();
+  for (const catalog of Array.isArray(catalogs) ? catalogs : []) {
+    const ownerKind = (catalog?.ownerKind || catalog?.ownerKind) === "document"
+      ? "document"
+      : "folder";
+    const ownerId = String(catalog?.ownerId || catalog?.ownerId || "").trim();
+    if (!ownerId) continue;
+    if (exclude && ownerKind === "folder" && ownerId === exclude) continue;
+    const items = Array.isArray(catalog?.items) ? catalog.items : [];
+    for (const item of items) {
+      if (!isMoodboardLibraryPick(item)) continue;
+      const itemId = String(item?.id || "").trim();
+      const key = `${ownerKind}:${ownerId}:${itemId || item.mediaUrl}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ownerKind, ownerId, item });
+    }
+  }
+  return out;
+}
+
+/**
+ * Flatten attachment fichas (skill/pdf) from catalogs.
+ * @param {Array<{ ownerKind?: string, ownerId?: string, ownerKind?: string, ownerId?: string, items?: unknown[] }>} catalogs
+ * @returns {Array<{ ownerKind: "folder"|"document", ownerId: string, item: object }>}
+ */
+export function flattenAttachmentPicksFromCatalogs(catalogs) {
+  const out = [];
+  const seen = new Set();
+  for (const catalog of Array.isArray(catalogs) ? catalogs : []) {
+    const ownerKind = (catalog?.ownerKind || catalog?.ownerKind) === "document"
+      ? "document"
+      : "folder";
+    const ownerId = String(catalog?.ownerId || catalog?.ownerId || "").trim();
+    if (!ownerId) continue;
+    const items = Array.isArray(catalog?.items) ? catalog.items : [];
+    for (const item of items) {
+      const cat = String(item?.category || "").trim().toLowerCase();
+      if (cat !== "skill" && cat !== "pdf") continue;
+      const itemId = String(item?.id || "").trim();
+      if (!itemId) continue;
+      const key = `${ownerKind}:${ownerId}:${itemId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ownerKind, ownerId, item });
+    }
+  }
+  return out;
+}
+
+/**
+ * All workspace attachment fichas.
+ */
+export function listWorkspaceAttachmentPicks() {
+  return flattenAttachmentPicksFromCatalogs(listAllLibraryCatalogs());
+}
+
+/**
+ * Visual fichas for a folder library (Image card / moodboard asset strip).
+ * @param {string} folderId
+ */
+export function listFolderVisualPicks(folderId) {
+  const id = String(folderId || "").trim();
+  if (!id) return [];
+  return flattenVisualPicksFromCatalogs([
+    { ownerKind: "folder", ownerId: id, items: listLibraryItems("folder", id) },
+  ]);
+}
+
+/**
+ * Workspace visual fichas excluding a folder catalog (no duplicate of that folder's assets).
+ * @param {{ excludeFolderId?: string }} [opts]
+ */
+export function listWorkspaceVisualPicks({ excludeFolderId = "" } = {}) {
+  return flattenVisualPicksFromCatalogs(listAllLibraryCatalogs(), { excludeFolderId });
 }
 
 /**

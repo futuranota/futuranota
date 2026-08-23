@@ -21,6 +21,7 @@ import {
   isPromptClassAmbiente,
   normalizeFolderLibraryItems,
   normalizeFolderLibraryFilterTab,
+  folderLibraryItemMatchesFilter,
   normalizeLibraryOwnerKind,
   normalizeLibrarySets,
   removeFolderLibraryItem,
@@ -193,12 +194,43 @@ describe("folderLibrary normalize", () => {
     expect(sets[0].description).toBe("Story");
   });
 
-  it("normalizeFolderLibraryFilterTab maps documents and legacy all to image", () => {
+  it("normalizeFolderLibraryFilterTab maps documents and splits prompt/visual", () => {
     expect(normalizeFolderLibraryFilterTab("documents")).toBe("documents");
     expect(normalizeFolderLibraryFilterTab("docs")).toBe("documents");
-    expect(normalizeFolderLibraryFilterTab("image")).toBe("image");
-    expect(normalizeFolderLibraryFilterTab("all")).toBe("image");
-    expect(normalizeFolderLibraryFilterTab("video")).toBe("image");
+    expect(normalizeFolderLibraryFilterTab("prompt")).toBe("prompt");
+    expect(normalizeFolderLibraryFilterTab("visual")).toBe("visual");
+    expect(normalizeFolderLibraryFilterTab("image")).toBe("prompt");
+    expect(normalizeFolderLibraryFilterTab("images")).toBe("visual");
+    expect(normalizeFolderLibraryFilterTab("all")).toBe("prompt");
+    expect(normalizeFolderLibraryFilterTab("video")).toBe("prompt");
+  });
+
+  it("folderLibraryItemMatchesFilter dual-lists text+photo fichas", () => {
+    const both = {
+      id: "1",
+      category: "image",
+      description: "a prompt",
+      mediaUrl: "/a.webp",
+    };
+    const textOnly = {
+      id: "2",
+      category: "image",
+      description: "only text",
+      mediaUrl: null,
+    };
+    const photoOnly = {
+      id: "3",
+      category: "image",
+      description: "",
+      mediaUrl: "/b.webp",
+    };
+    expect(folderLibraryItemMatchesFilter(both, "prompt")).toBe(true);
+    expect(folderLibraryItemMatchesFilter(both, "visual")).toBe(true);
+    expect(folderLibraryItemMatchesFilter(textOnly, "prompt")).toBe(true);
+    expect(folderLibraryItemMatchesFilter(textOnly, "visual")).toBe(false);
+    expect(folderLibraryItemMatchesFilter(photoOnly, "prompt")).toBe(false);
+    expect(folderLibraryItemMatchesFilter(photoOnly, "visual")).toBe(true);
+    expect(folderLibraryItemMatchesFilter(both, "skill")).toBe(false);
   });
 });
 
