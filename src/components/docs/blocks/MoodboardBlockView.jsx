@@ -174,10 +174,31 @@ function OverlayPointerRailIcon() {
 }
 
 const RECIPE_OPTIONS = [
-  { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
-  { id: MOODBOARD_RECIPES.MEDIUM_STACK, labelKey: "doc.moodboard.recipeMedium" },
-  { id: MOODBOARD_RECIPES.SEMI_STICKY, labelKey: "doc.moodboard.recipeSemi" },
-  { id: MOODBOARD_RECIPES.MEDIUM_STICKY, labelKey: "doc.moodboard.recipeMediumSticky" },
+  {
+    id: MOODBOARD_RECIPES.LARGE,
+    labelKey: "doc.moodboard.recipeLarge",
+    iconSrc: "/uploads/large-image.svg",
+    /** Left glyph width at 20px icon height (SVG label is clipped out). */
+    iconClipPx: 18,
+  },
+  {
+    id: MOODBOARD_RECIPES.MEDIUM_STACK,
+    labelKey: "doc.moodboard.recipeMedium",
+    iconSrc: "/uploads/split-in-half-block-view.svg",
+    iconClipPx: 22,
+  },
+  {
+    id: MOODBOARD_RECIPES.SEMI_STICKY,
+    labelKey: "doc.moodboard.recipeSemi",
+    iconSrc: "/uploads/image-sticky-notes-block-view.svg",
+    iconClipPx: 48,
+  },
+  {
+    id: MOODBOARD_RECIPES.MEDIUM_STICKY,
+    labelKey: "doc.moodboard.recipeMediumSticky",
+    iconSrc: "/uploads/sticky-note-block-view.svg",
+    iconClipPx: 20,
+  },
 ];
 
 const LAYOUT_OPTIONS = [
@@ -1421,8 +1442,21 @@ export function MoodboardBlockView({
                   className="doc-moodboard__recipe-btn"
                   disabled={!isEdit}
                   onClick={() => setColumnRecipe(colIndex, option.id)}
+                  aria-label={t(option.labelKey)}
+                  title={t(option.labelKey)}
                 >
-                  {t(option.labelKey)}
+                  <span
+                    className="doc-moodboard__recipe-btn-icon-clip"
+                    style={{ width: option.iconClipPx }}
+                  >
+                    <img
+                      className="doc-moodboard__recipe-btn-icon"
+                      src={option.iconSrc}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                  </span>
                 </button>
               ))}
             </div>
@@ -1653,20 +1687,33 @@ export function MoodboardBlockView({
             <span className="doc-moodboard__toolbar-hint">
               {t("doc.moodboard.toolbarHint")}
             </span>
-            <div className="doc-moodboard__toolbar-actions">
+            <div className="doc-moodboard__toolbar-actions" role="group" aria-label={t("doc.moodboard.toolbarHint")}>
               {recipeOptionsForColumn(boardLayout, activeCol).map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   className={
-                    "doc-moodboard__toolbar-btn"
+                    "doc-moodboard__toolbar-btn doc-moodboard__toolbar-btn--recipe"
                     + (columns[activeCol]?.recipe === option.id
                       ? " doc-moodboard__toolbar-btn--active"
                       : "")
                   }
                   onClick={() => setColumnRecipe(activeCol, option.id)}
+                  aria-label={t(option.labelKey)}
+                  title={t(option.labelKey)}
                 >
-                  {t(option.labelKey)}
+                  <span
+                    className="doc-moodboard__toolbar-recipe-icon-clip"
+                    style={{ width: option.iconClipPx }}
+                  >
+                    <img
+                      className="doc-moodboard__toolbar-recipe-icon"
+                      src={option.iconSrc}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                  </span>
                 </button>
               ))}
             </div>

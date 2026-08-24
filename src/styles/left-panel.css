@@ -12373,7 +12373,8 @@ body.doc-content-resizing * {
   box-shadow: 0 0 0 1px rgba(22, 26, 29, 0.08);
 }
 
-.doc-moodboard__toolbar-btn--layout {
+.doc-moodboard__toolbar-btn--layout,
+.doc-moodboard__toolbar-btn--recipe {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -12396,7 +12397,26 @@ body.doc-content-resizing * {
   opacity: 0.9;
 }
 
-.doc-moodboard__toolbar-btn--active .doc-moodboard__toolbar-layout-icon {
+/* SVG assets include baked-in labels — clip to left glyph; size matches layout icons. */
+.doc-moodboard__toolbar-recipe-icon-clip {
+  display: block;
+  height: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.doc-moodboard__toolbar-recipe-icon {
+  display: block;
+  height: 20px;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  object-position: left center;
+  opacity: 0.9;
+}
+
+.doc-moodboard__toolbar-btn--active .doc-moodboard__toolbar-layout-icon,
+.doc-moodboard__toolbar-btn--active .doc-moodboard__toolbar-recipe-icon {
   opacity: 1;
 }
 
@@ -12517,6 +12537,20 @@ body.doc-content-resizing * {
   padding: max(28px, 5vh) max(20px, 4vw);
   box-sizing: border-box;
   background: rgba(0, 0, 0, 0.48);
+}
+
+/* Transparent board expand: light glass — keep backdrop readable (~1–2%). */
+.doc-moodboard-workspace--surface-transparent {
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.doc-moodboard-workspace--surface-transparent .doc-moodboard-workspace__body {
+  background: rgba(241, 241, 241, 0.02);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .doc-moodboard-workspace__float-actions {
@@ -13183,8 +13217,13 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard__recipe-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 4px 8px;
+  min-width: 36px;
+  min-height: 28px;
   border: 1px solid rgba(22, 26, 29, 0.14);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.6);
@@ -13198,10 +13237,31 @@ body.doc-content-resizing * {
     background 120ms ease;
 }
 
+.doc-moodboard__recipe-btn-icon-clip {
+  display: block;
+  height: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.doc-moodboard__recipe-btn-icon {
+  display: block;
+  height: 20px;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  object-position: left center;
+  opacity: 0.9;
+}
+
 .doc-moodboard__recipe-btn:hover:not(:disabled) {
   border-color: rgba(58, 111, 122, 0.55);
   color: #3A6F7A;
   background: rgba(58, 111, 122, 0.06);
+}
+
+.doc-moodboard__recipe-btn:hover:not(:disabled) .doc-moodboard__recipe-btn-icon {
+  opacity: 1;
 }
 
 .doc-moodboard__recipe {
