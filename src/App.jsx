@@ -46,6 +46,7 @@ import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDas
 import { UrlTableDashboardOverlay } from './components/urltable/UrlTableDashboardOverlay.jsx';
 import { PasswordTableDashboardOverlay } from './components/passwordtable/PasswordTableDashboardOverlay.jsx';
 import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
+import { LazyTodoMergedDayOverlay } from './components/lazyTodos/LazyTodoMergedDayOverlay.jsx';
 import {
   createBlankStepPlaybookSession,
   persistStepPlaybookSession,
@@ -237,6 +238,7 @@ function Dashboard({ company, onBack }) {
   const passwordTableSaveLockRef = useRef(false);
   activePasswordTableSessionRef.current = activePasswordTableSession;
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
+  const [activeLazyTodoDayMerge, setActiveLazyTodoDayMerge] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const docCloseInterceptorRef = useRef(null);
@@ -1518,6 +1520,7 @@ useEffect(() => {
 
   const handleOpenNewLazyTodo = useCallback((objectId, extras = {}) => {
     if (!objectId) return;
+    setActiveLazyTodoDayMerge(null);
     const documentId = extras?.documentId ? String(extras.documentId).trim() : "";
     const listTitle = String(extras?.listTitle ?? "").trim() || undefined;
 
@@ -1587,6 +1590,7 @@ useEffect(() => {
 
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;
+    setActiveLazyTodoDayMerge(null);
     setActiveLazyTodo((current) => {
       if (current) {
         if (lazyTodoHasContent(current)) {
@@ -1599,6 +1603,59 @@ useEffect(() => {
       return cloneLazyTodo({ ...item, status: 'active' });
     });
   }, [activateLazyTodo, parkLazyTodo, removeLazyTodo]);
+
+  const handleOpenLazyTodoDayMerge = useCallback((payload) => {
+    const dayKey = String(payload?.dayKey || "").trim();
+    const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.id) : [];
+    if (!dayKey || !items.length) return;
+    setActiveLazyTodo((current) => {
+      if (current) {
+        if (lazyTodoHasContent(current)) {
+          parkLazyTodo({ ...current, status: 'queued' });
+        } else if (current.id) {
+          removeLazyTodo(current.id);
+        }
+      }
+      return null;
+    });
+    setActiveLazyTodoDayMerge({
+      dayKey,
+      items: items.map((item) => cloneLazyTodo({ ...item, status: 'queued' })),
+    });
+  }, [parkLazyTodo, removeLazyTodo]);
+
+  const handleLazyTodoDayMergeChange = useCallback((itemId, patch) => {
+    if (!itemId || !patch) return;
+    const storePatch = {};
+    if (patch.reminder !== undefined) storePatch.reminder = patch.reminder;
+    if (patch.listTitle !== undefined) storePatch.listTitle = patch.listTitle;
+    if (patch.items !== undefined) storePatch.items = patch.items;
+    if (Object.keys(storePatch).length) updateLazyTodo(itemId, storePatch);
+    setActiveLazyTodoDayMerge((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) => (
+          item.id === itemId ? { ...item, ...patch } : item
+        )),
+      };
+    });
+  }, [updateLazyTodo]);
+
+  const handleLazyTodoDayMergeCompleted = useCallback((itemId) => {
+    if (!itemId) return;
+    removeLazyTodo(itemId);
+    setActiveLazyTodoDayMerge((current) => {
+      if (!current) return current;
+      const nextItems = current.items.filter((item) => item.id !== itemId);
+      if (!nextItems.length) return null;
+      return { ...current, items: nextItems };
+    });
+  }, [removeLazyTodo]);
+
+  const handleLazyTodoDayMergeClose = useCallback(() => {
+    setActiveLazyTodoDayMerge(null);
+  }, []);
 
   const handleLazyTodoChange = useCallback((patch) => {
     setActiveLazyTodo((current) => {
@@ -1650,6 +1707,16 @@ useEffect(() => {
       setExpandedNodeId(nodeId);
     });
   }, [nodeEntities, expandedDocId]);
+
+  const handleLazyTodoOpenDocument = useCallback((documentId) => {
+    if (!documentId) return;
+    openNodeOverlay(documentId, { contentFocus: true });
+  }, [openNodeOverlay]);
+
+  const handleLazyTodoOpenFolder = useCallback((folderId) => {
+    if (!folderId) return;
+    openDocumentOverlay(folderId);
+  }, [docs]);
 
   const patchCanvasNode = useCallback((canvasNodeId, patch) => {
     setCanvasNodes((all) => all.map((n) => (
@@ -1792,6 +1859,7 @@ useEffect(() => {
             onOpenNewUrlTable={handleOpenNewUrlTable}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
+            onOpenLazyTodoDayMerge={handleOpenLazyTodoDayMerge}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
             onUrlTablesDeleted={handleUrlTablesDeleted}
             timelineCanvasSelection={selection}
@@ -1972,6 +2040,19 @@ useEffect(() => {
           onCloseTab={handleLazyTodoCloseTab}
           onSave={handleLazyTodoSave}
           onCompleted={handleLazyTodoCompleted}
+          onOpenDocument={handleLazyTodoOpenDocument}
+          onOpenFolder={handleLazyTodoOpenFolder}
+        />
+      ) : null}
+
+      {activeLazyTodoDayMerge ? (
+        <LazyTodoMergedDayOverlay
+          session={activeLazyTodoDayMerge}
+          onChangeItem={handleLazyTodoDayMergeChange}
+          onCompletedItem={handleLazyTodoDayMergeCompleted}
+          onClose={handleLazyTodoDayMergeClose}
+          onOpenDocument={handleLazyTodoOpenDocument}
+          onOpenFolder={handleLazyTodoOpenFolder}
         />
       ) : null}
 

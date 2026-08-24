@@ -1,26 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLazyTodosStore } from "../../stores/lazyTodosStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
+import { filterLazyTodos } from "../../lib/lazyTodos.js";
 import {
-  filterLazyTodos,
-  lazyTodoDisplayTitle,
-  liveDocumentTitleForTodo,
-  sortLazyTodosNewestFirst,
-} from "../../lib/lazyTodos.js";
+  LAZY_TODO_UNSCHEDULED_DAY_KEY,
+  groupLazyTodosByScheduleDay,
+} from "../../lib/lazyTodoProvenance.js";
+import { todayDateInputValue } from "../../lib/docDates.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 
 /**
+ * Queue: one stacked card per schedule day. Click opens the merged day shell
+ * (all file to-dos inside). No per-file rows outside.
+ *
  * @param {Object} props
  * @param {string|null} props.objectId
  * @param {() => void} props.onClose
- * @param {(item: import("../../lib/lazyTodos.js").LazyTodoItem) => void} props.onOpenItem
+ * @param {(item: import("../../lib/lazyTodos.js").LazyTodoItem) => void} [props.onOpenItem]
+ * @param {(payload: { dayKey: string, items: import("../../lib/lazyTodos.js").LazyTodoItem[] }) => void} [props.onOpenDayMerge]
  * @param {() => void} props.onNew
  */
 export function LazyTodoQueuePanel({
   objectId = null,
   onClose,
-  onOpenItem,
+  onOpenItem: _onOpenItem,
+  onOpenDayMerge,
   onNew,
 }) {
   const { t } = useI18n();
@@ -31,7 +36,7 @@ export function LazyTodoQueuePanel({
   const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedDayKeys, setSelectedDayKeys] = useState([]);
 
   useEffect(() => {
     requeueOrphanedActives?.();
@@ -42,36 +47,58 @@ export function LazyTodoQueuePanel({
       item.status === "queued"
       && (objectId ? item.objectId === objectId : !item.objectId)
     ));
-    return sortLazyTodosNewestFirst(filterLazyTodos(scoped, query, { nodesById }));
+    return filterLazyTodos(scoped, query, { nodesById });
   }, [items, objectId, query, nodesById]);
+
+  const dayGroups = useMemo(
+    () => groupLazyTodosByScheduleDay(queuedItems, {
+      nodesById,
+      today: todayDateInputValue(),
+      requireContent: false,
+    }),
+    [queuedItems, nodesById],
+  );
+
+  const dayLabelFor = useCallback((group) => {
+    if (group.kind === "today") return t("lazyTodos.dayToday");
+    if (group.kind === "tomorrow") return t("lazyTodos.dayTomorrow");
+    if (group.kind === "past") {
+      return `${t("lazyTodos.dayPast")}${group.display ? ` · ${group.display}` : ""}`;
+    }
+    if (group.kind === "unscheduled" || group.dayKey === LAZY_TODO_UNSCHEDULED_DAY_KEY) {
+      return t("lazyTodos.dayUnscheduled");
+    }
+    return group.display || group.dayKey;
+  }, [t]);
 
   const exitBulkSelectMode = useCallback(() => {
     setBulkSelectMode(false);
-    setSelectedIds([]);
+    setSelectedDayKeys([]);
   }, []);
 
   const toggleBulkSelectMode = useCallback(() => {
     setBulkSelectMode((active) => {
       if (active) {
-        setSelectedIds([]);
+        setSelectedDayKeys([]);
         return false;
       }
-      setSelectedIds([]);
+      setSelectedDayKeys([]);
       return true;
     });
   }, []);
 
-  const toggleSelect = useCallback((id) => {
-    if (!id) return;
-    setSelectedIds((prev) => (
-      prev.includes(id)
-        ? prev.filter((entry) => entry !== id)
-        : [...prev, id]
+  const toggleSelectDay = useCallback((dayKey) => {
+    if (!dayKey) return;
+    setSelectedDayKeys((prev) => (
+      prev.includes(dayKey)
+        ? prev.filter((entry) => entry !== dayKey)
+        : [...prev, dayKey]
     ));
   }, []);
 
   const handleDeleteSelected = async () => {
-    const ids = selectedIds.filter(Boolean);
+    const groups = dayGroups.filter((group) => selectedDayKeys.includes(group.dayKey));
+    const ids = groups.flatMap((group) => group.items.map((item) => item.id).filter(Boolean));
     if (!ids.length) return;
     const confirmed = await askConfirm({
       title: t("lazyTodos.deleteSelectedTitle"),
@@ -85,6 +112,16 @@ export function LazyTodoQueuePanel({
     }
     exitBulkSelectMode();
   };
+
+  const openDay = useCallback((group) => {
+    if (!group?.items?.length) return;
+    if (onOpenDayMerge) {
+      onOpenDayMerge({ dayKey: group.dayKey, items: group.items });
+      return;
+    }
+    // Fallback: open first item if merge handler missing
+    _onOpenItem?.(group.items[0]);
+  }, [onOpenDayMerge, _onOpenItem]);
 
   const stopBubble = (event) => {
     event.stopPropagation();
@@ -160,7 +197,7 @@ export function LazyTodoQueuePanel({
               {bulkSelectMode ? (
                 <div className="lp-folder-bulk-bar" role="status">
                   <span className="lp-folder-bulk-bar__count">
-                    {t("lazyTodos.selectCount", { count: selectedIds.length })}
+                    {t("lazyTodos.selectCount", { count: selectedDayKeys.length })}
                   </span>
                   <div className="lp-folder-bulk-bar__actions">
                     <button
@@ -173,7 +210,7 @@ export function LazyTodoQueuePanel({
                     <button
                       type="button"
                       className="btn xs lp-folder-bulk-bar__delete"
-                      disabled={selectedIds.length === 0}
+                      disabled={selectedDayKeys.length === 0}
                       onClick={handleDeleteSelected}
                     >
                       {t("lazyTodos.deleteSelected")}
@@ -182,18 +219,19 @@ export function LazyTodoQueuePanel({
                 </div>
               ) : null}
 
-              {queuedItems.length ? (
+              {dayGroups.length ? (
                 <ul
                   className={
                     "lazy-todo-queue-panel__list"
                     + (bulkSelectMode ? " lazy-todo-queue-panel__list--selecting" : "")
                   }
                 >
-                  {queuedItems.map((item) => {
-                    const selected = selectedIds.includes(item.id);
+                  {dayGroups.map((group) => {
+                    const label = dayLabelFor(group);
+                    const selected = selectedDayKeys.includes(group.dayKey);
                     return (
                       <li
-                        key={item.id}
+                        key={group.dayKey}
                         className={
                           "lazy-todo-queue-panel__row"
                           + (bulkSelectMode ? " lazy-todo-queue-panel__row--select-mode" : "")
@@ -207,7 +245,7 @@ export function LazyTodoQueuePanel({
                               "lazy-todo-queue-panel__card lazy-todo-queue-panel__card--select"
                               + (selected ? " is-selected" : "")
                             }
-                            onClick={() => toggleSelect(item.id)}
+                            onClick={() => toggleSelectDay(group.dayKey)}
                             aria-pressed={selected}
                           >
                             <span
@@ -225,9 +263,10 @@ export function LazyTodoQueuePanel({
                             />
                             <span className="lazy-todo-queue-panel__card-body">
                               <span className="lazy-todo-queue-panel__card-title">
-                                {lazyTodoDisplayTitle(item, {
-                                  liveDocTitle: liveDocumentTitleForTodo(item, nodesById),
-                                })}
+                                {label}
+                              </span>
+                              <span className="lazy-todo-queue-panel__card-sub dim">
+                                {t("lazyTodos.dayMergeCount", { count: group.items.length })}
                               </span>
                             </span>
                           </button>
@@ -235,7 +274,8 @@ export function LazyTodoQueuePanel({
                           <button
                             type="button"
                             className="lazy-todo-queue-panel__card"
-                            onClick={() => onOpenItem?.(item)}
+                            onClick={() => openDay(group)}
+                            aria-label={t("lazyTodos.daySectionAria", { label })}
                           >
                             <img
                               src="/uploads/to-do.svg"
@@ -245,9 +285,10 @@ export function LazyTodoQueuePanel({
                             />
                             <span className="lazy-todo-queue-panel__card-body">
                               <span className="lazy-todo-queue-panel__card-title">
-                                {lazyTodoDisplayTitle(item, {
-                                  liveDocTitle: liveDocumentTitleForTodo(item, nodesById),
-                                })}
+                                {label}
+                              </span>
+                              <span className="lazy-todo-queue-panel__card-sub dim">
+                                {t("lazyTodos.dayMergeCount", { count: group.items.length })}
                               </span>
                             </span>
                             <span className="lazy-todo-queue-panel__card-chevron" aria-hidden>

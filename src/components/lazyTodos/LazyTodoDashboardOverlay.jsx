@@ -11,6 +11,8 @@ import { useI18n } from "../../i18n/useI18n.js";
  * @param {() => void} props.onCloseTab
  * @param {() => void} props.onCompleted
  * @param {() => void} [props.onSave]
+ * @param {(documentId: string) => void} [props.onOpenDocument]
+ * @param {(folderId: string) => void} [props.onOpenFolder]
  */
 export function LazyTodoDashboardOverlay({
   session,
@@ -18,6 +20,8 @@ export function LazyTodoDashboardOverlay({
   onCloseTab,
   onCompleted,
   onSave,
+  onOpenDocument,
+  onOpenFolder,
 }) {
   const { t } = useI18n();
 
@@ -59,6 +63,8 @@ export function LazyTodoDashboardOverlay({
           onCloseTab={onCloseTab}
           onCompleted={onCompleted}
           onSave={onSave}
+          onOpenDocument={onOpenDocument}
+          onOpenFolder={onOpenFolder}
         />
       </div>
     </div>,

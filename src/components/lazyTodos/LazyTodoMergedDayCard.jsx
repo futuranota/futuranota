@@ -1,0 +1,440 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { createTodoItem } from "../../lib/docBlocks.js";
+import { handleLazyTodoItemKeyDown } from "../../lib/lazyTodoItemKeyDown.js";
+import {
+  liveDocumentTitleForTodo,
+  lazyTodoProgress,
+  resolveLazyTodoListTitle,
+} from "../../lib/lazyTodos.js";
+import { resolveLazyTodoProvenance } from "../../lib/lazyTodoProvenance.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
+import { useDocsStore } from "../../stores/docsStore.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
+import { useI18n } from "../../i18n/useI18n.js";
+import {
+  itemStatusFromChecked,
+  macroStatusFromItems,
+  TodoStatusIcon,
+} from "../docs/blocks/TodoStatusIcon.jsx";
+
+const COMPLETED_ICON_SRC = "/uploads/completed.svg";
+const FILE_ICON_SRC = "/uploads/file-sticker.svg";
+const FOLDER_BOX_ICON_SRC = "/uploads/open-box.svg";
+
+/**
+ * @param {{ text?: string, checked?: boolean }[]} items
+ */
+function checklistItems(items) {
+  return (items || []).filter((row) => String(row?.text ?? "").trim());
+}
+
+function allChecklistDone(items) {
+  const rows = checklistItems(items);
+  return rows.length > 0 && rows.every((row) => Boolean(row.checked));
+}
+
+/**
+ * Single-day merged shell: one reminder | accordion of file to-dos | footer.
+ *
+ * @param {Object} props
+ * @param {string} props.dayLabel
+ * @param {import("../../lib/lazyTodos.js").LazyTodoItem[]} props.items
+ * @param {(itemId: string, patch: Partial<import("../../lib/lazyTodos.js").LazyTodoItem>) => void} props.onChangeItem
+ * @param {(itemId: string) => void} props.onCompletedItem
+ * @param {() => void} props.onClose
+ * @param {() => void} [props.onSave]
+ * @param {(documentId: string) => void} [props.onOpenDocument]
+ * @param {(folderId: string) => void} [props.onOpenFolder]
+ */
+export function LazyTodoMergedDayCard({
+  dayLabel,
+  items = [],
+  onChangeItem,
+  onCompletedItem,
+  onClose,
+  onSave,
+  onOpenDocument,
+  onOpenFolder,
+}) {
+  const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
+  const nodesById = useNodesStore((s) => s.nodes);
+  const docsById = useDocsStore((s) => s.docs);
+  const inputRefs = useRef({});
+  const confirmOpenRef = useRef(false);
+  const suppressAutoCompleteRef = useRef(false);
+  const prevAllDoneRef = useRef(false);
+
+  const [activeItemId, setActiveItemId] = useState(() => items[0]?.id || null);
+  const [focusItemId, setFocusItemId] = useState(null);
+
+  useEffect(() => {
+    if (!items.length) {
+      setActiveItemId(null);
+      return;
+    }
+    if (activeItemId && items.some((item) => item.id === activeItemId)) return;
+    setActiveItemId(items[0].id);
+  }, [items, activeItemId]);
+
+  const activeItem = useMemo(
+    () => items.find((item) => item.id === activeItemId) || null,
+    [items, activeItemId],
+  );
+
+  const activeProvenance = useMemo(
+    () => resolveLazyTodoProvenance(activeItem, { nodesById, docsById }),
+    [activeItem, nodesById, docsById],
+  );
+
+  const aggregate = useMemo(() => {
+    let done = 0;
+    let total = 0;
+    for (const item of items) {
+      const progress = lazyTodoProgress(item);
+      done += progress.done;
+      total += progress.total;
+    }
+    return { done, total };
+  }, [items]);
+
+  useEffect(() => {
+    if (!focusItemId) return;
+    inputRefs.current[focusItemId]?.focus();
+  }, [focusItemId, activeItemId, activeItem?.items?.length]);
+
+  useEffect(() => {
+    if (!activeItem) {
+      prevAllDoneRef.current = false;
+      return;
+    }
+    const allDone = allChecklistDone(activeItem.items);
+    const crossed = allDone && !prevAllDoneRef.current;
+    prevAllDoneRef.current = allDone;
+    if (!allDone) {
+      suppressAutoCompleteRef.current = false;
+      return;
+    }
+    if (!crossed || suppressAutoCompleteRef.current || confirmOpenRef.current) return;
+    void handleCompletedClick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeItem?.items, activeItemId]);
+
+  const stopBubble = (event) => {
+    event.stopPropagation();
+  };
+
+  const patchActive = (patch) => {
+    if (!activeItem?.id) return;
+    onChangeItem?.(activeItem.id, patch);
+  };
+
+  const handleCompletedClick = async () => {
+    if (!activeItem?.id || confirmOpenRef.current) return;
+    confirmOpenRef.current = true;
+    try {
+      const confirmed = await askConfirm({
+        title: t("lazyTodos.completedTitle"),
+        message: t("lazyTodos.completedConfirm"),
+        confirmLabel: t("lazyTodos.completed"),
+        cancelLabel: t("common.cancel"),
+        tone: "default",
+      });
+      if (!confirmed) {
+        suppressAutoCompleteRef.current = true;
+        return;
+      }
+      suppressAutoCompleteRef.current = false;
+      onCompletedItem?.(activeItem.id);
+    } finally {
+      confirmOpenRef.current = false;
+    }
+  };
+
+  const toggleSection = (itemId) => {
+    setFocusItemId(null);
+    setActiveItemId((current) => (current === itemId ? null : itemId));
+  };
+
+  const handleSave = () => {
+    onSave?.();
+    onClose?.();
+  };
+
+  return (
+    <article className="lazy-todo-card lazy-todo-card--dashboard lazy-todo-merged-day-card">
+      <header className="lazy-todo-card__header">
+        <div className="lazy-todo-card__heading">
+          <span className="lazy-todo-card__label">
+            {t("lazyTodos.dayMergeTitle", { label: dayLabel })}
+          </span>
+          <span className="lazy-todo-card__counter mono-sm">
+            {t("lazyTodos.progress", {
+              done: aggregate.done,
+              total: aggregate.total,
+            })}
+          </span>
+        </div>
+        <div className="lazy-todo-card__header-actions">
+          <button
+            type="button"
+            className="lazy-todo-card__close-x"
+            onClick={onClose}
+            aria-label={t("lazyTodos.closeTab")}
+            title={t("lazyTodos.closeTab")}
+          >
+            ×
+          </button>
+        </div>
+      </header>
+
+      <div className="lazy-todo-card__body">
+        <div className="lazy-todo-card__reminder">
+          <label
+            className="lazy-todo-card__field-label"
+            htmlFor="lazy-merged-reminder"
+          >
+            {t("lazyTodos.reminderLabel")}
+          </label>
+          <textarea
+            id="lazy-merged-reminder"
+            className="lazy-todo-card__reminder-input scroll-match-bg"
+            value={activeItem?.reminder || ""}
+            placeholder={
+              activeItem
+                ? t("lazyTodos.reminderPlaceholder")
+                : t("lazyTodos.dayMergeEmpty")
+            }
+            rows={4}
+            spellCheck
+            disabled={!activeItem}
+            onChange={(e) => patchActive({ reminder: e.target.value })}
+            onKeyDown={stopBubble}
+            onKeyUp={stopBubble}
+            onMouseDown={stopBubble}
+          />
+        </div>
+
+        <div className="lazy-todo-card__todo">
+          <span className="lazy-todo-card__field-label">{t("lazyTodos.todoLabel")}</span>
+          <div className="lazy-todo-merged-day-card__accordion scroll-match-bg">
+            {items.map((item) => {
+              const liveDocTitle = liveDocumentTitleForTodo(item, nodesById);
+              const fileTitle = resolveLazyTodoListTitle(item, {
+                liveDocTitle,
+                fallback: t("lazyTodos.todoLabel"),
+              });
+              const provenance = resolveLazyTodoProvenance(item, {
+                nodesById,
+                docsById,
+              });
+              const { done, total } = lazyTodoProgress(item);
+              const expanded = activeItemId === item.id;
+              const checklist = item.items?.length ? item.items : [createTodoItem()];
+              const macroStatus = macroStatusFromItems(checklist);
+
+              return (
+                <div
+                  key={item.id}
+                  className={
+                    "lazy-todo-merged-section"
+                    + (expanded ? " is-open" : "")
+                  }
+                >
+                  <div className="lazy-todo-merged-section__row">
+                    {provenance.documentId ? (
+                      <button
+                        type="button"
+                        className="lazy-todo-card__file-btn"
+                        onClick={(event) => {
+                          stopBubble(event);
+                          if (provenance.canOpenDocument) {
+                            onOpenDocument?.(provenance.documentId);
+                          }
+                        }}
+                        aria-label={t("lazyTodos.openDocument")}
+                        title={t("lazyTodos.openDocument")}
+                        disabled={!provenance.canOpenDocument}
+                      >
+                        <img src={FILE_ICON_SRC} alt="" aria-hidden draggable={false} />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="lazy-todo-merged-section__toggle"
+                      onClick={() => toggleSection(item.id)}
+                      aria-expanded={expanded}
+                    >
+                      <TodoStatusIcon status={macroStatus} />
+                      <span className="lazy-todo-merged-section__title">
+                        {fileTitle}
+                      </span>
+                      <span className="lazy-todo-merged-section__meta mono-sm">
+                        {done}/{total}
+                      </span>
+                      <span
+                        className={
+                          "doc-todo-plan__chevron"
+                          + (expanded ? " is-open" : "")
+                        }
+                        aria-hidden
+                      >
+                        ›
+                      </span>
+                    </button>
+                  </div>
+
+                  <AnimatePresence initial={false}>
+                    {expanded ? (
+                      <motion.div
+                        className="lazy-todo-merged-section__body"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <div className="doc-todo-plan__guide" aria-hidden />
+                        <ul className="doc-todo-plan__list">
+                          {checklist.map((row, index) => (
+                            <li key={row.id} className="doc-todo-plan__item">
+                              <button
+                                type="button"
+                                className="doc-todo-plan__status-btn"
+                                aria-label={
+                                  row.checked ? "Mark incomplete" : "Mark complete"
+                                }
+                                onClick={() => {
+                                  const nextItems = checklist.map((entry, i) => (
+                                    i === index
+                                      ? { ...entry, checked: !entry.checked }
+                                      : entry
+                                  ));
+                                  onChangeItem?.(item.id, { items: nextItems });
+                                }}
+                              >
+                                <TodoStatusIcon
+                                  status={itemStatusFromChecked(row.checked)}
+                                  size="sm"
+                                />
+                              </button>
+                              <input
+                                ref={(el) => {
+                                  if (el) inputRefs.current[row.id] = el;
+                                  else delete inputRefs.current[row.id];
+                                }}
+                                type="text"
+                                className={
+                                  "doc-todo-plan__item-input"
+                                  + (row.checked ? " doc-todo-plan__item-input--done" : "")
+                                }
+                                data-todo-item-id={row.id}
+                                value={row.text}
+                                placeholder="List item"
+                                onChange={(e) => {
+                                  const nextItems = checklist.map((entry, i) => (
+                                    i === index
+                                      ? { ...entry, text: e.target.value }
+                                      : entry
+                                  ));
+                                  onChangeItem?.(item.id, { items: nextItems });
+                                }}
+                                onKeyDown={(event) => {
+                                  stopBubble(event);
+                                  handleLazyTodoItemKeyDown({
+                                    items: checklist,
+                                    itemIndex: index,
+                                    event,
+                                    onItemsChange: (nextItems) => {
+                                      onChangeItem?.(item.id, { items: nextItems });
+                                    },
+                                    onFocusItemId: setFocusItemId,
+                                  });
+                                }}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                        <button
+                          type="button"
+                          className="doc-todo-plan__new-btn lazy-todo-merged-section__add"
+                          onClick={() => {
+                            const newItem = createTodoItem({ text: "" });
+                            onChangeItem?.(item.id, {
+                              items: [...checklist, newItem],
+                            });
+                            setFocusItemId(newItem.id);
+                          }}
+                        >
+                          + item
+                        </button>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <footer className="lazy-todo-card__footer lazy-todo-merged-day-card__footer">
+        <button
+          type="button"
+          className="lazy-todo-card__save-btn"
+          onClick={handleSave}
+        >
+          {t("lazyTodos.save")}
+        </button>
+
+        {activeItem ? (
+          <button
+            type="button"
+            className="lazy-todo-folder-chip"
+            onClick={() => {
+              if (activeProvenance.canOpenFolder && activeProvenance.folderId) {
+                onOpenFolder?.(activeProvenance.folderId);
+              }
+            }}
+            disabled={!activeProvenance.canOpenFolder}
+            title={
+              activeProvenance.canOpenFolder
+                ? t("lazyTodos.openFolder")
+                : t("lazyTodos.folderUnknown")
+            }
+            aria-label={t("lazyTodos.openFolder")}
+          >
+            <img
+              src={FOLDER_BOX_ICON_SRC}
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="lazy-todo-folder-chip__icon"
+            />
+            <span className="lazy-todo-folder-chip__label">
+              {activeProvenance.folderTitle || t("lazyTodos.folderUnknown")}
+            </span>
+          </button>
+        ) : (
+          <span className="lazy-todo-merged-day-card__footer-spacer" />
+        )}
+
+        <button
+          type="button"
+          className="btn xs lazy-todo-card__complete-btn lazy-todo-card__complete-btn--footer"
+          onClick={handleCompletedClick}
+          disabled={!activeItem}
+        >
+          <img
+            src={COMPLETED_ICON_SRC}
+            alt=""
+            className="lazy-todo-card__complete-icon"
+            aria-hidden
+            draggable={false}
+          />
+          <span>{t("lazyTodos.completed")}</span>
+        </button>
+      </footer>
+    </article>
+  );
+}

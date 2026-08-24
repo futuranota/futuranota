@@ -483,6 +483,12 @@
   white-space: nowrap;
 }
 
+.lazy-todo-queue-panel__card-sub {
+  font-size: 10px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.38);
+}
+
 .lazy-todo-queue-panel__card-chevron {
   color: rgba(255, 255, 255, 0.35);
   font-size: 16px;
@@ -495,6 +501,260 @@
 
 .lazy-todo-queue-panel__empty {
   padding: 12px 0;
+}
+
+.lazy-todo-card__file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lazy-todo-card__file-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lazy-todo-card__file-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lazy-todo-card__file-btn img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
+}
+
+.lazy-todo-card__provenance {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+}
+
+.lazy-todo-card__provenance-folder {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lazy-todo-card__provenance-folder:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.lazy-todo-card__provenance-folder:not(:disabled):hover .lazy-todo-card__provenance-value {
+  color: rgba(185, 229, 254, 0.95);
+}
+
+.lazy-todo-card__provenance-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+.lazy-todo-card__provenance-value {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lazy-todo-card__provenance-muted {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Merged day — single shell (same dashboard card chrome) + file accordion */
+.lazy-todo-merged-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(88vh, 860px);
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.lazy-todo-merged-day-card {
+  background: #151515;
+}
+
+.lazy-todo-merged-day-card .lazy-todo-card__todo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lazy-todo-merged-day-card__accordion {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: color-mix(in oklab, #151515 70%, #000 30%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lazy-todo-merged-section {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  overflow: hidden;
+}
+
+.lazy-todo-merged-section.is-open {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.lazy-todo-merged-section__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 4px;
+}
+
+.lazy-todo-merged-section__row .lazy-todo-card__file-btn {
+  margin-left: 0;
+}
+
+.lazy-todo-merged-section__toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lazy-todo-merged-section__toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+}
+
+.lazy-todo-merged-section__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lazy-todo-merged-section__meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.lazy-todo-merged-section__body {
+  position: relative;
+  overflow: hidden;
+  padding: 0 10px 10px 14px;
+}
+
+.lazy-todo-merged-section__body .doc-todo-plan__guide {
+  left: 22px;
+}
+
+.lazy-todo-merged-section__add {
+  margin-top: 8px;
+}
+
+.lazy-todo-merged-day-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lazy-todo-merged-day-card__footer .lazy-todo-card__complete-btn--footer {
+  margin-left: auto;
+}
+
+.lazy-todo-merged-day-card__footer-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.lazy-todo-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(220px, 42%);
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #151515;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lazy-todo-folder-chip:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: color-mix(in oklab, #151515 88%, #fff 12%);
+}
+
+.lazy-todo-folder-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.lazy-todo-folder-chip__icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.85;
+  filter: brightness(0) invert(0.78);
+}
+
+.lazy-todo-folder-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lp-content:has(.lazy-todo-queue-panel) {
@@ -517,5 +777,15 @@
   .lazy-todo-card--dashboard .lazy-todo-card__reminder {
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .lazy-todo-merged-day-card__footer {
+    flex-wrap: wrap;
+  }
+
+  .lazy-todo-folder-chip {
+    max-width: 100%;
+    order: 3;
+    width: 100%;
   }
 }
