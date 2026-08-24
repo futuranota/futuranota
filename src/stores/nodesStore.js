@@ -8,6 +8,7 @@ import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
+  docBlocksToBody,
   ensureWritableDocTail,
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
@@ -32,14 +33,17 @@ import {
   findMacroContinuationIndex,
   isMacroContinuationTextBlock,
   MACRO_NODE_TEXT_SLOT,
-  mergeMissingLinkedOwnerBundles,
+  mergeMissingLinkedOwnerBundlesLive,
   removeLinkedOwnerBundleFromBlocks,
   resolveLinkedAnswerTextIndex,
   stripLeadingEmptyTextBlocks,
   unlinkNodeFromDocBlocks,
 } from "../lib/docNodeSync.js";
 import { purgeNodeFromTimelineAndCanvas } from "../lib/nodeSurfacePurge.js";
-import { markDocsDeletedForSync } from "./middleware/persistenceMiddleware.js";
+import {
+  isNodeMarkedDeletedForSync,
+  markDocsDeletedForSync,
+} from "./middleware/persistenceMiddleware.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -660,9 +664,11 @@ export const useNodesStore = create(
         // titles + Description layers appear even while the folder modal is open.
         const draft = useUIStateStore.getState().docEditorDrafts[docId];
         if (draft) {
-          const mergedBlocks = mergeMissingLinkedOwnerBundles(
+          const mergedBlocks = mergeMissingLinkedOwnerBundlesLive(
             draft.blocks || [],
             finalizedBlocks,
+            get().nodes,
+            isNodeMarkedDeletedForSync,
           );
           useUIStateStore.getState().setDocEditorDraft(docId, {
             ...draft,
@@ -761,7 +767,12 @@ export const useNodesStore = create(
               doc.blocks,
               nodeId,
             );
-            docsStore.updateDoc(docId, { blocks: nextBlocks });
+            const nextBody = docBlocksToBody(nextBlocks);
+            docsStore.updateDoc(docId, {
+              blocks: nextBlocks,
+              body: nextBody,
+              content: nextBody,
+            });
             const draft = useUIStateStore.getState().docEditorDrafts[docId];
             if (draft?.blocks) {
               const { blocks: draftBlocks } = removeLinkedOwnerBundleFromBlocks(
@@ -771,6 +782,7 @@ export const useNodesStore = create(
               useUIStateStore.getState().setDocEditorDraft(docId, {
                 ...draft,
                 blocks: draftBlocks,
+                body: docBlocksToBody(draftBlocks),
               });
             }
           }

@@ -576,9 +576,10 @@ export function getLinkedOwnerForContinuationSlot(blocks, textBlockIndex) {
  */
 export function removeLinkedOwnerBundleFromBlocks(blocks, nodeId) {
   const normalized = normalizeDocBlocks(blocks);
-  if (!nodeId) return { blocks: normalized, removed: false };
+  const targetId = String(nodeId || "").trim();
+  if (!targetId) return { blocks: normalized, removed: false };
 
-  const ownerIndex = normalized.findIndex((b) => b?.nodeId === nodeId);
+  const ownerIndex = normalized.findIndex((b) => String(b?.nodeId || "") === targetId);
   if (ownerIndex < 0) return { blocks: normalized, removed: false };
 
   const owner = normalized[ownerIndex];
@@ -678,6 +679,43 @@ export function mergeMissingLinkedOwnerBundles(draftBlocks, storeBlocks) {
   // First linked title into an empty-ish draft: collapse leading blank TEXTs.
   const base = stripLeadingEmptyTextBlocks(draft);
   return ensureWritableDocTail([...base, ...toAppend]);
+}
+
+/**
+ * Merge missing linked owners, but never remarge hard-deleted / missing entities.
+ * Also strips ghost linked bundles from the draft when the node no longer exists.
+ *
+ * @param {object[]} draftBlocks
+ * @param {object[]} storeBlocks
+ * @param {Record<string, object>} [liveNodesById]
+ * @param {(nodeId: string) => boolean} [isDeleted]
+ */
+export function mergeMissingLinkedOwnerBundlesLive(
+  draftBlocks,
+  storeBlocks,
+  liveNodesById = {},
+  isDeleted = () => false,
+) {
+  const isLive = (nodeId) => {
+    const id = String(nodeId || "").trim();
+    if (!id) return false;
+    if (isDeleted(id)) return false;
+    return Boolean(liveNodesById[id]);
+  };
+
+  let draft = normalizeDocBlocks(draftBlocks);
+  for (const block of [...draft]) {
+    if (!block?.nodeId || isLive(block.nodeId)) continue;
+    draft = removeLinkedOwnerBundleFromBlocks(draft, block.nodeId).blocks;
+  }
+
+  const filteredStore = normalizeDocBlocks(storeBlocks).filter((block) => {
+    if (!block?.nodeId) return true;
+    if (!isDocBlockLinkedToNode(block)) return true;
+    return isLive(block.nodeId);
+  });
+
+  return mergeMissingLinkedOwnerBundles(draft, filteredStore);
 }
 
 /**

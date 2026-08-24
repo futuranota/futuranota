@@ -100,7 +100,7 @@ import {
   unlinkNodeFromDocBlocks,
   getOwnedTextBlockIndices,
   isDocBlockLinkedToNode,
-  mergeMissingLinkedOwnerBundles,
+  mergeMissingLinkedOwnerBundlesLive,
   ensureAllLinkedOwnerContinuationSlots,
   removeLinkedOwnerBundleFromBlocks,
   reconcileLinkedBlockTitlesFromNodes,
@@ -108,6 +108,10 @@ import {
   linkedOwnerNodeIdsInOrder,
 } from "../../lib/docNodeSync.js";
 import { reorderLinkedOwnerBundlesInBlocks } from "../../lib/folderDocumentOrder.js";
+import {
+  isNodeMarkedDeletedForSync,
+  markDocsDeletedForSync,
+} from "../../stores/middleware/persistenceMiddleware.js";
 import {
   buildDetachedWidgetEmbedded,
   captureDocBlockWidgetSnapshot,
@@ -379,11 +383,21 @@ export function DocExpandedView({
   }, []);
 
   const handleShredFolderNode = useCallback(async (nodeId) => {
-    if (!nodeId) return;
-    const node = useNodesStore.getState().nodes[nodeId];
-    if (!node) return;
-    const label = String(node.title || node.sourceQuery || t("sidebar.newDocument")).trim()
-      || t("sidebar.newDocument");
+    const id = String(nodeId || "").trim();
+    if (!id) return;
+
+    const node = useNodesStore.getState().nodes[id];
+    const ghostTitle = (() => {
+      if (node) {
+        return String(node.title || node.sourceQuery || "").trim();
+      }
+      const owner = draftBlocksRef.current.find(
+        (b) => String(b?.nodeId || "") === id,
+      );
+      return String(owner?.title || owner?.listTitle || owner?.sourceQuery || "").trim();
+    })();
+    const label = ghostTitle || t("sidebar.newDocument");
+
     const confirmed = await askConfirm({
       title: t("sidebar.deleteNodeTitle"),
       message: t("sidebar.deleteNodeConfirm", { name: label }),
@@ -391,10 +405,58 @@ export function DocExpandedView({
       cancelLabel: t("common.cancel"),
     });
     if (!confirmed) return;
+
+    // Draft is source of truth while the folder is open — strip UI first so the
+    // linked-owner sync effect cannot remarge the row from a stale store body.
+    // Also works for ghost rows (block still present, entity already gone).
+    const nextBlocks = removeLinkedOwnerBundleFromBlocks(
+      draftBlocksRef.current,
+      id,
+    ).blocks;
+    const nextBody = docBlocksToBody(nextBlocks);
+    setDraftBlocks(nextBlocks);
+    storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(nextBlocks).join("|");
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const aligned = { ...prev, blocks: nextBlocks, body: nextBody };
+      docSnapshotRef.current = JSON.stringify(aligned);
+      return aligned;
+    });
+
+    if (activeNodeContext?.nodeId === id) {
+      setActiveNodeContext(null);
+      setNodeDraftContent("");
+      setNodeDraftAnchorDate("");
+      setNodeDraftAnchorTime("");
+      setNodeDraftAnchorFinishTime("");
+      setNodeInitialSnapshot(null);
+    }
+
     try { playTrashBoxSound(); } catch { /* ignore */ }
-    deleteNodeAndDocBlocks(nodeId);
-    setDraftBlocks((prev) => removeLinkedOwnerBundleFromBlocks(prev, nodeId).blocks);
-  }, [askConfirm, deleteNodeAndDocBlocks, t]);
+    if (node) {
+      deleteNodeAndDocBlocks(id);
+    } else {
+      // Ghost row: mark tombstone so reopen/hydrate cannot remarge this id.
+      markDocsDeletedForSync([], [id]);
+    }
+
+    // Keep docsStore + editor cache aligned with the open draft.
+    if (docId) {
+      updateDoc(docId, {
+        blocks: nextBlocks,
+        body: nextBody,
+        content: nextBody,
+      });
+      useUIStateStore.getState().clearDocEditorDraft(docId);
+    }
+  }, [
+    askConfirm,
+    deleteNodeAndDocBlocks,
+    t,
+    activeNodeContext?.nodeId,
+    docId,
+    updateDoc,
+  ]);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
   const departments = useDepartmentsStore((s) => s.departments);
@@ -441,9 +503,11 @@ export function DocExpandedView({
 
     const blocksForSnapshotRaw = useCachedDraft ? cachedBlocks : loadedBlocks;
     const storeOwnerOrder = linkedOwnerNodeIdsInOrder(loadedBlocks);
-    const blocksForSnapshotMerged = mergeMissingLinkedOwnerBundles(
+    const blocksForSnapshotMerged = mergeMissingLinkedOwnerBundlesLive(
       blocksForSnapshotRaw,
       loadedBlocks,
+      nodesById,
+      isNodeMarkedDeletedForSync,
     );
     // Cached drafts can outlive a left-panel reorder — realign owner bundles to store.
     const blocksReordered = storeOwnerOrder.length
@@ -635,18 +699,24 @@ export function DocExpandedView({
     storeLinkedNodeIdsKeyRef.current = storeLinkedKey;
 
     let nextBlocks = draftBlocksRef.current;
+    const nodesById = useNodesStore.getState().nodes;
 
     if (!hasNewLinkedIds) {
-      // Panel delete purged the node — strip leftover title layers from the open draft.
-      const nodesById = useNodesStore.getState().nodes;
+      // Panel/shred deleted the node — strip leftover title layers from the open draft.
       let pruned = nextBlocks;
       for (const block of nextBlocks) {
-        if (!block?.nodeId || nodesById[block.nodeId]) continue;
+        if (!block?.nodeId) continue;
+        if (nodesById[block.nodeId] && !isNodeMarkedDeletedForSync(block.nodeId)) continue;
         pruned = removeLinkedOwnerBundleFromBlocks(pruned, block.nodeId).blocks;
       }
       nextBlocks = pruned;
     } else {
-      nextBlocks = mergeMissingLinkedOwnerBundles(nextBlocks, storeBlocks);
+      nextBlocks = mergeMissingLinkedOwnerBundlesLive(
+        nextBlocks,
+        storeBlocks,
+        nodesById,
+        isNodeMarkedDeletedForSync,
+      );
     }
 
     if (storeOwnerOrder.length) {
@@ -674,11 +744,20 @@ export function DocExpandedView({
     const draftHasText = docBlocksHaveText(draftBlocks);
     const isAgentReport = doc.reportPresentation?.kind === "analyst-strategic-v2";
 
+    const nodesById = useNodesStore.getState().nodes;
+    // Prune shredded/tombstoned owners before any store→draft overwrite.
+    const liveStoreBlocks = mergeMissingLinkedOwnerBundlesLive(
+      storeBlocks,
+      storeBlocks,
+      nodesById,
+      isNodeMarkedDeletedForSync,
+    );
+
     if (storeHasText && !draftHasText && (doc.reportPresentation?.animateOnOpen || isAgentReport)) {
-      setDraftBlocks(storeBlocks);
+      setDraftBlocks(liveStoreBlocks);
       setInitialSnapshot((prev) => {
         if (!prev) return prev;
-        const next = { ...prev, blocks: storeBlocks };
+        const next = { ...prev, blocks: liveStoreBlocks };
         docSnapshotRef.current = JSON.stringify(next);
         return next;
       });
@@ -691,12 +770,12 @@ export function DocExpandedView({
     const bodyDirty = (initialSnapshot.body ?? "") !== (draftBody ?? "");
     if (blocksDirty || bodyDirty) return;
 
-    if (JSON.stringify(draftBlocks) === JSON.stringify(storeBlocks)) return;
+    if (JSON.stringify(draftBlocks) === JSON.stringify(liveStoreBlocks)) return;
 
-    setDraftBlocks(storeBlocks);
+    setDraftBlocks(liveStoreBlocks);
     setInitialSnapshot((prev) => {
       if (!prev) return prev;
-      const next = { ...prev, blocks: storeBlocks };
+      const next = { ...prev, blocks: liveStoreBlocks };
       docSnapshotRef.current = JSON.stringify(next);
       return next;
     });
@@ -714,14 +793,16 @@ export function DocExpandedView({
 
     // Persist folder removals so store does not remarge deleted titles.
     // Keep parentDocId — unlink from body must not drop left-panel membership.
-    for (const nodeId of removedIds) {
-      updateNode(nodeId, {
+    // Skip hard-deleted entities (shredder / deleteNodeAndDocBlocks) — do not resurrect.
+    for (const removedNodeId of removedIds) {
+      if (!useNodesStore.getState().nodes[removedNodeId]) continue;
+      updateNode(removedNodeId, {
         sourceBlockId: undefined,
         sourceTextBlockId: undefined,
         parentDocId: doc.id,
         linkedToDoc: true,
       });
-      useDocsStore.getState().addNodeToDoc(doc.id, nodeId);
+      useDocsStore.getState().addNodeToDoc(doc.id, removedNodeId);
     }
     updateDoc(doc.id, { blocks: next });
     storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(next).join("|");

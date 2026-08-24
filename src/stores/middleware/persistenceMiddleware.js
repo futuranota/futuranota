@@ -510,6 +510,12 @@ export function markDocsDeletedForSync(docIds, nodeIds = []) {
   }
 }
 
+/** True when a node id is tombstoned and must not remarge into open folder drafts. */
+export function isNodeMarkedDeletedForSync(nodeId) {
+  const id = String(nodeId || "").trim();
+  return Boolean(id && pendingDeletedNodeIds.has(id));
+}
+
 /**
  * Mark corpora (companies) as intentionally deleted so hydrate merge cannot restore them.
  * @param {string|string[]} companyIds
