@@ -36,15 +36,19 @@ export function TimelineEventChip({
   onRemove,
   removeLabel = "Remove from timeline",
   title,
+  scheduleLive = false,
 }) {
   if (variant === "card") {
     const cardStyle = familyAccent
       ? {
         "--tl-family-accent": familyAccent,
-        borderLeftColor: familyAccent,
+        ...(scheduleLive ? {} : { borderLeftColor: familyAccent }),
       }
       : objectTint
-        ? { "--tl-family-accent": objectTint, borderLeftColor: objectTint }
+        ? {
+          "--tl-family-accent": objectTint,
+          ...(scheduleLive ? {} : { borderLeftColor: objectTint }),
+        }
         : undefined;
 
     return (

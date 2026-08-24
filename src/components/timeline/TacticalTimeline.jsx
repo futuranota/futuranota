@@ -14,6 +14,12 @@ import {
   formatTimelineTimeGapLabel,
 } from "../../lib/tacticalTimelineView.js";
 import { formatSameDayPairLabel, formatNowUntilScheduleLabel } from "../../lib/docSchedule.js";
+import {
+  isTimelineScheduleLedCandidate,
+  resolveTimelineScheduleLed,
+  resolveTimelineScheduleSubject,
+} from "../../lib/docScheduleWindow.js";
+import { formatScheduleLabelFromIso } from "../../lib/nodeAnchor.js";
 import { isFolderTimelineCompleted } from "../../lib/timelineDocSnapshot.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
@@ -741,6 +747,39 @@ function TacticalObjectRow({
                         || marker.queuedFile
                         || (isMacronodo && marker.childKey);
                       const macronodoGreen = "#86A296";
+                      const scheduleSubject = isTimelineScheduleLedCandidate(marker, {
+                        isTimeMarker,
+                        isAgentSet,
+                      })
+                        ? resolveTimelineScheduleSubject(entity, {
+                          item,
+                          docsById,
+                          entityId: marker.entityId || null,
+                        })
+                        : null;
+                      const scheduleLed = scheduleSubject
+                        ? resolveTimelineScheduleLed(scheduleSubject, now)
+                        : { active: false, variant: null };
+                      const scheduleLedTitle = scheduleLed.active && scheduleSubject?.anchorAt
+                        ? [
+                          formatScheduleLabelFromIso(scheduleSubject.anchorAt),
+                          scheduleSubject.anchorFinishAt
+                            ? formatScheduleLabelFromIso(scheduleSubject.anchorFinishAt)
+                            : null,
+                        ].filter(Boolean).join(" – ")
+                        : null;
+                      const chipTitleBase = isTimeMarker
+                        ? [marker.title || "Launch", display.dateLabel]
+                          .filter(Boolean)
+                          .join(" · ")
+                        : display.dateLabel
+                          || (isAgentSet
+                            ? t("timeline.agentSetHint")
+                            : marker.dataType === "document"
+                              ? t("timeline.docChipHint")
+                              : marker.docId
+                                ? t("timeline.childChipHint")
+                                : undefined);
 
                       return (
                         <TimelineEventChip
@@ -763,22 +802,21 @@ function TacticalObjectRow({
                               isPastDue ? "is-past-due" : "",
                               isPending ? "is-pending" : "",
                               isCompleted ? "is-completed" : "",
+                              scheduleLed.active ? "is-schedule-live" : "",
+                              scheduleLed.active && scheduleLed.variant === "brown"
+                                ? "is-schedule-led-brown"
+                                : "",
+                              scheduleLed.active && scheduleLed.variant !== "brown"
+                                ? "is-schedule-led-green"
+                                : "",
                             ].filter(Boolean).join(" ")
                           }
                           title={
-                            isTimeMarker
-                              ? [marker.title || "Launch", display.dateLabel]
-                                .filter(Boolean)
-                                .join(" · ")
-                              : display.dateLabel
-                                || (isAgentSet
-                                  ? t("timeline.agentSetHint")
-                                  : marker.dataType === "document"
-                                    ? t("timeline.docChipHint")
-                                    : marker.docId
-                                      ? t("timeline.childChipHint")
-                                      : undefined)
+                            scheduleLedTitle
+                              ? `${chipTitleBase || chipLabel} · ${scheduleLedTitle}`
+                              : chipTitleBase
                           }
+                          scheduleLive={scheduleLed.active}
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
                           onRemove={canRemove
@@ -913,7 +951,7 @@ export function TacticalTimeline({
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     setNow(new Date());
-    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    const id = window.setInterval(() => setNow(new Date()), 5_000);
     return () => window.clearInterval(id);
   }, []);
 

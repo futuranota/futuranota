@@ -6365,6 +6365,104 @@ textarea.note-form-field {
     0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
   color: color-mix(in oklab, var(--tl-macronodo-bright) 70%, var(--text));
 }
+
+/* Schedule window LED — left accent bar (dev variant: fn.timelineLedVariant green|brown) */
+.tl-event-chip--card.is-schedule-live {
+  position: relative;
+  overflow: visible;
+  border-left-width: 0 !important;
+  border-left-color: transparent !important;
+  padding-left: 5px;
+}
+.tl-event-chip--card.is-schedule-live .tl-chip-card-accent {
+  display: block !important;
+  position: absolute;
+  left: 0;
+  top: 1px;
+  bottom: 1px;
+  width: 5px;
+  border-radius: 6px 0 0 6px;
+  pointer-events: none;
+  z-index: 2;
+  animation: tl-led-pulse 2.2s ease-in-out infinite;
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-green .tl-chip-card-accent {
+  background: linear-gradient(
+    180deg,
+    #d4ffd8 0%,
+    #57bc6c 40%,
+    #1f7a35 100%
+  );
+  box-shadow:
+    0 0 8px #57bc6c,
+    0 0 18px #8ee9a3,
+    inset 0 0 6px rgba(255, 255, 255, 0.45);
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-green {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, #57bc6c 45%, var(--glass-border)),
+    0 0 14px color-mix(in oklab, #57bc6c 35%, transparent),
+    0 1px 4px color-mix(in oklab, #000 18%, transparent);
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-brown .tl-chip-card-accent {
+  background: linear-gradient(
+    180deg,
+    #f5e0d4 0%,
+    #d6b4a7 40%,
+    #9a7260 100%
+  );
+  box-shadow:
+    0 0 8px #d6b4a7,
+    0 0 16px color-mix(in oklab, #d6b4a7 75%, #ffb380),
+    inset 0 0 6px rgba(255, 255, 255, 0.35);
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-brown {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, #d6b4a7 45%, var(--glass-border)),
+    0 0 12px color-mix(in oklab, #d6b4a7 30%, transparent),
+    0 1px 4px color-mix(in oklab, #000 18%, transparent);
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-schedule-live.is-schedule-led-green:hover {
+  box-shadow:
+    0 3px 10px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, #57bc6c 55%, var(--hairline)),
+    0 0 16px color-mix(in oklab, #57bc6c 40%, transparent);
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-schedule-live.is-schedule-led-brown:hover {
+  box-shadow:
+    0 3px 10px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, #d6b4a7 55%, var(--hairline)),
+    0 0 14px color-mix(in oklab, #d6b4a7 35%, transparent);
+}
+@keyframes tl-led-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+    box-shadow:
+      0 0 8px currentColor,
+      0 0 16px color-mix(in oklab, currentColor 70%, transparent);
+  }
+  50% {
+    opacity: 0.92;
+    filter: brightness(1.25);
+    box-shadow:
+      0 0 12px currentColor,
+      0 0 24px color-mix(in oklab, currentColor 85%, transparent);
+  }
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-green .tl-chip-card-accent {
+  color: #57bc6c;
+}
+.tl-event-chip--card.is-schedule-live.is-schedule-led-brown .tl-chip-card-accent {
+  color: #d6b4a7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-event-chip--card.is-schedule-live .tl-chip-card-accent {
+    animation: none;
+    opacity: 1;
+    filter: none;
+  }
+}
 /* Date/Launch markers: same card silhouette as docs, #151515 base + calendar icon. */
 .tl-event-chip--card.is-time-marker {
   background: #151515;
