@@ -450,17 +450,15 @@ export function NodeQueryModal({
     Boolean(onAnchorDateChange)
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
 
-  const showScheduleAnchor = canScheduleChild
-    && !campaignMode
-    && (Boolean(folderScheduleReserved) || workStatus === DOC_WORK_STATUS.RESERVED);
-  /** All work statuses when this file's schedule date is inside the folder Start→Finish frame. */
+  const showScheduleAnchor = canScheduleChild && !campaignMode;
+  /** Work statuses when the document has a schedule date (no folder frame). */
   const docDate = String(anchorDate || "").trim();
   const frameMin = String(folderFrameMinDate || "").trim();
   const frameMax = String(folderFrameMaxDate || "").trim();
   const docDateInFolderFrame = Boolean(docDate && frameMin && frameMax)
     && docDate >= frameMin
     && docDate <= frameMax;
-  const showWorkStatuses = docDateInFolderFrame;
+  const showWorkStatuses = Boolean(docDate);
   /** Campaign docs: Launch lives in the meta toggle (not the footer Schedule row). */
   const showLaunchInMeta = Boolean(campaignMode)
     && canScheduleChild

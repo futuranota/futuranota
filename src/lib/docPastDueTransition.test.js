@@ -11,7 +11,7 @@ const folder = {
 };
 
 describe("shouldAutoPastDue", () => {
-  it("converts in_progress after scheduled day ends inside folder window", () => {
+  it("converts in_progress after scheduled day ends (no folder frame required)", () => {
     const node = {
       id: "n1",
       parentDocId: "folder-1",
@@ -33,14 +33,14 @@ describe("shouldAutoPastDue", () => {
     expect(shouldAutoPastDue({ ...base, status: "completed", completed: true }, folder, new Date("2026-08-01"))).toBe(false);
   });
 
-  it("does not convert when folder has no reservation", () => {
+  it("converts when folder has no reservation if doc schedule elapsed", () => {
     const node = {
       id: "n1",
       parentDocId: "folder-1",
       status: "in_progress",
       anchorAt: "2026-07-30T15:00:00.000Z",
     };
-    expect(shouldAutoPastDue(node, {}, new Date("2026-08-01"))).toBe(false);
+    expect(shouldAutoPastDue(node, {}, new Date("2026-08-01"))).toBe(true);
   });
 
   it("does not convert while still on the scheduled day", () => {

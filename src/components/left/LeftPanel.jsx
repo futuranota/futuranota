@@ -203,6 +203,7 @@ import {
   groupProductDocsFromList,
 } from "../../lib/docListGrouping.js";
 import { DocGroupBlockCard } from "./DocGroupBlockCard.jsx";
+import { DocumentsNewDocMenu } from "./DocumentsNewDocMenu.jsx";
 import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
@@ -875,15 +876,7 @@ function DocNodesBlockCard({
       ? resolveKnowledgeDocDisplayTitle(doc)
       : resolveProductDocDisplayTitle(doc);
 
-  const hasFolderSchedule = Boolean(
-    !orphan
-    && doc
-    && !doc.campaignActive
-    && doc.scheduleStartAt
-    && doc.scheduleFinishAt
-    && !isTemplate
-    && !isKnowledge,
-  );
+  const hasFolderSchedule = false;
   const clearLongPress = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -1445,17 +1438,14 @@ function DocCreateModal({
   const isKnowledgeMode = createMode === "knowledge";
   const isCampaignMode = createMode === "campaign";
   const isContentMode = createMode === "content" || isCampaignMode || (!isProductMode && !isKnowledgeMode);
-  const useFolderSchedule = createMode === "content";
+  /** Day-first: no folder Start→Finish on create. */
+  const useFolderSchedule = false;
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   /** Products: title and category mirror. Content folders: free title; category from Departments. */
   const syncTitleWithCategory = isProductMode;
 
-  const scheduleStartMin = useMemo(() => {
-    if (!useFolderSchedule) return todayDateInputValue();
-    // Today only — overlap vs other folders is validated on change/save.
-    return folderSchedulePickerMinDateInput();
-  }, [useFolderSchedule]);
+  const scheduleStartMin = useMemo(() => todayDateInputValue(), []);
 
   useEffect(() => {
     setParentId(fallbackParent);
@@ -3311,6 +3301,11 @@ export function LeftPanel({
     : (clickFolderView === "campaign" || guestWorkspace)
       ? "campaign"
       : "content";
+  /** Documents content: selector + opens folder → New doc (not folder create). */
+  const useDocumentsNewDocMenu = panelType === "Documents"
+    && docCreateMode === "content"
+    && clickFolderView !== "departments"
+    && Boolean(objectWorkspaceActive && activeObjectId);
 
   const openGinaDocumentByNodeId = useCallback((rawId) => {
     const plan = buildGinaDocumentOpenPlan(rawId, {
@@ -5342,16 +5337,25 @@ export function LeftPanel({
         </Dropdown>
 
         <div className="lp-selector-actions">
-          <button
-            type="button"
-            className="lp-new-btn"
-            onClick={handleNewByFolder}
-            disabled={newDisabled}
-            title={newDisabled ? t("sidebar.openFolderFirst") : undefined}
-            aria-label={t("sidebar.createNew", { type: panelTypeLabel(panelType).toLowerCase() })}
-          >
-            <span className="lp-new-label">{t("sidebar.newButton")}</span>
-          </button>
+          {useDocumentsNewDocMenu ? (
+            <DocumentsNewDocMenu
+              docsById={docs}
+              parentObjectId={activeObjectId}
+              disabled={newDisabled}
+              onCreateInFolder={(folderDoc) => openCreateDocument(folderDoc)}
+            />
+          ) : (
+            <button
+              type="button"
+              className="lp-new-btn"
+              onClick={handleNewByFolder}
+              disabled={newDisabled}
+              title={newDisabled ? t("sidebar.openFolderFirst") : undefined}
+              aria-label={t("sidebar.createNew", { type: panelTypeLabel(panelType).toLowerCase() })}
+            >
+              <span className="lp-new-label">{t("sidebar.newButton")}</span>
+            </button>
+          )}
         </div>
       </div>
 

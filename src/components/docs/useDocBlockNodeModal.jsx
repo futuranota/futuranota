@@ -43,11 +43,6 @@ import {
   resolveDocWorkStatus,
   sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
-import {
-  folderScheduleDateInputBounds,
-  isDateInputWithinFolderSchedule,
-  isFolderScheduleReserved,
-} from "../../lib/folderScheduleReservation.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -93,15 +88,12 @@ export function useDocBlockNodeModal({
   const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const nodeAutosaveTimerRef = useRef(null);
 
-  const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
-  const folderFrameBounds = folderScheduleReserved
-    ? folderScheduleDateInputBounds(parentFolderDoc)
-    : null;
+  /** Day-first: docs may schedule freely; folder frame no longer gates or clamps. */
+  const folderScheduleReserved = false;
+  const folderFrameBounds = null;
   const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
-  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
-    ? folderFrameBounds
-    : null;
-  const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
+  const childScheduleBounds = null;
+  const canPersistDocSchedule = !campaignDocMode;
 
   const blockLinkColor = (blockIndex) =>
     resolveBlockNodeLinkColor(blocks[blockIndex]);
@@ -212,8 +204,7 @@ export function useDocBlockNodeModal({
         && anchorAt
         && anchorFinishAt,
       );
-      const docDateInFolderFrame = folderScheduleReserved
-        && isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc);
+      const docDateInFolderFrame = Boolean(String(scheduleDate || "").trim());
       const autoNotStarted = defaultStatusAfterScheduleSave({
         status: scheduleStatus,
         hasCompleteSchedule,

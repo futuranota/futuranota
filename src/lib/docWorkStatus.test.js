@@ -15,11 +15,10 @@ describe("nextStatusOnMeaningfulWrite", () => {
 });
 
 describe("defaultStatusAfterScheduleSave", () => {
-  it("sets not_started when schedule complete in folder frame and status empty", () => {
+  it("sets not_started when schedule complete and status empty", () => {
     expect(defaultStatusAfterScheduleSave({
       status: null,
       hasCompleteSchedule: true,
-      docDateInFolderFrame: true,
     })).toBe(DOC_WORK_STATUS.NOT_STARTED);
   });
 
@@ -27,15 +26,13 @@ describe("defaultStatusAfterScheduleSave", () => {
     expect(defaultStatusAfterScheduleSave({
       status: "reserved",
       hasCompleteSchedule: true,
-      docDateInFolderFrame: true,
     })).toBe(null);
   });
 
-  it("requires complete schedule inside folder frame", () => {
+  it("requires complete schedule", () => {
     expect(defaultStatusAfterScheduleSave({
       status: null,
       hasCompleteSchedule: false,
-      docDateInFolderFrame: true,
     })).toBe(null);
     expect(defaultStatusAfterScheduleSave({
       status: null,
@@ -75,21 +72,15 @@ describe("nextStatusOnWriteDuringScheduleWindow", () => {
 });
 
 describe("sanitizeDocStatusForFolderSchedule", () => {
-  it("clears not_started when folder has no reservation", () => {
+  it("is a no-op (day-first: folder schedule no longer gates statuses)", () => {
     expect(sanitizeDocStatusForFolderSchedule(
       { status: "not_started" },
       false,
-    )).toEqual({ status: null, completed: false });
-  });
-
-  it("keeps reserved", () => {
+    )).toBe(null);
     expect(sanitizeDocStatusForFolderSchedule(
       { status: "reserved" },
       false,
     )).toBe(null);
-  });
-
-  it("keeps flexible", () => {
     expect(sanitizeDocStatusForFolderSchedule(
       { status: "flexible" },
       false,
@@ -106,7 +97,7 @@ describe("shouldShowDocStatusChip", () => {
     expect(shouldShowDocStatusChip("flexible", false)).toBe(true);
   });
 
-  it("shows not_started when doc date is in folder frame", () => {
+  it("shows not_started when the document has a schedule date", () => {
     expect(shouldShowDocStatusChip("not_started", true)).toBe(true);
     expect(shouldShowDocStatusChip("not_started", false)).toBe(false);
   });

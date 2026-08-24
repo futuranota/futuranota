@@ -451,6 +451,114 @@
   gap: 6px;
   margin-left: auto;
   flex-shrink: 0;
+  position: relative;
+}
+
+.lp-new-doc-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.lp-new-doc-menu .lp-new-btn {
+  margin-left: 0;
+}
+
+.lp-new-doc-menu__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 260px;
+  max-width: min(340px, 80vw);
+  max-height: min(360px, 50vh);
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #151515;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.lp-new-doc-menu__empty {
+  margin: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.lp-new-doc-menu__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lp-new-doc-menu__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.lp-new-doc-menu__row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lp-new-doc-menu__folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.lp-new-doc-menu__folder-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.lp-new-doc-menu__folder-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-new-doc-menu__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lp-new-doc-menu__new:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.lp-new-doc-menu__file-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.85;
 }
 
 .lp-template-btn {

@@ -1,5 +1,4 @@
 import { useNodesStore } from "../../stores/nodesStore.js";
-import { useDocsStore } from "../../stores/docsStore.js";
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { launchDateInputFromIso } from "../../lib/docDates.js";
 import { DocStatusChip } from "./FolderDocumentRow.jsx";
@@ -7,27 +6,17 @@ import {
   resolveDocWorkStatus,
   shouldShowDocStatusChip,
 } from "../../lib/docWorkStatus.js";
-import {
-  isDateInputWithinFolderSchedule,
-  isFolderScheduleReserved,
-} from "../../lib/folderScheduleReservation.js";
 
 /**
  * Description layer for the descriptive document model synced into a parent folder.
  *
- * Work-status chips show when the document schedule date falls inside the
- * parent folder Start→Finish frame. Reserved always shows.
+ * Work-status chips show when the document has a schedule date.
+ * Reserved / flexible always show.
  */
 function useDocStatusChipVisibility(node) {
-  const parentDoc = useDocsStore((s) => (
-    node?.parentDocId ? s.docs[node.parentDocId] ?? null : null
-  ));
   const workStatus = resolveDocWorkStatus(node);
   const docDate = launchDateInputFromIso(node?.anchorAt);
-  const inFolderFrame = isFolderScheduleReserved(parentDoc)
-    && Boolean(docDate)
-    && isDateInputWithinFolderSchedule(docDate, parentDoc);
-  return shouldShowDocStatusChip(workStatus, inFolderFrame) ? workStatus : null;
+  return shouldShowDocStatusChip(workStatus, Boolean(docDate)) ? workStatus : null;
 }
 
 export function LinkedMacronodeStatusBadge({ nodeId }) {

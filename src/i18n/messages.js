@@ -693,6 +693,8 @@ export const messages = {
       openFolderFirst: "Open a folder first",
       createNew: "Create new {type}",
       createDocument: "Create document",
+      createNewDocument: "Create new document",
+      noFoldersForNewDoc: "Create a folder first, then add a document.",
       selectedDocs: "Selected documents",
       noObjectInFilter: "No object in this filter",
       noObjectsYet: "No companies yet",

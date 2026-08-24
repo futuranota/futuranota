@@ -1,5 +1,6 @@
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { resolveDocSource } from "../../lib/docSources.js";
+import { launchDateInputFromIso } from "../../lib/docDates.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   DOC_WORK_STATUS,
@@ -7,7 +8,6 @@ import {
   resolveDocWorkStatus,
   shouldShowDocStatusChip,
 } from "../../lib/docWorkStatus.js";
-
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
@@ -51,7 +51,7 @@ export function CompletedChip() {
 
 /**
  * Folder child row: Title always; Description + continue reading when body has text;
- * Status chip when in progress / submitted / completed.
+ * Status chip when the document has a schedule date (or reserved/flexible).
  */
 export function FolderDocumentRow({
   node,
@@ -59,13 +59,14 @@ export function FolderDocumentRow({
   compact = false,
   showFileIcon = false,
   className = "",
-  /** True when this doc's schedule date falls inside the parent folder frame. */
+  /** @deprecated Day-first uses node.anchorAt; kept for call-site compat. */
   docDateInFolderFrame = false,
 }) {
   const { t } = useI18n();
   const title = getNodeDisplayTitle(node);
   const workStatus = resolveDocWorkStatus(node);
-  const showChip = shouldShowDocStatusChip(workStatus, docDateInFolderFrame);
+  const hasScheduleDate = Boolean(launchDateInputFromIso(node?.anchorAt)) || docDateInFolderFrame;
+  const showChip = shouldShowDocStatusChip(workStatus, hasScheduleDate);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = Boolean(excerpt);
   const source = resolveDocSource(node?.sourceId);

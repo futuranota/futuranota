@@ -110,7 +110,6 @@ import {
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
 import { canSetCampaignTimelineSource } from './lib/campaignDocSource.js';
-import { isFolderScheduleReserved } from './lib/folderScheduleReservation.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { clampNodePosition, getCanvasBoardBounds } from './lib/canvasBounds.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
@@ -729,23 +728,8 @@ useEffect(() => {
       ? useDocsStore.getState().docs[zustandNode.parentDocId]
       : null;
 
-    // No folder Schedule reservation → strip phantom date/time (never invent from Created).
-    // Exception: status reserved keeps a free-scope schedule without a folder window.
-    let entityForCanvas = zustandNode;
-    const statusReserved = String(zustandNode.status || "").trim().toLowerCase() === "reserved";
-    if (
-      zustandNode.anchorAt
-      && parentDoc
-      && !parentDoc.campaignActive
-      && !isFolderScheduleReserved(parentDoc)
-      && !statusReserved
-    ) {
-      useNodesStore.getState().updateNode(zustandNode.id, {
-        anchorAt: null,
-        anchorFinishAt: null,
-      });
-      entityForCanvas = { ...zustandNode, anchorAt: null, anchorFinishAt: null };
-    }
+    // Day-first: keep document anchors on canvas even without a folder schedule frame.
+    const entityForCanvas = zustandNode;
 
     const newNode = buildCanvasNodeFromEntity(entityForCanvas, x, y);
     const launchAt = entityForCanvas.launchAt || null;

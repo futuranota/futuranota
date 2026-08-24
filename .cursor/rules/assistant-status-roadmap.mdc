@@ -11,16 +11,15 @@ Futura Nota converge a **un solo Asistente** (la “estrella”): texto primero,
 
 ## Schedule / reserva
 
-Folder schedule opcional = reserva `scheduleStartAt` → `scheduleFinishAt`. Document date/time picker:
+**Day-first:** schedule is on the **document** only. Folder Start→Finish UI is retired (fields may remain null in data).
 
-| Folder reservation | Doc status | Picker |
-|---|---|---|
-| No | not `reserved` | Hidden (no date / no timer) |
-| No | `reserved` | Free calendar (months OK) |
-| Yes | not `reserved` (incl. `flexible`) | Clamped to folder frame + occupied hours strikethrough |
-| Yes | `reserved` | Free calendar (escape hatch outside the frame) |
+| Surface | Behavior |
+|---|---|
+| Folder | No schedule picker |
+| Document (content TEXT/CHECKBOX) | Free date + start (+ finish); no folder clamp |
+| Campaign docs | Launch / campaign rules unchanged |
 
-`flexible` **no** desbloquea el picker. Clearing the doc date also clears start/finish hours.
+`flexible` classifies docs with **no hours**; selecting it clears any schedule; picking a date removes `flexible`. Clearing the doc date also clears start/finish hours.
 
 Ver `timeline-product-model.mdc`.
 
@@ -34,36 +33,36 @@ Legacy `in_review` se migra a `submitted` al hidratar.
 
 | Condition | Status UI on the document |
 |---|---|
-| Doc schedule date **outside** folder Start→Finish (or no folder/doc date) | **Reserved** + **Flexible** |
-| Doc schedule date **inside** folder frame (`anchorDate ∈ [scheduleStartAt, scheduleFinishAt]`) | **All** work statuses (Not started, Reserved, Flexible, In progress, Submitted, Past due, Completed) |
+| No schedule date | **Reserved** + **Flexible** |
+| Has schedule date (`anchorAt`) | **All** work statuses |
 
-When a Reserved file is moved into the folder frame, every status option appears so the user can leave Reserved and start work. `reserved` remains the long-term escape hatch when the file date is outside the folder window. `flexible` classifies docs with **no hours**; selecting it clears any schedule; picking a date removes `flexible`.
+`reserved` remains a classification for far/non-urgent plan; it is **not** required to unlock the picker. `flexible` = docs without hours.
 
 | Status | Quién lo setea |
 |---|---|
 | *(null)* | Default al crear (sin schedule completo) |
-| `not_started` | Auto al guardar schedule completo (date + start + finish) con fecha dentro del folder frame y status vacío; también manual |
-| `reserved` | Manual — plan lejos / sin urgencia; desbloquea schedule libre |
-| `flexible` | Manual — doc sin horario (no desbloquea picker); al elegir fecha se limpia a `null` |
+| `not_started` | Auto al guardar schedule completo (date + start + finish) con status vacío; también manual |
+| `reserved` | Manual — plan lejos / sin urgencia |
+| `flexible` | Manual — doc sin horario; al elegir fecha se limpia a `null` |
 | `in_progress` | Auto **solo** al escribir body durante la ventana horaria del doc (`now ∈ [anchorAt, anchorFinishAt]`) y status es `not_started`; también manual en cualquier momento |
 | `submitted` | Manual ahora; el asistente lo seteará al terminar un task (entrega para revisar) |
-| `past_due` | Auto cuando `in_progress` + schedule del doc (dentro del frame del folder) ya pasó; también manual |
+| `past_due` | Auto cuando `in_progress` + schedule del doc ya pasó; también manual |
 | `completed` | Manual (usuario cierra el trabajo) |
 
-Flujo típico (folder reserved): save schedule → `not_started` → (write during window) `in_progress` → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed ·· o ·· flexible (sin horas) → fecha → not_started.
+Flujo típico: save schedule → `not_started` → (write during window) `in_progress` → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed ·· o ·· flexible (sin horas) → fecha → not_started.
 
 Escribir fuera de la ventana horaria **no** cambia el status. Toggle manual siempre permitido.
 
-Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `flexible` / `submitted` / `completed` / `not_started`.
+Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `flexible` / `submitted` / `completed` / `not_started`. No exige frame de folder.
 
-Helper: `src/lib/docWorkStatus.js` (`defaultStatusAfterScheduleSave`, `nextStatusOnWriteDuringScheduleWindow`, `sanitizeDocStatusForFolderSchedule`, `shouldShowDocStatusChip`). UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+Helper: `src/lib/docWorkStatus.js` (`defaultStatusAfterScheduleSave`, `nextStatusOnWriteDuringScheduleWindow`, `sanitizeDocStatusForFolderSchedule` no-op, `shouldShowDocStatusChip`). UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
 
 ## Folder status — inherited by priority
 
 `src/lib/folderStatus.js` → `resolveFolderStatus`:
 
 1. Cualquier child `submitted` → folder **Submitted**
-2. Cualquier child `reserved` → folder **Reserved** (también: nunca mostrar Past due en el folder mientras haya reserved; persiste tras Clear del schedule del folder)
+2. Cualquier child `reserved` → folder **Reserved** (también: nunca mostrar Past due en el folder mientras haya reserved)
 3. Cualquier child `past_due` → folder **Past due**
 4. Cualquier child `in_progress` → folder **In progress**
 5. Si todos `completed` → folder **Completed**
@@ -71,7 +70,7 @@ Helper: `src/lib/docWorkStatus.js` (`defaultStatusAfterScheduleSave`, `nextStatu
 
 Reserved bloquea Completed: 4 completed + 1 reserved → folder Reserved.
 
-Clear / change folder schedule → reset date/time + status of non-reserved children; reserved children keep schedule + status; flexible children keep status (no schedule).
+**Folder progress %:** `total` = all children; `percent` = closed among children **with** `anchorAt` only (see dual metrics).
 
 ## Paleta visual de referencia
 

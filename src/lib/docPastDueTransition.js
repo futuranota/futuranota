@@ -1,19 +1,14 @@
 /**
  * Auto-transition document work status: in_progress → past_due when the
- * document schedule (inside a folder reservation window) has elapsed.
+ * document schedule day has elapsed (no folder frame required).
  */
 
 import { parseDate, startOfCalendarDay } from "../temporal.js";
-import { calendarDateInputValue } from "./docDates.js";
 import {
   DOC_WORK_STATUS,
   resolveDocWorkStatus,
   syncDocWorkStatusFields,
 } from "./docWorkStatus.js";
-import {
-  isDateInputWithinFolderSchedule,
-  isFolderScheduleReserved,
-} from "./folderScheduleReservation.js";
 
 /**
  * End of the document's scheduled day (finish preferred, else start).
@@ -36,20 +31,16 @@ export function resolveDocScheduleDeadline(node) {
 
 /**
  * @param {object | null | undefined} node
- * @param {object | null | undefined} parentFolderDoc
+ * @param {object | null | undefined} _parentFolderDoc
  * @param {Date} [now]
  * @returns {boolean}
  */
-export function shouldAutoPastDue(node, parentFolderDoc, now = new Date()) {
+export function shouldAutoPastDue(node, _parentFolderDoc, now = new Date()) {
   if (!node?.id) return false;
   if (resolveDocWorkStatus(node) !== DOC_WORK_STATUS.IN_PROGRESS) return false;
-  if (!isFolderScheduleReserved(parentFolderDoc)) return false;
 
   const deadline = resolveDocScheduleDeadline(node);
   if (!deadline) return false;
-
-  const scheduleDay = calendarDateInputValue(startOfCalendarDay(deadline));
-  if (!isDateInputWithinFolderSchedule(scheduleDay, parentFolderDoc)) return false;
 
   const todayStart = startOfCalendarDay(now);
   if (!todayStart) return false;

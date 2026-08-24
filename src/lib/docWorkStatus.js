@@ -98,7 +98,8 @@ export function nextStatusOnMeaningfulWrite() {
 }
 
 /**
- * When saving a complete schedule inside the folder frame with no status yet → not_started.
+ * When saving a complete schedule with no status yet → not_started.
+ * Day-first: folder frame is not required (`docDateInFolderFrame` defaults true for compat).
  * @param {{
  *   status?: unknown,
  *   hasCompleteSchedule?: boolean,
@@ -109,7 +110,7 @@ export function nextStatusOnMeaningfulWrite() {
 export function defaultStatusAfterScheduleSave({
   status,
   hasCompleteSchedule = false,
-  docDateInFolderFrame = false,
+  docDateInFolderFrame = true,
 } = {}) {
   if (!hasCompleteSchedule || !docDateInFolderFrame) return null;
   if (normalizeDocWorkStatus(status)) return null;
@@ -144,36 +145,27 @@ export function nextStatusOnWriteDuringScheduleWindow(node, now = new Date()) {
 }
 
 /**
- * Without a folder schedule reservation, only `reserved` / `flexible` (or null) are allowed.
- * Clears stale work statuses; keeps reserved + schedule; keeps flexible (no schedule).
- * @param {{ status?: unknown, completed?: unknown } | null | undefined} node
- * @param {boolean} folderScheduleReserved
- * @returns {{ status: DocWorkStatus | null, completed: boolean } | null}
+ * Legacy no-op: folder schedule no longer gates work statuses (day-first).
+ * @param {{ status?: unknown, completed?: unknown } | null | undefined} _node
+ * @param {boolean} [_folderScheduleReserved]
+ * @returns {null}
  */
-export function sanitizeDocStatusForFolderSchedule(node, folderScheduleReserved) {
-  if (folderScheduleReserved) return null;
-  const status = resolveDocWorkStatus(node);
-  if (
-    !status
-    || status === DOC_WORK_STATUS.RESERVED
-    || status === DOC_WORK_STATUS.FLEXIBLE
-  ) {
-    return null;
-  }
-  return { status: null, completed: false };
+export function sanitizeDocStatusForFolderSchedule(_node, _folderScheduleReserved) {
+  return null;
 }
 
 /**
- * Whether a status chip should render for a document under a folder.
- * Reserved and flexible always show; other work statuses when the doc date is inside the folder frame.
+ * Whether a status chip should render for a document.
+ * Reserved and flexible always show; other work statuses when the doc has a schedule date.
+ * Second arg kept for call-site compat (formerly “in folder frame”).
  * @param {DocWorkStatus | null | undefined} status
- * @param {boolean} docDateInFolderFrame
+ * @param {boolean} hasDocScheduleDate
  */
-export function shouldShowDocStatusChip(status, docDateInFolderFrame) {
+export function shouldShowDocStatusChip(status, hasDocScheduleDate) {
   const s = normalizeDocWorkStatus(status);
   if (!s) return false;
   if (s === DOC_WORK_STATUS.RESERVED || s === DOC_WORK_STATUS.FLEXIBLE) return true;
-  return Boolean(docDateInFolderFrame);
+  return Boolean(hasDocScheduleDate);
 }
 
 /**

@@ -1010,10 +1010,9 @@ export function DocExpandedView({
   const isProductMode = metaMode === "product";
   const isKnowledgeMode = metaMode === "knowledge";
   const isContentMode = metaMode === "content";
-  const useFolderSchedule = isContentMode && !draftCampaignActive;
-  const scheduleStartMin = useFolderSchedule
-    ? folderSchedulePickerMinDateInput()
-    : todayDateInputValue();
+  /** Day-first: folder no longer owns a schedule frame; hours live on documents. */
+  const useFolderSchedule = false;
+  const scheduleStartMin = todayDateInputValue();
   /** Products: title and category mirror each other. Content folders: title is free; category is department subcategory. */
   const syncTitleWithCategory = isProductMode;
 
@@ -1898,18 +1897,9 @@ export function DocExpandedView({
 
     const queryText = (query || "").trim() || getBlockQueryText(block) || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
-    // Persist when folder is reserved or doc status is reserved; otherwise clear.
     const scheduleDate = String(anchorDate || "").trim();
-    const folderProbe = {
-      campaignActive: draftCampaignActive,
-      scheduleStartAt: draftScheduleStartAt,
-      scheduleFinishAt: draftScheduleFinishAt,
-    };
-    const folderReserved = isContentMode
-      && !draftCampaignActive
-      && isFolderScheduleReserved(folderProbe);
-    const canWriteSchedule = supportsScheduleAnchor(dataType)
-      && (folderReserved || nodeDraftStatus === DOC_WORK_STATUS.RESERVED);
+    // Day-first: content docs may write schedule without a folder frame.
+    const canWriteSchedule = supportsScheduleAnchor(dataType) && !draftCampaignActive;
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
       ? (canWriteSchedule && scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorTime)
@@ -1935,8 +1925,7 @@ export function DocExpandedView({
         && anchorAt
         && anchorFinishAt,
       );
-      const docDateInFolderFrame = folderReserved
-        && isDateInputWithinFolderSchedule(scheduleDate, folderProbe);
+      const docDateInFolderFrame = Boolean(String(scheduleDate || "").trim());
       const autoNotStarted = defaultStatusAfterScheduleSave({
         status: scheduleStatus,
         hasCompleteSchedule,
@@ -2442,14 +2431,11 @@ export function DocExpandedView({
     scheduleStartAt: draftScheduleStartAt,
     scheduleFinishAt: draftScheduleFinishAt,
   };
-  const folderScheduleReserved = useFolderSchedule && isFolderScheduleReserved(folderScheduleProbe);
-  const folderFrameBounds = folderScheduleReserved
-    ? folderScheduleDateInputBounds(folderScheduleProbe)
-    : null;
+  /** Day-first: no folder frame; document schedule is free. */
+  const folderScheduleReserved = false;
+  const folderFrameBounds = null;
   const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
-  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
-    ? folderFrameBounds
-    : null;
+  const childScheduleBounds = null;
 
   const occupiedIntervals = listOccupiedIntervalsByDate(
     useNodesStore.getState().nodes,

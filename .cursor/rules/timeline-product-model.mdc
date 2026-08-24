@@ -7,29 +7,30 @@ alwaysApply: true
 
 The timeline’s job is to **track time and schedules** so users organize work by when things happen (sales, emails, blogs, packages, etc.). Alarms/notifications come later; do not treat the timeline as a static folder shelf.
 
-## WHY Schedule (optional)
+## WHY Schedule (day-first)
 
-Schedule exists so users who want to **track projects on the timeline** feel organization, a work limit, and order by folders (classes) + hours. It is **not** mandatory.
+Schedule lives on **documents** (`anchorAt` / `anchorFinishAt`), not on folders.
 
-- **No folder schedule** → free writing. Document date/time picker is **hidden** unless the doc status is `reserved` (free-scope calendar for non-urgent future work).
-- **Folder schedule** = explicit reservation `scheduleStartAt` → `scheduleFinishAt` (x–y). Never invent from `launchAt`.
-- **With folder schedule** → docs show date/time picker clamped to that frame (occupied hours may be struck through, still selectable). Status `reserved` on a doc unlocks a free calendar outside the frame.
-- Document scheduling never creates, expands, clears, or otherwise mutates its folder schedule. Folder windows may overlap other folders.
-- **Later:** after inserting on the timeline, user can activate reminders/alarms.
+- Folder = class / category box. **No folder Start→Finish UI** (legacy `scheduleStartAt`/`scheduleFinishAt` may stay null).
+- Any content document may set **date + start (+ finish)** freely (no folder frame clamp).
+- Occupied hours may still show as strikethrough for admin/premium Asistente; selection stays allowed.
+- **Later:** after inserting on the timeline, user can activate reminders/alarms (Gina).
+
+### Progress metrics (dual)
+
+- **Day %:** timed docs with `anchorDate === today` → closed (`completed`/`submitted`) / that set.
+- **Folder %:** `total` = all children; `%` only among children with schedule (any date). Docs without hours do not enter either %.
 
 ## Folder vs document
 
 **UI labels:** sidebar **Documents** = folders (boxes); what used to be called **macronodes** = documents. See `docs-folders-terminology.mdc`.
 
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
-- **Document = content unit** inside its folder — on the timeline when it has `anchorAt` (and optionally `anchorFinishAt`), when the folder is reserved **or** the doc status is `reserved`.
-- Folders relate to **other folders** on the timeline (sequence / focus over days) when reserved.
-- Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes.
+- **Document = content unit** inside its folder — on the timeline when it has `anchorAt` (and optionally `anchorFinishAt`).
+- Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes. A single day may mix docs from many folders.
 
 ```
-Marketing  ——(+1 day)——  Sales
-    |                      |
- schedule [doc…]        schedule [doc…]
+Marketing doc 9:00 —— Sales doc 11:00 —— Marketing doc 15:00
 ```
 
 ## Placement rules (do not break)
@@ -45,5 +46,5 @@ Marketing  ——(+1 day)——  Sales
 
 ## Current step vs later
 
-- Now: folder range is non-exclusive; docs without folder reservation stay unscheduled unless status is `reserved`; in-frame `in_progress` docs auto-flip to `past_due` after their schedule day; folder status inheritance includes reserved / past_due (see `assistant-status-roadmap.mdc`).
-- Later: alarms/notifications after timeline insert. Keep data model ready; don’t regress chronology.
+- Now: document schedule is free; `in_progress` docs auto-flip to `past_due` after their schedule day (no folder frame); folder status inheritance includes reserved / past_due (see `assistant-status-roadmap.mdc`).
+- Later: alarms/notifications after timeline insert (Gina). Keep data model ready; don’t regress chronology.

@@ -339,22 +339,18 @@ export function StandaloneNodeModal({
     ? (docsByStoreId?.[resolvedParentDocId] || docsById[resolvedParentDocId] || null)
     : null;
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
-  const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
-  const folderFrameBounds = folderScheduleReserved
-    ? folderScheduleDateInputBounds(parentFolderDoc)
-    : null;
+  /** Day-first: free document schedule; no folder frame clamp or gate. */
+  const folderScheduleReserved = false;
+  const folderFrameBounds = null;
   const docStatusReserved = status === DOC_WORK_STATUS.RESERVED;
-  // Picker clamp only when not in Reserved free-scope; frame bounds still passed for status UI.
-  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
-    ? folderFrameBounds
-    : null;
-  const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
+  const childScheduleBounds = null;
+  const canPersistDocSchedule = !campaignDocMode;
 
-  // Persist sanitize: work statuses are invalid without a folder reservation.
+  // Legacy sanitize no longer clears work statuses (folder schedule retired from UX).
   useEffect(() => {
     if (!node?.id || campaignDocMode) return;
     const live = useNodesStore.getState().nodes[node.id] || node;
-    const patch = sanitizeDocStatusForFolderSchedule(live, folderScheduleReserved);
+    const patch = sanitizeDocStatusForFolderSchedule(live, true);
     if (!patch) return;
     setStatus(null);
     setCompleted(false);
@@ -364,7 +360,7 @@ export function StandaloneNodeModal({
       status: null,
       completed: false,
     };
-  }, [node?.id, node?.status, campaignDocMode, folderScheduleReserved, updateNode]);
+  }, [node?.id, node?.status, campaignDocMode, updateNode]);
 
   const handleAnchorDateChange = (next) => {
     const nextDate = String(next || "").trim();
@@ -468,8 +464,7 @@ export function StandaloneNodeModal({
             && anchorAt
             && anchorFinishAt,
           );
-          const docDateInFolderFrame = folderScheduleReserved
-            && isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc);
+          const docDateInFolderFrame = Boolean(String(scheduleDate || "").trim());
           const autoNotStarted = defaultStatusAfterScheduleSave({
             status: resolved,
             hasCompleteSchedule,
