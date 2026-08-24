@@ -7,7 +7,10 @@ import {
   lazyTodoProgress,
   resolveLazyTodoListTitle,
 } from "../../lib/lazyTodos.js";
-import { resolveLazyTodoProvenance } from "../../lib/lazyTodoProvenance.js";
+import {
+  listDocumentsScheduledForDay,
+  resolveLazyTodoProvenance,
+} from "../../lib/lazyTodoProvenance.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
@@ -39,7 +42,10 @@ function allChecklistDone(items) {
  *
  * @param {Object} props
  * @param {string} props.dayLabel
+ * @param {string} [props.dayKey]
+ * @param {string|null} [props.objectId]
  * @param {import("../../lib/lazyTodos.js").LazyTodoItem[]} props.items
+ * @param {string|null} [props.initialActiveItemId]
  * @param {(itemId: string, patch: Partial<import("../../lib/lazyTodos.js").LazyTodoItem>) => void} props.onChangeItem
  * @param {(itemId: string) => void} props.onCompletedItem
  * @param {() => void} props.onClose
@@ -49,7 +55,10 @@ function allChecklistDone(items) {
  */
 export function LazyTodoMergedDayCard({
   dayLabel,
+  dayKey = "",
+  objectId = null,
   items = [],
+  initialActiveItemId = null,
   onChangeItem,
   onCompletedItem,
   onClose,
@@ -62,21 +71,35 @@ export function LazyTodoMergedDayCard({
   const nodesById = useNodesStore((s) => s.nodes);
   const docsById = useDocsStore((s) => s.docs);
   const inputRefs = useRef({});
+  const linkPickerRef = useRef(null);
   const confirmOpenRef = useRef(false);
   const suppressAutoCompleteRef = useRef(false);
   const prevAllDoneRef = useRef(false);
 
-  const [activeItemId, setActiveItemId] = useState(() => items[0]?.id || null);
+  const [activeItemId, setActiveItemId] = useState(() => (
+    initialActiveItemId
+    && items.some((item) => item.id === initialActiveItemId)
+      ? initialActiveItemId
+      : (items[0]?.id || null)
+  ));
   const [focusItemId, setFocusItemId] = useState(null);
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!items.length) {
       setActiveItemId(null);
       return;
     }
+    if (
+      initialActiveItemId
+      && items.some((item) => item.id === initialActiveItemId)
+    ) {
+      setActiveItemId(initialActiveItemId);
+      return;
+    }
     if (activeItemId && items.some((item) => item.id === activeItemId)) return;
     setActiveItemId(items[0].id);
-  }, [items, activeItemId]);
+  }, [items, activeItemId, initialActiveItemId]);
 
   const activeItem = useMemo(
     () => items.find((item) => item.id === activeItemId) || null,
@@ -87,6 +110,14 @@ export function LazyTodoMergedDayCard({
     () => resolveLazyTodoProvenance(activeItem, { nodesById, docsById }),
     [activeItem, nodesById, docsById],
   );
+
+  const linkableDocs = useMemo(() => {
+    if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return [];
+    return listDocumentsScheduledForDay(nodesById, dayKey, {
+      objectId,
+      docsById,
+    });
+  }, [dayKey, nodesById, docsById, objectId]);
 
   const aggregate = useMemo(() => {
     let done = 0;
@@ -103,6 +134,16 @@ export function LazyTodoMergedDayCard({
     if (!focusItemId) return;
     inputRefs.current[focusItemId]?.focus();
   }, [focusItemId, activeItemId, activeItem?.items?.length]);
+
+  useEffect(() => {
+    if (!linkPickerOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (linkPickerRef.current?.contains(event.target)) return;
+      setLinkPickerOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [linkPickerOpen]);
 
   useEffect(() => {
     if (!activeItem) {
@@ -154,6 +195,7 @@ export function LazyTodoMergedDayCard({
 
   const toggleSection = (itemId) => {
     setFocusItemId(null);
+    setLinkPickerOpen(false);
     setActiveItemId((current) => (current === itemId ? null : itemId));
   };
 
@@ -161,6 +203,21 @@ export function LazyTodoMergedDayCard({
     onSave?.();
     onClose?.();
   };
+
+  const handleLinkDocument = (doc) => {
+    if (!activeItem?.id || !doc?.id) return;
+    onChangeItem?.(activeItem.id, {
+      documentId: doc.id,
+      listTitle: doc.title || activeItem.listTitle,
+    });
+    setLinkPickerOpen(false);
+  };
+
+  const showLinkFile = Boolean(
+    activeItem
+    && !activeProvenance.documentId
+    && linkableDocs.length > 0,
+  );
 
   return (
     <article className="lazy-todo-card lazy-todo-card--dashboard lazy-todo-merged-day-card">
@@ -233,6 +290,7 @@ export function LazyTodoMergedDayCard({
               const expanded = activeItemId === item.id;
               const checklist = item.items?.length ? item.items : [createTodoItem()];
               const macroStatus = macroStatusFromItems(checklist);
+              const needsLink = expanded && !provenance.documentId;
 
               return (
                 <div
@@ -294,6 +352,50 @@ export function LazyTodoMergedDayCard({
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.18 }}
                       >
+                        {needsLink ? (
+                          <div
+                            className="lazy-todo-merged-section__link"
+                            ref={linkPickerRef}
+                          >
+                            <button
+                              type="button"
+                              className="btn xs ghost lazy-todo-merged-section__link-btn"
+                              onClick={(event) => {
+                                stopBubble(event);
+                                setLinkPickerOpen((open) => !open);
+                              }}
+                              disabled={!linkableDocs.length}
+                              title={t("lazyTodos.linkFileHint")}
+                            >
+                              {t("lazyTodos.linkFile")}
+                            </button>
+                            {linkPickerOpen && linkableDocs.length ? (
+                              <div
+                                className="lazy-todo-merged-section__link-menu scroll-match-bg"
+                                role="listbox"
+                                aria-label={t("lazyTodos.pickTodayFile")}
+                              >
+                                <span className="lazy-todo-merged-section__link-hint dim">
+                                  {t("lazyTodos.pickTodayFile")}
+                                </span>
+                                {linkableDocs.map((doc) => (
+                                  <button
+                                    key={doc.id}
+                                    type="button"
+                                    className="lazy-todo-merged-section__link-option"
+                                    role="option"
+                                    onClick={(event) => {
+                                      stopBubble(event);
+                                      handleLinkDocument(doc);
+                                    }}
+                                  >
+                                    {doc.title}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className="doc-todo-plan__guide" aria-hidden />
                         <ul className="doc-todo-plan__list">
                           {checklist.map((row, index) => (
@@ -387,7 +489,9 @@ export function LazyTodoMergedDayCard({
           {t("lazyTodos.save")}
         </button>
 
-        {activeItem ? (
+        {showLinkFile ? (
+          <span className="lazy-todo-merged-day-card__footer-spacer" />
+        ) : activeItem ? (
           <button
             type="button"
             className="lazy-todo-folder-chip"

@@ -181,3 +181,101 @@ export function groupLazyTodosByScheduleDay(items, opts = {}) {
     };
   });
 }
+
+/**
+ * Collect queued items for one schedule day (+ optional draft not yet queued).
+ *
+ * @param {string|null|undefined} objectId
+ * @param {string} dayKey
+ * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} items
+ * @param {Record<string, object>} [nodesById]
+ * @param {{
+ *   extraItem?: import("../stores/lazyTodosStore.js").LazyTodoItem | null,
+ * }} [opts]
+ * @returns {import("../stores/lazyTodosStore.js").LazyTodoItem[]}
+ */
+export function collectQueuedLazyTodosForDay(
+  objectId,
+  dayKey,
+  items,
+  nodesById = {},
+  opts = {},
+) {
+  const targetDay = String(dayKey || "").trim();
+  if (!targetDay) return [];
+
+  const scopedObject = objectId != null && String(objectId).trim()
+    ? String(objectId).trim()
+    : null;
+
+  const matchesObject = (item) => {
+    if (scopedObject) return item?.objectId === scopedObject;
+    return !item?.objectId;
+  };
+
+  /** @type {Map<string, import("../stores/lazyTodosStore.js").LazyTodoItem>} */
+  const byId = new Map();
+
+  for (const item of items || []) {
+    if (!item?.id || !matchesObject(item)) continue;
+    if (item.status !== "queued") continue;
+    if (scheduleDayKeyForLazyTodo(item, nodesById) !== targetDay) continue;
+    byId.set(item.id, item);
+  }
+
+  const extra = opts.extraItem || null;
+  if (extra?.id && matchesObject(extra)) {
+    // Draft may be active / unscheduled until linked — still include in this day shell.
+    byId.set(extra.id, extra);
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.updatedAt || b.createdAt).getTime()
+      - new Date(a.updatedAt || a.createdAt).getTime(),
+  );
+}
+
+/**
+ * Documents (nodes) scheduled for a calendar day, optionally scoped to a company object.
+ *
+ * @param {Record<string, object>} nodesById
+ * @param {string} dayKey YYYY-MM-DD
+ * @param {{
+ *   objectId?: string|null,
+ *   docsById?: Record<string, object>,
+ * }} [opts]
+ * @returns {{ id: string, title: string, parentDocId: string|null }[]}
+ */
+export function listDocumentsScheduledForDay(nodesById, dayKey, opts = {}) {
+  const targetDay = String(dayKey || "").trim();
+  if (!targetDay || !/^\d{4}-\d{2}-\d{2}$/.test(targetDay)) return [];
+
+  const objectId = opts.objectId != null && String(opts.objectId).trim()
+    ? String(opts.objectId).trim()
+    : null;
+  const docsById = opts.docsById || {};
+
+  const results = [];
+  for (const node of Object.values(nodesById || {})) {
+    if (!node?.id) continue;
+    if (!node.parentDocId) continue;
+    if (scheduleDayKeyForNode(node) !== targetDay) continue;
+
+    if (objectId) {
+      const folder = docsById[node.parentDocId];
+      const folderObjectId = folder?.parentObjectId != null
+        ? String(folder.parentObjectId).trim()
+        : "";
+      if (folderObjectId && folderObjectId !== objectId) continue;
+    }
+
+    const title = String(node.title || node.sourceQuery || "").trim() || node.id;
+    results.push({
+      id: String(node.id),
+      title,
+      parentDocId: node.parentDocId != null ? String(node.parentDocId) : null,
+    });
+  }
+
+  return results.sort((a, b) => a.title.localeCompare(b.title));
+}

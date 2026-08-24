@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   LAZY_TODO_UNSCHEDULED_DAY_KEY,
   classifyLazyTodoDayKey,
+  collectQueuedLazyTodosForDay,
   compareLazyTodoDayKeys,
   groupLazyTodosByScheduleDay,
+  listDocumentsScheduledForDay,
   resolveLazyTodoProvenance,
   scheduleDayKeyForLazyTodo,
   scheduleDayKeyForNode,
@@ -96,5 +98,91 @@ describe("lazyTodoProvenance", () => {
     expect(classifyLazyTodoDayKey(today, { today })).toBe("today");
     expect(classifyLazyTodoDayKey("2026-08-25", { today })).toBe("tomorrow");
     expect(compareLazyTodoDayKeys(today, "2026-08-25", today)).toBeLessThan(0);
+  });
+
+  it("collects queued siblings for a day and appends an extra draft", () => {
+    const today = "2026-08-24";
+    const nodesById = {
+      "n-today": { id: "n-today", anchorDate: today },
+      "n-tom": { id: "n-tom", anchorDate: "2026-08-25" },
+    };
+    const items = [
+      {
+        id: "a",
+        objectId: "obj-1",
+        documentId: "n-today",
+        status: "queued",
+        reminder: "r",
+        items: [{ id: "1", text: "x", checked: false }],
+        updatedAt: "2026-08-24T10:00:00.000Z",
+        createdAt: "2026-08-24T10:00:00.000Z",
+      },
+      {
+        id: "b",
+        objectId: "obj-1",
+        documentId: "n-tom",
+        status: "queued",
+        reminder: "r2",
+        items: [{ id: "2", text: "y", checked: false }],
+        updatedAt: "2026-08-24T11:00:00.000Z",
+        createdAt: "2026-08-24T11:00:00.000Z",
+      },
+      {
+        id: "c",
+        objectId: "obj-2",
+        documentId: "n-today",
+        status: "queued",
+        reminder: "other company",
+        items: [{ id: "3", text: "z", checked: false }],
+        updatedAt: "2026-08-24T12:00:00.000Z",
+        createdAt: "2026-08-24T12:00:00.000Z",
+      },
+    ];
+    const draft = {
+      id: "draft",
+      objectId: "obj-1",
+      documentId: null,
+      status: "active",
+      reminder: "",
+      items: [],
+      updatedAt: "2026-08-24T13:00:00.000Z",
+      createdAt: "2026-08-24T13:00:00.000Z",
+    };
+    const collected = collectQueuedLazyTodosForDay(
+      "obj-1",
+      today,
+      items,
+      nodesById,
+      { extraItem: draft },
+    );
+    expect(collected.map((item) => item.id)).toEqual(["draft", "a"]);
+  });
+
+  it("lists documents scheduled for a day", () => {
+    const today = "2026-08-24";
+    const listed = listDocumentsScheduledForDay(
+      {
+        n1: {
+          id: "n1",
+          title: "Blog A",
+          parentDocId: "folder-1",
+          anchorDate: today,
+        },
+        n2: {
+          id: "n2",
+          title: "Blog B",
+          parentDocId: "folder-1",
+          anchorDate: "2026-08-25",
+        },
+        n3: {
+          id: "n3",
+          title: "Orphan",
+          parentDocId: null,
+          anchorDate: today,
+        },
+      },
+      today,
+    );
+    expect(listed.map((row) => row.id)).toEqual(["n1"]);
   });
 });

@@ -699,6 +699,57 @@
   margin-top: 8px;
 }
 
+.lazy-todo-merged-section__link {
+  position: relative;
+  margin: 0 0 10px;
+}
+
+.lazy-todo-merged-section__link-btn {
+  font-size: 11px;
+  color: rgba(185, 229, 254, 0.92);
+}
+
+.lazy-todo-merged-section__link-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #151515;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.lazy-todo-merged-section__link-hint {
+  font-size: 10px;
+  padding: 2px 6px 6px;
+}
+
+.lazy-todo-merged-section__link-option {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lazy-todo-merged-section__link-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .lazy-todo-merged-day-card__footer {
   display: flex;
   align-items: center;

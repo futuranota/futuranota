@@ -10,7 +10,11 @@ import { useI18n } from "../../i18n/useI18n.js";
 
 /**
  * @param {Object} props
- * @param {{ dayKey: string, items: import("../../lib/lazyTodos.js").LazyTodoItem[] } | null} props.session
+ * @param {{
+ *   dayKey: string,
+ *   items: import("../../lib/lazyTodos.js").LazyTodoItem[],
+ *   initialActiveItemId?: string|null,
+ * } | null} props.session
  * @param {(itemId: string, patch: Partial<import("../../lib/lazyTodos.js").LazyTodoItem>) => void} props.onChangeItem
  * @param {(itemId: string) => void} props.onCompletedItem
  * @param {() => void} props.onClose
@@ -57,6 +61,8 @@ export function LazyTodoMergedDayOverlay({
 
   if (!session?.items?.length) return null;
 
+  const objectId = session.items.find((item) => item?.objectId)?.objectId || null;
+
   return createPortal(
     <div
       className="lazy-todo-dashboard-overlay lazy-todo-merged-overlay"
@@ -73,7 +79,10 @@ export function LazyTodoMergedDayOverlay({
       <div className="lazy-todo-dashboard-overlay__card lazy-todo-merged-overlay__card">
         <LazyTodoMergedDayCard
           dayLabel={dayLabel}
+          dayKey={session.dayKey}
+          objectId={objectId}
           items={session.items}
+          initialActiveItemId={session.initialActiveItemId || null}
           onChangeItem={onChangeItem}
           onCompletedItem={onCompletedItem}
           onClose={onClose}

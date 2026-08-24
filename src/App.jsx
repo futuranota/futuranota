@@ -28,6 +28,12 @@ import { setCorpusTimelineAuthority } from './lib/timelineCorpusAuthority.js';
 import { useLazyTodosStore } from './stores/lazyTodosStore.js';
 import { cloneLazyTodo } from './lib/lazyTodos.js';
 import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
+import {
+  LAZY_TODO_UNSCHEDULED_DAY_KEY,
+  collectQueuedLazyTodosForDay,
+  scheduleDayKeyForLazyTodo,
+} from './lib/lazyTodoProvenance.js';
+import { todayDateInputValue } from './lib/docDates.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
@@ -1520,9 +1526,46 @@ useEffect(() => {
 
   const handleOpenNewLazyTodo = useCallback((objectId, extras = {}) => {
     if (!objectId) return;
-    setActiveLazyTodoDayMerge(null);
     const documentId = extras?.documentId ? String(extras.documentId).trim() : "";
     const listTitle = String(extras?.listTitle ?? "").trim() || undefined;
+    const today = todayDateInputValue();
+    const nodesById = useNodesStore.getState().nodes;
+    const storeItems = useLazyTodosStore.getState().items;
+
+    const parkCurrentIndividual = () => {
+      setActiveLazyTodo((current) => {
+        if (current) {
+          if (lazyTodoHasContent(current)) {
+            parkLazyTodo({ ...current, status: 'queued' });
+          } else if (current.id) {
+            removeLazyTodo(current.id);
+          }
+        }
+        return null;
+      });
+    };
+
+    const openDayMerge = (dayKey, focusItem) => {
+      if (!focusItem?.id || !dayKey) return false;
+      const dayItems = collectQueuedLazyTodosForDay(
+        objectId,
+        dayKey,
+        useLazyTodosStore.getState().items,
+        useNodesStore.getState().nodes,
+        { extraItem: focusItem },
+      );
+      if (!dayItems.length) return false;
+      parkCurrentIndividual();
+      setActiveLazyTodoDayMerge({
+        dayKey,
+        items: dayItems.map((item) => cloneLazyTodo({
+          ...item,
+          status: item.id === focusItem.id ? 'active' : 'queued',
+        })),
+        initialActiveItemId: focusItem.id,
+      });
+      return true;
+    };
 
     // Document-linked: reopen existing list if present; else create a fresh id.
     if (documentId) {
@@ -1535,6 +1578,12 @@ useEffect(() => {
           updateLazyTodo(existing.id, { listTitle: nextTitle });
         }
         const opened = nextTitle ? { ...existing, listTitle: nextTitle } : existing;
+        const dayKey = scheduleDayKeyForLazyTodo(opened, nodesById);
+        if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY && openDayMerge(dayKey, opened)) {
+          activateLazyTodo(existing.id);
+          return;
+        }
+        setActiveLazyTodoDayMerge(null);
         setActiveLazyTodo((current) => {
           if (current) {
             if (lazyTodoHasContent(current)) {
@@ -1548,8 +1597,45 @@ useEffect(() => {
         });
         return;
       }
+
+      const draft = createDraftLazyTodo(objectId, {
+        documentId,
+        listTitle,
+      });
+      if (!draft?.id) return;
+      const dayKey = scheduleDayKeyForLazyTodo(draft, nodesById);
+      if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY && openDayMerge(dayKey, draft)) {
+        return;
+      }
+      setActiveLazyTodoDayMerge(null);
+      setActiveLazyTodo((current) => {
+        if (current && current.id !== draft.id) {
+          if (lazyTodoHasContent(current)) {
+            parkLazyTodo({ ...current, status: 'queued' });
+          } else if (current.id) {
+            removeLazyTodo(current.id);
+          }
+        }
+        return cloneLazyTodo({ ...draft, status: 'active' });
+      });
+      return;
     }
 
+    // Queue New (no document): join Today merge when that bucket already exists.
+    const todayQueued = collectQueuedLazyTodosForDay(
+      objectId,
+      today,
+      storeItems,
+      nodesById,
+    );
+    if (todayQueued.length > 0) {
+      const draft = createDraftLazyTodo(objectId, { listTitle });
+      if (draft?.id && openDayMerge(today, draft)) {
+        return;
+      }
+    }
+
+    setActiveLazyTodoDayMerge(null);
     setActiveLazyTodo((current) => {
       if (current) {
         if (lazyTodoHasContent(current)) {
@@ -1559,7 +1645,7 @@ useEffect(() => {
         }
       }
       return createDraftLazyTodo(objectId, {
-        documentId: documentId || null,
+        documentId: null,
         listTitle,
       });
     });
@@ -1590,6 +1676,40 @@ useEffect(() => {
 
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;
+    const nodesById = useNodesStore.getState().nodes;
+    const dayKey = scheduleDayKeyForLazyTodo(item, nodesById);
+    if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY) {
+      const dayItems = collectQueuedLazyTodosForDay(
+        item.objectId,
+        dayKey,
+        useLazyTodosStore.getState().items,
+        nodesById,
+        { extraItem: item },
+      );
+      if (dayItems.length) {
+        setActiveLazyTodo((current) => {
+          if (current) {
+            if (lazyTodoHasContent(current)) {
+              parkLazyTodo({ ...current, status: 'queued' });
+            } else if (current.id) {
+              removeLazyTodo(current.id);
+            }
+          }
+          return null;
+        });
+        activateLazyTodo(item.id);
+        setActiveLazyTodoDayMerge({
+          dayKey,
+          items: dayItems.map((entry) => cloneLazyTodo({
+            ...entry,
+            status: entry.id === item.id ? 'active' : 'queued',
+          })),
+          initialActiveItemId: item.id,
+        });
+        return;
+      }
+    }
+
     setActiveLazyTodoDayMerge(null);
     setActiveLazyTodo((current) => {
       if (current) {
@@ -1621,6 +1741,7 @@ useEffect(() => {
     setActiveLazyTodoDayMerge({
       dayKey,
       items: items.map((item) => cloneLazyTodo({ ...item, status: 'queued' })),
+      initialActiveItemId: payload?.initialActiveItemId || items[0]?.id || null,
     });
   }, [parkLazyTodo, removeLazyTodo]);
 
@@ -1630,6 +1751,7 @@ useEffect(() => {
     if (patch.reminder !== undefined) storePatch.reminder = patch.reminder;
     if (patch.listTitle !== undefined) storePatch.listTitle = patch.listTitle;
     if (patch.items !== undefined) storePatch.items = patch.items;
+    if (patch.documentId !== undefined) storePatch.documentId = patch.documentId;
     if (Object.keys(storePatch).length) updateLazyTodo(itemId, storePatch);
     setActiveLazyTodoDayMerge((current) => {
       if (!current) return current;
@@ -1654,8 +1776,26 @@ useEffect(() => {
   }, [removeLazyTodo]);
 
   const handleLazyTodoDayMergeClose = useCallback(() => {
-    setActiveLazyTodoDayMerge(null);
-  }, []);
+    setActiveLazyTodoDayMerge((current) => {
+      if (current?.items?.length) {
+        for (const item of current.items) {
+          if (!item?.id) continue;
+          if (lazyTodoHasContent(item)) {
+            parkLazyTodo({ ...item, status: 'queued' });
+          } else {
+            // Drop empty drafts created via New that never got content.
+            const storeItem = useLazyTodosStore.getState().items.find(
+              (entry) => entry.id === item.id,
+            );
+            if (storeItem?.status === 'active' && !lazyTodoHasContent(storeItem)) {
+              removeLazyTodo(item.id);
+            }
+          }
+        }
+      }
+      return null;
+    });
+  }, [parkLazyTodo, removeLazyTodo]);
 
   const handleLazyTodoChange = useCallback((patch) => {
     setActiveLazyTodo((current) => {

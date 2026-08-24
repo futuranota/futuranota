@@ -1456,6 +1456,9 @@ export const messages = {
       dayMergeCount: "{count} lists",
       dayMergeEmpty: "No to-do lists for this day.",
       daySectionAria: "To-do lists for {label}",
+      linkFile: "Link file",
+      linkFileHint: "Link this list to a document scheduled for this day",
+      pickTodayFile: "Pick a document for this day",
     },
     gina: {
       callAsistente: "Call Assistance",
