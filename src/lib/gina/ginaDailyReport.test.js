@@ -90,6 +90,11 @@ describe("buildGinaDailyReport", () => {
     expect(report.isEmpty).toBe(false);
     expect(report.pendingCount).toBe(3);
     expect(report.folderProgress.some((f) => f.folder === "Snapchat")).toBe(true);
+    const snap = report.folderProgress.find((f) => f.folder === "Snapchat");
+    expect(snap.scheduledTotal).toBe(3);
+    expect(snap.done).toBe(0);
+    expect(snap.percent).toBe(0);
+    expect(snap.total).toBe(3);
     const overlap = report.occupiedHours.find((r) => r.id === "n2");
     const free = report.occupiedHours.find((r) => r.id === "n3");
     expect(overlap?.hasConflict).toBe(true);

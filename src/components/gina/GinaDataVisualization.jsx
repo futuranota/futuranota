@@ -1984,8 +1984,8 @@ function TodayQuickSheet({
                   <span className="gina-viz__day-folder-foot-name">{f.folder}</span>
                   <span className="gina-viz__day-folder-foot-meta">
                     {en
-                      ? `${f.todayCount || 0} on schedule · ${f.percent}% (${f.done}/${f.total})`
-                      : `${f.todayCount || 0} en horario · ${f.percent}% (${f.done}/${f.total})`}
+                      ? `${f.todayCount || 0} on schedule · ${f.percent}% (${f.done}/${f.scheduledTotal ?? f.total}) · ${f.total} docs`
+                      : `${f.todayCount || 0} en horario · ${f.percent}% (${f.done}/${f.scheduledTotal ?? f.total}) · ${f.total} docs`}
                   </span>
                 </li>
               ))}
@@ -2899,7 +2899,7 @@ function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
                       <div className="gina-viz__hours-pie-tooltip">
                         <span className="gina-viz__hours-pie-tooltip-name">{row.name}</span>
                         <span className="gina-viz__hours-pie-tooltip-val">
-                          {`${row.percent ?? 0}% (${row.done ?? 0}/${row.total ?? 0})`}
+                          {`${row.percent ?? 0}% (${row.done ?? 0}/${row.scheduledTotal ?? row.total ?? 0})`}
                         </span>
                       </div>
                     );
@@ -2950,8 +2950,8 @@ function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
             const folderId = String(f.folderId || "").trim();
             const name = String(f.folder || "").trim() || "Folder";
             const meta = en
-              ? `${f.todayCount || 0} on week · ${f.percent}% (${f.done}/${f.total})`
-              : `${f.todayCount || 0} en semana · ${f.percent}% (${f.done}/${f.total})`;
+              ? `${f.todayCount || 0} on week · ${f.percent}% (${f.done}/${f.scheduledTotal ?? f.total}) · ${f.total} docs`
+              : `${f.todayCount || 0} en semana · ${f.percent}% (${f.done}/${f.scheduledTotal ?? f.total}) · ${f.total} docs`;
             if (folderId && onSelectAction) {
               return (
                 <li key={folderId || name} className="gina-viz__day-folder-foot-row">

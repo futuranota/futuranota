@@ -42,6 +42,7 @@ import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
+import { resolveFolderStatus } from "../../lib/folderStatus.js";
 import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
@@ -187,28 +188,14 @@ export function DocDocumentBox({
     }
     return seen.size;
   }, [blocks]);
-  const folderTaskTotal = useNodesStore((s) => (
-    docId
-      ? Object.values(s.nodes).reduce(
-        (n, node) => (node?.parentDocId === docId ? n + 1 : n),
-        0,
-      )
-      : 0
-  ));
-  const folderTaskDone = useNodesStore((s) => (
-    docId
-      ? Object.values(s.nodes).reduce(
-        (n, node) => (node?.parentDocId === docId && node?.completed ? n + 1 : n),
-        0,
-      )
-      : 0
-  ));
-  const hasSchedulePie = Boolean(
-    useFolderSchedule && scheduleStartDate && scheduleFinishDate && folderTaskTotal > 0,
+  const nodes = useNodesStore((s) => s.nodes);
+  const folderStatus = useMemo(
+    () => (docId ? resolveFolderStatus(nodes, docId) : null),
+    [nodes, docId],
   );
-  const schedulePct = hasSchedulePie
-    ? Math.min(100, Math.round((folderTaskDone / folderTaskTotal) * 100))
-    : 0;
+  const folderTaskTotal = folderStatus?.total ?? 0;
+  const hasSchedulePie = Boolean(folderStatus && folderStatus.scheduledTotal > 0);
+  const schedulePct = hasSchedulePie ? folderStatus.scheduledPercent : 0;
   const bodyPlaceholder = isKnowledgeMode
     ? (knowledgeImportActive
       ? t("sidebar.knowledgeNotesImportPlaceholder")

@@ -1653,8 +1653,8 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
   const folderLabel = folderSnap?.folder || folderName || "";
   const folderPct = folderSnap
     ? (en
-      ? `${folderSnap.percent}% of folder (${folderSnap.done}/${folderSnap.total})`
-      : `${folderSnap.percent}% del folder (${folderSnap.done}/${folderSnap.total})`)
+      ? `${folderSnap.percent}% of scheduled (${folderSnap.done}/${folderSnap.scheduledTotal ?? folderSnap.total}) · ${folderSnap.total} docs`
+      : `${folderSnap.percent}% programados (${folderSnap.done}/${folderSnap.scheduledTotal ?? folderSnap.total}) · ${folderSnap.total} docs`)
     : "";
 
   const startLabel = isFirstChronologicalDocOfDay(doc, opts)

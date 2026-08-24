@@ -4,7 +4,7 @@
  */
 
 import { listOccupiedIntervalsByDate } from "../docScheduleOccupancy.js";
-import { resolveFolderStatus } from "../folderStatus.js";
+import { resolveFolderStatus, isClosedForScheduleProgress } from "../folderStatus.js";
 import { DOC_WORK_STATUS, resolveDocWorkStatus } from "../docWorkStatus.js";
 import { formatClock12h, formatClockRange12h } from "../clockFormat.js";
 import { get_schedule_conflicts, get_today_scope } from "./ginaTools.js";
@@ -20,15 +20,16 @@ function formatClock(iso) {
 }
 
 function isClosedStatus(status) {
-  return status === DOC_WORK_STATUS.COMPLETED || status === DOC_WORK_STATUS.SUBMITTED;
+  return isClosedForScheduleProgress(status);
 }
 
 /**
  * Folder % snapshot for documents that appear on today's schedule.
+ * `total` = all children in the folder; `percent` / done = scheduled-only progress.
  * @param {object[]} docs
  * @param {Record<string, object>} nodesById
  * @param {Record<string, object>} docsById
- * @returns {{ folderId: string, folder: string, percent: number, done: number, total: number, todayCount: number }[]}
+ * @returns {{ folderId: string, folder: string, percent: number, done: number, total: number, scheduledTotal: number, todayCount: number }[]}
  */
 export function buildFolderProgressForDocuments(docs = [], nodesById = {}, docsById = {}) {
   const list = Array.isArray(docs) ? docs : [];
@@ -49,9 +50,10 @@ export function buildFolderProgressForDocuments(docs = [], nodesById = {}, docsB
     out.push({
       folderId,
       folder: folderDoc?.title || folderDoc?.name || "Folder",
-      percent: st.percent,
-      done: st.done,
+      percent: st.scheduledPercent,
+      done: st.scheduledDone,
       total: st.total,
+      scheduledTotal: st.scheduledTotal,
       todayCount,
       status: st.status,
     });
@@ -143,9 +145,10 @@ export function buildGinaDailyReport(ctx = {}, opts = {}) {
     folderProgress.push({
       folderId,
       folder: folderDoc?.title || folderDoc?.name || "Folder",
-      percent: st.percent,
-      done: st.done,
+      percent: st.scheduledPercent,
+      done: st.scheduledDone,
       total: st.total,
+      scheduledTotal: st.scheduledTotal,
       todayCount: 0,
       status: st.status,
     });

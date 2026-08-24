@@ -40,6 +40,7 @@ import {
   summarizeTodayOverlaps,
 } from "./ginaTodayQuickSheet.js";
 import { buildFolderProgressForDocuments } from "./ginaDailyReport.js";
+import { buildTimedScheduleProgress } from "../folderStatus.js";
 import { buildWeekFolderFocusSnapshot } from "./ginaSyntaxScheduleScope.js";
 
 /**
@@ -959,18 +960,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         const docsById = ctx.docs || {};
         const sourceForProgress = weekVigentes;
         folderProgress = buildFolderProgressForDocuments(sourceForProgress, nodesById, docsById);
-        const timedCompleted = sourceForProgress.filter(
-          (d) => d.status === "completed" || d.completed === true,
-        ).length;
-        const timedTotal = sourceForProgress.length;
-        weekProgress = {
-          completed: timedCompleted,
-          total: timedTotal,
-          remaining: Math.max(0, timedTotal - timedCompleted),
-          percent: timedTotal > 0
-            ? Math.min(100, Math.round((timedCompleted / timedTotal) * 100))
-            : 0,
-        };
+        weekProgress = buildTimedScheduleProgress(sourceForProgress);
         folderPctChart = folderProgress.map((f, i) => ({
           key: f.folderId || f.folder,
           folderId: f.folderId,
@@ -978,6 +968,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           percent: f.percent,
           done: f.done,
           total: f.total,
+          scheduledTotal: f.scheduledTotal,
           todayCount: f.todayCount,
           minutes: Math.max(1, Number(f.percent) || 0),
           fill: ginaDepartmentRailColor(i, Math.max(7, folderProgress.length)),
@@ -1460,10 +1451,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const docsById = today.docs || ctx.docs || {};
     const folderProgress = buildFolderProgressForDocuments(allToday, nodesById, docsById);
     const folderBars = buildTodayFolderBars(allToday);
-    const timedCompleted = allToday.filter(
-      (d) => d.status === "completed" || d.completed === true,
-    ).length;
-    const timedTotal = allToday.length;
+    const dayProgress = buildTimedScheduleProgress(allToday);
     const baseData = attachRecoveryMeta({
       date: today.date,
       dateLabel: formatGinaDayLabel(today.date, locale),
@@ -1487,14 +1475,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       hoursChart,
       folderBars,
       folderProgress,
-      dayProgress: {
-        completed: timedCompleted,
-        total: timedTotal,
-        remaining: Math.max(0, timedTotal - timedCompleted),
-        percent: timedTotal > 0
-          ? Math.min(100, Math.round((timedCompleted / timedTotal) * 100))
-          : 0,
-      },
+      dayProgress,
       quickSheet: postRescheduleDaySheet
         ? { ...quickSheet, isCleanDay: true }
         : quickSheet,
@@ -1683,10 +1664,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const nodesById = ctx.nodes || {};
     const docsById = ctx.docs || {};
     const folderProgress = buildFolderProgressForDocuments(dayDocs, nodesById, docsById);
-    const timedCompleted = dayDocs.filter(
-      (d) => d.status === "completed" || d.completed === true,
-    ).length;
-    const timedTotal = dayDocs.length;
+    const dayProgress = buildTimedScheduleProgress(dayDocs);
 
     const tableDocs = showOverdue ? dayDocs : conflictSource;
     const briefGroups = showOverdue
@@ -1702,14 +1680,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         documents: tableDocs.map((d) => mapDocRow(d, now, locale)),
         quickSheet,
         folderProgress,
-        dayProgress: {
-          completed: timedCompleted,
-          total: timedTotal,
-          remaining: Math.max(0, timedTotal - timedCompleted),
-          percent: timedTotal > 0
-            ? Math.min(100, Math.round((timedCompleted / timedTotal) * 100))
-            : 0,
-        },
+        dayProgress,
         fullDayTable: showOverdue,
         highlightPassedSlots: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
         playHighlightsSound: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
