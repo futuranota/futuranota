@@ -15,6 +15,10 @@ import {
   writeLastSyncedAt,
 } from "../../lib/workspaceVersionGate.js";
 import { scheduleDocImageDataUrlBackfill } from "../../lib/migrateDocImageDataUrls.js";
+import {
+  filterTimelineFileQueueToExistingNodes,
+  mergeTimelineFileQueues,
+} from "../../lib/timelineFileQueue.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 import { useUIStateStore } from "../uiStateStore.js";
 
@@ -895,8 +899,9 @@ function pickTimelineUiState(state) {
   };
 }
 
-function filterTimelineUiToExistingDocs(ui, docIds) {
+function filterTimelineUiToExistingDocs(ui, docIds, nodeIds = []) {
   const docSet = new Set(docIds);
+  const nodeSet = new Set(nodeIds);
   const filterMap = (record) => Object.fromEntries(
     Object.entries(record || {}).filter(([docId]) => docSet.has(docId)),
   );
@@ -911,7 +916,10 @@ function filterTimelineUiToExistingDocs(ui, docIds) {
   return {
     ...ui,
     timelineDocQueue: (ui.timelineDocQueue || []).filter((docId) => docSet.has(docId)),
-    timelineFileQueue: Array.isArray(ui.timelineFileQueue) ? ui.timelineFileQueue : [],
+    timelineFileQueue: filterTimelineFileQueueToExistingNodes(
+      ui.timelineFileQueue,
+      nodeIds,
+    ),
     timelineDocQueueFocusByDocId: filterMap(ui.timelineDocQueueFocusByDocId),
     timelineDocSnapshotsByDocId: filterMap(ui.timelineDocSnapshotsByDocId),
     timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
@@ -1466,6 +1474,7 @@ export function initPersistenceMiddleware(stores) {
     }
     if (
       Array.isArray(stripped.timelineDocQueue)
+      || Array.isArray(stripped.timelineFileQueue)
       || Array.isArray(stripped.timelineDateNodeIds)
       || stripped.timelineGuestLinksById
       || stripped.timelineViewMode
@@ -1946,6 +1955,7 @@ export function initPersistenceMiddleware(stores) {
       }
 
       const docIds = Object.keys(useDocsStore.getState().docs || {});
+      const nodeIds = Object.keys(useNodesStore.getState().nodes || {});
       let timelineUi = pickTimelineUiState(loadLocalTimelineUiFallback());
       try {
         const { data: timelineUiRow, error: timelineUiErr } = await supabase
@@ -1965,10 +1975,17 @@ export function initPersistenceMiddleware(stores) {
         console.warn("Timeline UI load failed — using local snapshot.", timelineUiLoadErr);
       }
 
-      const filteredTimelineUi = filterTimelineUiToExistingDocs(timelineUi, docIds);
+      const filteredTimelineUi = filterTimelineUiToExistingDocs(timelineUi, docIds, nodeIds);
+      const liveFileQueue = useTimelineStore.getState().timelineFileQueue || [];
+      const localFileQueue = loadLocalTimelineUiFallback().timelineFileQueue || [];
+      const mergedFileQueue = mergeTimelineFileQueues(
+        liveFileQueue,
+        localFileQueue,
+        filteredTimelineUi.timelineFileQueue,
+      );
       useTimelineStore.setState({
         timelineDocQueue: filteredTimelineUi.timelineDocQueue,
-        timelineFileQueue: filteredTimelineUi.timelineFileQueue || [],
+        timelineFileQueue: mergedFileQueue,
         timelineDocQueueFocusByDocId: filteredTimelineUi.timelineDocQueueFocusByDocId,
         timelineDocSnapshotsByDocId: filteredTimelineUi.timelineDocSnapshotsByDocId,
         timelineExcludedChildrenByDocId: filteredTimelineUi.timelineExcludedChildrenByDocId,

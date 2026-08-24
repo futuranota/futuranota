@@ -51,7 +51,7 @@ import {
   resolveCampaignSourceTitle,
 } from "./campaignDocSource.js";
 import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
-import { resolveFileRailDisplayDate } from "./timelineFileQueue.js";
+import { resolveFileRailDisplayDate, resolveCanvasEntityId } from "./timelineFileQueue.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
@@ -1523,7 +1523,8 @@ export function buildTacticalDocWireRow(params) {
   const queueIndex = new Map(fileQueue.map((id, i) => [id, i]));
   const nodeByCanvasNoteId = new Map();
   for (const node of canvasNodes || []) {
-    if (node?.noteId) nodeByCanvasNoteId.set(node.noteId, node);
+    const entityId = resolveCanvasEntityId(node);
+    if (entityId) nodeByCanvasNoteId.set(entityId, node);
   }
 
   /** @type {object[]} */
@@ -1535,9 +1536,7 @@ export function buildTacticalDocWireRow(params) {
       if (!entity) continue;
       const parentDocId = entity.parentDocId || null;
       const parent = parentDocId ? docsById[parentDocId] : null;
-      if (filterObjectId && parent?.parentObjectId && parent.parentObjectId !== filterObjectId) {
-        continue;
-      }
+      // Explicit doc-wire queue: always render inserted files (multi-company ok).
       const rail = resolveFileRailDisplayDate(entity, today);
       if (!rail) continue;
       const canvasNode = nodeByCanvasNoteId.get(entityId);

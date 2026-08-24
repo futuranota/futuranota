@@ -15,6 +15,7 @@ import {
   useDocsStore,
   useNodesStore,
   useObjectsStore,
+  useCanvasStore,
   useTimelineStore,
   useUIStateStore,
   useObjectTargetHoldStore,
@@ -226,6 +227,7 @@ function Dashboard({ company, onBack }) {
   const [canvasNodes, setCanvasNodes] = useState([]);
   const [canvasConns, setCanvasConns] = useState([]);
   const [selection, setSelection]     = useState([]);
+  const canvasHydratedFromStoreRef = useRef(false);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
   const [activeStepPlaybook, setActiveStepPlaybook] = useState(null);
@@ -270,6 +272,7 @@ function Dashboard({ company, onBack }) {
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const objectWorkspaceActive = useUIStateStore((s) => s.objectWorkspaceActive);
   const clickFolderView = useUIStateStore((s) => s.clickFolderView);
+  const workspaceHydrated = useUIStateStore((s) => s.workspaceHydrated);
   const heldObjectId = useObjectTargetHoldStore((s) => s.heldObjectId);
   const holdObjectTarget = useObjectTargetHoldStore((s) => s.hold);
   const releaseObjectTarget = useObjectTargetHoldStore((s) => s.release);
@@ -385,10 +388,13 @@ function Dashboard({ company, onBack }) {
       objects,
     );
     if (!result?.ok) {
-      setToast({
-        message: result?.message || "Insert to timeline failed.",
-        kind: "warm",
-      });
+      const code = result?.code || "";
+      const message = code === "NO_DOCS"
+        ? t("canvas.insertTimelineNoDocs")
+        : code === "NO_ANCHOR_DATE"
+          ? t("canvas.insertTimelineNoAnchor")
+          : (result?.message || t("canvas.insertTimelineFailed"));
+      setToast({ message, kind: "warm" });
       return;
     }
 
@@ -418,7 +424,7 @@ function Dashboard({ company, onBack }) {
     // picks so the green active area turns off until the user re-enables it.
     useTimelineStore.getState().setTimelineQueueMode(false);
     setSelection([]);
-  }, [selection, canvasNodes, nodeEntities, docs, canvasConns, objects, enqueueTimelineDocsFromCanvasNodes]);
+  }, [selection, canvasNodes, nodeEntities, docs, canvasConns, objects, enqueueTimelineDocsFromCanvasNodes, t]);
 
   const handleTimelineCanvasSelectMany = useCallback(
     (canvasNodeIds) => {
@@ -500,6 +506,33 @@ useEffect(() => {
   }, [timelineQueueMode, canvasNodes, nodeEntities, docs]);
 
   useEffect(() => { initStores(); }, []);
+
+  // Paint dashboard canvas from persisted canvas store once (noteId alias for nodeId).
+  useEffect(() => {
+    if (!workspaceHydrated || canvasHydratedFromStoreRef.current) return;
+    const storeState = useCanvasStore.getState();
+    const storeNodes = storeState.getAllCanvasNodes?.()
+      || Object.values(storeState.canvasNodes || {});
+    if (!storeNodes.length) return;
+    canvasHydratedFromStoreRef.current = true;
+    setCanvasNodes((prev) => {
+      if (prev.length) return prev;
+      return storeNodes.map((cn) => ({
+        ...cn,
+        noteId: cn.noteId || cn.nodeId || null,
+      }));
+    });
+    setCanvasConns((prev) => {
+      if (prev.length) return prev;
+      const raw = storeState.getAllConnections?.()
+        || Object.values(storeState.canvasConnections || {});
+      return raw.map((c) => ({
+        id: c.id,
+        from: c.from || c.fromCanvasNodeId,
+        to: c.to || c.toCanvasNodeId,
+      }));
+    });
+  }, [workspaceHydrated]);
 
   useEffect(() => {
     const tick = setInterval(() => setToday(getToday()), 60_000);

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { startOfCalendarDay } from "../temporal.js";
 import {
   isTimelineFileCanvasNode,
+  mergeTimelineFileQueues,
   pushFileToTimelineQueue,
+  resolveCanvasEntityId,
   resolveFileRailDisplayDate,
 } from "./timelineFileQueue.js";
 
@@ -20,11 +22,27 @@ describe("timelineFileQueue", () => {
     }, entities)).toBe(true);
 
     expect(isTimelineFileCanvasNode({
+      id: "cn-2",
+      nodeId: "studios",
+      dataType: "text",
+    }, entities)).toBe(true);
+
+    expect(isTimelineFileCanvasNode({
       id: "cn-folder",
       canvasKind: "document",
       dataType: "document",
       docId: "ideas",
     }, entities)).toBe(false);
+  });
+
+  it("resolveCanvasEntityId prefers noteId then nodeId", () => {
+    expect(resolveCanvasEntityId({ noteId: "a", nodeId: "b" })).toBe("a");
+    expect(resolveCanvasEntityId({ nodeId: "b" })).toBe("b");
+    expect(resolveCanvasEntityId(null)).toBeNull();
+  });
+
+  it("mergeTimelineFileQueues unions in order without dupes", () => {
+    expect(mergeTimelineFileQueues(["a", "b"], ["b", "c"], [])).toEqual(["a", "b", "c"]);
   });
 
   it("keeps insert order without duplicating", () => {

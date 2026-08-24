@@ -14,6 +14,7 @@ import {
 import {
   isTimelineFileCanvasNode,
   pushFileToTimelineQueue,
+  resolveCanvasEntityId,
 } from "../lib/timelineFileQueue.js";
 import {
   captureTimelineDocSnapshot,
@@ -695,7 +696,7 @@ export const useTimelineStore = create(
           }
           if (isTimelineFileCanvasNode(node, nodeEntitiesById)) {
             filesTouched += 1;
-            const entityId = node.noteId || null;
+            const entityId = resolveCanvasEntityId(node);
             const nextFiles = pushFileToTimelineQueue(fileQueue, entityId);
             if (nextFiles.length !== fileQueue.length) filesAdded += 1;
             fileQueue = nextFiles;
