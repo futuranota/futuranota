@@ -1,5 +1,6 @@
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
+import { isUnassignedDepartmentFolder } from "./departments.js";
 import {
   isContentDoc,
   isKnowledgeDoc,
@@ -9,6 +10,8 @@ import {
   listProductDocs,
   resolveProductDocDisplayTitle,
 } from "./templateDoc.js";
+
+export { isUnassignedDepartmentFolder };
 
 /**
  * Entity-backed canvas node (text, date, metric, checkbox) — not document/object/launch.
@@ -174,6 +177,19 @@ export function setEntityNodeParentDocument({
     canvasNodeId,
     patchCanvasNode,
   });
+}
+
+/**
+ * UX gate: reassign parent only for orphans or docs under a folder with no department
+ * (sidebar Uncategorized bucket). Folders that already have a department stay locked.
+ * @param {object|null|undefined} parentFolderDoc
+ * @param {{ parentDocId?: string|null }} [nodeLike]
+ */
+export function canReassignDocumentParent(parentFolderDoc, nodeLike = {}) {
+  const parentId = String(nodeLike?.parentDocId || parentFolderDoc?.id || "").trim();
+  if (!parentId) return true;
+  if (!parentFolderDoc) return true;
+  return isUnassignedDepartmentFolder(parentFolderDoc);
 }
 
 /**

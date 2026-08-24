@@ -43,6 +43,13 @@ import {
   resolveDocWorkStatus,
   sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
+import {
+  canReassignDocumentParent,
+  isUnassignedDepartmentFolder,
+  listAdoptableDocs,
+  resolveAdoptableDocLabel,
+  setEntityNodeParentDocument,
+} from "../../lib/nodeParentAdoption.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -71,7 +78,19 @@ export function useDocBlockNodeModal({
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
+  const docsById = useDocsStore((s) => s.docs);
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
+  const hostFolderDoc = parentFolderDoc
+    || (docId ? docsById?.[docId] : null)
+    || null;
+  const canAssignParent = canReassignDocumentParent(
+    hostFolderDoc,
+    { parentDocId: hostFolderDoc?.id || docId || null },
+  );
+  const adoptableDocList = listAdoptableDocs(docsById, { parentObjectId });
+  const hostFolderLabel = hostFolderDoc
+    ? resolveAdoptableDocLabel(hostFolderDoc)
+    : (docTitle.trim() || "New document");
 
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -583,6 +602,20 @@ export function useDocBlockNodeModal({
     resetNodeModal();
   };
 
+  const handleParentDocIdChange = (nextId) => {
+    const next = String(nextId || "").trim();
+    const nodeId = activeNodeContext?.nodeId;
+    if (!canAssignParent || !nodeId || !next) return;
+    if (next === (docId || hostFolderDoc?.id)) return;
+    setEntityNodeParentDocument({
+      nodeEntityId: nodeId,
+      docId: next,
+    });
+    if (hostFolderDoc && isUnassignedDepartmentFolder(hostFolderDoc)) {
+      flushAndCloseNodeModal();
+    }
+  };
+
   const handleNodeModalSave = () => {
     flushAndCloseNodeModal();
   };
@@ -723,8 +756,13 @@ export function useDocBlockNodeModal({
         const id = activeNodeContext?.nodeId;
         if (id) updateNode(id, { sourceId: v ?? null });
       }}
-      parentDocLabel={docTitle.trim() || "New document"}
-      parentDocId={docId || ""}
+      parentDocLabel={hostFolderLabel}
+      parentDocId={docId || hostFolderDoc?.id || ""}
+      onParentDocIdChange={canAssignParent ? handleParentDocIdChange : undefined}
+      requireParentFolder={Boolean(
+        canAssignParent && hostFolderDoc && isUnassignedDepartmentFolder(hostFolderDoc),
+      )}
+      docs={adoptableDocList}
       parentObjectId={parentObjectId}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}

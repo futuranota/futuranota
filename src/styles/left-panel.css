@@ -17648,6 +17648,154 @@ body.doc-content-resizing * {
   letter-spacing: 0.02em;
   line-height: 1.2;
   color: rgba(216, 216, 216, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-query-modal__parent-doc--placeholder {
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.node-query-modal__folder-picker {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(280px, calc(100% - 48px));
+}
+
+.node-query-modal__folder-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Keep sort icon snug after the folder label (not pushed to the far right). */
+.node-query-modal__folder-row .node-query-modal__parent-doc {
+  flex: 0 1 auto;
+}
+
+.node-query-modal__folder-sort {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.node-query-modal__folder-picker:hover .node-query-modal__folder-sort,
+.node-query-modal__folder-picker:focus-within .node-query-modal__folder-sort,
+.node-query-modal__folder-sort.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.node-query-modal__folder-sort:hover,
+.node-query-modal__folder-sort.is-open {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.node-query-modal__folder-sort-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  opacity: 0.72;
+  filter: brightness(0) invert(0.85);
+}
+
+.node-query-modal__folder-sort:hover .node-query-modal__folder-sort-icon,
+.node-query-modal__folder-sort.is-open .node-query-modal__folder-sort-icon {
+  opacity: 1;
+}
+
+.node-query-modal__folder-popover {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 180px;
+  max-width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #151515;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  isolation: isolate;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+}
+
+.node-query-modal__folder-popover::-webkit-scrollbar {
+  width: 8px;
+}
+
+.node-query-modal__folder-popover::-webkit-scrollbar-track {
+  background: #151515;
+  border-radius: 0 8px 8px 0;
+}
+
+.node-query-modal__folder-popover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  border: 2px solid #151515;
+}
+
+.node-query-modal__folder-popover::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.node-query-modal__folder-empty {
+  margin: 0;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(216, 216, 216, 0.55);
+}
+
+.node-query-modal__folder-option {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #d8d8d8;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-query-modal__folder-option:hover,
+.node-query-modal__folder-option.is-active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.node-query-modal__folder-option--clear {
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 5px 5px;
+  color: rgba(216, 216, 216, 0.55);
+  font-weight: 400;
 }
 
 .node-query-modal__head-actions {

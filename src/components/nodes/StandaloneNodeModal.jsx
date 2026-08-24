@@ -6,9 +6,12 @@ import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 
 const DOC_SAVE_LOADING_MIN_MS = 700;
 import {
+  canReassignDocumentParent,
+  isUnassignedDepartmentFolder,
   listAdoptableDocs,
   resolveAdoptableDocLabel,
   resolveNodeParentDocId,
+  setEntityNodeParentDocument,
 } from "../../lib/nodeParentAdoption.js";
 import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
@@ -195,9 +198,16 @@ export function StandaloneNodeModal({
   const docsByStoreId = useDocsStore((s) => s.docs);
 
   const isNew = !node;
-  // Parent folder assign/rename only for Independent Documents (no persisted parent).
-  // Docs already inside a folder must not show the parent switcher.
-  const canAssignParent = isNew ? !initialParentDocId : !node?.parentDocId;
+  const liveParentFolder = useMemo(() => {
+    const id = node?.parentDocId || initialParentDocId || null;
+    if (!id) return null;
+    return docsByStoreId?.[id] || (Array.isArray(docs) ? docs.find((d) => d?.id === id) : null) || null;
+  }, [node?.parentDocId, initialParentDocId, docsByStoreId, docs]);
+  // No-department / orphan only — folders with a department stay locked (UX trial).
+  const canAssignParent = canReassignDocumentParent(
+    liveParentFolder,
+    { parentDocId: node?.parentDocId || (isNew ? initialParentDocId : null) },
+  );
   const docList = listAdoptableDocs(docs, { parentObjectId });
   const [query, setQuery] = useState(() => getNodeDisplayTitle(node) || "");
   const [dataType, setDataType] = useState(node?.dataType || NODE_DATA_TYPES.TEXT);
@@ -206,7 +216,7 @@ export function StandaloneNodeModal({
   const [parentDocId, setParentDocId] = useState(() => {
     if (isNew && initialParentDocId) return initialParentDocId;
     // Keep the real parent even when it is absent from the adoptable picker list
-    // (campaign folders must still drive campaignMode / Launch UI).
+    // (uncategorized / campaign folders must still drive mode UI).
     if (node?.parentDocId && docsByStoreId?.[node.parentDocId]) {
       return node.parentDocId;
     }
@@ -215,7 +225,15 @@ export function StandaloneNodeModal({
       || "";
   });
   const lockedParentLabel = useMemo(() => {
-    if (canAssignParent) return "";
+    if (canAssignParent) {
+      const id = parentDocId || node?.parentDocId || initialParentDocId || "";
+      if (!id) return "";
+      const doc = docsByStoreId?.[id]
+        || docList.find((d) => d.id === id)
+        || liveParentFolder
+        || null;
+      return doc ? resolveAdoptableDocLabel(doc) : "";
+    }
     const id = parentDocId || node?.parentDocId || initialParentDocId || "";
     if (!id) return "";
     const doc = docsByStoreId?.[id]
@@ -229,7 +247,31 @@ export function StandaloneNodeModal({
     initialParentDocId,
     docsByStoreId,
     docList,
+    liveParentFolder,
   ]);
+
+  const handleParentDocIdChange = (nextId) => {
+    const next = String(nextId || "").trim() || null;
+    if (!canAssignParent) return;
+    // Moving from no-department folder: require a real content/product destination.
+    if (node?.id && liveParentFolder && isUnassignedDepartmentFolder(liveParentFolder) && !next) {
+      return;
+    }
+    setParentDocId(next || "");
+    if (!node?.id) return;
+    if (!next) return;
+    const prev = node.parentDocId || null;
+    if (prev === next) return;
+    setEntityNodeParentDocument({
+      nodeEntityId: node.id,
+      docId: next,
+    });
+    // Left Uncategorized (no dept) for a real folder — close so the old list refreshes.
+    if (prev && liveParentFolder && isUnassignedDepartmentFolder(liveParentFolder)) {
+      onSaved?.(getNode(node.id));
+      onClose?.();
+    }
+  };
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
@@ -640,8 +682,14 @@ export function StandaloneNodeModal({
         sourceId={sourceId}
         onSourceIdChange={handleSourceIdChange}
         parentDocId={parentDocId}
-        onParentDocIdChange={canAssignParent ? setParentDocId : undefined}
-        parentDocLabel={canAssignParent ? undefined : (lockedParentLabel || undefined)}
+        onParentDocIdChange={canAssignParent ? handleParentDocIdChange : undefined}
+        parentDocLabel={lockedParentLabel || undefined}
+        requireParentFolder={Boolean(
+          canAssignParent
+          && (node?.parentDocId || initialParentDocId)
+          && liveParentFolder
+          && isUnassignedDepartmentFolder(liveParentFolder),
+        )}
         docs={docList}
         parentObjectId={parentObjectId}
         anchorDate={anchorDate}

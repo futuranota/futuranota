@@ -345,11 +345,20 @@ export function listContentDocs(allDocs, parentObjectId) {
 }
 
 /** Docs under an object that do not match content, product, knowledge, or template. */
+export function isUncategorizedFolderDoc(doc) {
+  if (!doc) return false;
+  return !isContentDoc(doc)
+    && !isProductDoc(doc)
+    && !isKnowledgeDoc(doc)
+    && !isTemplateDoc(doc);
+}
+
+/** Docs under an object that do not match content, product, knowledge, or template. */
 export function listUncategorizedDocs(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
   return sortDocsBySidebarOrder(
     siblingDocsUnderParent(allDocs, parentObjectId)
-      .filter((doc) => !isContentDoc(doc) && !isProductDoc(doc) && !isKnowledgeDoc(doc) && !isTemplateDoc(doc)),
+      .filter((doc) => isUncategorizedFolderDoc(doc)),
   );
 }
 

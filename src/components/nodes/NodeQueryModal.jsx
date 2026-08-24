@@ -205,6 +205,8 @@ export function NodeQueryModal({
   parentDocLabel,
   parentDocId = "",
   onParentDocIdChange,
+  /** When true, picker requires picking a destination folder (no empty option). */
+  requireParentFolder = false,
   docs = [],
   parentObjectId = null,
   onClose,
@@ -244,6 +246,8 @@ export function NodeQueryModal({
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
   const [libraryAutoPdfImport, setLibraryAutoPdfImport] = useState(false);
   const [organizingWriting, setOrganizingWriting] = useState(false);
+  const [parentFolderPickerOpen, setParentFolderPickerOpen] = useState(false);
+  const parentFolderPickerRef = useRef(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportPdfError, setExportPdfError] = useState("");
   const [savingPdfLibrary, setSavingPdfLibrary] = useState(false);
@@ -284,12 +288,35 @@ export function NodeQueryModal({
   const parentSelectable = Boolean(onParentDocIdChange);
   const adoptableDocs = listAdoptableDocs(docs, { parentObjectId });
   const adoptableDocsById = Object.fromEntries(adoptableDocs.map((d) => [d.id, d]));
-  const resolvedParentDocId = resolveNodeParentDocId(
-    parentDocId ? { parentDocId } : null,
-    null,
-    adoptableDocsById,
-    { parentObjectId },
+  const resolvedParentDocId = parentDocId
+    || resolveNodeParentDocId(
+      parentDocId ? { parentDocId } : null,
+      null,
+      adoptableDocsById,
+      { parentObjectId },
+    )
+    || "";
+  const selectedParentLabel = (
+    (resolvedParentDocId && adoptableDocsById[resolvedParentDocId]
+      ? resolveAdoptableDocLabel(adoptableDocsById[resolvedParentDocId])
+      : "")
+    || String(parentDocLabel || "").trim()
   );
+
+  useEffect(() => {
+    if (!parentFolderPickerOpen) return undefined;
+    const onDoc = (event) => {
+      if (parentFolderPickerRef.current?.contains(event.target)) return;
+      setParentFolderPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [parentFolderPickerOpen]);
+
+  useEffect(() => {
+    if (!parentSelectable) setParentFolderPickerOpen(false);
+  }, [parentSelectable]);
+
   const companyObjectId = parentObjectId
     || adoptableDocsById[resolvedParentDocId]?.parentObjectId
     || null;
@@ -2060,29 +2087,116 @@ export function NodeQueryModal({
               + (showCloseButton ? " node-query-modal__head-top--closable" : "")
             }
           >
-            <img
-              className="node-query-modal__node-icon"
-              src="/uploads/box-closed.svg"
-              alt=""
-              aria-hidden
-            />
             {parentSelectable ? (
-              <select
-                className="node-query-modal__parent-select"
-                value={resolvedParentDocId}
-                onChange={(e) => onParentDocIdChange(e.target.value || null)}
-                aria-label={t("canvas.parentDocLabel")}
+              <div
+                className={
+                  "node-query-modal__folder-picker"
+                  + (parentFolderPickerOpen ? " is-open" : "")
+                }
+                ref={parentFolderPickerRef}
               >
-                <option value="">{t("canvas.parentDocPlaceholder")}</option>
-                {adoptableDocs.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {resolveAdoptableDocLabel(d)}
-                  </option>
-                ))}
-              </select>
-            ) : parentDocLabel ? (
-              <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
-            ) : null}
+                <div className="node-query-modal__folder-row">
+                  <img
+                    className="node-query-modal__node-icon"
+                    src="/uploads/box-closed.svg"
+                    alt=""
+                    aria-hidden
+                  />
+                  <span
+                    className={
+                      "node-query-modal__parent-doc"
+                      + (!selectedParentLabel ? " node-query-modal__parent-doc--placeholder" : "")
+                    }
+                    title={selectedParentLabel || t("canvas.moveToFolder")}
+                  >
+                    {selectedParentLabel || t("canvas.moveToFolder")}
+                  </span>
+                  <button
+                    type="button"
+                    className={
+                      "node-query-modal__folder-sort"
+                      + (parentFolderPickerOpen ? " is-open" : "")
+                    }
+                    aria-label={t("canvas.moveToFolderAria")}
+                    aria-expanded={parentFolderPickerOpen}
+                    aria-haspopup="listbox"
+                    title={t("canvas.moveToFolder")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setParentFolderPickerOpen((open) => !open);
+                    }}
+                  >
+                    <img
+                      className="node-query-modal__folder-sort-icon"
+                      src="/uploads/sorting-05.svg"
+                      alt=""
+                      aria-hidden
+                    />
+                  </button>
+                </div>
+                {parentFolderPickerOpen ? (
+                  <div
+                    className="node-query-modal__folder-popover"
+                    role="listbox"
+                    aria-label={t("canvas.moveToFolderAria")}
+                  >
+                    {adoptableDocs.length === 0 ? (
+                      <p className="node-query-modal__folder-empty">{t("canvas.assignParentEmpty")}</p>
+                    ) : (
+                      adoptableDocs.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          role="option"
+                          aria-selected={d.id === resolvedParentDocId}
+                          className={
+                            "node-query-modal__folder-option"
+                            + (d.id === resolvedParentDocId ? " is-active" : "")
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onParentDocIdChange(d.id);
+                            setParentFolderPickerOpen(false);
+                          }}
+                        >
+                          {resolveAdoptableDocLabel(d)}
+                        </button>
+                      ))
+                    )}
+                    {!requireParentFolder ? (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={!resolvedParentDocId}
+                        className={
+                          "node-query-modal__folder-option node-query-modal__folder-option--clear"
+                          + (!resolvedParentDocId ? " is-active" : "")
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onParentDocIdChange(null);
+                          setParentFolderPickerOpen(false);
+                        }}
+                      >
+                        {t("canvas.parentDocPlaceholder")}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <img
+                  className="node-query-modal__node-icon"
+                  src="/uploads/box-closed.svg"
+                  alt=""
+                  aria-hidden
+                />
+                {parentDocLabel ? (
+                  <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
+                ) : null}
+              </>
+            )}
             <div className="node-query-modal__head-actions">
               {entityNodeId ? (
                 <button

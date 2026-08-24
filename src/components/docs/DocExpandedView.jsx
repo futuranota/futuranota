@@ -65,6 +65,13 @@ import {
   DOC_KIND_CONTENT,
   DOC_KIND_KNOWLEDGE,
 } from "../../lib/templateDoc.js";
+import {
+  canReassignDocumentParent,
+  isUnassignedDepartmentFolder,
+  listAdoptableDocs,
+  resolveAdoptableDocLabel,
+  setEntityNodeParentDocument,
+} from "../../lib/nodeParentAdoption.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
   docBlocksFromBody,
@@ -968,6 +975,8 @@ export function DocExpandedView({
   const parentObject = draftParentId ? objects[draftParentId] : null;
   const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
+  const canAssignChildParent = canReassignDocumentParent(doc, { parentDocId: doc.id });
+  const adoptableFolders = listAdoptableDocs(allDocs, { parentObjectId: draftParentId || null });
   const draftSnapshot = buildDocPersistSnapshot({
     title: resolvePersistTitle({
       draftTitle,
@@ -1610,6 +1619,20 @@ export function DocExpandedView({
       return;
     }
     discardNodeModalWithoutSave();
+  };
+
+  const handleChildParentDocIdChange = (nextId) => {
+    const next = String(nextId || "").trim();
+    const nodeId = activeNodeContext?.nodeId;
+    if (!canAssignChildParent || !nodeId || !next) return;
+    if (next === doc.id) return;
+    setEntityNodeParentDocument({
+      nodeEntityId: nodeId,
+      docId: next,
+    });
+    if (isUnassignedDepartmentFolder(doc)) {
+      discardNodeModalWithoutSave();
+    }
   };
 
   const flushAndCloseNodeModal = async ({ withMarkLoader = false } = {}) => {
@@ -2685,8 +2708,17 @@ export function DocExpandedView({
             const id = activeNodeContext?.nodeId;
             if (id) updateNode(id, { sourceId: v ?? null });
           }}
-          parentDocLabel={parentDocLabel}
+          parentDocLabel={
+            canAssignChildParent
+              ? resolveAdoptableDocLabel(doc)
+              : parentDocLabel
+          }
           parentDocId={doc.id}
+          onParentDocIdChange={canAssignChildParent ? handleChildParentDocIdChange : undefined}
+          requireParentFolder={Boolean(
+            canAssignChildParent && isUnassignedDepartmentFolder(doc),
+          )}
+          docs={adoptableFolders}
           parentObjectId={draftParentId || null}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}

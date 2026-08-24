@@ -130,6 +130,15 @@ export function formatDepartmentOfLabel(department) {
 export const UNASSIGNED_DEPARTMENT_FILTER_ID = "";
 
 /**
+ * True when folder has no departmentId — same bucket as sidebar Uncategorized.
+ * @param {{ departmentId?: string|null }|null|undefined} folder
+ */
+export function isUnassignedDepartmentFolder(folder) {
+  if (!folder) return false;
+  return !String(folder.departmentId || "").trim();
+}
+
+/**
  * Match a folder against the sidebar department filter.
  * Empty / Uncategorized → folders with no departmentId (virtual department).
  * Concrete id → folders assigned to that department (category tag optional).
