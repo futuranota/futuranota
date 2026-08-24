@@ -146,6 +146,7 @@ export function DocDocumentBox({
   onShredFolderNode = null,
 }) {
   const { t } = useI18n();
+  const [campaignChildFilter, setCampaignChildFilter] = useState("all");
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
@@ -875,6 +876,10 @@ export function DocDocumentBox({
           hasKnowledgeImport={knowledgeImportActive}
           folderViewMode={isContentMode ? folderViewMode : null}
           onFolderViewModeChange={isContentMode ? onFolderViewModeChange : null}
+          campaignChildFilter={campaignChildFilter}
+          onCampaignChildFilterChange={
+            campaignActive && isContentMode ? setCampaignChildFilter : null
+          }
         />
       )}
 
@@ -937,6 +942,7 @@ export function DocDocumentBox({
               ref={blockStackRef}
               blocks={normalizedBlocks}
               onBlocksChange={onBlocksChange}
+              campaignChildFilter={campaignActive ? campaignChildFilter : "all"}
               focusBlockId={isFolderSlashSurface ? null : focusBlockId}
               onFocusBlock={isFolderSlashSurface ? undefined : setFocusBlockId}
               bodyPlaceholder={bodyPlaceholder}

@@ -97,6 +97,7 @@ import {
   LinkedMacronodeStatusBadge,
 } from "../LinkedMacronodeDescription.jsx";
 import { isFolderStoryView } from "../../../lib/folderViewMode.js";
+import { isCampaignDocActive } from "../../../lib/campaignDocSource.js";
 
 /** Folder viewMode drives presentation; hideColorLink remains the fallback. */
 function linkedBlockUsesStoryPresentation(block, folderViewMode) {
@@ -199,6 +200,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   libraryOwnerKind = "folder",
   libraryOwnerId = "",
   folderLibraryId = "",
+  /** all | active | inactive — hide linked campaign docs that do not match. */
+  campaignChildFilter = "all",
 }, ref) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -226,6 +229,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   }, [companyObjectId, tagMentionInSurface, urlTableEntries, urlTables]);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
+  const nodesMap = useNodesStore((s) => s.nodes);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
@@ -1655,6 +1659,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   return (
     <div className="doc-block-stack" ref={stackRef}>
       {blocks.map((block, index) => {
+        if (
+          campaignChildFilter !== "all"
+          && isDocBlockLinkedToNode(block)
+          && block.nodeId
+        ) {
+          const linked = nodesMap[block.nodeId] || getNode?.(block.nodeId);
+          if (linked) {
+            const active = isCampaignDocActive(linked);
+            if (campaignChildFilter === "active" && !active) return null;
+            if (campaignChildFilter === "inactive" && active) return null;
+          }
+        }
         const itemHidden =
           block.type === DOC_BLOCK_TYPES.TEXT
           && (isTextHiddenByParentCollapse(index)

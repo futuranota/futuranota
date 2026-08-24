@@ -474,6 +474,7 @@ export function StandaloneNodeModal({
           return {
             status: resolved,
             completed: resolved === DOC_WORK_STATUS.COMPLETED,
+            subcategory: String(subcategory || "").trim() || null,
           };
         })();
 
@@ -635,7 +636,7 @@ export function StandaloneNodeModal({
         announceDate={announceDate}
         onAnnounceDateChange={campaignDocMode ? setAnnounceDate : undefined}
         subcategory={subcategory}
-        onSubcategoryChange={campaignDocMode ? setSubcategory : undefined}
+        onSubcategoryChange={setSubcategory}
         sourceId={sourceId}
         onSourceIdChange={handleSourceIdChange}
         parentDocId={parentDocId}

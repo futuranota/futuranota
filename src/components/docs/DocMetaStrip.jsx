@@ -335,6 +335,9 @@ export function DocMetaStrip({
   hasKnowledgeImport = false,
   folderViewMode = null,
   onFolderViewModeChange = null,
+  /** When folder campaign mode is ON: filter child docs by campaignStatus. */
+  campaignChildFilter = "all",
+  onCampaignChildFilterChange = null,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -343,9 +346,8 @@ export function DocMetaStrip({
   const isKnowledgeMode = metaMode === "knowledge";
   const isLegacyCampaign = metaMode === "campaign" && showCampaignMeta;
   const showFolderSchedule = isContentMode && useFolderSchedule;
-  const showContentCampaignMeta = isContentMode
-    && !useFolderSchedule
-    && !deferCampaignStatusToChildren;
+  /** Campaign mode lives in Settings; never edit Active/inactive on the folder strip. */
+  const showContentCampaignMeta = false;
   const showFolderCampaignStatus = (isLegacyCampaign || showContentCampaignMeta)
     && !deferCampaignStatusToChildren;
   const showMetaFields = isProductMode || isContentMode || isLegacyCampaign || isKnowledgeMode;
@@ -384,8 +386,8 @@ export function DocMetaStrip({
               ? t("sidebar.docStatusInProgress")
               : t("meta.statusNotStarted");
 
-  const campaignSummary = showFolderCampaignStatus
-    ? formatCampaignLabel(campaignActive)
+  const campaignSummary = campaignActive
+    ? formatCampaignLabel(true)
     : null;
 
   const launchFormatted = formatMmDdYy(launchDate);
@@ -424,6 +426,13 @@ export function DocMetaStrip({
                 hoverText={categoryHoverText}
                 hideLabel
               />
+              {campaignActive ? (
+                <MetaChip
+                  label={t("meta.campaign")}
+                  value={campaignSummary}
+                  valueLowercase
+                />
+              ) : null}
               {showFolderSchedule ? (
                 <>
                   <MetaChip
@@ -440,12 +449,6 @@ export function DocMetaStrip({
                       statusTone={folderStatus.status}
                     />
                   ) : null}
-                </>
-              ) : showFolderCampaignStatus ? (
-                <>
-                  <MetaChip label={t("meta.campaign")} value={campaignSummary} valueLowercase />
-                  <MetaChip label={t("meta.launch")} value={launchFormatted || null} />
-                  <MetaChip label={t("meta.window")} value={windowSummary} />
                 </>
               ) : null}
             </>
@@ -547,33 +550,6 @@ export function DocMetaStrip({
 
           {isContentMode ? (
             <>
-              {showContentCampaignMeta ? (
-                <div className="doc-meta-field">
-                  <span className="doc-meta-field-k">{t("meta.campaign")}</span>
-                  <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
-                    <button
-                      type="button"
-                      className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCampaignActiveChange?.(true);
-                      }}
-                    >
-                      Active
-                    </button>
-                    <button
-                      type="button"
-                      className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCampaignActiveChange?.(false);
-                      }}
-                    >
-                      inactive
-                    </button>
-                  </div>
-                </div>
-              ) : null}
               <DepartmentCategoryField
                 value={category}
                 departmentId={departmentId}
@@ -581,6 +557,43 @@ export function DocMetaStrip({
                 departments={departments}
                 placeholder={t("sidebar.departmentSubPlaceholder")}
               />
+              {campaignActive && typeof onCampaignChildFilterChange === "function" ? (
+                <div className="doc-meta-field">
+                  <span className="doc-meta-field-k">{t("meta.campaignDocsFilter")}</span>
+                  <div className="doc-new-campaign-toggle" role="group" aria-label={t("meta.campaignDocsFilter")}>
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (campaignChildFilter === "all" ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignChildFilterChange("all");
+                      }}
+                    >
+                      {t("meta.campaignDocsFilterAll")}
+                    </button>
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (campaignChildFilter === "active" ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignChildFilterChange("active");
+                      }}
+                    >
+                      {t("sidebar.campaignDocActive")}
+                    </button>
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (campaignChildFilter === "inactive" ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignChildFilterChange("inactive");
+                      }}
+                    >
+                      {t("sidebar.campaignDocInactive")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {showFolderSchedule ? (
                 <>
                   <FolderScheduleRangeField
@@ -608,51 +621,25 @@ export function DocMetaStrip({
                         {scheduleDuration || "—"}
                       </span>
                     </div>
-                    {onFolderViewModeChange ? (
-                      <div className="doc-meta-field doc-meta-field--folder-view">
-                        <FolderViewModeSettings
-                          viewMode={folderViewMode}
-                          onViewModeChange={onFolderViewModeChange}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                </>
-              ) : deferCampaignStatusToChildren ? (
-                onFolderViewModeChange ? (
-                  <div className="doc-meta-field doc-meta-field--folder-view">
-                    <FolderViewModeSettings
-                      viewMode={folderViewMode}
-                      onViewModeChange={onFolderViewModeChange}
-                    />
-                  </div>
-                ) : null
-              ) : (
-                <>
-                  <label className="doc-meta-field">
-                    <span className="doc-meta-field-k">{t("meta.launch")}</span>
-                    <input
-                      type="date"
-                      className="doc-new-date doc-meta-field-input"
-                      value={launchDate}
-                      onChange={(e) => onLaunchDateChange?.(e.target.value)}
-                      onClick={openDatePicker}
-                      onFocus={openDatePicker}
-                    />
-                  </label>
-                  <div className="doc-meta-field doc-meta-field--readonly">
-                    <span className="doc-meta-field-k">{t("meta.window")}</span>
-                    <span className="doc-new-meta-readonly">{windowSummary}</span>
-                  </div>
-                  {onFolderViewModeChange ? (
                     <div className="doc-meta-field doc-meta-field--folder-view">
                       <FolderViewModeSettings
                         viewMode={folderViewMode}
                         onViewModeChange={onFolderViewModeChange}
+                        campaignActive={campaignActive}
+                        onCampaignActiveChange={onCampaignActiveChange}
                       />
                     </div>
-                  ) : null}
+                  </div>
                 </>
+              ) : (
+                <div className="doc-meta-field doc-meta-field--folder-view">
+                  <FolderViewModeSettings
+                    viewMode={folderViewMode}
+                    onViewModeChange={onFolderViewModeChange}
+                    campaignActive={campaignActive}
+                    onCampaignActiveChange={onCampaignActiveChange}
+                  />
+                </div>
               )}
             </>
           ) : null}

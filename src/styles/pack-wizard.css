@@ -117,6 +117,12 @@
   transform: none;
 }
 
+.pack-actions .btn.pack-actions__btn--toolbar.is-active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(55, 60, 72, 0.9);
+}
+
 .pack-actions__btn-label {
   overflow: hidden;
   text-overflow: ellipsis;

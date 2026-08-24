@@ -5184,6 +5184,26 @@
   overflow: hidden;
 }
 
+.folder-view-overlay__campaign {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.folder-view-overlay__campaign-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.folder-view-overlay__campaign .doc-new-campaign-toggle {
+  align-self: flex-start;
+}
+
 .folder-view-overlay__header {
   display: flex;
   align-items: flex-start;

@@ -8,6 +8,7 @@ import {
 import { useI18n } from "../../i18n/useI18n.js";
 
 const SETTINGS_ICON = "/uploads/settings.svg";
+const CAMPAIGN_ICON = "/uploads/web-advertising.svg";
 
 const VIEW_OPTIONS = [
   {
@@ -26,8 +27,15 @@ const VIEW_OPTIONS = [
   },
 ];
 
-function FolderViewModeOverlay({ current, onSelect, onClose }) {
+function FolderViewModeOverlay({
+  current,
+  onSelect,
+  onClose,
+  campaignActive = false,
+  onCampaignActiveChange,
+}) {
   const { t } = useI18n();
+  const showCampaignToggle = typeof onCampaignActiveChange === "function";
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -70,6 +78,50 @@ function FolderViewModeOverlay({ current, onSelect, onClose }) {
             ×
           </button>
         </header>
+
+        {showCampaignToggle ? (
+          <div className="folder-view-overlay__campaign" role="group" aria-label={t("meta.campaignMode")}>
+            <div className="folder-view-overlay__campaign-copy">
+              <img
+                src={CAMPAIGN_ICON}
+                alt=""
+                aria-hidden
+                className="folder-view-overlay__row-icon"
+                draggable={false}
+              />
+              <span className="folder-view-overlay__row-copy">
+                <span className="folder-view-overlay__row-title">
+                  {t("meta.campaignMode")}
+                </span>
+                <span className="folder-view-overlay__row-body">
+                  {t("meta.campaignModeBody")}
+                </span>
+              </span>
+            </div>
+            <div className="doc-new-campaign-toggle" role="group" aria-label={t("meta.campaignMode")}>
+              <button
+                type="button"
+                className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCampaignActiveChange?.(true);
+                }}
+              >
+                {t("sidebar.campaignDocActive")}
+              </button>
+              <button
+                type="button"
+                className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCampaignActiveChange?.(false);
+                }}
+              >
+                {t("sidebar.campaignDocInactive")}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div
           className="folder-view-overlay__table"
@@ -121,17 +173,24 @@ function FolderViewModeOverlay({ current, onSelect, onClose }) {
 }
 
 /**
- * Folder Story / Quick presentation settings.
+ * Folder Story / Quick presentation settings + optional Campaign mode.
  * Trigger lives in the open-folder meta drawer; the chooser is a standalone overlay.
  */
-export function FolderViewModeSettings({ viewMode, onViewModeChange }) {
+export function FolderViewModeSettings({
+  viewMode,
+  onViewModeChange,
+  campaignActive = false,
+  onCampaignActiveChange,
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const current = normalizeFolderViewMode(viewMode);
+  const showTrigger = Boolean(onViewModeChange) || typeof onCampaignActiveChange === "function";
 
-  if (!onViewModeChange) return null;
+  if (!showTrigger) return null;
 
   const selectMode = (nextMode) => {
+    if (!onViewModeChange) return;
     const normalized = normalizeFolderViewMode(nextMode);
     if (normalized !== current) {
       onViewModeChange(normalized);
@@ -165,6 +224,8 @@ export function FolderViewModeSettings({ viewMode, onViewModeChange }) {
           current={current}
           onSelect={selectMode}
           onClose={() => setOpen(false)}
+          campaignActive={campaignActive}
+          onCampaignActiveChange={onCampaignActiveChange}
         />
       ) : null}
     </>

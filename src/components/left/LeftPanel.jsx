@@ -1427,7 +1427,7 @@ function DocCreateModal({
   const [launchDate, setLaunchDate] = useState("");
   const [scheduleStartDate, setScheduleStartDate] = useState("");
   const [scheduleFinishDate, setScheduleFinishDate] = useState("");
-  const [campaignActive, setCampaignActive] = useState(createMode === "campaign");
+  const [campaignActive, setCampaignActive] = useState(false);
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("white");
   const [knowledgeImport, setKnowledgeImport] = useState(null);
@@ -1436,8 +1436,7 @@ function DocCreateModal({
   const createSnapshotRef = useRef(null);
   const isProductMode = createMode === "product";
   const isKnowledgeMode = createMode === "knowledge";
-  const isCampaignMode = createMode === "campaign";
-  const isContentMode = createMode === "content" || isCampaignMode || (!isProductMode && !isKnowledgeMode);
+  const isContentMode = createMode === "content" || (!isProductMode && !isKnowledgeMode);
   /** Day-first: no folder Start→Finish on create. */
   const useFolderSchedule = false;
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
@@ -1532,7 +1531,7 @@ function DocCreateModal({
       launchDate: "",
       scheduleStartDate: "",
       scheduleFinishDate: "",
-      campaignActive: createMode === "campaign",
+      campaignActive: false,
       subcategoryDocIds: [],
       nodeLinkColor: "white",
       parentId: fallbackParent,
@@ -1676,10 +1675,8 @@ function DocCreateModal({
 
     let scheduleStartAt = null;
     let scheduleFinishAt = null;
-    // Campaign folders: Launch lives on child docs — do not set folder.launchAt.
-    let launchAt = isCampaignMode
-      ? null
-      : (launchDate ? isoFromDateInput(launchDate) : null);
+    // Launch lives on child docs when folder campaign mode is ON — do not set folder.launchAt.
+    let launchAt = launchDate ? isoFromDateInput(launchDate) : null;
 
     if (useFolderSchedule) {
       const check = validateFolderSchedule(
@@ -1715,7 +1712,7 @@ function DocCreateModal({
       launchAt,
       scheduleStartAt,
       scheduleFinishAt,
-      campaignActive: isCampaignMode ? true : campaignActive,
+      campaignActive: Boolean(campaignActive),
       subcategoryDocIds,
       nodeLinkColor,
       docKind,
@@ -1737,8 +1734,6 @@ function DocCreateModal({
               ? t("sidebar.productName")
               : isKnowledgeMode
                 ? t("sidebar.documentTitle")
-                : isCampaignMode
-                  ? t("sidebar.campaignFolderTitlePlaceholder")
                 : isContentMode
                   ? t("sidebar.folderTitlePlaceholder")
                   : t("sidebar.writeDescription")
@@ -1769,8 +1764,8 @@ function DocCreateModal({
               ? (findDepartmentById(departments, departmentId)?.category || "")
               : ""
           }
-          launchDate={isCampaignMode ? "" : launchDate}
-          onLaunchDateChange={isCampaignMode ? undefined : setLaunchDate}
+          launchDate={launchDate}
+          onLaunchDateChange={setLaunchDate}
           scheduleStartDate={scheduleStartDate}
           onScheduleStartDateChange={handleScheduleStartChange}
           scheduleFinishDate={scheduleFinishDate}
@@ -1778,9 +1773,9 @@ function DocCreateModal({
           scheduleStartMin={scheduleStartMin}
           onScheduleDatesClear={handleScheduleDatesClear}
           useFolderSchedule={useFolderSchedule}
-          campaignActive={isCampaignMode ? true : campaignActive}
-          onCampaignActiveChange={isCampaignMode ? undefined : setCampaignActive}
-          deferCampaignStatusToChildren={isCampaignMode}
+          campaignActive={campaignActive}
+          onCampaignActiveChange={setCampaignActive}
+          deferCampaignStatusToChildren={Boolean(campaignActive)}
           subcategoryDocIds={subcategoryDocIds}
           onSubcategoryDocIdsChange={setSubcategoryDocIds}
           allDocs={allDocs}
@@ -2069,6 +2064,8 @@ export function LeftPanel({
   const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);
   const contentProductFilter = useUIStateStore((s) => s.contentProductFilter);
   const setContentProductFilter = useUIStateStore((s) => s.setContentProductFilter);
+  const campaignFoldersOnly = useUIStateStore((s) => s.campaignFoldersOnly);
+  const toggleCampaignFoldersOnly = useUIStateStore((s) => s.toggleCampaignFoldersOnly);
   const folderDensity = useUIStateStore((s) => s.folderDensity);
   const densifyFolderList = useUIStateStore((s) => s.densifyFolderList);
   const expandFolderList = useUIStateStore((s) => s.expandFolderList);
@@ -2311,23 +2308,6 @@ export function LeftPanel({
     [productDocs, productCategoryFilter],
   );
 
-  const campaignDocs = useMemo(
-    () => (guestWorkspace
-      ? contentDocs
-      : contentDocs.filter((doc) => Boolean(doc.campaignActive))),
-    [contentDocs, guestWorkspace],
-  );
-
-  const campaignCategoryFilterOptions = useMemo(
-    () => buildCategoryFilterOptions(campaignDocs),
-    [campaignDocs],
-  );
-
-  const filteredCampaignDocs = useMemo(
-    () => campaignDocs.filter((doc) => productDocMatchesCategoryFilter(doc, productCategoryFilter)),
-    [campaignDocs, productCategoryFilter],
-  );
-
   const departmentFilterOptions = useMemo(
     () => listDepartmentsForObject(departments, filterObjectId),
     [departments, filterObjectId],
@@ -2384,7 +2364,7 @@ export function LeftPanel({
 
   const filteredContentDocs = useMemo(
     () => contentDocs.filter((doc) => {
-      if (doc.campaignActive) return false;
+      if (campaignFoldersOnly && !doc.campaignActive) return false;
       if (!contentDocMatchesProductFilter(doc, docs, contentProductFilter)) return false;
       if (!folderMatchesDepartmentFilter(doc, departmentFilterId || null)) return false;
       if (!departmentCategoryFilter) return true;
@@ -2395,6 +2375,7 @@ export function LeftPanel({
       contentDocs,
       docs,
       contentProductFilter,
+      campaignFoldersOnly,
       departmentFilterId,
       departmentCategoryFilter,
     ],
@@ -2417,11 +2398,6 @@ export function LeftPanel({
     return title.includes(folderSearchNeedle) || category.includes(folderSearchNeedle);
   }, [folderSearchNeedle]);
 
-  const visibleCampaignDocs = useMemo(
-    () => filteredCampaignDocs.filter(matchesFolderSearch),
-    [filteredCampaignDocs, matchesFolderSearch],
-  );
-
   const visibleContentDocs = useMemo(
     () => filteredContentDocs.filter(matchesFolderSearch),
     [filteredContentDocs, matchesFolderSearch],
@@ -2432,10 +2408,6 @@ export function LeftPanel({
     [filteredUncategorizedDocs, matchesFolderSearch],
   );
 
-  const visibleCampaignDocIds = useMemo(
-    () => visibleCampaignDocs.map((doc) => doc.id),
-    [visibleCampaignDocs],
-  );
   const visibleContentDocIds = useMemo(
     () => visibleContentDocs.map((doc) => doc.id),
     [visibleContentDocs],
@@ -2676,8 +2648,7 @@ export function LeftPanel({
   };
 
   useEffect(() => {
-    const inFolderSelectView =
-      clickFolderView === "subgroups" || clickFolderView === "campaign";
+    const inFolderSelectView = clickFolderView === "subgroups";
     if (!inFolderSelectView && folderBulkDeleteMode) {
       exitFolderBulkDeleteMode();
     }
@@ -2721,7 +2692,7 @@ export function LeftPanel({
     selectObject(objectId);
     setObjectWorkspaceActive(true);
     setPanelType("Documents");
-    setClickFolderView(isGuestObject(objects[objectId]) ? "campaign" : null);
+    setClickFolderView(isGuestObject(objects[objectId]) ? "subgroups" : null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
@@ -2730,10 +2701,15 @@ export function LeftPanel({
     setFolderOpen(false);
   };
 
+  // Legacy Campaign section retired — land leftover "campaign" views in Documents.
+  useEffect(() => {
+    if (clickFolderView === "campaign") setClickFolderView("subgroups");
+  }, [clickFolderView]);
+
   useEffect(() => {
     if (!guestWorkspace) return;
     if (packImportActive || stepsLibraryActive || lazyTodosActive || urlTableLibraryActive) return;
-    if (clickFolderView !== "campaign") setClickFolderView("campaign");
+    if (clickFolderView !== "subgroups") setClickFolderView("subgroups");
   }, [
     guestWorkspace,
     packImportActive,
@@ -2781,16 +2757,16 @@ export function LeftPanel({
     openUrlTableLibraryView();
   };
 
-  const openCampaignFromToolbar = () => {
+  const toggleCampaignFoldersFilter = () => {
     const targetObjectId = filterObjectId || selectedObjectId;
-    if (targetObjectId) {
-      if (!objectWorkspaceActive) {
-        enterObjectWorkspace(targetObjectId);
-      }
-      setClickFolderView("campaign");
-      return;
+    if (targetObjectId && !objectWorkspaceActive) {
+      enterObjectWorkspace(targetObjectId);
+    }
+    if (clickFolderView !== "subgroups") {
+      setClickFolderView("subgroups");
     }
     setPanelType("Documents");
+    toggleCampaignFoldersOnly();
   };
 
   const openLazyTodosFromToolbar = () => {
@@ -3192,7 +3168,7 @@ export function LeftPanel({
         showUpgradeModal("guest_doc_limit");
         return;
       }
-      const isCampaignFolder = Boolean(data.campaignActive) || isGuestObject(parentObj);
+      const isCampaignFolder = Boolean(data.campaignActive);
       const newDocId = addDoc(
         data.title,
         parentId,
@@ -3298,9 +3274,7 @@ export function LeftPanel({
     || (!guestWorkspace && clickFolderView === "assistance");
   const docCreateMode = clickFolderView === "groups"
     ? "product"
-    : (clickFolderView === "campaign" || guestWorkspace)
-      ? "campaign"
-      : "content";
+    : "content";
   /** Documents content: selector + opens folder → New doc (not folder create). */
   const useDocumentsNewDocMenu = panelType === "Documents"
     && docCreateMode === "content"
@@ -5508,7 +5482,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenCampaign={openCampaignFromToolbar}
+                    onToggleCampaignFilter={toggleCampaignFoldersFilter}
+                    campaignFilterActive={campaignFoldersOnly}
                   />
                 </div>
                 <div className="lp-click-folders-stack__boxes">
@@ -5547,7 +5522,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenCampaign={openCampaignFromToolbar}
+                    onToggleCampaignFilter={toggleCampaignFoldersFilter}
+                    campaignFilterActive={campaignFoldersOnly}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -5602,14 +5578,55 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "campaign" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" && !guestWorkspace ? (
+              <DepartmentsPanel
+                objectId={filterObjectId}
+                onBack={() => setClickFolderView(null)}
+                createRequested={departmentCreateRequested}
+                onCreateRequestHandled={() => setDepartmentCreateRequested(false)}
+              />
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
+              <div className="lp-click-folder-detail">
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label={t("sidebar.assistanceTitle")}
+                />
+                <div className="lp-click-folder-detail-list">
+                  <AssistanceListCard
+                    onTalk={openGinaDashboard}
+                    onOpenMeeting={openGinaMeeting}
+                    onOpenKnowledge={() => setGinaKnowledgeOpen(true)}
+                    isAdmin={isGinaAdmin}
+                    knowledgeDocCount={knowledgeDocs.length}
+                    chatOpen={ginaDashboardOpen && !ginaMeetingSession}
+                  />
+                  {canvasAgents.length > 0 ? (
+                    <div className="lp-assistance-agents">
+                      <div className="lp-assistance-agents__title">{t("sidebar.agents")}</div>
+                      {canvasAgents.map((agent) => (
+                        <AgentListCard
+                          key={agent.id}
+                          agent={agent}
+                          onInsert={(agentId) => onInsertAgent?.(agentId)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
                     iconOnly
                     inline
                     onBack={guestWorkspace ? exitObjectWorkspace : () => setClickFolderView(null)}
-                    label={guestWorkspace ? t("sidebar.clickFolderDocuments") : t("sidebar.campaign")}
+                    label={guestWorkspace ? t("sidebar.clickFolderDocuments") : t("sidebar.content")}
                   />
                   <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
                     <button
@@ -5657,209 +5674,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={guestWorkspace ? undefined : openStepsLibraryFromToolbar}
                     onOpenLazyTodos={guestWorkspace ? undefined : openLazyTodosFromToolbar}
                     onOpenUrlTable={guestWorkspace ? undefined : openUrlTableFromToolbar}
-                    onOpenCampaign={guestWorkspace ? undefined : openCampaignFromToolbar}
-                    filterMode="category"
-                    filterOptions={campaignCategoryFilterOptions}
-                    filterValue={productCategoryFilter}
-                    onFilterChange={setProductCategoryFilter}
-                  />
-                </div>
-                <div className="lp-library-toolbar lp-folder-search-toolbar">
-                  <div className="lp-library-search-wrap">
-                    <span className="lp-library-search-icon" aria-hidden />
-                    <input
-                      type="search"
-                      className="lp-library-search"
-                      value={folderSearchQuery}
-                      onChange={(e) => setFolderSearchQuery(e.target.value)}
-                      placeholder={t("sidebar.folderSearchPlaceholder")}
-                      aria-label={t("sidebar.folderSearchPlaceholder")}
-                    />
-                  </div>
-                </div>
-                {folderBulkDeleteMode ? (
-                  <div className="lp-folder-bulk-bar" role="status">
-                    <span className="lp-folder-bulk-bar__count">
-                      {t("sidebar.folderSelectDeleteCount", { count: selectedFolderIds.length })}
-                    </span>
-                    <div className="lp-folder-bulk-bar__actions">
-                      <button
-                        type="button"
-                        className="btn xs ghost"
-                        onClick={exitFolderBulkDeleteMode}
-                      >
-                        {t("sidebar.folderSelectDeleteDone")}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn xs lp-folder-bulk-bar__delete"
-                        disabled={selectedFolderIds.length === 0}
-                        onClick={handleDeleteSelectedFolders}
-                      >
-                        {t("sidebar.folderSelectDeleteAction")}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                <TimelineDocQueue
-                  entries={timelineQueueEntries}
-                  docs={docs}
-                  objects={objects}
-                  activeDocId={activeId}
-                  onSelectDoc={handleSelectQueuedDoc}
-                  onOpenDocument={onOpenDocument}
-                  onDeleteDoc={handleDeleteDoc}
-                />
-                <div
-                  className={
-                    "lp-click-folder-detail-list lp-doc-nodes-stack"
-                    + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
-                    + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
-                  }
-                >
-                  {visibleCampaignDocs.length ? (
-                    visibleCampaignDocs.map((doc) => (
-                      <DocNodesBlockCard
-                        key={doc.id}
-                        doc={doc}
-                        nodes={nodesByDocId.get(doc.id) || []}
-                        objects={objects}
-                        showWhenEmpty
-                        selectMode={folderBulkDeleteMode}
-                        selected={selectedFolderIds.includes(doc.id)}
-                        onToggleSelect={toggleFolderSelect}
-                        onOpenDoc={() => handleOpenFolderDoc(doc.id)}
-                        onCreateDocument={() => openCreateDocument(doc)}
-                        onDeleteBox={() => handleDeleteDoc(doc)}
-                        onNodeClick={(node) => {
-                          setActiveId(node.id);
-                          setNodeEditContentFocus(false);
-                          setNodeEditId(node.id);
-                        }}
-                        onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                        onNodeDelete={handleDeleteNode}
-                        {...folderSidebarReorderProps(doc.id, visibleCampaignDocIds)}
-                      />
-                    ))
-                  ) : (
-                    <div className="lp-empty">
-                      <p className="dim">
-                        {folderSearchNeedle
-                          ? t("sidebar.noFoldersMatch")
-                          : productCategoryFilter
-                            ? t("sidebar.noCampaignsInCategory")
-                            : t("sidebar.noCampaignsYet")}
-                      </p>
-                      <p className="dim">
-                        {folderSearchNeedle
-                          ? t("sidebar.noFoldersMatchHint")
-                          : productCategoryFilter
-                            ? t("sidebar.clearCategoryFilter")
-                            : t("sidebar.useNewCampaign")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" && !guestWorkspace ? (
-              <DepartmentsPanel
-                objectId={filterObjectId}
-                onBack={() => setClickFolderView(null)}
-                createRequested={departmentCreateRequested}
-                onCreateRequestHandled={() => setDepartmentCreateRequested(false)}
-              />
-            ) : null}
-
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
-              <div className="lp-click-folder-detail">
-                <ClickFolderBack
-                  iconOnly
-                  onBack={() => setClickFolderView(null)}
-                  label={t("sidebar.assistanceTitle")}
-                />
-                <div className="lp-click-folder-detail-list">
-                  <AssistanceListCard
-                    onTalk={openGinaDashboard}
-                    onOpenMeeting={openGinaMeeting}
-                    onOpenKnowledge={() => setGinaKnowledgeOpen(true)}
-                    isAdmin={isGinaAdmin}
-                    knowledgeDocCount={knowledgeDocs.length}
-                    chatOpen={ginaDashboardOpen && !ginaMeetingSession}
-                  />
-                  {canvasAgents.length > 0 ? (
-                    <div className="lp-assistance-agents">
-                      <div className="lp-assistance-agents__title">{t("sidebar.agents")}</div>
-                      {canvasAgents.map((agent) => (
-                        <AgentListCard
-                          key={agent.id}
-                          agent={agent}
-                          onInsert={(agentId) => onInsertAgent?.(agentId)}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" && !guestWorkspace ? (
-              <div className="lp-click-folder-detail">
-                <div className="lp-workspace-head">
-                  <ClickFolderBack
-                    iconOnly
-                    inline
-                    onBack={() => setClickFolderView(null)}
-                    label={t("sidebar.content")}
-                  />
-                  <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
-                    <button
-                      type="button"
-                      className={
-                        "lp-folder-density__btn lp-folder-select-btn"
-                        + (folderBulkDeleteMode ? " is-active" : "")
-                      }
-                      onClick={toggleFolderBulkDeleteMode}
-                      title={
-                        folderBulkDeleteMode
-                          ? t("sidebar.folderSelectDeleteActive")
-                          : t("sidebar.folderSelectDeleteTitle")
-                      }
-                      aria-label={t("sidebar.folderSelectDeleteTitle")}
-                      aria-pressed={folderBulkDeleteMode}
-                    >
-                      {t("sidebar.folderSelectDelete")}
-                    </button>
-                    <button
-                      type="button"
-                      className="lp-folder-density__btn"
-                      onClick={densifyFolderList}
-                      disabled={folderDensity === "compact"}
-                      title={t("sidebar.folderDensityZoomOut")}
-                      aria-label={t("sidebar.folderDensityZoomOut")}
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      className="lp-folder-density__btn"
-                      onClick={expandFolderList}
-                      disabled={folderDensity === "comfortable"}
-                      title={t("sidebar.folderDensityZoomIn")}
-                      aria-label={t("sidebar.folderDensityZoomIn")}
-                    >
-                      +
-                    </button>
-                  </div>
-                  <PackActionsBar
-                    placement="documents"
-                    companySelected={Boolean(filterObjectId || activeObjectId)}
-                    onOpenImport={openPackImportView}
-                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
-                    onOpenLazyTodos={openLazyTodosFromToolbar}
-                    onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenCampaign={openCampaignFromToolbar}
+                    onToggleCampaignFilter={guestWorkspace ? undefined : toggleCampaignFoldersFilter}
+                    campaignFilterActive={campaignFoldersOnly}
                   />
                 </div>
                 <div className="lp-library-toolbar lp-folder-search-toolbar">
@@ -6077,6 +5893,8 @@ export function LeftPanel({
                       <p className="dim">
                         {folderSearchNeedle
                           ? t("sidebar.noFoldersMatch")
+                          : campaignFoldersOnly
+                            ? t("sidebar.noCampaignFoldersYet")
                           : contentProductFilter
                             ? t("sidebar.noContentForProduct")
                             : t("sidebar.noContentYet")}
@@ -6084,6 +5902,8 @@ export function LeftPanel({
                       <p className="dim">
                         {folderSearchNeedle
                           ? t("sidebar.noFoldersMatchHint")
+                          : campaignFoldersOnly
+                            ? t("sidebar.campaignFilterHint")
                           : contentProductFilter
                             ? t("sidebar.clearContentFilter")
                             : t("sidebar.useNewContent")}

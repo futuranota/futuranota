@@ -259,9 +259,15 @@ export function useDocBlockNodeModal({
             windowStartAt: child.windowStartAt,
             launchAt: child.launchAt,
             windowEndAt: child.windowEndAt,
-                subcategory: child.subcategory,
+            subcategory: child.subcategory,
           }
-          : {}),
+          : {
+            subcategory: String(nodeDraftSubcategory || "").trim() || null,
+          }),
+      });
+    } else if (savedNodeId) {
+      updateNode(savedNodeId, {
+        subcategory: String(nodeDraftSubcategory || "").trim() || null,
       });
     }
 
@@ -710,7 +716,7 @@ export function useDocBlockNodeModal({
       announceDate={nodeDraftAnnounceDate}
       onAnnounceDateChange={campaignDocMode ? setNodeDraftAnnounceDate : undefined}
       subcategory={nodeDraftSubcategory}
-      onSubcategoryChange={campaignDocMode ? setNodeDraftSubcategory : undefined}
+      onSubcategoryChange={setNodeDraftSubcategory}
       sourceId={nodeDraftSourceId}
       onSourceIdChange={(v) => {
         setNodeDraftSourceId(v);

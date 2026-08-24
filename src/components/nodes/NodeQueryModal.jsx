@@ -315,14 +315,16 @@ export function NodeQueryModal({
   const departments = useDepartmentsStore((s) => s.departments);
   const objectsMap = useObjectsStore((s) => s.objects);
   const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
+  const showSubcategoryField = typeof onSubcategoryChange === "function";
   const showStatusMeta = showCampaignStatus
     || (canUseDocStatusMeta(userEmail)
-      && (typeof onStatusChange === "function" || typeof onCompletedChange === "function"));
+      && (typeof onStatusChange === "function" || typeof onCompletedChange === "function"))
+    || showSubcategoryField;
   const workStatus = resolveDocWorkStatus({ status, completed });
   const workStatusLabel = docWorkStatusLabel(workStatus, t);
   const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
   const isCampaignActive = campaignStatus === "active";
-  const siblingSubcategories = showCampaignStatus
+  const siblingSubcategories = showSubcategoryField
     ? listSiblingNodeSubcategories(nodesMap, parentDocId, entityNodeId)
     : [];
   const announceEditable = Boolean(onAnnounceDateChange);
@@ -2244,9 +2246,9 @@ export function NodeQueryModal({
                       </span>
                     </div>
                   ) : null}
-                  {showCampaignStatus && String(subcategory || "").trim() ? (
+                  {showSubcategoryField && String(subcategory || "").trim() ? (
                     <div className="doc-meta-chip" title={subcategory.trim()}>
-                      <span className="doc-meta-chip-k">{t("sidebar.campaignDocSubcategory")}</span>
+                      <span className="doc-meta-chip-k">{t("sidebar.docSubcategory")}</span>
                       <span className="doc-product-category-tag doc-product-category-tag--summary doc-product-category-tag--campaign-sub">
                         {subcategory.trim()}
                       </span>
@@ -2449,12 +2451,12 @@ export function NodeQueryModal({
                       />
                     </div>
                   ) : null}
-                  {showCampaignStatus && onSubcategoryChange ? (
+                  {showSubcategoryField ? (
                     <ProductCategoryField
                       value={subcategory}
                       onChange={onSubcategoryChange}
-                      label={t("sidebar.campaignDocSubcategory")}
-                      placeholder={t("sidebar.campaignDocSubcategoryPlaceholder")}
+                      label={t("sidebar.docSubcategory")}
+                      placeholder={t("sidebar.docSubcategoryPlaceholder")}
                       optionsOverride={siblingSubcategories}
                       className="doc-meta-field--campaign-sub"
                     />

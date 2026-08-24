@@ -31,7 +31,8 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
- * @param {() => void} [props.onOpenCampaign]
+ * @param {() => void} [props.onToggleCampaignFilter]
+ * @param {boolean} [props.campaignFilterActive]
  * @param {boolean} [props.companySelected]
  * @param {'category'|null} [props.filterMode]
  * @param {{ id: string, label: string }[]} [props.filterOptions]
@@ -44,7 +45,8 @@ export function PackActionsBar({
   onOpenStepsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
-  onOpenCampaign,
+  onToggleCampaignFilter,
+  campaignFilterActive = false,
   companySelected = false,
   filterMode = null,
   filterOptions = [],
@@ -112,12 +114,16 @@ export function PackActionsBar({
             <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
           </button>
         ) : null}
-        {companySelected && onOpenCampaign ? (
+        {companySelected && onToggleCampaignFilter ? (
           <button
             type="button"
-            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-            onClick={onOpenCampaign}
-            title={t("pack.campaignTitle")}
+            className={
+              "btn xs pack-actions__btn pack-actions__btn--toolbar"
+              + (campaignFilterActive ? " is-active" : "")
+            }
+            onClick={onToggleCampaignFilter}
+            title={t("pack.campaignFilterTitle")}
+            aria-pressed={campaignFilterActive}
           >
             <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
             <span className="pack-actions__btn-label">{t("pack.campaign")}</span>

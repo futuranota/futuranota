@@ -94,6 +94,8 @@ export const useUIStateStore = create(
       productCategoryFilter: null,
       /** Content list: filter by linked subcategory label (partial match). */
       contentProductFilter: null,
+      /** Documents list: when true, only folders with campaignActive. */
+      campaignFoldersOnly: false,
       /** Content/Folder list density: comfortable = 1 col (max), compact = 2 cols. */
       folderDensity: readFolderDensity(),
 
@@ -167,6 +169,12 @@ export const useUIStateStore = create(
       setContentProductFilter: (query) => set({
         contentProductFilter: query?.trim() ? query.trim() : null,
       }),
+      setCampaignFoldersOnly: (value) => set({
+        campaignFoldersOnly: Boolean(value),
+      }),
+      toggleCampaignFoldersOnly: () => set((s) => ({
+        campaignFoldersOnly: !s.campaignFoldersOnly,
+      })),
 
       setFolderDensity: (density) => {
         const next = density === "compact" ? "compact" : "comfortable";

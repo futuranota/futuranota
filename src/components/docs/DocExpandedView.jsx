@@ -1982,7 +1982,13 @@ export function DocExpandedView({
             windowEndAt: child.windowEndAt,
             subcategory: child.subcategory,
           }
-          : {}),
+          : {
+            subcategory: String(nodeDraftSubcategory || "").trim() || null,
+          }),
+      });
+    } else if (savedNodeId) {
+      updateNode(savedNodeId, {
+        subcategory: String(nodeDraftSubcategory || "").trim() || null,
       });
     }
 
@@ -2529,11 +2535,9 @@ export function DocExpandedView({
           useFolderSchedule={useFolderSchedule}
           campaignActive={draftCampaignActive}
           onCampaignActiveChange={
-            isTemplate || useFolderSchedule || draftCampaignActive
-              ? undefined
-              : (v) => {
-                setDraftCampaignActive(v);
-              }
+            isContentMode && !isTemplate
+              ? setDraftCampaignActive
+              : undefined
           }
           deferCampaignStatusToChildren={Boolean(draftCampaignActive)}
           parentId={draftParentId}
@@ -2674,7 +2678,7 @@ export function DocExpandedView({
           announceDate={nodeDraftAnnounceDate}
           onAnnounceDateChange={draftCampaignActive ? setNodeDraftAnnounceDate : undefined}
           subcategory={nodeDraftSubcategory}
-          onSubcategoryChange={draftCampaignActive ? setNodeDraftSubcategory : undefined}
+          onSubcategoryChange={setNodeDraftSubcategory}
           sourceId={nodeDraftSourceId}
           onSourceIdChange={(v) => {
             setNodeDraftSourceId(v);
