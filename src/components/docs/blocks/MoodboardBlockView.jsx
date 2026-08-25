@@ -17,7 +17,6 @@ import {
   MOODBOARD_OVERLAY_SRC,
   MOODBOARD_POINTER_CONTRAST,
   MOODBOARD_RECIPES,
-  MOODBOARD_STICKY_MAX,
   MOODBOARD_STICKY_TITLE_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
@@ -76,10 +75,7 @@ const BOARD_ASPECT_DEFAULT = 16 / 9; // thirds: large 9:16
 const BOARD_ASPECT_HALVES = 1; // 1:1
 /** Full-width column: 16:9 landscape. */
 const BOARD_ASPECT_FULL = 9 / 16;
-/** Orange sticky aspect (mirrors .doc-moodboard__sticky 223/82). */
-const STICKY_ASPECT = 82 / 223;
 
-const STICKY_SRC = "/uploads/horizontal-note.svg";
 const EXPAND_ALL_SRC = "/uploads/expandall.svg";
 
 const OVERLAY_PALETTE = [
@@ -186,12 +182,6 @@ const RECIPE_OPTIONS = [
     labelKey: "doc.moodboard.recipeMedium",
     iconSrc: "/uploads/split-in-half-block-view.svg",
     iconClipPx: 22,
-  },
-  {
-    id: MOODBOARD_RECIPES.SEMI_STICKY,
-    labelKey: "doc.moodboard.recipeSemi",
-    iconSrc: "/uploads/image-sticky-notes-block-view.svg",
-    iconClipPx: 48,
   },
   {
     id: MOODBOARD_RECIPES.MEDIUM_STICKY,
@@ -365,28 +355,7 @@ function textFitsFixedHeight(source, text, maxHeight) {
   return fits;
 }
 
-/** Clamp sticky text to the char limit AND the orange note box (no overflow). */
-function clampStickyText(el, raw) {
-  const capped = String(raw ?? "").slice(0, MOODBOARD_STICKY_MAX);
-  const maxH = el?.clientHeight ?? 0;
-  if (!el || !(maxH > 0) || textFitsFixedHeight(el, capped, maxH)) return capped;
-  let lo = 0;
-  let hi = capped.length;
-  let best = 0;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (textFitsFixedHeight(el, capped.slice(0, mid), maxH)) {
-      best = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return capped.slice(0, best);
-}
-
-/**
- * Clamp Notes body to char limit and available box height (full clientHeight).
+/** Clamp Notes body to char limit and available box height (full clientHeight).
  * @param {HTMLTextAreaElement|null} el
  * @param {string} raw
  */
@@ -491,9 +460,6 @@ function estimateMoodboardContentHeight(
     } else if (col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK) {
       const slotHow = moodboardCellHeightOverWidth(boardLayout, "medium", i);
       colH = 2 * colW * slotHow + mediumRecipeGap;
-    } else if (col.recipe === MOODBOARD_RECIPES.SEMI_STICKY) {
-      const slotHow = moodboardCellHeightOverWidth(boardLayout, "semi", i);
-      colH = colW * slotHow + colW * STICKY_ASPECT + mediumRecipeGap;
     }
     // medium_sticky: no intrinsic height — inherits max from siblings.
 
@@ -506,7 +472,7 @@ function estimateMoodboardContentHeight(
 }
 
 /**
- * Moodboard: full-width 3-column board. Each column picks large / medium×2 / semi+sticky.
+ * Moodboard: full-width board. Each column picks large / medium×2 / sticky notes.
  */
 export function MoodboardBlockView({
   block,
@@ -1473,53 +1439,6 @@ export function MoodboardBlockView({
           <div className="doc-moodboard__recipe doc-moodboard__recipe--medium">
             {renderImageCell(colIndex, 0, "medium")}
             {renderImageCell(colIndex, 1, "medium")}
-          </div>
-        ) : null}
-
-        {recipe === MOODBOARD_RECIPES.SEMI_STICKY ? (
-          <div className="doc-moodboard__recipe doc-moodboard__recipe--semi">
-            {renderImageCell(colIndex, 0, "semi")}
-            <div
-              className={
-                "doc-moodboard__sticky"
-                + ((column.stickyText || "").trim() ? " doc-moodboard__sticky--filled" : "")
-              }
-            >
-              <img
-                className="doc-moodboard__sticky-bg"
-                src={STICKY_SRC}
-                alt=""
-                draggable={false}
-              />
-              {isEdit ? (
-                <textarea
-                  className="doc-moodboard__sticky-field"
-                  maxLength={MOODBOARD_STICKY_MAX}
-                  rows={3}
-                  value={column.stickyText || ""}
-                  placeholder={t("doc.moodboard.stickyPlaceholder")}
-                  aria-label={t("doc.moodboard.stickyLabel")}
-                  spellCheck={false}
-                  onChange={(event) => {
-                    const next = clampStickyText(event.target, event.target.value);
-                    patchColumns((col, index) => (
-                      index === colIndex
-                        ? createMoodboardColumn(col.recipe, {
-                          images: col.images,
-                          stickyText: next,
-                          stickyTitle: col.stickyTitle,
-                          infoLabel: col.infoLabel,
-                        })
-                        : col
-                    ));
-                  }}
-                />
-              ) : (
-                <div className="doc-moodboard__sticky-static">
-                  {column.stickyText || ""}
-                </div>
-              )}
-            </div>
           </div>
         ) : null}
 

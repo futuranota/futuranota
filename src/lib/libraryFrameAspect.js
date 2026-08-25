@@ -171,7 +171,7 @@ export async function bakeAndUploadLibraryFrame(opts) {
 
 /**
  * Moodboard cell target: height / width (for board geometry + CSS aspect-ratio invert).
- * sizeClass: "large" | "medium" | "semi"
+ * sizeClass: "large" | "medium"
  * @param {string} boardLayout
  * @param {string} sizeClass
  * @param {number} [colIndex=0]
@@ -202,7 +202,7 @@ export function moodboardCellHeightOverWidth(boardLayout, sizeClass, colIndex = 
     return 16 / 9;
   }
 
-  // thirds default: large / semi → 9:16 portrait
+  // thirds default: large → 9:16 portrait
   return 16 / 9;
 }
 

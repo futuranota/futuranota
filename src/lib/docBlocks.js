@@ -508,7 +508,6 @@ export function resizeMoodboardColumns(list, targetCount) {
 export const MOODBOARD_RECIPES = {
   LARGE: "large",
   MEDIUM_STACK: "medium_stack",
-  SEMI_STICKY: "semi_sticky",
   /** Notes card only (no image below). Also allowed on wide_narrow col 1. */
   MEDIUM_STICKY: "medium_sticky",
 };
@@ -517,11 +516,10 @@ export const MOODBOARD_RECIPES = {
 export const MOODBOARD_RECIPE_SLOTS = {
   [MOODBOARD_RECIPES.LARGE]: 1,
   [MOODBOARD_RECIPES.MEDIUM_STACK]: 2,
-  [MOODBOARD_RECIPES.SEMI_STICKY]: 1,
   [MOODBOARD_RECIPES.MEDIUM_STICKY]: 0,
 };
 
-/** Sticky note copy (semi_sticky orange). Soft cap; UI clamps to the note box height. */
+/** Soft cap for leftover stickyText on non-notes columns (legacy). */
 export const MOODBOARD_STICKY_MAX = 360;
 /** Notes body (medium_sticky). Higher than orange sticky — card is taller. */
 export const MOODBOARD_NOTES_BODY_MAX = 900;
@@ -531,7 +529,7 @@ export const MOODBOARD_NOTES_MAX_LINES = 36;
 export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */
 export const MOODBOARD_INFO_MAX = 28;
-/** Per-image tag label (large / semi_sticky Permanent Marker). */
+/** Per-image tag label (Permanent Marker). */
 export const MOODBOARD_TAG_MAX = 28;
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
 export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
@@ -849,8 +847,13 @@ function emptyMoodboardSlot() {
 function isMoodboardRecipe(value) {
   return value === MOODBOARD_RECIPES.LARGE
     || value === MOODBOARD_RECIPES.MEDIUM_STACK
-    || value === MOODBOARD_RECIPES.SEMI_STICKY
     || value === MOODBOARD_RECIPES.MEDIUM_STICKY;
+}
+
+/** Legacy `semi_sticky` (image + orange note) → large image column. */
+function migrateMoodboardRecipe(value) {
+  if (value === "semi_sticky") return MOODBOARD_RECIPES.LARGE;
+  return isMoodboardRecipe(value) ? value : null;
 }
 
 /**
@@ -858,7 +861,7 @@ function isMoodboardRecipe(value) {
  * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string }} [patch]
  */
 export function createMoodboardColumn(recipe = null, patch = {}) {
-  const resolved = isMoodboardRecipe(recipe) ? recipe : null;
+  const resolved = migrateMoodboardRecipe(recipe);
   const slotCount = resolved ? MOODBOARD_RECIPE_SLOTS[resolved] : 0;
   const incoming = Array.isArray(patch.images) ? patch.images : [];
   const images = Array.from({ length: slotCount }, (_, index) => (
@@ -883,7 +886,7 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
 }
 
 function normalizeMoodboardColumn(column) {
-  return createMoodboardColumn(column?.recipe ?? null, {
+  return createMoodboardColumn(migrateMoodboardRecipe(column?.recipe ?? null), {
     images: column?.images,
     stickyText: column?.stickyText,
     stickyTitle: column?.stickyTitle,

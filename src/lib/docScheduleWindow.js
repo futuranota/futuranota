@@ -17,7 +17,21 @@ export const TIMELINE_LED_VARIANT_STORAGE_KEY = "fn.timelineLedVariant";
  */
 
 /**
- * True when the document has a real hourly range (start → finish on the timeline).
+ * @param {{ anchorAt?: unknown, anchorFinishAt?: unknown } | null | undefined} node
+ * @returns {{ start: Date, finish: Date } | null}
+ */
+export function resolveDocumentScheduleWindow(node) {
+  const start = parseDate(node?.anchorAt);
+  const finish = parseDate(node?.anchorFinishAt) || start;
+  if (!start || !finish) return null;
+  const startMs = start.getTime();
+  const finishMs = finish.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(finishMs)) return null;
+  return { start, finish: finishMs >= startMs ? finish : start };
+}
+
+/**
+ * True when the document has start + finish hours (a real range on the timeline).
  * @param {{ anchorAt?: unknown, anchorFinishAt?: unknown } | null | undefined} node
  */
 export function hasDocumentScheduleHours(node) {
@@ -27,9 +41,7 @@ export function hasDocumentScheduleHours(node) {
   }
   const window = resolveDocumentScheduleWindow(node);
   if (!window) return false;
-  const startMs = window.start.getTime();
-  const finishMs = window.finish.getTime();
-  if (finishMs > startMs) return true;
+  if (window.finish.getTime() > window.start.getTime()) return true;
   const { anchorTime } = anchorFieldsFromIso(node.anchorAt);
   return Boolean(anchorTime && anchorTime !== "12:00");
 }
@@ -46,6 +58,30 @@ export function isTimelineScheduleLedCandidate(marker, ctx = {}) {
 }
 
 /**
+ * Find linked doc block for a node entity.
+ * @param {string | null | undefined} nodeId
+ * @param {object | null | undefined} entity
+ * @param {Record<string, object>} docsById
+ */
+function findLinkedScheduleBlock(nodeId, entity, docsById = {}) {
+  const parentDocId = entity?.parentDocId || null;
+  if (parentDocId && docsById[parentDocId]) {
+    const hit = (docsById[parentDocId].blocks || []).find((b) => {
+      if (nodeId && b?.nodeId === nodeId) return true;
+      if (entity?.sourceBlockId && b?.id === entity.sourceBlockId) return true;
+      return false;
+    });
+    if (hit) return hit;
+  }
+  if (!nodeId) return null;
+  for (const doc of Object.values(docsById)) {
+    const hit = (doc?.blocks || []).find((b) => b?.nodeId === nodeId);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
  * Merge schedule fields from store entity, track item, and linked doc block.
  * @param {object | null | undefined} entity
  * @param {{ item?: object | null, docsById?: Record<string, object>, entityId?: string | null }} [sources]
@@ -59,24 +95,16 @@ export function resolveTimelineScheduleSubject(entity, sources = {}) {
   let anchorAt = entity?.anchorAt ?? item?.anchorAt ?? null;
   let anchorFinishAt = entity?.anchorFinishAt ?? item?.anchorFinishAt ?? null;
 
-  const parentDocId = entity?.parentDocId ?? item?.parentDocId ?? null;
-  const doc = parentDocId ? docsById[parentDocId] : null;
-  const block = (doc?.blocks || []).find((b) => {
-    if (nodeId && b?.nodeId === nodeId) return true;
-    if (entity?.sourceBlockId && b?.id === entity.sourceBlockId) return true;
-    return false;
-  });
-
+  const block = findLinkedScheduleBlock(nodeId, entity, docsById);
   if (block) {
     const date = String(block.anchorDate || "").trim();
     const startTime = String(block.anchorTime || "").trim();
     const finishTime = String(block.anchorFinishTime || "").trim();
-    if (date && startTime) {
-      // Doc block is source of truth — keeps start/finish aligned (local wall clock).
+    if (!anchorAt && date && startTime) {
       anchorAt = isoFromAnchorFields(date, startTime);
-      anchorFinishAt = finishTime
-        ? isoFromAnchorFields(date, finishTime)
-        : anchorFinishAt;
+    }
+    if (!anchorFinishAt && date && finishTime) {
+      anchorFinishAt = isoFromAnchorFields(date, finishTime);
     }
   }
 
@@ -93,27 +121,12 @@ export function resolveTimelineScheduleSubject(entity, sources = {}) {
 }
 
 /**
- * @param {{ anchorAt?: unknown, anchorFinishAt?: unknown } | null | undefined} node
- * @param {Date} [now]
- * @returns {{ start: Date, finish: Date } | null}
- */
-export function resolveDocumentScheduleWindow(node, now = new Date()) {
-  const start = parseDate(node?.anchorAt);
-  const finish = parseDate(node?.anchorFinishAt) || start;
-  if (!start || !finish) return null;
-  const startMs = start.getTime();
-  const finishMs = finish.getTime();
-  if (!Number.isFinite(startMs) || !Number.isFinite(finishMs)) return null;
-  return { start, finish: finishMs >= startMs ? finish : start };
-}
-
-/**
  * Whether now falls inside [anchorAt, anchorFinishAt] (finish defaults to start).
  * @param {{ anchorAt?: unknown, anchorFinishAt?: unknown } | null | undefined} node
  * @param {Date} [now]
  */
 export function isDocumentInScheduleWindow(node, now = new Date()) {
-  const window = resolveDocumentScheduleWindow(node, now);
+  const window = resolveDocumentScheduleWindow(node);
   if (!window) return false;
   const t = now.getTime();
   return t >= window.start.getTime() && t <= window.finish.getTime();
@@ -152,7 +165,7 @@ export function getTimelineLedVariant(storage = null) {
  *   anchorFinishAt?: unknown,
  * } | null | undefined} node
  * @param {Date} [now]
- * @param {{ notificationActive?: boolean, ledVariant?: TimelineLedVariant, storage?: { getItem?: (key: string) => string | null }, forceLed?: boolean }} [options]
+ * @param {{ notificationActive?: boolean, ledVariant?: TimelineLedVariant, storage?: { getItem?: (key: string) => string | null } }} [options]
  * @returns {TimelineScheduleLedState}
  */
 export function resolveTimelineScheduleLed(node, now = new Date(), options = {}) {
@@ -165,13 +178,14 @@ export function resolveTimelineScheduleLed(node, now = new Date(), options = {})
     return { active: false, variant: null, notificationActive };
   }
 
-  if (!notificationActive && !hasDocumentScheduleHours(node)) {
-    return { active: false, variant: null, notificationActive };
-  }
+  const window = resolveDocumentScheduleWindow(node);
+  const inWindow = Boolean(
+    window
+    && now.getTime() >= window.start.getTime()
+    && now.getTime() <= window.finish.getTime(),
+  );
 
-  const inWindow = isDocumentInScheduleWindow(node, now);
-  const active = inWindow || notificationActive;
-  if (!active) {
+  if (!inWindow && !notificationActive) {
     return { active: false, variant: null, notificationActive };
   }
 
