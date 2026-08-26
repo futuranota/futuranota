@@ -639,17 +639,26 @@ export const MOODBOARD_OVERLAY_SIZE_PX = {
 export const MOODBOARD_POINTER_DEFAULT_END_DX_PCT = 12;
 export const MOODBOARD_POINTER_DEFAULT_END_DY_PCT = 0;
 
-/** Pointer stroke on light photos (default) vs dark photos. */
+/** Overlay stroke on light photos (default), dark photos, or sky accent. */
 export const MOODBOARD_POINTER_CONTRAST = {
   INK: "ink",
   LIGHT: "light",
+  /** Same sky as node-link #B9E5FE */
+  SKY: "sky",
+};
+
+/** Resolved CSS colors for overlay strokes / tints. */
+export const MOODBOARD_OVERLAY_STROKE_BY_CONTRAST = {
+  [MOODBOARD_POINTER_CONTRAST.INK]: "rgba(22, 26, 29, 0.85)",
+  [MOODBOARD_POINTER_CONTRAST.LIGHT]: "rgba(220, 224, 228, 0.92)",
+  [MOODBOARD_POINTER_CONTRAST.SKY]: "#B9E5FE",
 };
 
 const MOODBOARD_POINTER_CONTRAST_SET = new Set(Object.values(MOODBOARD_POINTER_CONTRAST));
 
 /**
  * @param {unknown} value
- * @returns {"ink"|"light"}
+ * @returns {"ink"|"light"|"sky"}
  */
 export function normalizeMoodboardPointerContrast(value) {
   const raw = String(value ?? "");
@@ -1047,6 +1056,7 @@ function clampMoodboardOverlayPct(value, fallback = 50) {
  *   yPct: number,
  *   endXPct?: number,
  *   endYPct?: number,
+ *   contrast?: string,
  * } | null}
  */
 function normalizeMoodboardOverlay(raw) {
@@ -1061,6 +1071,7 @@ function normalizeMoodboardOverlay(raw) {
     kind,
     xPct,
     yPct,
+    contrast: normalizeMoodboardPointerContrast(raw.contrast),
   };
   if (kind === MOODBOARD_OVERLAY_KINDS.POINTER) {
     item.endXPct = clampMoodboardOverlayPct(
@@ -1071,7 +1082,6 @@ function normalizeMoodboardOverlay(raw) {
       raw.endYPct,
       Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
     );
-    item.contrast = normalizeMoodboardPointerContrast(raw.contrast);
   }
   return item;
 }
@@ -1085,11 +1095,12 @@ function normalizeMoodboardOverlay(raw) {
  *   yPct: number,
  *   endXPct?: number,
  *   endYPct?: number,
+ *   contrast?: string,
  * }[]}
  */
 export function normalizeMoodboardOverlays(list) {
   if (!Array.isArray(list) || list.length === 0) return [];
-  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number }[]} */
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string }[]} */
   const out = [];
   const seen = new Set();
   for (const raw of list) {
@@ -1113,11 +1124,11 @@ export function createMoodboardOverlay(kind, patch = {}) {
     kind,
     xPct,
     yPct,
+    contrast: patch.contrast,
     ...(kind === MOODBOARD_OVERLAY_KINDS.POINTER
       ? {
         endXPct: patch.endXPct ?? Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),
         endYPct: patch.endYPct ?? Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
-        contrast: patch.contrast,
       }
       : {}),
   });

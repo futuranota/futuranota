@@ -13117,6 +13117,10 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+.doc-moodboard__overlays--edit .doc-moodboard__overlay .doc-moodboard__overlay-contrast {
+  pointer-events: auto;
+}
+
 .doc-moodboard__overlay {
   position: absolute;
   width: 44px;
@@ -13166,10 +13170,37 @@ body.doc-content-resizing * {
   outline-color: rgba(220, 224, 228, 0.55);
 }
 
+.doc-moodboard__overlay--pointer-sky.doc-moodboard__overlay--selected .doc-moodboard__overlay-pointer-circle {
+  outline-color: rgba(185, 229, 254, 0.65);
+}
+
+.doc-moodboard__overlay-glyph {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
 .doc-moodboard__overlay-img {
   display: block;
   width: 100%;
   height: auto;
+  pointer-events: none;
+}
+
+.doc-moodboard__overlay-img--ghost {
+  opacity: 0;
+}
+
+.doc-moodboard__overlay-img-tint {
+  position: absolute;
+  inset: 0;
+  background-color: var(--mb-overlay-stroke, rgba(22, 26, 29, 0.85));
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
   pointer-events: none;
 }
 
@@ -13185,16 +13216,12 @@ body.doc-content-resizing * {
 .doc-moodboard__overlay-pointer-circle {
   position: absolute;
   box-sizing: border-box;
-  border: 1.5px dashed rgba(22, 26, 29, 0.85);
+  border: 1.5px dashed var(--mb-overlay-stroke, rgba(22, 26, 29, 0.85));
   border-radius: 50%;
   background: transparent;
   transform: translate(-50%, -50%);
   cursor: grab;
   touch-action: none;
-}
-
-.doc-moodboard__overlay--pointer-light .doc-moodboard__overlay-pointer-circle {
-  border-color: rgba(220, 224, 228, 0.92);
 }
 
 .doc-moodboard__overlay-pointer-circle:active {
@@ -13210,14 +13237,10 @@ body.doc-content-resizing * {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(22, 26, 29, 0.85);
+  background: var(--mb-overlay-stroke, rgba(22, 26, 29, 0.85));
   transform: translate(-50%, -50%);
   cursor: grab;
   touch-action: none;
-}
-
-.doc-moodboard__overlay--pointer-light .doc-moodboard__overlay-pointer-tip {
-  background: rgba(220, 224, 228, 0.92);
 }
 
 .doc-moodboard__overlay-pointer-tip:active {
@@ -13228,36 +13251,42 @@ body.doc-content-resizing * {
   position: absolute;
   z-index: 3;
   display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 4px;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 5px;
+  border-radius: 999px;
   background: rgba(21, 21, 21, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
   transform: translate(-50%, 0);
   pointer-events: auto;
 }
 
-.doc-moodboard__overlay-contrast-btn {
+.doc-moodboard__overlay-contrast-swatch {
+  width: 14px;
+  height: 14px;
   margin: 0;
-  padding: 2px 7px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  background: var(--mb-contrast-swatch, #161a1d);
   cursor: pointer;
-  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.doc-moodboard__overlay-contrast-btn:hover {
-  color: #fff;
+.doc-moodboard__overlay-contrast-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
-.doc-moodboard__overlay-contrast-btn--active {
-  color: #fff;
-  background: rgba(58, 111, 122, 0.35);
+.doc-moodboard__overlay-contrast-swatch--active {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--mb-contrast-swatch, #161a1d) 55%, transparent);
+}
+
+.doc-moodboard__overlay-contrast-swatch:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
 }
 
 .doc-moodboard__overlay-delete {

@@ -15,6 +15,7 @@ import {
   MOODBOARD_OVERLAY_KINDS,
   MOODBOARD_OVERLAY_SIZE_PX,
   MOODBOARD_OVERLAY_SRC,
+  MOODBOARD_OVERLAY_STROKE_BY_CONTRAST,
   MOODBOARD_POINTER_CONTRAST,
   MOODBOARD_RECIPES,
   MOODBOARD_SLOT_CONTENT_MODES,
@@ -92,18 +93,28 @@ const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.POINTER, labelKey: "doc.moodboard.overlayPointer" },
 ];
 
-const POINTER_STROKE_BY_CONTRAST = {
-  [MOODBOARD_POINTER_CONTRAST.INK]: "rgba(22, 26, 29, 0.85)",
-  [MOODBOARD_POINTER_CONTRAST.LIGHT]: "rgba(220, 224, 228, 0.92)",
-};
 /** Match ellipse / small-arrow dashed marks (`stroke-dasharray="2 2"`). */
 const POINTER_DASH = "2 2";
 const POINTER_CIRCLE_R_PX = (MOODBOARD_OVERLAY_SIZE_PX[MOODBOARD_OVERLAY_KINDS.POINTER] || 78) / 2;
 
-const POINTER_CONTRAST_OPTIONS = [
+/** Solid swatches for the floating color spheres (match stroke map). */
+const OVERLAY_CONTRAST_SWATCH = {
+  [MOODBOARD_POINTER_CONTRAST.INK]: "#161a1d",
+  [MOODBOARD_POINTER_CONTRAST.LIGHT]: "#dce0e4",
+  [MOODBOARD_POINTER_CONTRAST.SKY]: "#B9E5FE",
+};
+
+const OVERLAY_CONTRAST_OPTIONS = [
   { id: MOODBOARD_POINTER_CONTRAST.INK, labelKey: "doc.moodboard.overlayContrastInk" },
   { id: MOODBOARD_POINTER_CONTRAST.LIGHT, labelKey: "doc.moodboard.overlayContrastLight" },
+  { id: MOODBOARD_POINTER_CONTRAST.SKY, labelKey: "doc.moodboard.overlayContrastSky" },
 ];
+
+function resolveOverlayStroke(contrast) {
+  const key = normalizeMoodboardPointerContrast(contrast);
+  return MOODBOARD_OVERLAY_STROKE_BY_CONTRAST[key]
+    || MOODBOARD_OVERLAY_STROKE_BY_CONTRAST[MOODBOARD_POINTER_CONTRAST.INK];
+}
 
 /**
  * @param {{ xPct: number, yPct: number, endXPct?: number, endYPct?: number }} overlay
@@ -751,16 +762,57 @@ export function MoodboardBlockView({
     setSelectedOverlayId((prev) => (prev === overlayId ? null : prev));
   };
 
-  const setPointerContrast = (overlayId, contrast) => {
+  const setOverlayContrast = (overlayId, contrast) => {
     if (!isEdit || !overlayId) return;
     const next = normalizeMoodboardPointerContrast(contrast);
     handleFieldChange({
       overlays: overlaysRef.current.map((item) => (
-        item.id === overlayId && item.kind === MOODBOARD_OVERLAY_KINDS.POINTER
+        item.id === overlayId
           ? { ...item, contrast: next }
           : item
       )),
     });
+  };
+
+  const renderOverlayContrastPicker = (overlay, style) => {
+    const contrast = normalizeMoodboardPointerContrast(overlay.contrast);
+    return (
+      <div
+        className="doc-moodboard__overlay-contrast"
+        role="radiogroup"
+        aria-label={t("doc.moodboard.overlayContrastLabel")}
+        style={style}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
+        {OVERLAY_CONTRAST_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={contrast === option.id}
+            aria-label={t(option.labelKey)}
+            title={t(option.labelKey)}
+            className={
+              "doc-moodboard__overlay-contrast-swatch"
+              + (contrast === option.id
+                ? " doc-moodboard__overlay-contrast-swatch--active"
+                : "")
+            }
+            style={{
+              "--mb-contrast-swatch": OVERLAY_CONTRAST_SWATCH[option.id],
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setOverlayContrast(overlay.id, option.id);
+            }}
+          />
+        ))}
+      </div>
+    );
   };
 
   const startOverlayDrag = (event, overlay) => {
@@ -1935,8 +1987,7 @@ export function MoodboardBlockView({
                 if (isPointer) {
                   const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 78;
                   const contrast = normalizeMoodboardPointerContrast(overlay.contrast);
-                  const stroke = POINTER_STROKE_BY_CONTRAST[contrast]
-                    || POINTER_STROKE_BY_CONTRAST[MOODBOARD_POINTER_CONTRAST.INK];
+                  const stroke = resolveOverlayStroke(contrast);
                   const arrow = pointerArrowGeometry(
                     overlay,
                     boardSize.w,
@@ -1950,9 +2001,13 @@ export function MoodboardBlockView({
                         + (contrast === MOODBOARD_POINTER_CONTRAST.LIGHT
                           ? " doc-moodboard__overlay--pointer-light"
                           : "")
+                        + (contrast === MOODBOARD_POINTER_CONTRAST.SKY
+                          ? " doc-moodboard__overlay--pointer-sky"
+                          : "")
                         + (selected ? " doc-moodboard__overlay--selected" : "")
                         + (isEdit ? " doc-moodboard__overlay--draggable" : "")
                       }
+                      style={{ "--mb-overlay-stroke": stroke }}
                     >
                       {(boardSize.w > 0 && (boardSize.h > 0 || boardHeight > 0)) ? (
                         <svg
@@ -2009,39 +2064,10 @@ export function MoodboardBlockView({
                       ) : null}
                       {selected ? (
                         <>
-                          <div
-                            className="doc-moodboard__overlay-contrast"
-                            role="group"
-                            aria-label={t("doc.moodboard.overlayContrastLabel")}
-                            style={{
-                              left: `${overlay.xPct}%`,
-                              top: `calc(${overlay.yPct}% + ${sizePx / 2 + 10}px)`,
-                            }}
-                            onPointerDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                          >
-                            {POINTER_CONTRAST_OPTIONS.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                className={
-                                  "doc-moodboard__overlay-contrast-btn"
-                                  + (contrast === option.id
-                                    ? " doc-moodboard__overlay-contrast-btn--active"
-                                    : "")
-                                }
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  setPointerContrast(overlay.id, option.id);
-                                }}
-                              >
-                                {t(option.labelKey)}
-                              </button>
-                            ))}
-                          </div>
+                          {renderOverlayContrastPicker(overlay, {
+                            left: `${overlay.xPct}%`,
+                            top: `calc(${overlay.yPct}% + ${sizePx / 2 + 10}px)`,
+                          })}
                           <button
                             type="button"
                             className="doc-moodboard__overlay-delete doc-moodboard__overlay-delete--pointer"
@@ -2071,6 +2097,8 @@ export function MoodboardBlockView({
                 const src = MOODBOARD_OVERLAY_SRC[overlay.kind];
                 if (!src) return null;
                 const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 44;
+                const contrast = normalizeMoodboardPointerContrast(overlay.contrast);
+                const stroke = resolveOverlayStroke(contrast);
                 const isShape = overlay.kind === MOODBOARD_OVERLAY_KINDS.CIRCLE
                   || overlay.kind === MOODBOARD_OVERLAY_KINDS.ELLIPSE;
                 return (
@@ -2086,32 +2114,49 @@ export function MoodboardBlockView({
                       left: `${overlay.xPct}%`,
                       top: `${overlay.yPct}%`,
                       width: `${sizePx}px`,
+                      "--mb-overlay-stroke": stroke,
                     }}
                     onPointerDown={(event) => startOverlayDrag(event, overlay)}
                   >
-                    <img
-                      className="doc-moodboard__overlay-img"
-                      src={src}
-                      alt=""
-                      draggable={false}
-                    />
+                    <div className="doc-moodboard__overlay-glyph">
+                      <img
+                        className="doc-moodboard__overlay-img doc-moodboard__overlay-img--ghost"
+                        src={src}
+                        alt=""
+                        draggable={false}
+                      />
+                      <span
+                        className="doc-moodboard__overlay-img-tint"
+                        style={{
+                          WebkitMaskImage: `url(${src})`,
+                          maskImage: `url(${src})`,
+                        }}
+                        aria-hidden
+                      />
+                    </div>
                     {selected ? (
-                      <button
-                        type="button"
-                        className="doc-moodboard__overlay-delete"
-                        aria-label={t("doc.moodboard.overlayDelete")}
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          removeOverlay(overlay.id);
-                        }}
-                      >
-                        ×
-                      </button>
+                      <>
+                        {renderOverlayContrastPicker(overlay, {
+                          left: "50%",
+                          top: "calc(100% + 8px)",
+                        })}
+                        <button
+                          type="button"
+                          className="doc-moodboard__overlay-delete"
+                          aria-label={t("doc.moodboard.overlayDelete")}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeOverlay(overlay.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 );
