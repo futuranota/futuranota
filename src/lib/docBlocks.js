@@ -525,20 +525,79 @@ export const MOODBOARD_STICKY_MAX = 360;
 export const MOODBOARD_NOTES_BODY_MAX = 900;
 /** Absolute max lines for medium_sticky Notes body (adaptive clamp may be lower). */
 export const MOODBOARD_NOTES_MAX_LINES = 36;
-/** Notes card title (medium_sticky — Playwrite). */
+/** Notes card title (medium_sticky headline). */
 export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */
 export const MOODBOARD_INFO_MAX = 28;
 /** Per-image tag label (Permanent Marker). */
 export const MOODBOARD_TAG_MAX = 28;
+/** 3:2 research sticky — optional headline. */
+export const MOODBOARD_SLOT_NOTE_HEADLINE_MAX = 40;
+/** 3:2 research sticky — body. */
+export const MOODBOARD_SLOT_NOTE_BODY_MAX = 400;
+/**
+ * Body char threshold: ≤ limit → large Marker callout; over → regular body size.
+ * Counts noteBody only (headline excluded).
+ */
+export const MOODBOARD_SLOT_NOTE_BODY_SCALE_LIMIT = 30;
+
+/** Per-slot content: image upload vs research sticky (3:2 medium frames). */
+export const MOODBOARD_SLOT_CONTENT_MODES = {
+  IMAGE: "image",
+  NOTE: "note",
+};
+
+/**
+ * @param {unknown} value
+ * @returns {"image" | "note"}
+ */
+export function normalizeMoodboardSlotContentMode(value) {
+  return String(value || "").trim().toLowerCase() === MOODBOARD_SLOT_CONTENT_MODES.NOTE
+    ? MOODBOARD_SLOT_CONTENT_MODES.NOTE
+    : MOODBOARD_SLOT_CONTENT_MODES.IMAGE;
+}
+
+/**
+ * Auto text scale for 3:2 Marker sticky body.
+ * @param {unknown} text
+ * @param {number} [limit]
+ * @returns {"large" | "body"}
+ */
+export function resolveStickyNoteTextScale(
+  text,
+  limit = MOODBOARD_SLOT_NOTE_BODY_SCALE_LIMIT,
+) {
+  const n = String(text ?? "").trim().length;
+  const cap = Number.isFinite(limit) && limit > 0
+    ? limit
+    : MOODBOARD_SLOT_NOTE_BODY_SCALE_LIMIT;
+  return n > cap ? "body" : "large";
+}
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
 export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
 /** Medium-sticky notes card paper (runtime bg). */
 export const MOODBOARD_NOTES_BG_SRC = "/uploads/background.svg";
-/** Hand-drawn oval around the notes title. */
+/** @deprecated Oval no longer used on notes cards; kept for old refs. */
 export const MOODBOARD_NOTES_CIRC_SRC = "/uploads/circ.png";
 /** Default title shown on a new medium_sticky notes card. */
 export const MOODBOARD_NOTES_TITLE_DEFAULT = "Notes:";
+
+/** Notes card typography trial: Marker (hand) vs Inter (clean). */
+export const MOODBOARD_NOTE_STYLES = {
+  MARKER: "marker",
+  INTER: "inter",
+};
+
+const MOODBOARD_NOTE_STYLE_SET = new Set(Object.values(MOODBOARD_NOTE_STYLES));
+
+/**
+ * @param {unknown} value
+ * @returns {"marker" | "inter"}
+ */
+export function normalizeMoodboardNoteStyle(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  return MOODBOARD_NOTE_STYLE_SET.has(raw) ? raw : MOODBOARD_NOTE_STYLES.MARKER;
+}
 
 /** Freeform overlays on the moodboard board (Edit palette). */
 export const MOODBOARD_OVERLAY_KINDS = {
@@ -818,6 +877,7 @@ function normalizeMoodboardSlot(slot) {
     ? slot.sourceMediaUrl.trim()
     : "";
   const wallColor = normalizeWallColor(slot?.wallColor);
+  const contentMode = normalizeMoodboardSlotContentMode(slot?.contentMode);
   return {
     slotId: String(slot?.slotId || generateId("MBS")),
     src,
@@ -837,6 +897,9 @@ function normalizeMoodboardSlot(slot) {
     frameAspect,
     sourceMediaUrl,
     wallColor,
+    contentMode,
+    noteHeadline: String(slot?.noteHeadline ?? "").slice(0, MOODBOARD_SLOT_NOTE_HEADLINE_MAX),
+    noteBody: String(slot?.noteBody ?? "").slice(0, MOODBOARD_SLOT_NOTE_BODY_MAX),
   };
 }
 
@@ -858,7 +921,7 @@ function migrateMoodboardRecipe(value) {
 
 /**
  * @param {string|null} recipe
- * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string }} [patch]
+ * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string, noteStyle?: string }} [patch]
  */
 export function createMoodboardColumn(recipe = null, patch = {}) {
   const resolved = migrateMoodboardRecipe(recipe);
@@ -876,12 +939,18 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
   const stickyTextMax = resolved === MOODBOARD_RECIPES.MEDIUM_STICKY
     ? MOODBOARD_NOTES_BODY_MAX
     : MOODBOARD_STICKY_MAX;
+  const noteStyle = normalizeMoodboardNoteStyle(
+    Object.prototype.hasOwnProperty.call(patch, "noteStyle")
+      ? patch.noteStyle
+      : MOODBOARD_NOTE_STYLES.MARKER,
+  );
   return {
     recipe: resolved,
     images,
     stickyText: String(patch.stickyText ?? "").slice(0, stickyTextMax),
     stickyTitle,
     infoLabel: String(patch.infoLabel ?? "").slice(0, MOODBOARD_INFO_MAX),
+    noteStyle,
   };
 }
 
@@ -891,6 +960,7 @@ function normalizeMoodboardColumn(column) {
     stickyText: column?.stickyText,
     stickyTitle: column?.stickyTitle,
     infoLabel: column?.infoLabel,
+    noteStyle: column?.noteStyle,
   });
 }
 
@@ -1650,7 +1720,14 @@ export function docBlockHasContent(block) {
       || normalized.columns.some((col) => Boolean(col.recipe)
         || Boolean((col.stickyText || "").trim())
         || Boolean((col.stickyTitle || "").trim())
-        || Boolean((col.infoLabel || "").trim()));
+        || Boolean((col.infoLabel || "").trim())
+        || (Array.isArray(col.images) && col.images.some((img) => (
+          img?.contentMode === MOODBOARD_SLOT_CONTENT_MODES.NOTE
+          && (
+            Boolean(String(img?.noteHeadline || "").trim())
+            || Boolean(String(img?.noteBody || "").trim())
+          )
+        ))));
   }
   if (type === DOC_BLOCK_TYPES.BANNER) {
     return Boolean((block.src || "").trim())

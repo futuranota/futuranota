@@ -9,14 +9,17 @@ import {
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_NOTES_BG_SRC,
   MOODBOARD_NOTES_BODY_MAX,
-  MOODBOARD_NOTES_CIRC_SRC,
   MOODBOARD_NOTES_MAX_LINES,
   MOODBOARD_NOTES_TITLE_DEFAULT,
+  MOODBOARD_NOTE_STYLES,
   MOODBOARD_OVERLAY_KINDS,
   MOODBOARD_OVERLAY_SIZE_PX,
   MOODBOARD_OVERLAY_SRC,
   MOODBOARD_POINTER_CONTRAST,
   MOODBOARD_RECIPES,
+  MOODBOARD_SLOT_CONTENT_MODES,
+  MOODBOARD_SLOT_NOTE_BODY_MAX,
+  MOODBOARD_SLOT_NOTE_HEADLINE_MAX,
   MOODBOARD_STICKY_TITLE_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
@@ -26,8 +29,11 @@ import {
   normalizeMoodboardBoardLayout,
   normalizeMoodboardBoardSurface,
   normalizeMoodboardExternalUrl,
+  normalizeMoodboardNoteStyle,
   normalizeMoodboardOverlays,
   normalizeMoodboardPointerContrast,
+  normalizeMoodboardSlotContentMode,
+  resolveStickyNoteTextScale,
   resizeMoodboardColumns,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
@@ -270,6 +276,7 @@ function columnTextPatch(col) {
     stickyText: col.stickyText,
     stickyTitle: col.stickyTitle,
     infoLabel: col.infoLabel,
+    noteStyle: col.noteStyle,
   };
 }
 
@@ -290,6 +297,9 @@ function emptySlot() {
     frameAspect: null,
     sourceMediaUrl: "",
     wallColor: null,
+    contentMode: MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+    noteHeadline: "",
+    noteBody: "",
   };
 }
 
@@ -1061,6 +1071,9 @@ export function MoodboardBlockView({
           : null,
         sourceMediaUrl: "",
         wallColor: hasImage ? (draft.wallColor || prev.wallColor || null) : null,
+        contentMode: prev.contentMode || MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+        noteHeadline: prev.noteHeadline || "",
+        noteBody: prev.noteBody || "",
       };
       return createMoodboardColumn(col.recipe, {
         images,
@@ -1082,6 +1095,9 @@ export function MoodboardBlockView({
       images[imageIndex] = {
         ...emptySlot(),
         slotId: prev.slotId,
+        contentMode: prev.contentMode,
+        noteHeadline: prev.noteHeadline,
+        noteBody: prev.noteBody,
       };
       return createMoodboardColumn(col.recipe, {
         images,
@@ -1089,6 +1105,26 @@ export function MoodboardBlockView({
       });
     });
     setError(null);
+  };
+
+  const patchSlotFields = (colIndex, imageIndex, patch) => {
+    if (!isEdit) return;
+    patchColumns((col, index) => {
+      if (index !== colIndex) return col;
+      const images = Array.isArray(col.images) ? [...col.images] : [];
+      const prev = images[imageIndex] || emptySlot();
+      images[imageIndex] = { ...prev, ...patch };
+      return createMoodboardColumn(col.recipe, {
+        images,
+        ...columnTextPatch(col),
+      });
+    });
+  };
+
+  const setSlotContentMode = (colIndex, imageIndex, mode) => {
+    patchSlotFields(colIndex, imageIndex, {
+      contentMode: normalizeMoodboardSlotContentMode(mode),
+    });
   };
 
   const handleCaptionChange = (event) => {
@@ -1201,6 +1237,98 @@ export function MoodboardBlockView({
   const renderImageCell = (colIndex, imageIndex, sizeClass) => {
     const column = columns[colIndex] || createMoodboardColumn(null);
     const image = column.images?.[imageIndex] || emptySlot();
+    const allowsNoteSwitch = sizeClass === "medium";
+    const contentMode = normalizeMoodboardSlotContentMode(image.contentMode);
+    const isNoteSlot = allowsNoteSwitch
+      && contentMode === MOODBOARD_SLOT_CONTENT_MODES.NOTE;
+    const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
+    const slotFrameLabel = moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex);
+
+    if (isNoteSlot) {
+      const noteScale = resolveStickyNoteTextScale(image.noteBody);
+      return (
+        <div className="doc-moodboard__cell-wrap">
+          <div
+            className={
+              "doc-moodboard__cell doc-moodboard__cell--medium doc-moodboard__cell--note"
+              + ` is-scale-${noteScale}`
+            }
+            data-mb-slot={image.slotId || undefined}
+            style={boardExpanded ? { aspectRatio: cellAspect } : undefined}
+          >
+            <div className="doc-moodboard__slot-note">
+              <img
+                className="doc-moodboard__slot-note-bg"
+                src={MOODBOARD_NOTES_BG_SRC}
+                alt=""
+                draggable={false}
+              />
+              {isEdit ? (
+                <button
+                  type="button"
+                  className="doc-moodboard__slot-mode-btn"
+                  onClick={() => setSlotContentMode(
+                    colIndex,
+                    imageIndex,
+                    MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+                  )}
+                  title={t("doc.moodboard.slotModeImage")}
+                >
+                  {t("doc.moodboard.slotModeImage")}
+                </button>
+              ) : null}
+              {isEdit ? (
+                <input
+                  className="doc-moodboard__slot-note-headline"
+                  type="text"
+                  maxLength={MOODBOARD_SLOT_NOTE_HEADLINE_MAX}
+                  value={image.noteHeadline || ""}
+                  placeholder={t("doc.moodboard.slotNoteHeadlinePlaceholder")}
+                  aria-label={t("doc.moodboard.slotNoteHeadlineLabel")}
+                  spellCheck={false}
+                  onChange={(event) => {
+                    patchSlotFields(colIndex, imageIndex, {
+                      noteHeadline: String(event.target.value ?? "")
+                        .slice(0, MOODBOARD_SLOT_NOTE_HEADLINE_MAX),
+                    });
+                  }}
+                />
+              ) : (
+                (image.noteHeadline || "").trim()
+                  ? (
+                    <div className="doc-moodboard__slot-note-headline doc-moodboard__slot-note-headline--static">
+                      {image.noteHeadline}
+                    </div>
+                  )
+                  : null
+              )}
+              {isEdit ? (
+                <textarea
+                  className="doc-moodboard__slot-note-body"
+                  maxLength={MOODBOARD_SLOT_NOTE_BODY_MAX}
+                  rows={4}
+                  value={image.noteBody || ""}
+                  placeholder={t("doc.moodboard.slotNoteBodyPlaceholder")}
+                  aria-label={t("doc.moodboard.slotNoteBodyLabel")}
+                  spellCheck={false}
+                  onChange={(event) => {
+                    patchSlotFields(colIndex, imageIndex, {
+                      noteBody: String(event.target.value ?? "")
+                        .slice(0, MOODBOARD_SLOT_NOTE_BODY_MAX),
+                    });
+                  }}
+                />
+              ) : (
+                <div className="doc-moodboard__slot-note-body doc-moodboard__slot-note-body--static">
+                  {image.noteBody || ""}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const externalUrl = normalizeMoodboardExternalUrl(image.externalUrl);
     const libraryItem = findLibraryItemBySlot(image, libraryCatalogs);
     const presentation = resolveMoodboardSlotPresentation(image, libraryItem);
@@ -1211,16 +1339,11 @@ export function MoodboardBlockView({
       : (externalUrl ? MOODBOARD_FILE_ICON_SRC : "");
     const containPreview = hasImage && presentation.mode === "contain";
     const isFileIcon = saved && !hasImage && Boolean(externalUrl);
-    const key = slotKey(colIndex, imageIndex);
-    const uploading = uploadingKey === key;
-    const dragOver = dragOverKey === key;
     const tagLabel = String(image.tagLabel || "").trim();
     const showTag = SHOW_MOODBOARD_SLOT_TAGS && Boolean(tagLabel && saved);
     // Medium stack has vertical room above each frame — keep the tag outside.
     const tagOutside = showTag && sizeClass === "medium";
     const tagOverlay = showTag && !tagOutside;
-    const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
-    const slotFrameLabel = moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex);
 
     const tagRow = showTag ? (
       <div
@@ -1232,6 +1355,20 @@ export function MoodboardBlockView({
       >
         <span className="doc-moodboard__tag-label">{tagLabel}</span>
       </div>
+    ) : null;
+
+    const modeSwitch = allowsNoteSwitch && isEdit ? (
+      <button
+        type="button"
+        className="doc-moodboard__slot-mode-btn doc-moodboard__slot-mode-btn--on-image"
+        onClick={(event) => {
+          event.stopPropagation();
+          setSlotContentMode(colIndex, imageIndex, MOODBOARD_SLOT_CONTENT_MODES.NOTE);
+        }}
+        title={t("doc.moodboard.slotModeNote")}
+      >
+        {t("doc.moodboard.slotModeNote")}
+      </button>
     ) : null;
 
     return (
@@ -1259,6 +1396,7 @@ export function MoodboardBlockView({
               : {}),
           }}
         >
+          {modeSwitch}
           {saved ? (
             <>
               <button
@@ -1444,20 +1582,68 @@ export function MoodboardBlockView({
 
         {recipe === MOODBOARD_RECIPES.MEDIUM_STICKY ? (
           <div className="doc-moodboard__recipe doc-moodboard__recipe--medium-sticky">
-            <div className="doc-moodboard__notes">
+            <div
+              className={
+                "doc-moodboard__notes"
+                + (
+                  normalizeMoodboardNoteStyle(column.noteStyle)
+                    === MOODBOARD_NOTE_STYLES.INTER
+                    ? " is-style-inter"
+                    : " is-style-marker"
+                )
+              }
+            >
               <img
                 className="doc-moodboard__notes-bg"
                 src={MOODBOARD_NOTES_BG_SRC}
                 alt=""
                 draggable={false}
               />
+              {isEdit ? (
+                <div
+                  className="doc-moodboard__notes-style-toggle"
+                  role="group"
+                  aria-label={t("doc.moodboard.noteStyleLabel")}
+                >
+                  {[
+                    {
+                      id: MOODBOARD_NOTE_STYLES.MARKER,
+                      labelKey: "doc.moodboard.noteStyleMarker",
+                    },
+                    {
+                      id: MOODBOARD_NOTE_STYLES.INTER,
+                      labelKey: "doc.moodboard.noteStyleInter",
+                    },
+                  ].map((option) => {
+                    const active = normalizeMoodboardNoteStyle(column.noteStyle) === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={
+                          "doc-moodboard__notes-style-btn"
+                          + (active ? " is-active" : "")
+                        }
+                        aria-pressed={active}
+                        onClick={() => {
+                          patchColumns((col, index) => (
+                            index === colIndex
+                              ? createMoodboardColumn(col.recipe, {
+                                images: col.images,
+                                ...columnTextPatch(col),
+                                noteStyle: option.id,
+                              })
+                              : col
+                          ));
+                        }}
+                      >
+                        {t(option.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               <div className="doc-moodboard__notes-title-wrap">
-                <img
-                  className="doc-moodboard__notes-circ"
-                  src={MOODBOARD_NOTES_CIRC_SRC}
-                  alt=""
-                  draggable={false}
-                />
                 {isEdit ? (
                   <input
                     className="doc-moodboard__notes-title"
@@ -1474,9 +1660,8 @@ export function MoodboardBlockView({
                         index === colIndex
                           ? createMoodboardColumn(col.recipe, {
                             images: col.images,
-                            stickyText: col.stickyText,
+                            ...columnTextPatch(col),
                             stickyTitle: next,
-                            infoLabel: col.infoLabel,
                           })
                           : col
                       ));
@@ -1503,9 +1688,8 @@ export function MoodboardBlockView({
                       index === colIndex
                         ? createMoodboardColumn(col.recipe, {
                           images: col.images,
+                          ...columnTextPatch(col),
                           stickyText: next,
-                          stickyTitle: col.stickyTitle,
-                          infoLabel: col.infoLabel,
                         })
                         : col
                     ));
