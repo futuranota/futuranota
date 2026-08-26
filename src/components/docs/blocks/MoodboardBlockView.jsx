@@ -55,6 +55,14 @@ import {
 } from "../../../lib/libraryFrameAspect.js";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
+import {
+  contentRectToBoardPct,
+  findMoodboardAnchorImg,
+  getObjectFitContentRect,
+  measureMoodboardSlotAnchorRects,
+  projectBoardPctToImagePct,
+  resolveOverlayBoardPosition,
+} from "../../../lib/moodboardOverlayAnchor.js";
 
 /** Board geometry — must mirror .doc-moodboard__board padding/gap in left-panel.css. */
 const BOARD_PAD_X = 6;
@@ -522,6 +530,10 @@ export function MoodboardBlockView({
   const [activeCol, setActiveCol] = useState(0);
   const [boardHeight, setBoardHeight] = useState(null);
   const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
+  /** slotId → painted image box as % of the board (survives expand). */
+  const [slotAnchorRects, setSlotAnchorRects] = useState({});
+  const slotAnchorRectsRef = useRef({});
+  slotAnchorRectsRef.current = slotAnchorRects;
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
   const [libraryPickerSlot, setLibraryPickerSlot] = useState(null);
@@ -685,6 +697,27 @@ export function MoodboardBlockView({
       setBoardSize((prev) => (
         prev.w === width && prev.h === nextH ? prev : { w: width, h: nextH }
       ));
+      // After height settles, measure painted image boxes for overlay anchors.
+      requestAnimationFrame(() => {
+        const nextRects = measureMoodboardSlotAnchorRects(boardRef.current);
+        setSlotAnchorRects((prev) => {
+          const prevKeys = Object.keys(prev);
+          const nextKeys = Object.keys(nextRects);
+          if (prevKeys.length === nextKeys.length
+            && nextKeys.every((key) => {
+              const a = prev[key];
+              const b = nextRects[key];
+              return a && b
+                && Math.abs(a.leftPct - b.leftPct) < 0.05
+                && Math.abs(a.topPct - b.topPct) < 0.05
+                && Math.abs(a.widthPct - b.widthPct) < 0.05
+                && Math.abs(a.heightPct - b.heightPct) < 0.05;
+            })) {
+            return prev;
+          }
+          return nextRects;
+        });
+      });
     };
 
     sync();
@@ -714,11 +747,17 @@ export function MoodboardBlockView({
     handleFieldChange({ columns: next });
   };
 
+  const refreshSlotAnchorRects = useCallback(() => {
+    const nextRects = measureMoodboardSlotAnchorRects(boardRef.current);
+    setSlotAnchorRects(nextRects);
+  }, []);
+
   const addOverlayAt = (kind, clientX, clientY) => {
     if (!isEdit) return;
     const board = boardRef.current;
     let xPct = 45;
     let yPct = 40;
+    let anchorSlotId = "";
     const isPointer = kind === MOODBOARD_OVERLAY_KINDS.POINTER;
     // Place near the pointer (half of the overlay box) so the mark
     // lands on the highlight/tag the user aimed at — not a fixed board %.
@@ -728,11 +767,13 @@ export function MoodboardBlockView({
     if (board && Number.isFinite(clientX) && Number.isFinite(clientY)) {
       const rect = board.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
+        let boardXPct;
+        let boardYPct;
         if (isPointer) {
           const cx = Math.max(0, Math.min(rect.width, clientX - rect.left));
           const cy = Math.max(0, Math.min(rect.height, clientY - rect.top));
-          xPct = (cx / rect.width) * 100;
-          yPct = (cy / rect.height) * 100;
+          boardXPct = (cx / rect.width) * 100;
+          boardYPct = (cy / rect.height) * 100;
         } else {
           const left = Math.max(
             0,
@@ -742,12 +783,35 @@ export function MoodboardBlockView({
             0,
             Math.min(rect.height - size, clientY - rect.top - half),
           );
-          xPct = (left / rect.width) * 100;
-          yPct = (top / rect.height) * 100;
+          boardXPct = (left / rect.width) * 100;
+          boardYPct = (top / rect.height) * 100;
+        }
+
+        const img = findMoodboardAnchorImg(board, clientX, clientY);
+        const slotId = img?.getAttribute?.("data-mb-slot-img") || "";
+        if (img && slotId) {
+          const content = getObjectFitContentRect(img);
+          const imageRect = contentRectToBoardPct(rect, content);
+          if (imageRect) {
+            const local = projectBoardPctToImagePct(imageRect, boardXPct, boardYPct);
+            xPct = local.xPct;
+            yPct = local.yPct;
+            anchorSlotId = slotId;
+          } else {
+            xPct = boardXPct;
+            yPct = boardYPct;
+          }
+        } else {
+          xPct = boardXPct;
+          yPct = boardYPct;
         }
       }
     }
-    const created = createMoodboardOverlay(kind, { xPct, yPct });
+    const created = createMoodboardOverlay(kind, {
+      xPct,
+      yPct,
+      ...(anchorSlotId ? { anchorSlotId } : {}),
+    });
     if (!created) return;
     handleFieldChange({ overlays: [...overlaysRef.current, created] });
     setSelectedOverlayId(created.id);
@@ -829,6 +893,9 @@ export function MoodboardBlockView({
 
     const overlayEl = event.currentTarget;
     const itemRect = overlayEl.getBoundingClientRect();
+    const imageRect = overlay.anchorSlotId
+      ? slotAnchorRectsRef.current[overlay.anchorSlotId]
+      : null;
     overlayDragRef.current = {
       id: overlay.id,
       mode: "box",
@@ -838,6 +905,8 @@ export function MoodboardBlockView({
       itemH: itemRect.height,
       originX: event.clientX,
       originY: event.clientY,
+      anchorSlotId: overlay.anchorSlotId || "",
+      imageRect: imageRect || null,
       moved: false,
     };
 
@@ -856,19 +925,49 @@ export function MoodboardBlockView({
       const maxY = Math.max(0, rect.height - drag.itemH);
       const left = Math.max(0, Math.min(maxX, moveEvent.clientX - rect.left - drag.offsetX));
       const top = Math.max(0, Math.min(maxY, moveEvent.clientY - rect.top - drag.offsetY));
-      const xPct = (left / rect.width) * 100;
-      const yPct = (top / rect.height) * 100;
+      const boardXPct = (left / rect.width) * 100;
+      const boardYPct = (top / rect.height) * 100;
+      const liveImageRect = drag.anchorSlotId
+        ? (slotAnchorRectsRef.current[drag.anchorSlotId] || drag.imageRect)
+        : null;
+      let nextX = boardXPct;
+      let nextY = boardYPct;
+      if (liveImageRect) {
+        const local = projectBoardPctToImagePct(liveImageRect, boardXPct, boardYPct);
+        nextX = local.xPct;
+        nextY = local.yPct;
+      }
       handleFieldChange({
         overlays: overlaysRef.current.map((item) => (
-          item.id === drag.id ? { ...item, xPct, yPct } : item
+          item.id === drag.id ? { ...item, xPct: nextX, yPct: nextY } : item
         )),
       });
     };
 
-    const onUp = () => {
+    const onUp = (upEvent) => {
+      const drag = overlayDragRef.current;
       overlayDragRef.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      // Legacy board-only overlays: attach to the photo under the cursor on drag end.
+      if (!drag?.moved || drag.anchorSlotId || !boardRef.current) return;
+      const img = findMoodboardAnchorImg(boardRef.current, upEvent.clientX, upEvent.clientY);
+      const slotId = img?.getAttribute?.("data-mb-slot-img") || "";
+      if (!img || !slotId) return;
+      const rect = boardRef.current.getBoundingClientRect();
+      const content = getObjectFitContentRect(img);
+      const imageRect = contentRectToBoardPct(rect, content);
+      if (!imageRect) return;
+      const item = overlaysRef.current.find((o) => o.id === drag.id);
+      if (!item) return;
+      const local = projectBoardPctToImagePct(imageRect, item.xPct, item.yPct);
+      handleFieldChange({
+        overlays: overlaysRef.current.map((o) => (
+          o.id === drag.id
+            ? { ...o, anchorSlotId: slotId, xPct: local.xPct, yPct: local.yPct }
+            : o
+        )),
+      });
     };
 
     window.addEventListener("pointermove", onMove);
@@ -886,6 +985,9 @@ export function MoodboardBlockView({
     const boardRect = board.getBoundingClientRect();
     if (!(boardRect.width > 0) || !(boardRect.height > 0)) return;
 
+    const imageRect = overlay.anchorSlotId
+      ? slotAnchorRectsRef.current[overlay.anchorSlotId]
+      : null;
     overlayDragRef.current = {
       id: overlay.id,
       mode: "pointer-body",
@@ -897,6 +999,8 @@ export function MoodboardBlockView({
       startEndYPct: overlay.endYPct ?? overlay.yPct,
       boardW: boardRect.width,
       boardH: boardRect.height,
+      anchorSlotId: overlay.anchorSlotId || "",
+      imageRect: imageRect || null,
       moved: false,
     };
 
@@ -907,28 +1011,81 @@ export function MoodboardBlockView({
       const dyPx = moveEvent.clientY - drag.originY;
       if (!drag.moved && Math.hypot(dxPx, dyPx) < 4) return;
       drag.moved = true;
-      const dXPct = (dxPx / drag.boardW) * 100;
-      const dYPct = (dyPx / drag.boardH) * 100;
-      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const dBoardXPct = (dxPx / drag.boardW) * 100;
+      const dBoardYPct = (dyPx / drag.boardH) * 100;
+      const liveImageRect = drag.anchorSlotId
+        ? (slotAnchorRectsRef.current[drag.anchorSlotId] || drag.imageRect)
+        : null;
+      const clampBoard = (v) => Math.max(0, Math.min(100, v));
+      const clampImage = (v) => Math.max(-50, Math.min(150, v));
+      if (liveImageRect && liveImageRect.widthPct > 0 && liveImageRect.heightPct > 0) {
+        const dImageXPct = (dBoardXPct / liveImageRect.widthPct) * 100;
+        const dImageYPct = (dBoardYPct / liveImageRect.heightPct) * 100;
+        handleFieldChange({
+          overlays: overlaysRef.current.map((item) => (
+            item.id === drag.id
+              ? {
+                ...item,
+                xPct: clampImage(drag.startXPct + dImageXPct),
+                yPct: clampImage(drag.startYPct + dImageYPct),
+                endXPct: clampImage(drag.startEndXPct + dImageXPct),
+                endYPct: clampImage(drag.startEndYPct + dImageYPct),
+              }
+              : item
+          )),
+        });
+        return;
+      }
       handleFieldChange({
         overlays: overlaysRef.current.map((item) => (
           item.id === drag.id
             ? {
               ...item,
-              xPct: clamp(drag.startXPct + dXPct),
-              yPct: clamp(drag.startYPct + dYPct),
-              endXPct: clamp(drag.startEndXPct + dXPct),
-              endYPct: clamp(drag.startEndYPct + dYPct),
+              xPct: clampBoard(drag.startXPct + dBoardXPct),
+              yPct: clampBoard(drag.startYPct + dBoardYPct),
+              endXPct: clampBoard(drag.startEndXPct + dBoardXPct),
+              endYPct: clampBoard(drag.startEndYPct + dBoardYPct),
             }
             : item
         )),
       });
     };
 
-    const onUp = () => {
+    const onUp = (upEvent) => {
+      const drag = overlayDragRef.current;
       overlayDragRef.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      if (!drag?.moved || drag.anchorSlotId || !boardRef.current) return;
+      const img = findMoodboardAnchorImg(boardRef.current, upEvent.clientX, upEvent.clientY);
+      const slotId = img?.getAttribute?.("data-mb-slot-img") || "";
+      if (!img || !slotId) return;
+      const rect = boardRef.current.getBoundingClientRect();
+      const content = getObjectFitContentRect(img);
+      const nextImageRect = contentRectToBoardPct(rect, content);
+      if (!nextImageRect) return;
+      const item = overlaysRef.current.find((o) => o.id === drag.id);
+      if (!item) return;
+      const origin = projectBoardPctToImagePct(nextImageRect, item.xPct, item.yPct);
+      const tip = projectBoardPctToImagePct(
+        nextImageRect,
+        item.endXPct ?? item.xPct,
+        item.endYPct ?? item.yPct,
+      );
+      handleFieldChange({
+        overlays: overlaysRef.current.map((o) => (
+          o.id === drag.id
+            ? {
+              ...o,
+              anchorSlotId: slotId,
+              xPct: origin.xPct,
+              yPct: origin.yPct,
+              endXPct: tip.xPct,
+              endYPct: tip.yPct,
+            }
+            : o
+        )),
+      });
     };
 
     window.addEventListener("pointermove", onMove);
@@ -946,6 +1103,9 @@ export function MoodboardBlockView({
     const boardRect = board.getBoundingClientRect();
     if (!(boardRect.width > 0) || !(boardRect.height > 0)) return;
 
+    const imageRect = overlay.anchorSlotId
+      ? slotAnchorRectsRef.current[overlay.anchorSlotId]
+      : null;
     overlayDragRef.current = {
       id: overlay.id,
       mode: "pointer-tip",
@@ -953,6 +1113,8 @@ export function MoodboardBlockView({
       boardH: boardRect.height,
       boardLeft: boardRect.left,
       boardTop: boardRect.top,
+      anchorSlotId: overlay.anchorSlotId || "",
+      imageRect: imageRect || null,
       moved: false,
       originX: event.clientX,
       originY: event.clientY,
@@ -967,11 +1129,27 @@ export function MoodboardBlockView({
       drag.moved = true;
       const x = Math.max(0, Math.min(drag.boardW, moveEvent.clientX - drag.boardLeft));
       const y = Math.max(0, Math.min(drag.boardH, moveEvent.clientY - drag.boardTop));
-      const endXPct = (x / drag.boardW) * 100;
-      const endYPct = (y / drag.boardH) * 100;
+      const boardEndXPct = (x / drag.boardW) * 100;
+      const boardEndYPct = (y / drag.boardH) * 100;
+      const liveImageRect = drag.anchorSlotId
+        ? (slotAnchorRectsRef.current[drag.anchorSlotId] || drag.imageRect)
+        : null;
+      if (liveImageRect) {
+        const local = projectBoardPctToImagePct(liveImageRect, boardEndXPct, boardEndYPct);
+        handleFieldChange({
+          overlays: overlaysRef.current.map((item) => (
+            item.id === drag.id
+              ? { ...item, endXPct: local.xPct, endYPct: local.yPct }
+              : item
+          )),
+        });
+        return;
+      }
       handleFieldChange({
         overlays: overlaysRef.current.map((item) => (
-          item.id === drag.id ? { ...item, endXPct, endYPct } : item
+          item.id === drag.id
+            ? { ...item, endXPct: boardEndXPct, endYPct: boardEndYPct }
+            : item
         )),
       });
     };
@@ -1474,6 +1652,9 @@ export function MoodboardBlockView({
                     + (boardExpanded && !isFileIcon ? " doc-moodboard__img--contain" : "")
                     + (containPreview ? " doc-moodboard__img--contain" : "")
                   }
+                  data-mb-slot-img={
+                    !isFileIcon && image.slotId ? image.slotId : undefined
+                  }
                   src={displaySrc}
                   alt={
                     isFileIcon
@@ -1483,6 +1664,9 @@ export function MoodboardBlockView({
                   width={hasImage ? (image.width || undefined) : undefined}
                   height={hasImage ? (image.height || undefined) : undefined}
                   draggable={false}
+                  onLoad={() => {
+                    if (!isFileIcon) refreshSlotAnchorRects();
+                  }}
                 />
               </button>
               {tagOverlay ? tagRow : null}
@@ -1983,13 +2167,21 @@ export function MoodboardBlockView({
               {overlays.map((overlay) => {
                 const selected = isEdit && selectedOverlayId === overlay.id;
                 const isPointer = overlay.kind === MOODBOARD_OVERLAY_KINDS.POINTER;
+                const boardPos = resolveOverlayBoardPosition(overlay, slotAnchorRects);
+                const viewOverlay = {
+                  ...overlay,
+                  xPct: boardPos.xPct,
+                  yPct: boardPos.yPct,
+                  endXPct: boardPos.endXPct,
+                  endYPct: boardPos.endYPct,
+                };
 
                 if (isPointer) {
                   const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 78;
                   const contrast = normalizeMoodboardPointerContrast(overlay.contrast);
                   const stroke = resolveOverlayStroke(contrast);
                   const arrow = pointerArrowGeometry(
-                    overlay,
+                    viewOverlay,
                     boardSize.w,
                     boardSize.h || boardHeight || 0,
                   );
@@ -2043,8 +2235,8 @@ export function MoodboardBlockView({
                       <div
                         className="doc-moodboard__overlay-pointer-circle"
                         style={{
-                          left: `${overlay.xPct}%`,
-                          top: `${overlay.yPct}%`,
+                          left: `${viewOverlay.xPct}%`,
+                          top: `${viewOverlay.yPct}%`,
                           width: `${sizePx}px`,
                           height: `${sizePx}px`,
                         }}
@@ -2056,8 +2248,8 @@ export function MoodboardBlockView({
                           className="doc-moodboard__overlay-pointer-tip"
                           aria-label={t("doc.moodboard.overlayPointer")}
                           style={{
-                            left: `${overlay.endXPct ?? overlay.xPct}%`,
-                            top: `${overlay.endYPct ?? overlay.yPct}%`,
+                            left: `${viewOverlay.endXPct}%`,
+                            top: `${viewOverlay.endYPct}%`,
                           }}
                           onPointerDown={(event) => startPointerTipDrag(event, overlay)}
                         />
@@ -2065,15 +2257,15 @@ export function MoodboardBlockView({
                       {selected ? (
                         <>
                           {renderOverlayContrastPicker(overlay, {
-                            left: `${overlay.xPct}%`,
-                            top: `calc(${overlay.yPct}% + ${sizePx / 2 + 10}px)`,
+                            left: `${viewOverlay.xPct}%`,
+                            top: `calc(${viewOverlay.yPct}% + ${sizePx / 2 + 10}px)`,
                           })}
                           <button
                             type="button"
                             className="doc-moodboard__overlay-delete doc-moodboard__overlay-delete--pointer"
                             style={{
-                              left: `calc(${overlay.xPct}% + ${sizePx / 2 - 6}px)`,
-                              top: `calc(${overlay.yPct}% - ${sizePx / 2 + 2}px)`,
+                              left: `calc(${viewOverlay.xPct}% + ${sizePx / 2 - 6}px)`,
+                              top: `calc(${viewOverlay.yPct}% - ${sizePx / 2 + 2}px)`,
                             }}
                             aria-label={t("doc.moodboard.overlayDelete")}
                             onPointerDown={(event) => {
@@ -2111,8 +2303,8 @@ export function MoodboardBlockView({
                       + (isShape ? ` doc-moodboard__overlay--${overlay.kind}` : "")
                     }
                     style={{
-                      left: `${overlay.xPct}%`,
-                      top: `${overlay.yPct}%`,
+                      left: `${viewOverlay.xPct}%`,
+                      top: `${viewOverlay.yPct}%`,
                       width: `${sizePx}px`,
                       "--mb-overlay-stroke": stroke,
                     }}

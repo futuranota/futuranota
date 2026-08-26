@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
+import { AffiliateEntryList } from "./AffiliateEntryList.jsx";
+import { AFFILIATE_EMPTY_DRAFT } from "./AffiliateEntryCard.jsx";
 import { UrlTableEntryDetailView } from "./UrlTableEntryDetailView.jsx";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
-import { removeUrlTableFromDoc } from "../../lib/urlTableLibrary.js";
+import {
+  filterUrlTableEntries,
+  filterUrlTableEntriesByCategory,
+  removeUrlTableFromDoc,
+  uniqueUrlTableCategories,
+} from "../../lib/urlTableLibrary.js";
 import { flushUrlTableSync, markUrlTableEntryDeleted } from "../../lib/urlTableSync.js";
 import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
 import { withResolvedAffiliateLifecycle } from "../../lib/urlTableAffiliate.js";
@@ -36,8 +43,9 @@ export function UrlTableDashboardOverlay({
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [addFormRequest, setAddFormRequest] = useState(0);
-  const [draft, setDraft] = useState({ name: "", tag: "", category: "", description: "", url: "" });
+  const [draft, setDraft] = useState(AFFILIATE_EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewEntryId, setViewEntryId] = useState(null);
@@ -54,8 +62,9 @@ export function UrlTableDashboardOverlay({
   const initialSearch = String(session?.initialSearch ?? "");
 
   useEffect(() => {
-    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
+    setDraft(AFFILIATE_EMPTY_DRAFT);
     setQuery(initialSearch);
+    setCategoryFilter("");
     setViewEntryId(null);
     setDetailSaving(false);
   }, [sessionKey, initialSearch]);
@@ -101,13 +110,22 @@ export function UrlTableDashboardOverlay({
   const objectId = session.objectId;
   const tableId = session.tableId;
   const isAffiliateTable = session.kind === "affiliates";
-  const titleLabel = String(session.title ?? "").trim() || t("pack.urlTableTitle");
+  const affiliatesTitle = t("urlTableLibrary.affiliatesTitle");
+  const titleLabel = isAffiliateTable
+    ? affiliatesTitle
+    : (String(session.title ?? "").trim() || t("pack.urlTableTitle"));
   const titleValue = session.title ?? "";
   const titlePlaceholder = t("urlTableLibrary.titlePlaceholder");
   const titleWidthCh = Math.min(
     Math.max(titleValue.length || titlePlaceholder.length, TITLE_MIN_CH),
     TITLE_MAX_CH,
   );
+  const categoryOptions = uniqueUrlTableCategories(session.entries || []);
+  const visibleAffiliateEntries = (() => {
+    if (!isAffiliateTable) return session.entries || [];
+    const byCategory = filterUrlTableEntriesByCategory(session.entries || [], categoryFilter);
+    return filterUrlTableEntries(byCategory, query);
+  })();
 
   const viewingEntry = viewEntryId
     ? (session.entries || []).find((entry) => entry.id === viewEntryId) || null
@@ -115,16 +133,20 @@ export function UrlTableDashboardOverlay({
 
   const commitDraftIfReady = (currentEntries) => {
     const currentDraft = draftRef.current;
-    const canCommit = Boolean(
-      currentDraft.name.trim() && currentDraft.url.trim(),
-    );
+    const canCommit = Boolean(String(currentDraft.name ?? "").trim());
     if (!canCommit) return currentEntries;
 
+    const rawUrl = String(currentDraft.url ?? "").trim();
     const entry = createLinkEntry({
       ...currentDraft,
-      url: normalizeUrlInput(currentDraft.url),
+      url: rawUrl ? normalizeUrlInput(rawUrl) : "",
+      affiliateStatus: currentDraft.affiliateStatus || "pending",
     });
-    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
+    setDraft(AFFILIATE_EMPTY_DRAFT);
+    const already = currentEntries.some((item) => item.id === entry.id);
+    if (already) {
+      return currentEntries.map((item) => (item.id === entry.id ? entry : item));
+    }
     return [...currentEntries, entry];
   };
 
@@ -146,7 +168,7 @@ export function UrlTableDashboardOverlay({
       entries: nextEntries,
       saved: true,
     });
-    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
+    setDraft(AFFILIATE_EMPTY_DRAFT);
     return stored;
   };
 
@@ -212,7 +234,11 @@ export function UrlTableDashboardOverlay({
     setSaving(true);
     try {
       const nextEntries = commitDraftIfReady(session.entries || []);
-      onChange?.({ entries: nextEntries, saved: false });
+      onChange?.({
+        entries: nextEntries,
+        title: isAffiliateTable ? affiliatesTitle : session.title,
+        saved: false,
+      });
       await Promise.resolve(onSaved?.(nextEntries));
     } finally {
       setSaving(false);
@@ -261,16 +287,20 @@ export function UrlTableDashboardOverlay({
       <div className="url-table-page-overlay__backdrop" aria-hidden />
       <div className="url-table-page-overlay__shell">
         <header className="url-table-page-overlay__header">
-          <input
-            type="text"
-            className="url-table-page-overlay__title-input"
-            value={titleValue}
-            onChange={(e) => onChange?.({ title: e.target.value, saved: false })}
-            placeholder={titlePlaceholder}
-            aria-label={titlePlaceholder}
-            style={{ width: `${titleWidthCh}ch` }}
-            maxLength={TITLE_MAX_CH}
-          />
+          {isAffiliateTable ? (
+            <h2 className="url-table-page-overlay__title">{affiliatesTitle}</h2>
+          ) : (
+            <input
+              type="text"
+              className="url-table-page-overlay__title-input"
+              value={titleValue}
+              onChange={(e) => onChange?.({ title: e.target.value, saved: false })}
+              placeholder={titlePlaceholder}
+              aria-label={titlePlaceholder}
+              style={{ width: `${titleWidthCh}ch` }}
+              maxLength={TITLE_MAX_CH}
+            />
+          )}
           {!viewingEntry ? (
             <div className="url-table-page-overlay__search-wrap">
               <span className="url-table-page-overlay__search-icon" aria-hidden />
@@ -317,6 +347,65 @@ export function UrlTableDashboardOverlay({
               flushSaveRef={detailSaveRef}
               onSavingChange={setDetailSaving}
             />
+          ) : isAffiliateTable ? (
+            <>
+              {categoryOptions.length ? (
+                <div className="affiliate-category-chips" role="tablist" aria-label={t("urlTableAffiliate.category")}>
+                  <button
+                    type="button"
+                    className={
+                      "affiliate-category-chips__chip"
+                      + (!categoryFilter ? " is-active" : "")
+                    }
+                    onClick={() => setCategoryFilter("")}
+                  >
+                    {t("urlTableLibrary.categoryFilterAll")}
+                  </button>
+                  {categoryOptions.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={
+                        "affiliate-category-chips__chip"
+                        + (categoryFilter.toLowerCase() === category.toLowerCase() ? " is-active" : "")
+                      }
+                      onClick={() => setCategoryFilter(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <AffiliateEntryList
+                entries={visibleAffiliateEntries}
+                draft={draft}
+                onDraftChange={setDraft}
+                onSaveEntry={objectId ? handleSaveEntry : null}
+                onDeleteEntry={objectId ? handleDeleteEntry : null}
+                onViewEntry={handleViewEntry}
+                addFormRequest={addFormRequest}
+                objectId={objectId}
+                tableId={tableId}
+                labels={{
+                  name: t("urlTableAffiliate.businessName"),
+                  namePlaceholder: t("urlTableAffiliate.businessNamePlaceholder"),
+                  tag: t("urlTableAffiliate.tag"),
+                  category: t("urlTableAffiliate.category"),
+                  description: t("urlTableAffiliate.description"),
+                  url: t("urlTableAffiliate.url"),
+                  urlOptional: t("urlTableAffiliate.urlOptional"),
+                  requirements: t("urlTableAffiliate.requirements"),
+                  requirementsPlaceholder: t("urlTableAffiliate.requirementsPlaceholder"),
+                  status: t("urlTableAffiliate.statusLabel"),
+                  save: t("common.save"),
+                  view: t("urlTableAffiliate.view"),
+                  delete: t("urlTableAffiliate.deleteRow"),
+                  statusPending: t("urlTableAffiliate.status.pending"),
+                  statusActive: t("urlTableAffiliate.status.active"),
+                  statusExpired: t("urlTableAffiliate.status.expired"),
+                }}
+              />
+            </>
           ) : (
             <LinkVaultBlockView
               entries={session.entries}
@@ -331,15 +420,10 @@ export function UrlTableDashboardOverlay({
               filterQuery={query}
               draft={draft}
               onDraftChange={setDraft}
-              showRowView={isAffiliateTable}
-              onViewEntry={isAffiliateTable ? handleViewEntry : null}
+              showRowView={false}
               labels={{
-                name: isAffiliateTable
-                  ? t("urlTableAffiliate.businessName")
-                  : "Title",
-                namePlaceholder: isAffiliateTable
-                  ? t("urlTableAffiliate.businessNamePlaceholder")
-                  : "Title",
+                name: "Title",
+                namePlaceholder: "Title",
                 tag: "Tag",
                 category: "Category",
                 description: "Description",
@@ -349,10 +433,6 @@ export function UrlTableDashboardOverlay({
                 view: t("urlTableAffiliate.view"),
                 edit: t("urlTableLibrary.edit"),
                 delete: t("urlTableAffiliate.deleteRow"),
-                daysLeft: t("urlTableAffiliate.daysLeftShort"),
-                statusPending: t("urlTableAffiliate.status.pending"),
-                statusActive: t("urlTableAffiliate.status.active"),
-                statusExpired: t("urlTableAffiliate.status.expired"),
               }}
             />
           )}

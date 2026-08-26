@@ -2800,7 +2800,7 @@ export function LeftPanel({
     onOpenUrlTableRef?.(table);
   };
 
-  const handleNewUrlTableFromLibrary = (kind = "links") => {
+  const handleNewUrlTableFromLibrary = (kind = "affiliates") => {
     onOpenNewUrlTable?.(filterObjectId || selectedObjectId, kind);
   };
 

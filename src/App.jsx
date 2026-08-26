@@ -69,7 +69,7 @@ import { flushPersistenceSync } from './stores/middleware/persistenceMiddleware.
 import {
   loadCompanyUrlTableSession,
   loadUrlTableSessionById,
-  createBlankUrlTableForObject,
+  getOrCreateAffiliatesTable,
   migrateLocalUrlEntriesToTables,
 } from './lib/urlTableLibrary.js';
 import {
@@ -1422,11 +1422,10 @@ useEffect(() => {
     setActiveUrlTableSession(session);
   }, []);
 
-  const handleOpenNewUrlTable = useCallback((objectId, kind = "links") => {
+  const handleOpenNewUrlTable = useCallback((objectId, kind = "affiliates") => {
     if (!objectId) return;
-    const session = createBlankUrlTableForObject(objectId, "", {
-      kind: kind === "affiliates" ? "affiliates" : "links",
-    });
+    if (kind !== "affiliates") return;
+    const session = getOrCreateAffiliatesTable(objectId);
     if (session) setActiveUrlTableSession(session);
   }, []);
 

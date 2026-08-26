@@ -1036,7 +1036,7 @@ export function firstMoodboardImage(block) {
 }
 
 /**
- * Clamp a moodboard overlay position percentage.
+ * Clamp a moodboard overlay position percentage (board space).
  * @param {unknown} value
  * @param {number} [fallback=50]
  * @returns {number}
@@ -1045,6 +1045,18 @@ function clampMoodboardOverlayPct(value, fallback = 50) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(0, Math.min(100, n));
+}
+
+/**
+ * Image-local % may sit slightly outside the photo (pointer tip).
+ * @param {unknown} value
+ * @param {number} [fallback=50]
+ * @returns {number}
+ */
+function clampMoodboardOverlayImagePct(value, fallback = 50) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(-50, Math.min(150, n));
 }
 
 /**
@@ -1057,15 +1069,18 @@ function clampMoodboardOverlayPct(value, fallback = 50) {
  *   endXPct?: number,
  *   endYPct?: number,
  *   contrast?: string,
+ *   anchorSlotId?: string,
  * } | null}
  */
 function normalizeMoodboardOverlay(raw) {
   if (!raw || typeof raw !== "object") return null;
   const kind = String(raw.kind || "");
   if (!MOODBOARD_OVERLAY_KIND_SET.has(kind)) return null;
-  const xPct = clampMoodboardOverlayPct(raw.xPct, 45);
-  const yPct = clampMoodboardOverlayPct(raw.yPct, 40);
-  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string }} */
+  const anchorSlotId = String(raw.anchorSlotId || "").trim();
+  const clampPct = anchorSlotId ? clampMoodboardOverlayImagePct : clampMoodboardOverlayPct;
+  const xPct = clampPct(raw.xPct, 45);
+  const yPct = clampPct(raw.yPct, 40);
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string, anchorSlotId?: string }} */
   const item = {
     id: String(raw.id || generateId("MBO")),
     kind,
@@ -1073,12 +1088,13 @@ function normalizeMoodboardOverlay(raw) {
     yPct,
     contrast: normalizeMoodboardPointerContrast(raw.contrast),
   };
+  if (anchorSlotId) item.anchorSlotId = anchorSlotId;
   if (kind === MOODBOARD_OVERLAY_KINDS.POINTER) {
-    item.endXPct = clampMoodboardOverlayPct(
+    item.endXPct = clampPct(
       raw.endXPct,
       Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),
     );
-    item.endYPct = clampMoodboardOverlayPct(
+    item.endYPct = clampPct(
       raw.endYPct,
       Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
     );
@@ -1096,11 +1112,12 @@ function normalizeMoodboardOverlay(raw) {
  *   endXPct?: number,
  *   endYPct?: number,
  *   contrast?: string,
+ *   anchorSlotId?: string,
  * }[]}
  */
 export function normalizeMoodboardOverlays(list) {
   if (!Array.isArray(list) || list.length === 0) return [];
-  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string }[]} */
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string, anchorSlotId?: string }[]} */
   const out = [];
   const seen = new Set();
   for (const raw of list) {
@@ -1114,7 +1131,7 @@ export function normalizeMoodboardOverlays(list) {
 
 /**
  * @param {string} kind
- * @param {{ xPct?: number, yPct?: number, endXPct?: number, endYPct?: number, contrast?: string, id?: string }} [patch]
+ * @param {{ xPct?: number, yPct?: number, endXPct?: number, endYPct?: number, contrast?: string, id?: string, anchorSlotId?: string }} [patch]
  */
 export function createMoodboardOverlay(kind, patch = {}) {
   const xPct = patch.xPct ?? 45;
@@ -1125,6 +1142,7 @@ export function createMoodboardOverlay(kind, patch = {}) {
     xPct,
     yPct,
     contrast: patch.contrast,
+    anchorSlotId: patch.anchorSlotId,
     ...(kind === MOODBOARD_OVERLAY_KINDS.POINTER
       ? {
         endXPct: patch.endXPct ?? Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),

@@ -110,17 +110,20 @@ export function persistUrlTableSession(session) {
   }
 
   const kind = session.kind === "affiliates" ? "affiliates" : "links";
+  const title = kind === "affiliates"
+    ? (String(session.title ?? "").trim() || "Affiliates")
+    : (session.title || "");
 
   if (!tableId) {
     const created = useUrlTablesStore.getState().createTable({
       objectId,
-      title: session.title || "",
+      title,
       kind,
     });
     tableId = created.id;
   } else {
     useUrlTablesStore.getState().updateTable(tableId, {
-      title: session.title || "",
+      title,
       objectId,
       kind,
     });

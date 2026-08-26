@@ -4,6 +4,17 @@ import { createAffiliateFields } from "./urlTableAffiliate.js";
 /** Max length for URL-table / link-vault description fields. */
 export const LINK_DESCRIPTION_MAX_LENGTH = 500;
 
+/** Max length for affiliate requirements text. */
+export const LINK_REQUIREMENTS_MAX_LENGTH = 1000;
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function clampLinkRequirements(value) {
+  return String(value ?? "").slice(0, LINK_REQUIREMENTS_MAX_LENGTH);
+}
+
 /**
  * @param {unknown} value
  * @returns {string}
@@ -29,6 +40,8 @@ export function createPasswordEntry(patch = {}) {
  * @property {string} category
  * @property {string} description
  * @property {string} url
+ * @property {string} [imageUrl]
+ * @property {string} [requirements]
  * @property {number|null} [commissionRate]
  * @property {number|null} [productPrice]
  * @property {number|null} [cookieDays]
@@ -46,6 +59,8 @@ export function createLinkEntry(patch = {}) {
     category: patch.category || "",
     description: clampLinkDescription(patch.description || ""),
     url: patch.url || "",
+    imageUrl: String(patch.imageUrl ?? "").trim(),
+    requirements: clampLinkRequirements(patch.requirements || ""),
     commissionRate: affiliate.commissionRate,
     productPrice: affiliate.productPrice,
     cookieDays: affiliate.cookieDays,
@@ -66,7 +81,13 @@ export function normalizeLinkEntries(entries) {
   if (!Array.isArray(entries)) return [];
   return entries
     .map((entry) => createLinkEntry(entry))
-    .filter((entry) => entry.name.trim() || entry.url.trim());
+    .filter((entry) => (
+      entry.name.trim()
+      || entry.url.trim()
+      || entry.imageUrl.trim()
+      || entry.description.trim()
+      || entry.requirements.trim()
+    ));
 }
 
 export function normalizeUrlInput(raw) {

@@ -169,14 +169,19 @@ export function UrlTableLibraryPanel({
               <div className="url-table-kind-chooser__options">
                 <button
                   type="button"
-                  className="url-table-kind-chooser__card"
-                  onClick={() => handlePickKind("links")}
+                  className="url-table-kind-chooser__card url-table-kind-chooser__card--sheets"
+                  disabled
+                  aria-disabled="true"
+                  title={t("urlTableLibrary.kindSheetsSoon")}
                 >
                   <span className="url-table-kind-chooser__card-title">
-                    {t("urlTableLibrary.kindLinks")}
+                    {t("urlTableLibrary.kindSheets")}
+                    <span className="url-table-kind-chooser__soon">
+                      {t("urlTableLibrary.kindSheetsSoon")}
+                    </span>
                   </span>
                   <span className="url-table-kind-chooser__card-body">
-                    {t("urlTableLibrary.kindLinksHint")}
+                    {t("urlTableLibrary.kindSheetsHint")}
                   </span>
                 </button>
                 <button

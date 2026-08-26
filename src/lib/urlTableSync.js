@@ -40,6 +40,8 @@ function rowToEntry(row) {
     category: String(row.category ?? ""),
     description: String(row.description ?? ""),
     url: String(row.url ?? ""),
+    imageUrl: String(row.image_url ?? ""),
+    requirements: String(row.requirements ?? ""),
     commissionRate: toNullableNumber(row.commission_rate),
     productPrice: toNullableNumber(row.product_price),
     cookieDays: toNullableNumber(row.cookie_days),
@@ -67,6 +69,8 @@ function entryToRow(entry, userId, now) {
     category: entry.category ?? "",
     description: entry.description ?? "",
     url: entry.url ?? "",
+    image_url: entry.imageUrl ?? "",
+    requirements: entry.requirements ?? "",
     commission_rate: entry.commissionRate ?? null,
     product_price: entry.productPrice ?? null,
     cookie_days: entry.cookieDays ?? null,
@@ -152,7 +156,36 @@ async function syncUrlTableToSupabase(entries) {
       .upsert(rows, { onConflict: "id" });
     if (error) {
       console.warn(formatSupabaseError(error, "Upsert url_table_entries"));
-      return false;
+      const errText = String(error?.message || error?.details || "");
+      const missingImage = /image_url/i.test(errText);
+      const missingRequirements = /requirements/i.test(errText);
+      if (missingImage || missingRequirements) {
+        const stripped = rows.map((row) => {
+          const next = { ...row };
+          if (missingImage) delete next.image_url;
+          if (missingRequirements) delete next.requirements;
+          return next;
+        });
+        const { error: retryError } = await supabase
+          .from("url_table_entries")
+          .upsert(stripped, { onConflict: "id" });
+        if (retryError) {
+          console.warn(formatSupabaseError(retryError, "Upsert url_table_entries (stripped columns)"));
+          return false;
+        }
+        if (missingImage) {
+          console.warn(
+            "[url-table] image_url column missing — run supabase_url_table_entries_image.sql so affiliate images persist remotely",
+          );
+        }
+        if (missingRequirements) {
+          console.warn(
+            "[url-table] requirements column missing — run supabase_url_table_entries_requirements.sql",
+          );
+        }
+      } else {
+        return false;
+      }
     }
   }
 

@@ -13,6 +13,8 @@ import { markUrlTableEntryDeleted } from "./urlTableSync.js";
 
 const PREVIEW_MAX = 120;
 
+export const AFFILIATES_BOARD_TITLE = "Affiliates";
+
 /**
  * @typedef {Object} UrlTableRef
  * @property {string} id
@@ -40,7 +42,8 @@ function entryPreview(entries) {
 
 function displayTitle(table) {
   const title = String(table?.title ?? "").trim();
-  return title || "URL table";
+  if (title) return title;
+  return table?.kind === "affiliates" ? AFFILIATES_BOARD_TITLE : "URL table";
 }
 
 function blocksForDoc(doc) {
@@ -162,6 +165,53 @@ export function collectSavedUrlTables(_docs, { objectId = null } = {}) {
 
 /**
  * @param {import("./vaultBlocks.js").LinkEntry[]} entries
+ * @returns {string[]}
+ */
+export function uniqueUrlTableCategories(entries) {
+  const seen = new Map();
+  for (const entry of entries || []) {
+    const raw = String(entry.category ?? "").trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    if (!seen.has(key)) seen.set(key, raw);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * @param {import("./vaultBlocks.js").LinkEntry[]} entries
+ * @param {string} category
+ */
+export function filterUrlTableEntriesByCategory(entries, category) {
+  const target = String(category ?? "").trim().toLowerCase();
+  if (!target) return entries || [];
+  return (entries || []).filter(
+    (entry) => String(entry.category ?? "").trim().toLowerCase() === target,
+  );
+}
+
+/**
+ * One Affiliates board per company: open existing or create with title "Affiliates".
+ * @param {string} objectId
+ * @returns {import("./urlTableSession.js").UrlTableSession|null}
+ */
+export function getOrCreateAffiliatesTable(objectId) {
+  if (!objectId) return null;
+  migrateLocalUrlEntriesToTables();
+  const existing = useUrlTablesStore.getState()
+    .getTablesForObject(objectId)
+    .find((table) => table.kind === "affiliates");
+  if (existing) {
+    if (!String(existing.title ?? "").trim()) {
+      useUrlTablesStore.getState().updateTable(existing.id, { title: AFFILIATES_BOARD_TITLE });
+    }
+    return loadUrlTableSessionById(existing.id);
+  }
+  return createBlankUrlTableForObject(objectId, AFFILIATES_BOARD_TITLE, { kind: "affiliates" });
+}
+
+/**
+ * @param {import("./vaultBlocks.js").LinkEntry[]} entries
  * @param {string} query
  */
 export function filterUrlTableEntries(entries, query) {
@@ -230,7 +280,7 @@ export function loadUrlTableSessionById(tableId) {
     tableId: table.id,
     docId: null,
     blockId: generateId("BLK"),
-    title: table.title || "",
+    title: table.title || (table.kind === "affiliates" ? AFFILIATES_BOARD_TITLE : ""),
     kind: table.kind === "affiliates" ? "affiliates" : "links",
     entries: entries.map((entry) => createLinkEntry(entry)),
     saved: true,
