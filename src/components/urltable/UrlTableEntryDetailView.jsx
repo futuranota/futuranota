@@ -17,22 +17,31 @@ import { useI18n } from "../../i18n/useI18n.js";
  *
  * @param {Object} props
  * @param {import("../../lib/vaultBlocks.js").LinkEntry} props.entry
+ * @param {'stats'|'calculator'} [props.mode]
  * @param {(next: import("../../lib/vaultBlocks.js").LinkEntry) => void | Promise<void>} props.onSave
  * @param {() => void} props.onBack
+ * @param {(() => void)|null} [props.onClose]
+ * @param {boolean} [props.immersive]
  * @param {React.MutableRefObject<(() => void)|null>} [props.flushSaveRef]
+ * @param {React.MutableRefObject<(() => import("../../lib/vaultBlocks.js").LinkEntry|null)|null>} [props.entrySnapshotRef]
  * @param {(saving: boolean) => void} [props.onSavingChange]
  */
 export function UrlTableEntryDetailView({
   entry,
+  mode = "calculator",
   onSave,
   onBack,
+  onClose = null,
+  immersive = false,
   flushSaveRef = null,
+  entrySnapshotRef = null,
   onSavingChange = null,
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(() => seedDraft(entry));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const isStatsOnly = mode === "stats";
 
   useEffect(() => {
     setDraft(seedDraft(entry));
@@ -49,6 +58,29 @@ export function UrlTableEntryDetailView({
   const cookieNumeral = lifecycle.affiliateStatus === "pending"
     ? (draft.cookieDays ?? null)
     : lifecycle.daysRemaining;
+
+  const buildPersistedEntry = () => {
+    const affiliate = createAffiliateFields(draft);
+    const status = affiliate.affiliateStatus || "pending";
+    const withStatus = applyAffiliateStatusChange(
+      { ...draft, ...affiliate, affiliateStatus: status },
+      status,
+    );
+    const resolved = resolveAffiliateLifecycle({
+      ...draft,
+      ...affiliate,
+      ...withStatus,
+    });
+    return createLinkEntry({
+      ...draft,
+      ...affiliate,
+      ...withStatus,
+      affiliateStatus: resolved.affiliateStatus || status,
+      activatedAt: resolved.activatedAt,
+      url: normalizeUrlInput(draft.url),
+      category: String(draft.category ?? "").trim() || AFFILIATE_CATEGORY,
+    });
+  };
 
   const patchNumber = (field, raw) => {
     const trimmed = String(raw ?? "").trim();
@@ -80,31 +112,12 @@ export function UrlTableEntryDetailView({
   };
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || isStatsOnly) return;
     setSaving(true);
     onSavingChange?.(true);
     setSaveError("");
     try {
-      const affiliate = createAffiliateFields(draft);
-      const status = affiliate.affiliateStatus || "pending";
-      const withStatus = applyAffiliateStatusChange(
-        { ...draft, ...affiliate, affiliateStatus: status },
-        status,
-      );
-      const resolved = resolveAffiliateLifecycle({
-        ...draft,
-        ...affiliate,
-        ...withStatus,
-      });
-      const next = createLinkEntry({
-        ...draft,
-        ...affiliate,
-        ...withStatus,
-        affiliateStatus: resolved.affiliateStatus || status,
-        activatedAt: resolved.activatedAt,
-        url: normalizeUrlInput(draft.url),
-        category: String(draft.category ?? "").trim() || AFFILIATE_CATEGORY,
-      });
+      const next = buildPersistedEntry();
       await Promise.resolve(onSave?.(next));
     } catch (err) {
       console.warn("[url-table] affiliate detail save failed", err);
@@ -125,8 +138,22 @@ export function UrlTableEntryDetailView({
     };
   });
 
+  useEffect(() => {
+    if (!entrySnapshotRef) return undefined;
+    entrySnapshotRef.current = () => buildPersistedEntry();
+    return () => {
+      entrySnapshotRef.current = null;
+    };
+  });
+
   return (
-    <div className="url-table-entry-detail">
+    <div
+      className={
+        "url-table-entry-detail"
+        + (isStatsOnly ? " url-table-entry-detail--stats" : "")
+        + (immersive ? " url-table-entry-detail--immersive" : "")
+      }
+    >
       <div className="url-table-entry-detail__toolbar">
         <button
           type="button"
@@ -138,6 +165,18 @@ export function UrlTableEntryDetailView({
         >
           <span className="url-table-entry-detail__back-icon" aria-hidden />
         </button>
+        {onClose ? (
+          <button
+            type="button"
+            className="url-table-entry-detail__close"
+            onClick={onClose}
+            disabled={saving}
+            aria-label={t("urlTableLibrary.closeTab")}
+            title={t("urlTableLibrary.closeTab")}
+          >
+            ×
+          </button>
+        ) : null}
       </div>
 
       <div className="url-table-entry-detail__stats">
@@ -174,83 +213,87 @@ export function UrlTableEntryDetailView({
         </div>
       </div>
 
-      <div className="url-table-entry-detail__grid">
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.businessName")}</span>
-          <input
-            type="text"
-            value={draft.name}
-            placeholder={t("urlTableAffiliate.businessNamePlaceholder")}
-            onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-          />
-        </label>
+      {isStatsOnly ? null : (
+        <>
+          <div className="url-table-entry-detail__grid">
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.businessName")}</span>
+              <input
+                type="text"
+                value={draft.name}
+                placeholder={t("urlTableAffiliate.businessNamePlaceholder")}
+                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </label>
 
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.commissionRate")}</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.commissionRate ?? ""}
-            placeholder=""
-            onChange={(e) => patchNumber("commissionRate", e.target.value)}
-          />
-        </label>
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.commissionRate")}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={draft.commissionRate ?? ""}
+                placeholder=""
+                onChange={(e) => patchNumber("commissionRate", e.target.value)}
+              />
+            </label>
 
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.productPrice")}</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.productPrice ?? ""}
-            placeholder=""
-            onChange={(e) => patchNumber("productPrice", e.target.value)}
-          />
-        </label>
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.productPrice")}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={draft.productPrice ?? ""}
+                placeholder=""
+                onChange={(e) => patchNumber("productPrice", e.target.value)}
+              />
+            </label>
 
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.cookieDays")}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={draft.cookieDays ?? ""}
-            placeholder=""
-            onChange={(e) => patchNumber("cookieDays", e.target.value)}
-          />
-        </label>
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.cookieDays")}</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={draft.cookieDays ?? ""}
+                placeholder=""
+                onChange={(e) => patchNumber("cookieDays", e.target.value)}
+              />
+            </label>
 
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.statusLabel")}</span>
-          <select
-            value={lifecycle.affiliateStatus || "pending"}
-            onChange={(e) => handleStatusChange(e.target.value)}
-          >
-            {AFFILIATE_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t(`urlTableAffiliate.status.${status}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.statusLabel")}</span>
+              <select
+                value={lifecycle.affiliateStatus || "pending"}
+                onChange={(e) => handleStatusChange(e.target.value)}
+              >
+                {AFFILIATE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {t(`urlTableAffiliate.status.${status}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.clientsWon")}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={draft.clientsWon ?? 0}
-            placeholder=""
-            onChange={(e) => patchNumber("clientsWon", e.target.value)}
-          />
-        </label>
-      </div>
+            <label className="url-table-entry-detail__field">
+              <span>{t("urlTableAffiliate.clientsWon")}</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={draft.clientsWon ?? 0}
+                placeholder=""
+                onChange={(e) => patchNumber("clientsWon", e.target.value)}
+              />
+            </label>
+          </div>
 
-      {saveError ? (
-        <p className="url-table-entry-detail__error">{saveError}</p>
-      ) : null}
+          {saveError ? (
+            <p className="url-table-entry-detail__error">{saveError}</p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

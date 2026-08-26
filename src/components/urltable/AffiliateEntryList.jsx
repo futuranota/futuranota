@@ -1,124 +1,68 @@
-import { useEffect, useRef, useState } from "react";
 import {
   AffiliateEntryCard,
-  AffiliateQueueThumb,
-  AFFILIATE_EMPTY_DRAFT,
+  AffiliateNewTile,
+  AffiliateQueueCard,
 } from "./AffiliateEntryCard.jsx";
 
 /**
- * Horizontal queue of saved thumbs + one expanded editor (draft or selected).
- *
- * @param {Object} props
- * @param {import("../../lib/vaultBlocks.js").LinkEntry[]} props.entries
- * @param {Record<string, string>} props.draft
- * @param {(next: Record<string, string>) => void} props.onDraftChange
- * @param {(entry: import("../../lib/vaultBlocks.js").LinkEntry) => unknown} props.onSaveEntry
- * @param {(entryId: string) => void} props.onDeleteEntry
- * @param {(entry: import("../../lib/vaultBlocks.js").LinkEntry) => void} props.onViewEntry
- * @param {number} [props.addFormRequest]
- * @param {string|null} [props.objectId]
- * @param {string|null} [props.tableId]
- * @param {Record<string, string>} [props.labels]
+ * @typedef {'queue'|'create'|'edit'} AffiliatePanelMode
+ */
+
+/**
+ * Queue row or page-1 editor — never both at once.
  */
 export function AffiliateEntryList({
+  panelMode = "queue",
   entries = [],
   draft,
   onDraftChange,
-  onSaveEntry,
+  onStartCreate,
+  onStartEdit,
+  onViewStats,
   onDeleteEntry,
-  onViewEntry,
-  addFormRequest = 0,
+  onNext,
+  onClose,
   objectId = null,
   tableId = null,
   labels = {},
 }) {
-  const draftAnchorRef = useRef(null);
-  const [selectedId, setSelectedId] = useState(/** @type {string|null} */ (null));
-
-  useEffect(() => {
-    if (!addFormRequest) return;
-    setSelectedId(null);
-    onDraftChange?.(AFFILIATE_EMPTY_DRAFT);
-    const timer = window.setTimeout(() => {
-      draftAnchorRef.current?.scrollIntoView({ block: "nearest" });
-      draftAnchorRef.current
-        ?.querySelector("input.affiliate-entry-card__name")
-        ?.focus({ preventScroll: true });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [addFormRequest, onDraftChange]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    if (!entries.some((entry) => entry.id === selectedId)) {
-      setSelectedId(null);
-    }
-  }, [entries, selectedId]);
-
-  const selectedEntry = selectedId
-    ? entries.find((entry) => entry.id === selectedId) || null
-    : null;
-
-  const handleSaveDraft = (entry) => {
-    const result = onSaveEntry?.(entry);
-    if (result === false || result === null) return result;
-    const savedId = result?.id || entry?.id;
-    if (savedId) setSelectedId(savedId);
-    return result;
-  };
-
-  const handleSaveSelected = (entry) => {
-    const result = onSaveEntry?.(entry);
-    if (result === false || result === null) return result;
-    return result;
-  };
-
-  const handleDelete = (entryId) => {
-    onDeleteEntry?.(entryId);
-    if (selectedId === entryId) setSelectedId(null);
-  };
+  if (panelMode === "create" || panelMode === "edit") {
+    return (
+      <div className="affiliate-entry-list affiliate-entry-list--create affiliate-entry-list--immersive scroll-match-bg">
+        <AffiliateEntryCard
+          draft={draft}
+          onDraftChange={onDraftChange}
+          onNext={onNext}
+          onClose={onClose}
+          immersive
+          objectId={objectId}
+          tableId={tableId}
+          labels={labels}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="affiliate-entry-list scroll-match-bg">
-      {entries.length ? (
-        <div className="affiliate-queue" role="list">
-          {entries.map((entry) => (
-            <div key={entry.id} role="listitem">
-              <AffiliateQueueThumb
-                entry={entry}
-                selected={selectedId === entry.id}
-                onSelect={(item) => setSelectedId(item.id)}
-                onView={onViewEntry}
-                labels={labels}
-              />
-            </div>
-          ))}
+      <div className="affiliate-queue" role="list">
+        {entries.map((entry) => (
+          <div key={entry.id} role="listitem">
+            <AffiliateQueueCard
+              entry={entry}
+              onViewStats={onViewStats}
+              onStartEdit={onStartEdit}
+              onDelete={onDeleteEntry}
+              labels={labels}
+            />
+          </div>
+        ))}
+        <div role="listitem">
+          <AffiliateNewTile
+            onClick={onStartCreate}
+            label={labels.newTile || "+ new"}
+          />
         </div>
-      ) : null}
-
-      <div ref={draftAnchorRef} className="affiliate-entry-list__editor">
-        {selectedEntry ? (
-          <AffiliateEntryCard
-            key={selectedEntry.id}
-            entry={selectedEntry}
-            onSave={handleSaveSelected}
-            onDelete={handleDelete}
-            onView={onViewEntry}
-            objectId={objectId}
-            tableId={tableId}
-            labels={labels}
-          />
-        ) : (
-          <AffiliateEntryCard
-            isDraft
-            draft={draft}
-            onDraftChange={onDraftChange}
-            onSave={handleSaveDraft}
-            objectId={objectId}
-            tableId={tableId}
-            labels={labels}
-          />
-        )}
       </div>
     </div>
   );

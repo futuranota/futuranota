@@ -2,10 +2,10 @@ import { generateId } from "./ids.js";
 import { createAffiliateFields } from "./urlTableAffiliate.js";
 
 /** Max length for URL-table / link-vault description fields. */
-export const LINK_DESCRIPTION_MAX_LENGTH = 500;
+export const LINK_DESCRIPTION_MAX_LENGTH = 2000;
 
 /** Max length for affiliate requirements text. */
-export const LINK_REQUIREMENTS_MAX_LENGTH = 1000;
+export const LINK_REQUIREMENTS_MAX_LENGTH = 2000;
 
 /**
  * @param {unknown} value

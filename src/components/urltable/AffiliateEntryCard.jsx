@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
 import {
-  createLinkEntry,
   LINK_DESCRIPTION_MAX_LENGTH,
   LINK_REQUIREMENTS_MAX_LENGTH,
-  normalizeUrlInput,
 } from "../../lib/vaultBlocks.js";
 import {
   AFFILIATE_STATUSES,
@@ -25,30 +23,30 @@ const EMPTY_DRAFT = {
 };
 
 /**
- * @param {Partial<import("../../lib/vaultBlocks.js").LinkEntry>} entry
+ * [+ new] tile — same footprint as queue cards.
  */
-function toDraft(entry) {
-  return {
-    name: entry?.name || "",
-    tag: entry?.tag || "",
-    category: entry?.category || "",
-    description: entry?.description || "",
-    url: entry?.url || "",
-    imageUrl: entry?.imageUrl || "",
-    requirements: entry?.requirements || "",
-    affiliateStatus: entry?.affiliateStatus || "pending",
-    activatedAt: entry?.activatedAt || null,
-  };
+export function AffiliateNewTile({ onClick, label }) {
+  return (
+    <button
+      type="button"
+      className="affiliate-new-tile"
+      onClick={onClick}
+      aria-label={label}
+    >
+      <span className="affiliate-new-tile__plus" aria-hidden>+</span>
+      <span className="affiliate-new-tile__label">{label}</span>
+    </button>
+  );
 }
 
 /**
- * Compact queue thumb for a saved affiliate.
+ * Queue card — photo arriba, info abajo (112px, mismo ancho que + new).
  */
-export function AffiliateQueueThumb({
+export function AffiliateQueueCard({
   entry,
-  selected = false,
-  onSelect,
-  onView,
+  onViewStats,
+  onStartEdit,
+  onDelete,
   labels = {},
 }) {
   const { t } = useI18n();
@@ -60,47 +58,51 @@ export function AffiliateQueueThumb({
   const name = String(entry?.name ?? "").trim() || t("urlTableAffiliate.untitled");
 
   return (
-    <div
-      className={
-        "affiliate-queue-thumb"
-        + (selected ? " is-selected" : "")
-      }
-    >
-      <button
-        type="button"
-        className="affiliate-queue-thumb__main"
-        onClick={() => onSelect?.(entry)}
-        title={name}
-      >
-        <span className="affiliate-queue-thumb__media">
-          {imageSrc ? (
-            <img src={imageSrc} alt="" draggable={false} />
-          ) : (
-            <span className="affiliate-queue-thumb__placeholder" aria-hidden />
-          )}
-        </span>
-        <span className="affiliate-queue-thumb__name">{name}</span>
-        <span className={`affiliate-queue-thumb__badge affiliate-queue-thumb__badge--${status}`}>
+    <div className="affiliate-queue-card">
+      <div className="affiliate-queue-card__media">
+        {imageSrc ? (
+          <img src={imageSrc} alt="" draggable={false} />
+        ) : (
+          <span className="affiliate-queue-card__placeholder" aria-hidden />
+        )}
+        <div className="affiliate-queue-card__actions">
+          <button
+            type="button"
+            className="affiliate-queue-card__stats"
+            onClick={() => onViewStats?.(entry)}
+            aria-label={labels.stats || t("urlTableAffiliate.stats")}
+            title={labels.stats || t("urlTableAffiliate.stats")}
+          >
+            <span className="affiliate-queue-card__stats-icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="affiliate-queue-card__edit"
+            onClick={() => onStartEdit?.(entry)}
+            title={labels.edit || t("urlTableAffiliate.edit")}
+          >
+            {labels.edit || t("urlTableAffiliate.edit")}
+          </button>
+        </div>
+      </div>
+      <div className="affiliate-queue-card__info">
+        <span className="affiliate-queue-card__name">{name}</span>
+        <span className={`affiliate-queue-card__badge affiliate-queue-card__badge--${status}`}>
           {statusLabel}
         </span>
-      </button>
-      {onView ? (
+      </div>
+      {onDelete ? (
         <button
           type="button"
-          className="affiliate-queue-thumb__view"
+          className="affiliate-queue-card__delete"
           onClick={(event) => {
             event.stopPropagation();
-            onView(entry);
+            onDelete(entry.id);
           }}
-          title={labels.view || t("urlTableAffiliate.view")}
-          aria-label={labels.view || t("urlTableAffiliate.view")}
+          aria-label={labels.delete || t("urlTableAffiliate.deleteRow")}
+          title={labels.delete || t("urlTableAffiliate.deleteRow")}
         >
-          <img
-            src="/uploads/ChartPieSlice.svg"
-            alt=""
-            aria-hidden
-            className="affiliate-entry-card__view-icon"
-          />
+          ×
         </button>
       ) : null}
     </div>
@@ -108,73 +110,33 @@ export function AffiliateQueueThumb({
 }
 
 /**
- * Expanded affiliate editor card.
+ * Page-1 editor (create / edit). Next always enabled.
  */
 export function AffiliateEntryCard({
-  entry = null,
-  isDraft = false,
-  draft: controlledDraft = null,
-  onDraftChange = null,
-  onSave,
-  onDelete = null,
-  onView = null,
+  draft,
+  onDraftChange,
+  onNext = null,
+  onClose = null,
+  immersive = false,
   objectId = null,
   tableId = null,
   labels = {},
 }) {
   const { t } = useI18n();
   const fileRef = useRef(null);
-  const [localDraft, setLocalDraft] = useState(() => toDraft(entry));
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
-  const isControlled = isDraft && controlledDraft != null && typeof onDraftChange === "function";
-  const draft = isControlled ? controlledDraft : localDraft;
-  const setDraft = isControlled ? onDraftChange : setLocalDraft;
-
-  useEffect(() => {
-    if (isDraft || isControlled) return;
-    setLocalDraft(toDraft(entry));
-  }, [entry?.id, entry?.updatedAt, isDraft, isControlled]);
-
-  const canSave = Boolean(String(draft.name ?? "").trim());
   const imageSrc = String(draft.imageUrl ?? "").trim();
   const statusValue = String(draft.affiliateStatus || "pending");
 
   const patch = (field, value) => {
-    setDraft((prev) => ({ ...prev, [field]: value }));
+    onDraftChange?.((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleStatusChange = (nextStatus) => {
     const applied = applyAffiliateStatusChange(draft, nextStatus);
-    setDraft((prev) => ({
-      ...prev,
-      ...applied,
-    }));
-  };
-
-  const handleSave = () => {
-    if (!canSave || typeof onSave !== "function") return;
-    const base = isDraft ? draft : { ...(entry || {}), ...draft };
-    const withStatus = applyAffiliateStatusChange(
-      { ...base, affiliateStatus: draft.affiliateStatus || "pending" },
-      draft.affiliateStatus || "pending",
-    );
-    const rawUrl = String(draft.url ?? "").trim();
-    const next = createLinkEntry({
-      ...base,
-      ...withStatus,
-      id: isDraft ? undefined : entry?.id,
-      url: rawUrl ? normalizeUrlInput(rawUrl) : "",
-      imageUrl: String(draft.imageUrl ?? "").trim(),
-      requirements: String(draft.requirements ?? "").trim(),
-      affiliateStatus: withStatus.affiliateStatus || "pending",
-    });
-    const result = onSave?.(next);
-    if (result === false || result === null) return;
-    if (isDraft && isControlled) {
-      onDraftChange?.(EMPTY_DRAFT);
-    }
+    onDraftChange?.((prev) => ({ ...prev, ...applied }));
   };
 
   const handleFiles = async (fileList) => {
@@ -198,7 +160,18 @@ export function AffiliateEntryCard({
   };
 
   return (
-    <article className="affiliate-entry-card">
+    <article className={"affiliate-entry-card" + (immersive ? " affiliate-entry-card--immersive" : "")}>
+      {onClose ? (
+        <button
+          type="button"
+          className="affiliate-entry-card__close"
+          onClick={onClose}
+          aria-label={labels.close || t("urlTableLibrary.closeTab")}
+          title={labels.close || t("urlTableLibrary.closeTab")}
+        >
+          ×
+        </button>
+      ) : null}
       <input
         className="affiliate-entry-card__name"
         type="text"
@@ -260,7 +233,7 @@ export function AffiliateEntryCard({
 
         <textarea
           className="affiliate-entry-card__description"
-          rows={5}
+          rows={8}
           value={draft.description}
           placeholder={labels.description || t("urlTableAffiliate.description")}
           maxLength={LINK_DESCRIPTION_MAX_LENGTH}
@@ -327,45 +300,15 @@ export function AffiliateEntryCard({
       </div>
 
       <div className="affiliate-entry-card__footer">
-        <span className="affiliate-entry-card__hint">
-          {t("urlTableAffiliate.pendingSaveHint")}
-        </span>
         <div className="affiliate-entry-card__actions">
-          {!isDraft && onView && entry?.id ? (
-            <button
-              type="button"
-              className="affiliate-entry-card__view"
-              onClick={() => onView(entry)}
-              title={labels.view || t("urlTableAffiliate.view")}
-            >
-              <img
-                src="/uploads/ChartPieSlice.svg"
-                alt=""
-                aria-hidden
-                className="affiliate-entry-card__view-icon"
-              />
-              <span>{labels.view || t("urlTableAffiliate.view")}</span>
-            </button>
-          ) : null}
           <button
             type="button"
-            className="doc-vault-block__save"
-            disabled={!canSave}
-            onClick={handleSave}
+            className="affiliate-entry-card__next"
+            onClick={() => onNext?.()}
+            title={labels.next || t("urlTableAffiliate.next")}
           >
-            {labels.save || t("common.save")}
+            {labels.next || t("urlTableAffiliate.next")}
           </button>
-          {!isDraft && onDelete && entry?.id ? (
-            <button
-              type="button"
-              className="affiliate-entry-card__delete"
-              onClick={() => onDelete(entry.id)}
-              aria-label={labels.delete || t("urlTableAffiliate.deleteRow")}
-              title={labels.delete || t("urlTableAffiliate.deleteRow")}
-            >
-              ×
-            </button>
-          ) : null}
         </div>
       </div>
     </article>

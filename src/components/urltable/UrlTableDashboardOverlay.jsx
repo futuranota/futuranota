@@ -6,7 +6,12 @@ import { AFFILIATE_EMPTY_DRAFT } from "./AffiliateEntryCard.jsx";
 import { UrlTableEntryDetailView } from "./UrlTableEntryDetailView.jsx";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
-import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
+import { createLinkEntry } from "../../lib/vaultBlocks.js";
+import {
+  affiliateDraftToLinkEntry,
+  linkEntryToAffiliateDraft,
+  mergeAffiliateDraftAndStaging,
+} from "../../lib/affiliateEntryDraft.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import {
   filterUrlTableEntries,
@@ -25,15 +30,16 @@ const TITLE_MIN_CH = 12;
 const TITLE_MAX_CH = 42;
 
 /**
- * Dedicated company URL table overlay (toolbar), not the document editor.
- * Every Save writes to the SQL-backed store (same path as slash `/`).
- *
- * @param {Object} props
- * @param {import("../../lib/urlTableSession.js").UrlTableSession | null} props.session
- * @param {(patch: Partial<import("../../lib/urlTableSession.js").UrlTableSession>) => void} props.onChange
- * @param {() => void} props.onCloseTab
- * @param {(entries: import("../../lib/vaultBlocks.js").LinkEntry[]) => void} props.onSaved
+ * @param {import("../../lib/vaultBlocks.js").LinkEntry[]} sessionEntries
+ * @param {import("../../lib/vaultBlocks.js").LinkEntry} link
  */
+function upsertSessionEntry(sessionEntries, link) {
+  const exists = sessionEntries.some((item) => item.id === link.id);
+  return exists
+    ? sessionEntries.map((item) => (item.id === link.id ? link : item))
+    : [...sessionEntries, link];
+}
+
 export function UrlTableDashboardOverlay({
   session,
   onChange,
@@ -46,12 +52,17 @@ export function UrlTableDashboardOverlay({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [addFormRequest, setAddFormRequest] = useState(0);
   const [draft, setDraft] = useState(AFFILIATE_EMPTY_DRAFT);
+  const [panelMode, setPanelMode] = useState(/** @type {'queue'|'create'|'edit'} */ ("queue"));
+  const [detailMode, setDetailMode] = useState(/** @type {null|'stats'|'calculator'} */ (null));
+  const [stagingEntry, setStagingEntry] = useState(/** @type {import("../../lib/vaultBlocks.js").LinkEntry|null} */ (null));
+  const [editingEntryId, setEditingEntryId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewEntryId, setViewEntryId] = useState(null);
   const [detailSaving, setDetailSaving] = useState(false);
   const draftRef = useRef(draft);
   const detailSaveRef = useRef(null);
+  const detailEntryRef = useRef(null);
   const confirmOpenRef = useRef(false);
   draftRef.current = draft;
 
@@ -61,15 +72,23 @@ export function UrlTableDashboardOverlay({
 
   const initialSearch = String(session?.initialSearch ?? "");
 
-  useEffect(() => {
+  const resetAffiliateEditor = () => {
     setDraft(AFFILIATE_EMPTY_DRAFT);
+    setPanelMode("queue");
+    setDetailMode(null);
+    setStagingEntry(null);
+    setEditingEntryId(null);
+    setViewEntryId(null);
+  };
+
+  useEffect(() => {
+    resetAffiliateEditor();
     setQuery(initialSearch);
     setCategoryFilter("");
-    setViewEntryId(null);
     setDetailSaving(false);
+    setSaving(false);
   }, [sessionKey, initialSearch]);
 
-  // Auto-expire active cookies whose window has elapsed.
   useEffect(() => {
     if (!session?.entries?.length) return;
     let changed = false;
@@ -92,18 +111,35 @@ export function UrlTableDashboardOverlay({
   }, [sessionKey]);
 
   useEffect(() => {
+    if (!session) return undefined;
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       if (viewEntryId) {
-        setViewEntryId(null);
+        if (detailMode === "stats") {
+          setViewEntryId(null);
+          setDetailMode(null);
+          setPanelMode("queue");
+        } else {
+          const synced = detailEntryRef.current?.();
+          if (synced) {
+            setStagingEntry(synced);
+            setDraft(linkEntryToAffiliateDraft(synced));
+          }
+          setViewEntryId(null);
+          setDetailMode(null);
+        }
+        return;
+      }
+      if (session.kind === "affiliates" && (panelMode === "create" || panelMode === "edit")) {
+        resetAffiliateEditor();
         return;
       }
       onCloseTab?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCloseTab, viewEntryId]);
+  }, [onCloseTab, viewEntryId, detailMode, panelMode, session]);
 
   if (!session) return null;
 
@@ -128,29 +164,46 @@ export function UrlTableDashboardOverlay({
   })();
 
   const viewingEntry = viewEntryId
-    ? (session.entries || []).find((entry) => entry.id === viewEntryId) || null
+    ? (session.entries || []).find((entry) => entry.id === viewEntryId)
+      || (stagingEntry?.id === viewEntryId ? stagingEntry : null)
     : null;
 
-  const commitDraftIfReady = (currentEntries) => {
-    const currentDraft = draftRef.current;
-    const canCommit = Boolean(String(currentDraft.name ?? "").trim());
-    if (!canCommit) return currentEntries;
+  const commitDraftIfReady = (currentEntries) => currentEntries;
 
-    const rawUrl = String(currentDraft.url ?? "").trim();
-    const entry = createLinkEntry({
-      ...currentDraft,
-      url: rawUrl ? normalizeUrlInput(rawUrl) : "",
-      affiliateStatus: currentDraft.affiliateStatus || "pending",
+  const persistAffiliateEntry = async (entry) => {
+    if (!objectId || !entry?.id) return null;
+    const stored = queueUrlTableEntry(objectId, entry, tableId);
+    if (!stored) return null;
+    const link = createLinkEntry(stored);
+    const sessionEntries = session?.entries || [];
+    onChange?.({
+      tableId: stored.tableId || tableId,
+      entries: upsertSessionEntry(sessionEntries, link),
+      saved: true,
     });
-    setDraft(AFFILIATE_EMPTY_DRAFT);
-    const already = currentEntries.some((item) => item.id === entry.id);
-    if (already) {
-      return currentEntries.map((item) => (item.id === entry.id ? entry : item));
+    try {
+      await Promise.all([flushUrlTableSync(), flushUrlTablesSync()]);
+    } catch (err) {
+      console.warn("[url-table] affiliate flush failed", err);
     }
-    return [...currentEntries, entry];
+    return link;
   };
 
-  /** Row Save: insert one entry into SQL store immediately (same as slash). */
+  const handleImmersiveClose = () => {
+    resetAffiliateEditor();
+  };
+
+  const affiliateQueueView = isAffiliateTable && panelMode === "queue" && !viewEntryId;
+  const affiliateImmersive = isAffiliateTable && !affiliateQueueView;
+
+  const showAffiliateShellHeader = !isAffiliateTable || affiliateQueueView;
+
+  const showAffiliateShellFooter = isAffiliateTable
+    && viewingEntry
+    && detailMode === "calculator";
+
+  const showAffiliateHeaderSearch = affiliateQueueView;
+
   const handleSaveEntry = (entry) => {
     if (!objectId) {
       console.warn("[url-table] Row Save skipped: missing company objectId");
@@ -160,22 +213,23 @@ export function UrlTableDashboardOverlay({
     if (!stored) return null;
     const sessionEntries = session?.entries || [];
     const link = createLinkEntry(stored);
-    const nextEntries = sessionEntries.some((item) => item.id === stored.id)
-      ? sessionEntries.map((item) => (item.id === stored.id ? link : item))
-      : [...sessionEntries, link];
+    const nextEntries = upsertSessionEntry(sessionEntries, link);
     onChange?.({
       tableId: stored.tableId || tableId,
       entries: nextEntries,
       saved: true,
     });
-    setDraft(AFFILIATE_EMPTY_DRAFT);
     return stored;
   };
 
-  /** Row delete: remove from SQL store immediately so it cannot resurrect. */
   const handleDeleteEntry = (entryId) => {
     if (!entryId) return;
-    if (viewEntryId === entryId) setViewEntryId(null);
+    if (viewEntryId === entryId) {
+      setViewEntryId(null);
+      setDetailMode(null);
+    }
+    if (stagingEntry?.id === entryId) setStagingEntry(null);
+    if (editingEntryId === entryId) setEditingEntryId(null);
     markUrlTableEntryDeleted(entryId);
     useUrlTableStore.getState().removeEntry(entryId);
     onChange?.({
@@ -187,10 +241,12 @@ export function UrlTableDashboardOverlay({
     });
   };
 
-  const handleDeleteEntryFromDetail = async (entryId) => {
-    if (!entryId || deleting || detailSaving) return;
+  const handleDeleteEntryWithConfirm = async (entryId) => {
+    if (!entryId || deleting || saving) return;
     const name = String(
-      (session.entries || []).find((entry) => entry.id === entryId)?.name ?? "",
+      (session.entries || []).find((entry) => entry.id === entryId)?.name
+      ?? stagingEntry?.name
+      ?? "",
     ).trim() || t("urlTableAffiliate.untitled");
     const confirmed = await askConfirm({
       title: t("urlTableAffiliate.deleteRow"),
@@ -200,31 +256,92 @@ export function UrlTableDashboardOverlay({
     });
     if (!confirmed) return;
     handleDeleteEntry(entryId);
+    if (panelMode === "edit" && editingEntryId === entryId) {
+      resetAffiliateEditor();
+    }
   };
 
-  const handleViewEntry = (entry) => {
+  const handleDeleteEntryFromDetail = async (entryId) => {
+    if (!entryId || deleting || detailSaving) return;
+    const name = String(viewingEntry?.name ?? "").trim() || t("urlTableAffiliate.untitled");
+    const confirmed = await askConfirm({
+      title: t("urlTableAffiliate.deleteRow"),
+      message: t("urlTableLibrary.deleteConfirm", { title: name }),
+      confirmLabel: t("urlTableAffiliate.deleteRow"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    handleDeleteEntry(entryId);
+    resetAffiliateEditor();
+  };
+
+  const handleViewStats = (entry) => {
     if (!entry?.id) return;
     setViewEntryId(entry.id);
+    setDetailMode("stats");
+    setPanelMode("queue");
+  };
+
+  const handleStartEdit = (entry) => {
+    if (!entry?.id) return;
+    const link = createLinkEntry(entry);
+    setViewEntryId(null);
+    setDetailMode(null);
+    setPanelMode("edit");
+    setEditingEntryId(entry.id);
+    setStagingEntry(link);
+    setDraft(linkEntryToAffiliateDraft(link));
+  };
+
+  const handleStartCreate = () => {
+    setViewEntryId(null);
+    setDetailMode(null);
+    setPanelMode("create");
+    setEditingEntryId(null);
+    setStagingEntry(null);
+    setDraft(AFFILIATE_EMPTY_DRAFT);
+  };
+
+  const handleNextFromEditor = () => {
+    const entry = mergeAffiliateDraftAndStaging(
+      draftRef.current,
+      stagingEntry,
+      editingEntryId,
+    );
+    setStagingEntry(entry);
+    setViewEntryId(entry.id);
+    setDetailMode("calculator");
+  };
+
+  const handleBackFromDetail = () => {
+    if (detailMode === "stats") {
+      setViewEntryId(null);
+      setDetailMode(null);
+      setPanelMode("queue");
+      return;
+    }
+
+    const synced = detailEntryRef.current?.() || stagingEntry;
+    if (synced) {
+      setStagingEntry(synced);
+      setDraft(linkEntryToAffiliateDraft(synced));
+    }
+    setViewEntryId(null);
+    setDetailMode(null);
   };
 
   const handleSaveEntryDetail = async (nextEntry) => {
     if (!nextEntry?.id) return;
-    const link = createLinkEntry(nextEntry);
-    const nextEntries = (session.entries || []).map((item) => (
-      item.id === link.id ? link : item
-    ));
-    onChange?.({ entries: nextEntries, saved: false });
-    if (objectId) {
-      const stored = queueUrlTableEntry(objectId, link, tableId);
-      if (!stored) {
-        throw new Error("Failed to persist affiliate row");
-      }
-      await Promise.all([flushUrlTableSync(), flushUrlTablesSync()]);
+    setSaving(true);
+    try {
+      const link = await persistAffiliateEntry(nextEntry);
+      if (!link) throw new Error("Failed to persist affiliate row");
+      resetAffiliateEditor();
+    } finally {
+      setSaving(false);
     }
-    setViewEntryId(null);
   };
 
-  /** Footer Save: persist full table + close overlay. */
   const handleSave = async () => {
     if (saving || deleting) return;
     if (!objectId) {
@@ -273,19 +390,53 @@ export function UrlTableDashboardOverlay({
   };
 
   const handleAddRow = () => {
+    if (isAffiliateTable) {
+      handleStartCreate();
+      return;
+    }
     setViewEntryId(null);
     setAddFormRequest((value) => value + 1);
   };
 
+  const affiliateLabels = {
+    name: t("urlTableAffiliate.businessName"),
+    namePlaceholder: t("urlTableAffiliate.businessNamePlaceholder"),
+    tag: t("urlTableAffiliate.tag"),
+    category: t("urlTableAffiliate.category"),
+    description: t("urlTableAffiliate.description"),
+    url: t("urlTableAffiliate.url"),
+    urlOptional: t("urlTableAffiliate.urlOptional"),
+    requirements: t("urlTableAffiliate.requirements"),
+    requirementsPlaceholder: t("urlTableAffiliate.requirementsPlaceholder"),
+    status: t("urlTableAffiliate.statusLabel"),
+    next: t("urlTableAffiliate.next"),
+    newTile: t("urlTableAffiliate.newTile"),
+    stats: t("urlTableAffiliate.stats"),
+    edit: t("urlTableAffiliate.edit"),
+    delete: t("urlTableAffiliate.deleteRow"),
+    statusPending: t("urlTableAffiliate.status.pending"),
+    statusActive: t("urlTableAffiliate.status.active"),
+    statusExpired: t("urlTableAffiliate.status.expired"),
+  };
+
   return createPortal(
     <div
-      className="url-table-page-overlay"
+      className={
+        "url-table-page-overlay"
+        + (affiliateImmersive ? " url-table-page-overlay--affiliate-immersive" : "")
+      }
       role="dialog"
       aria-modal="true"
       aria-label={titleLabel}
     >
       <div className="url-table-page-overlay__backdrop" aria-hidden />
-      <div className="url-table-page-overlay__shell">
+      <div
+        className={
+          "url-table-page-overlay__shell"
+          + (affiliateImmersive ? " url-table-page-overlay__shell--affiliate-immersive" : "")
+        }
+      >
+        {showAffiliateShellHeader ? (
         <header className="url-table-page-overlay__header">
           {isAffiliateTable ? (
             <h2 className="url-table-page-overlay__title">{affiliatesTitle}</h2>
@@ -301,7 +452,7 @@ export function UrlTableDashboardOverlay({
               maxLength={TITLE_MAX_CH}
             />
           )}
-          {!viewingEntry ? (
+          {showAffiliateHeaderSearch ? (
             <div className="url-table-page-overlay__search-wrap">
               <span className="url-table-page-overlay__search-icon" aria-hidden />
               <input
@@ -315,7 +466,7 @@ export function UrlTableDashboardOverlay({
             </div>
           ) : null}
           <div className="url-table-page-overlay__header-actions">
-            {!viewingEntry ? (
+            {!viewEntryId && !isAffiliateTable ? (
               <button
                 type="button"
                 className="url-table-page-overlay__add-btn"
@@ -337,19 +488,29 @@ export function UrlTableDashboardOverlay({
             </button>
           </div>
         </header>
+        ) : null}
 
-        <div className="url-table-page-overlay__body scroll-match-bg url-table-dashboard">
+        <div
+          className={
+            "url-table-page-overlay__body scroll-match-bg url-table-dashboard"
+            + (affiliateImmersive ? " url-table-page-overlay__body--affiliate-immersive" : "")
+          }
+        >
           {viewingEntry ? (
             <UrlTableEntryDetailView
               entry={viewingEntry}
+              mode={detailMode === "stats" ? "stats" : "calculator"}
               onSave={handleSaveEntryDetail}
-              onBack={() => setViewEntryId(null)}
+              onBack={handleBackFromDetail}
+              onClose={affiliateImmersive ? handleImmersiveClose : null}
+              immersive={affiliateImmersive}
               flushSaveRef={detailSaveRef}
+              entrySnapshotRef={detailEntryRef}
               onSavingChange={setDetailSaving}
             />
           ) : isAffiliateTable ? (
             <>
-              {categoryOptions.length ? (
+              {panelMode === "queue" && categoryOptions.length ? (
                 <div className="affiliate-category-chips" role="tablist" aria-label={t("urlTableAffiliate.category")}>
                   <button
                     type="button"
@@ -377,33 +538,19 @@ export function UrlTableDashboardOverlay({
                 </div>
               ) : null}
               <AffiliateEntryList
+                panelMode={panelMode}
                 entries={visibleAffiliateEntries}
                 draft={draft}
                 onDraftChange={setDraft}
-                onSaveEntry={objectId ? handleSaveEntry : null}
-                onDeleteEntry={objectId ? handleDeleteEntry : null}
-                onViewEntry={handleViewEntry}
-                addFormRequest={addFormRequest}
+                onStartCreate={handleStartCreate}
+                onStartEdit={handleStartEdit}
+                onViewStats={handleViewStats}
+                onDeleteEntry={objectId ? handleDeleteEntryWithConfirm : null}
+                onNext={handleNextFromEditor}
+                onClose={handleImmersiveClose}
                 objectId={objectId}
                 tableId={tableId}
-                labels={{
-                  name: t("urlTableAffiliate.businessName"),
-                  namePlaceholder: t("urlTableAffiliate.businessNamePlaceholder"),
-                  tag: t("urlTableAffiliate.tag"),
-                  category: t("urlTableAffiliate.category"),
-                  description: t("urlTableAffiliate.description"),
-                  url: t("urlTableAffiliate.url"),
-                  urlOptional: t("urlTableAffiliate.urlOptional"),
-                  requirements: t("urlTableAffiliate.requirements"),
-                  requirementsPlaceholder: t("urlTableAffiliate.requirementsPlaceholder"),
-                  status: t("urlTableAffiliate.statusLabel"),
-                  save: t("common.save"),
-                  view: t("urlTableAffiliate.view"),
-                  delete: t("urlTableAffiliate.deleteRow"),
-                  statusPending: t("urlTableAffiliate.status.pending"),
-                  statusActive: t("urlTableAffiliate.status.active"),
-                  statusExpired: t("urlTableAffiliate.status.expired"),
-                }}
+                labels={affiliateLabels}
               />
             </>
           ) : (
@@ -438,21 +585,22 @@ export function UrlTableDashboardOverlay({
           )}
         </div>
 
+        {(showAffiliateShellFooter || !isAffiliateTable) ? (
         <footer className="url-table-page-overlay__footer">
-          {viewingEntry ? (
+          {viewingEntry && detailMode === "calculator" ? (
             <>
               <button
                 type="button"
                 className={
                   "doc-new-action doc-new-action--save url-table-dashboard__save"
-                  + (detailSaving ? " doc-new-action--save-loading" : "")
+                  + (detailSaving || saving ? " doc-new-action--save-loading" : "")
                 }
                 onClick={() => detailSaveRef.current?.()}
                 disabled={saving || deleting || detailSaving}
-                aria-busy={detailSaving}
+                aria-busy={detailSaving || saving}
               >
-                {detailSaving ? <SearchSpinner size={14} /> : null}
-                {detailSaving ? t("urlTableAffiliate.saving") : t("common.save")}
+                {(detailSaving || saving) ? <SearchSpinner size={14} /> : null}
+                {(detailSaving || saving) ? t("urlTableAffiliate.saving") : t("common.save")}
               </button>
               <button
                 type="button"
@@ -491,9 +639,10 @@ export function UrlTableDashboardOverlay({
             </>
           )}
         </footer>
+        ) : null}
       </div>
       <MarkLoadingOverlay
-        open={saving || detailSaving}
+        open={!isAffiliateTable && (saving || detailSaving)}
         label={t("urlTableAffiliate.saving")}
       />
     </div>,
