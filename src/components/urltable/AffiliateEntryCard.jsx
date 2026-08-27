@@ -249,11 +249,11 @@ export function AffiliateEntryCard({
 
       <div className="affiliate-entry-card__fields">
         <label>
-          <span>{labels.tag || t("urlTableAffiliate.tag")}</span>
+          <span>{labels.tag || t("urlTableAffiliate.affiliateLink")}</span>
           <input
             type="text"
             value={draft.tag}
-            placeholder={labels.tag || t("urlTableAffiliate.tag")}
+            placeholder={labels.tagPlaceholder || t("urlTableAffiliate.affiliateLinkPlaceholder")}
             onChange={(e) => patch("tag", e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
           />

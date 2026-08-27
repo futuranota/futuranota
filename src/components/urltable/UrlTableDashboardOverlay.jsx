@@ -397,7 +397,8 @@ export function UrlTableDashboardOverlay({
   const affiliateLabels = {
     name: t("urlTableAffiliate.businessName"),
     namePlaceholder: t("urlTableAffiliate.businessNamePlaceholder"),
-    tag: t("urlTableAffiliate.tag"),
+    tag: t("urlTableAffiliate.affiliateLink"),
+    tagPlaceholder: t("urlTableAffiliate.affiliateLinkPlaceholder"),
     category: t("urlTableAffiliate.category"),
     description: t("urlTableAffiliate.description"),
     url: t("urlTableAffiliate.url"),

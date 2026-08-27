@@ -55,7 +55,6 @@ import {
   replaceLibraryAssignPathToken,
 } from "../../../lib/libraryAssignPath.js";
 import { filterTagCandidates } from "../../../lib/urlTableTags.js";
-import { openUrlTableForMention } from "../../../lib/docMentionActions.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import {
   copyTextareaTypography,
@@ -1024,8 +1023,7 @@ export function SlashAwareTextarea({
         }
       }
 
-      // Chip click = link: open the entry's URL table with the tag prefilled
-      // in the search filter. Beats caret placement even while focused.
+      // Chip click = open the entry's affiliate / link URL in a new tab.
       if (hasMentions) {
         const span = findChipSpanAtPoint(event.clientX, event.clientY, "data-mention-id");
         const mentionId = span?.getAttribute("data-mention-id");
@@ -1036,7 +1034,10 @@ export function SlashAwareTextarea({
           event.preventDefault();
           event.stopPropagation();
           setHoverCard(null);
-          openUrlTableForMention(mention);
+          const href = String(mention.url ?? "").trim();
+          if (href) {
+            window.open(href, "_blank", "noopener,noreferrer");
+          }
           return;
         }
       }

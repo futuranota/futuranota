@@ -9046,6 +9046,7 @@ body.doc-content-resizing * {
   color: #BD747D;
   background: rgba(189, 116, 125, 0.16);
   border-radius: 4px;
+  text-decoration: underline;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

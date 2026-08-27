@@ -104,6 +104,34 @@ describe("docMentions", () => {
     expect(result.caret).toBe(10);
   });
 
+  it("inserts multi-word affiliate link tag as chip text", () => {
+    const result = insertMentionAtQuery(
+      "see @hu",
+      [],
+      { start: 4, end: 7, query: "hu" },
+      {
+        entryId: "E-hub",
+        tag: "hubspot affiliate link",
+        name: "Hubspot",
+        description: "CRM partner",
+        url: "https://hubspot.example/aff",
+      },
+    );
+    expect(result.text).toBe("see hubspot affiliate link ");
+    expect(result.mentions).toHaveLength(1);
+    expect(result.mentions[0]).toMatchObject({
+      sourceEntryId: "E-hub",
+      tag: "hubspot affiliate link",
+      name: "Hubspot",
+      description: "CRM partner",
+      url: "https://hubspot.example/aff",
+      start: 4,
+      end: 26,
+    });
+    expect(result.caret).toBe(27);
+    expect(getMentionQueryAtCaret(result.text, result.caret, result.mentions)).toBeNull();
+  });
+
   it("adds a trailing space when inserting before non-space text", () => {
     const result = insertMentionAtQuery(
       "@blmore",

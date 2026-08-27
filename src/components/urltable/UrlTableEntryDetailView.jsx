@@ -94,6 +94,7 @@ export function UrlTableEntryDetailView({
   const imageSrc = String(draft.imageUrl ?? "").trim();
   const descriptionText = String(draft.description ?? "").trim();
   const requirementsText = String(draft.requirements ?? "").trim();
+  const businessName = String(draft.name ?? "").trim();
   const tagText = String(draft.tag ?? "").trim();
   const categoryText = String(draft.category ?? "").trim();
   const urlText = String(draft.url ?? "").trim();
@@ -273,6 +274,9 @@ export function UrlTableEntryDetailView({
 
       {isStatsOnly ? (
         <>
+          <div className="url-table-entry-detail__business-name">
+            {businessName || t("urlTableAffiliate.untitled")}
+          </div>
           <div className="url-table-entry-detail__hero">
             <div className="url-table-entry-detail__hero-media">
               {imageSrc ? (
@@ -300,15 +304,6 @@ export function UrlTableEntryDetailView({
             >
               {t(`urlTableAffiliate.status.${statusKey}`)}
             </span>
-            {tagText ? (
-              <span
-                className="url-table-entry-detail__meta-chip url-table-entry-detail__meta-chip--tag"
-                title={t("urlTableAffiliate.tag")}
-              >
-                <span className="url-table-entry-detail__meta-chip-at" aria-hidden>@</span>
-                <span>{tagText}</span>
-              </span>
-            ) : null}
             {categoryText ? (
               <span
                 className="url-table-entry-detail__meta-chip url-table-entry-detail__meta-chip--category"
@@ -317,18 +312,23 @@ export function UrlTableEntryDetailView({
                 {categoryText}
               </span>
             ) : null}
+            {urlText ? (
+              <a
+                className="url-table-entry-detail__stats-url url-table-entry-detail__stats-url--wrap"
+                href={urlText}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img src="/uploads/url-table.svg" alt="" draggable={false} />
+                <span>{tagText || urlText}</span>
+              </a>
+            ) : tagText ? (
+              <span className="url-table-entry-detail__stats-url url-table-entry-detail__stats-url--wrap">
+                <img src="/uploads/url-table.svg" alt="" draggable={false} />
+                <span>{tagText}</span>
+              </span>
+            ) : null}
           </div>
-          {urlText ? (
-            <a
-              className="url-table-entry-detail__stats-url"
-              href={urlText}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <img src="/uploads/url-table.svg" alt="" draggable={false} />
-              <span>{urlText}</span>
-            </a>
-          ) : null}
         </>
       ) : null}
 

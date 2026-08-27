@@ -1396,6 +1396,8 @@ export const messages = {
       searchPlaceholder: "Search business name…",
       deleteRow: "Delete",
       tag: "Tag",
+      affiliateLink: "Link title",
+      affiliateLinkPlaceholder: "e.g. \"Summer Promo Link\"",
       category: "Category",
       commissionRate: "Commission %",
       commission: "Commission",
@@ -2986,6 +2988,8 @@ export const messages = {
     urlTableAffiliate: {
       cookieWindowInfo: "Los días restantes de la ventana de seguimiento de cookies. Esta cuenta regresiva se actualiza diariamente a partir de la fecha exacta en que se guardó.",
       tag: "Tag",
+      affiliateLink: "Link title",
+      affiliateLinkPlaceholder: "e.g. \"Summer Promo Link\"",
       category: "Categoría",
       statusLabel: "Status",
     },
