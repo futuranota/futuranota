@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   affiliateCookieExpiresAt,
+  filterAffiliateEntries,
   formatAffiliateCookieExpiresLabel,
   formatAffiliateMoney,
   fromAffiliateDateInputValue,
@@ -71,5 +72,28 @@ describe("affiliateCookieExpiresAt", () => {
     expect(expires?.getMonth()).toBe(8); // September
     expect(expires?.getDate()).toBe(5);
     expect(formatAffiliateCookieExpiresLabel(iso, 10)).toBe("05/09/2026");
+  });
+});
+
+describe("filterAffiliateEntries", () => {
+  const entries = [
+    { name: "Amazon Associates", tag: "shop" },
+    { name: "ShareASale", category: "network" },
+    { name: "", description: "Hidden brand" },
+  ];
+
+  it("returns all rows when query is empty", () => {
+    expect(filterAffiliateEntries(entries, "").length).toBe(3);
+    expect(filterAffiliateEntries(entries, "   ").length).toBe(3);
+  });
+
+  it("filters by business name only", () => {
+    expect(filterAffiliateEntries(entries, "amazon").map((e) => e.name)).toEqual(["Amazon Associates"]);
+    expect(filterAffiliateEntries(entries, "share").map((e) => e.name)).toEqual(["ShareASale"]);
+  });
+
+  it("does not match tag or description when name differs", () => {
+    expect(filterAffiliateEntries(entries, "shop")).toEqual([]);
+    expect(filterAffiliateEntries(entries, "Hidden")).toEqual([]);
   });
 });

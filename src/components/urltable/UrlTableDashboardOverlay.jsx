@@ -14,14 +14,13 @@ import {
 } from "../../lib/affiliateEntryDraft.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import {
-  filterUrlTableEntries,
   filterUrlTableEntriesByCategory,
   removeUrlTableFromDoc,
   uniqueUrlTableCategories,
 } from "../../lib/urlTableLibrary.js";
 import { flushUrlTableSync, markUrlTableEntryDeleted } from "../../lib/urlTableSync.js";
 import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
-import { withResolvedAffiliateLifecycle } from "../../lib/urlTableAffiliate.js";
+import { withResolvedAffiliateLifecycle, filterAffiliateEntries } from "../../lib/urlTableAffiliate.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -157,7 +156,7 @@ export function UrlTableDashboardOverlay({
   const visibleAffiliateEntries = (() => {
     if (!isAffiliateTable) return session.entries || [];
     const byCategory = filterUrlTableEntriesByCategory(session.entries || [], categoryFilter);
-    return filterUrlTableEntries(byCategory, query);
+    return filterAffiliateEntries(byCategory, query);
   })();
 
   const viewingEntry = viewEntryId
@@ -457,8 +456,8 @@ export function UrlTableDashboardOverlay({
                 className="url-table-page-overlay__search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("urlTableLibrary.searchPlaceholder")}
-                aria-label={t("urlTableLibrary.searchPlaceholder")}
+                placeholder={t("urlTableAffiliate.searchPlaceholder")}
+                aria-label={t("urlTableAffiliate.searchPlaceholder")}
               />
             </div>
           ) : null}

@@ -329,6 +329,19 @@ export function formatAffiliateCookieExpiresLabel(activatedAt, cookieDays) {
 }
 
 /**
+ * Filter affiliate queue rows by business name (entry.name — same field shown on cards).
+ * @param {import("./vaultBlocks.js").LinkEntry[]} entries
+ * @param {string} query
+ */
+export function filterAffiliateEntries(entries, query) {
+  const normalized = String(query ?? "").trim().toLowerCase();
+  if (!normalized) return entries || [];
+  return (entries || []).filter((entry) => (
+    String(entry.name ?? "").trim().toLowerCase().includes(normalized)
+  ));
+}
+
+/**
  * True when the row has any affiliate tracking data filled in.
  * @param {Record<string, unknown>|null|undefined} entry
  */

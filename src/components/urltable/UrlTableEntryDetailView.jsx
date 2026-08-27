@@ -94,6 +94,9 @@ export function UrlTableEntryDetailView({
   const imageSrc = String(draft.imageUrl ?? "").trim();
   const descriptionText = String(draft.description ?? "").trim();
   const requirementsText = String(draft.requirements ?? "").trim();
+  const tagText = String(draft.tag ?? "").trim();
+  const categoryText = String(draft.category ?? "").trim();
+  const urlText = String(draft.url ?? "").trim();
   const expiresLabel = formatAffiliateCookieExpiresLabel(
     draft.activatedAt || fromAffiliateDateInputValue(todayInput),
     draft.cookieDays,
@@ -290,11 +293,42 @@ export function UrlTableEntryDetailView({
               <p className="url-table-entry-detail__requirements-body">{requirementsText}</p>
             </div>
           ) : null}
-          <div className="url-table-entry-detail__stats-status">
-            <span className={`url-table-entry-detail__status-badge url-table-entry-detail__status-badge--${statusKey}`}>
+          <div className="url-table-entry-detail__stats-meta">
+            <span
+              className={`url-table-entry-detail__status-badge url-table-entry-detail__status-badge--${statusKey}`}
+              title={t("urlTableAffiliate.statusLabel")}
+            >
               {t(`urlTableAffiliate.status.${statusKey}`)}
             </span>
+            {tagText ? (
+              <span
+                className="url-table-entry-detail__meta-chip url-table-entry-detail__meta-chip--tag"
+                title={t("urlTableAffiliate.tag")}
+              >
+                <span className="url-table-entry-detail__meta-chip-at" aria-hidden>@</span>
+                <span>{tagText}</span>
+              </span>
+            ) : null}
+            {categoryText ? (
+              <span
+                className="url-table-entry-detail__meta-chip url-table-entry-detail__meta-chip--category"
+                title={t("urlTableAffiliate.category")}
+              >
+                {categoryText}
+              </span>
+            ) : null}
           </div>
+          {urlText ? (
+            <a
+              className="url-table-entry-detail__stats-url"
+              href={urlText}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img src="/uploads/url-table.svg" alt="" draggable={false} />
+              <span>{urlText}</span>
+            </a>
+          ) : null}
         </>
       ) : null}
 
