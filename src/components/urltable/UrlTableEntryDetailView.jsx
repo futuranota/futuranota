@@ -6,6 +6,7 @@ import {
   computeAffiliateEarnings,
   computeAffiliatePerSale,
   createAffiliateFields,
+  formatAffiliateCookieExpiresLabel,
   formatAffiliateMoney,
   fromAffiliateDateInputValue,
   normalizeAffiliateCurrency,
@@ -26,7 +27,7 @@ function openDatePicker(e) {
     try {
       input.showPicker();
     } catch {
-      /* some browsers reject showPicker outside direct user gesture */
+      /* ignore */
     }
   }
 }
@@ -46,6 +47,7 @@ export function UrlTableEntryDetailView({
   entry,
   mode = "calculator",
   onSave,
+  onPersist = null,
   onBack,
   onClose = null,
   immersive = false,
@@ -54,12 +56,18 @@ export function UrlTableEntryDetailView({
   const { t } = useI18n();
   const [draft, setDraft] = useState(() => seedDraft(entry));
   const [saving, setSaving] = useState(false);
+  const [cookieSaving, setCookieSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [cookieCommitted, setCookieCommitted] = useState(
+    () => seedDraft(entry).cookieDays != null,
+  );
   const isStatsOnly = mode === "stats";
 
   useEffect(() => {
-    setDraft(seedDraft(entry));
+    const next = seedDraft(entry);
+    setDraft(next);
     setSaveError("");
+    setCookieCommitted(next.cookieDays != null);
   }, [entry?.id]);
 
   const lifecycle = useMemo(
@@ -82,6 +90,14 @@ export function UrlTableEntryDetailView({
   const todayInput = todayDateInputValue();
   const cookieStartDate = toAffiliateDateInputValue(draft.activatedAt) || todayInput;
   const showCookieInfo = hasCookieWindowData(draft);
+  const statusKey = lifecycle.affiliateStatus || draft.affiliateStatus || "pending";
+  const imageSrc = String(draft.imageUrl ?? "").trim();
+  const descriptionText = String(draft.description ?? "").trim();
+  const requirementsText = String(draft.requirements ?? "").trim();
+  const expiresLabel = formatAffiliateCookieExpiresLabel(
+    draft.activatedAt || fromAffiliateDateInputValue(todayInput),
+    draft.cookieDays,
+  );
 
   const ensureTodayActivatedAt = (prev) => {
     if (prev.activatedAt && toAffiliateDateInputValue(prev.activatedAt) === todayInput) {
@@ -172,6 +188,45 @@ export function UrlTableEntryDetailView({
     }
   };
 
+  const handleCookieCardSave = async () => {
+    if (cookieSaving || saving || isStatsOnly) return;
+    if (draft.cookieDays == null) return;
+    setCookieSaving(true);
+    setSaveError("");
+    try {
+      const activatedAt = ensureTodayActivatedAt(draft);
+      const withCookie = { ...draft, activatedAt, cookieDays: draft.cookieDays };
+      const affiliate = createAffiliateFields(withCookie);
+      const status = affiliate.affiliateStatus || "pending";
+      const withStatus = applyAffiliateStatusChange(
+        { ...withCookie, ...affiliate, affiliateStatus: status, activatedAt },
+        status,
+      );
+      const next = createLinkEntry({
+        ...withCookie,
+        ...affiliate,
+        ...withStatus,
+        activatedAt,
+        cookieDays: draft.cookieDays,
+        currency: displayCurrency,
+        url: normalizeUrlInput(draft.url),
+        category: String(draft.category ?? "").trim() || AFFILIATE_CATEGORY,
+      });
+      if (onPersist) {
+        await Promise.resolve(onPersist(next));
+      } else {
+        await Promise.resolve(onSave?.(next));
+      }
+      setDraft(seedDraft(next));
+      setCookieCommitted(true);
+    } catch (err) {
+      console.warn("[url-table] cookie card save failed", err);
+      setSaveError(t("urlTableAffiliate.saveFailed"));
+    } finally {
+      setCookieSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (!entrySnapshotRef) return undefined;
     entrySnapshotRef.current = () => buildPersistedEntry();
@@ -193,7 +248,7 @@ export function UrlTableEntryDetailView({
           type="button"
           className="url-table-entry-detail__back"
           onClick={onBack}
-          disabled={saving}
+          disabled={saving || cookieSaving}
           aria-label={t("urlTableAffiliate.back")}
           title={t("urlTableAffiliate.back")}
         >
@@ -204,7 +259,7 @@ export function UrlTableEntryDetailView({
             type="button"
             className="url-table-entry-detail__close"
             onClick={onClose}
-            disabled={saving}
+            disabled={saving || cookieSaving}
             aria-label={t("urlTableLibrary.closeTab")}
             title={t("urlTableLibrary.closeTab")}
           >
@@ -212,6 +267,36 @@ export function UrlTableEntryDetailView({
           </button>
         ) : null}
       </div>
+
+      {isStatsOnly ? (
+        <>
+          <div className="url-table-entry-detail__hero">
+            <div className="url-table-entry-detail__hero-media">
+              {imageSrc ? (
+                <img src={imageSrc} alt="" draggable={false} />
+              ) : (
+                <span className="url-table-entry-detail__hero-placeholder" aria-hidden />
+              )}
+            </div>
+            <div className="url-table-entry-detail__hero-description">
+              {descriptionText || "—"}
+            </div>
+          </div>
+          {requirementsText ? (
+            <div className="url-table-entry-detail__requirements">
+              <span className="url-table-entry-detail__requirements-label">
+                {t("urlTableAffiliate.requirements")}
+              </span>
+              <p className="url-table-entry-detail__requirements-body">{requirementsText}</p>
+            </div>
+          ) : null}
+          <div className="url-table-entry-detail__stats-status">
+            <span className={`url-table-entry-detail__status-badge url-table-entry-detail__status-badge--${statusKey}`}>
+              {t(`urlTableAffiliate.status.${statusKey}`)}
+            </span>
+          </div>
+        </>
+      ) : null}
 
       <div className="url-table-entry-detail__stats">
         <div className="url-table-entry-detail__stat">
@@ -252,6 +337,37 @@ export function UrlTableEntryDetailView({
           </div>
         </div>
       </div>
+
+      {isStatsOnly ? (
+        <div className="url-table-entry-detail__stats-inputs">
+          <div className="url-table-entry-detail__stats-input">
+            <span className="url-table-entry-detail__stats-input-label">
+              {t("urlTableAffiliate.productPrice")}
+            </span>
+            <strong className="url-table-entry-detail__stats-input-value">
+              {draft.productPrice != null
+                ? formatAffiliateMoney(draft.productPrice, moneyOpts)
+                : "—"}
+            </strong>
+          </div>
+          <div className="url-table-entry-detail__stats-input">
+            <span className="url-table-entry-detail__stats-input-label">
+              {t("urlTableAffiliate.commission")}
+            </span>
+            <strong className="url-table-entry-detail__stats-input-value">
+              {draft.commissionRate != null ? `${draft.commissionRate}%` : "—"}
+            </strong>
+          </div>
+          <div className="url-table-entry-detail__stats-input">
+            <span className="url-table-entry-detail__stats-input-label">
+              {t("urlTableAffiliate.clientsWon")}
+            </span>
+            <strong className="url-table-entry-detail__stats-input-value">
+              {draft.clientsWon ?? 0}
+            </strong>
+          </div>
+        </div>
+      ) : null}
 
       {isStatsOnly ? null : (
         <>
@@ -314,42 +430,80 @@ export function UrlTableEntryDetailView({
                   />
                 ) : null}
               </span>
-              <input
-                type="date"
-                className="doc-new-date url-table-entry-detail__date"
-                value={cookieStartDate}
-                min={todayInput}
-                max={todayInput}
-                onChange={() => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    activatedAt: fromAffiliateDateInputValue(todayInput),
-                  }));
-                }}
-                onClick={(e) => {
-                  openDatePicker(e);
-                  setDraft((prev) => ({
-                    ...prev,
-                    activatedAt: ensureTodayActivatedAt(prev),
-                  }));
-                }}
-                onFocus={(e) => {
-                  openDatePicker(e);
-                  setDraft((prev) => ({
-                    ...prev,
-                    activatedAt: ensureTodayActivatedAt(prev),
-                  }));
-                }}
-              />
-              <input
-                type="number"
-                min="0"
-                step="1"
-                className="url-table-entry-detail__cookie-days"
-                value={draft.cookieDays ?? ""}
-                placeholder={t("urlTableAffiliate.cookieDaysDurationPlaceholder")}
-                onChange={(e) => patchNumber("cookieDays", e.target.value)}
-              />
+
+              {cookieCommitted ? (
+                <div className="url-table-entry-detail__cookie-summary">
+                  <strong className="url-table-entry-detail__cookie-summary-days">
+                    {t("urlTableAffiliate.cookieDaysSummary", {
+                      days: draft.cookieDays ?? "—",
+                    })}
+                  </strong>
+                  {expiresLabel ? (
+                    <span className="url-table-entry-detail__cookie-summary-expires">
+                      {t("urlTableAffiliate.cookieExpiresOn", { date: expiresLabel })}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="url-table-entry-detail__cookie-edit"
+                    onClick={() => setCookieCommitted(false)}
+                  >
+                    {t("urlTableAffiliate.cookieCardEdit")}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="date"
+                    className="doc-new-date url-table-entry-detail__date"
+                    value={cookieStartDate}
+                    min={todayInput}
+                    max={todayInput}
+                    onChange={() => {
+                      setDraft((prev) => ({
+                        ...prev,
+                        activatedAt: fromAffiliateDateInputValue(todayInput),
+                      }));
+                    }}
+                    onClick={(e) => {
+                      openDatePicker(e);
+                      setDraft((prev) => ({
+                        ...prev,
+                        activatedAt: ensureTodayActivatedAt(prev),
+                      }));
+                    }}
+                    onFocus={(e) => {
+                      openDatePicker(e);
+                      setDraft((prev) => ({
+                        ...prev,
+                        activatedAt: ensureTodayActivatedAt(prev),
+                      }));
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="url-table-entry-detail__cookie-days"
+                    value={draft.cookieDays ?? ""}
+                    placeholder={t("urlTableAffiliate.cookieDaysDurationPlaceholder")}
+                    onChange={(e) => patchNumber("cookieDays", e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className={
+                      "doc-new-action doc-new-action--save url-table-entry-detail__cookie-save"
+                      + (cookieSaving ? " doc-new-action--save-loading" : "")
+                    }
+                    onClick={() => void handleCookieCardSave()}
+                    disabled={cookieSaving || draft.cookieDays == null}
+                    aria-busy={cookieSaving}
+                  >
+                    {cookieSaving ? <SearchSpinner size={14} /> : null}
+                    {cookieSaving ? t("urlTableAffiliate.saving") : t("common.save")}
+                  </button>
+                </>
+              )}
             </div>
 
             <label className="url-table-entry-detail__field">
@@ -377,7 +531,7 @@ export function UrlTableEntryDetailView({
                 + (saving ? " doc-new-action--save-loading" : "")
               }
               onClick={() => void handleSave()}
-              disabled={saving}
+              disabled={saving || cookieSaving}
               aria-busy={saving}
             >
               {saving ? <SearchSpinner size={14} /> : null}

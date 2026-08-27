@@ -298,6 +298,37 @@ export function formatAffiliateMoney(value, options = {}) {
 }
 
 /**
+ * Calendar expiry date = start of activatedAt day + cookieDays.
+ * @param {string|null|undefined} activatedAt
+ * @param {number|null|undefined} cookieDays
+ * @returns {Date|null}
+ */
+export function affiliateCookieExpiresAt(activatedAt, cookieDays) {
+  const days = toNonNegNumber(cookieDays);
+  if (days == null || !activatedAt) return null;
+  const startInput = toAffiliateDateInputValue(activatedAt);
+  if (!startInput) return null;
+  const start = new Date(`${startInput}T00:00:00`);
+  if (!Number.isFinite(start.getTime())) return null;
+  start.setDate(start.getDate() + Math.floor(days));
+  return start;
+}
+
+/**
+ * @param {string|null|undefined} activatedAt
+ * @param {number|null|undefined} cookieDays
+ * @returns {string}
+ */
+export function formatAffiliateCookieExpiresLabel(activatedAt, cookieDays) {
+  const expires = affiliateCookieExpiresAt(activatedAt, cookieDays);
+  if (!expires) return "";
+  const d = String(expires.getDate()).padStart(2, "0");
+  const m = String(expires.getMonth() + 1).padStart(2, "0");
+  const y = expires.getFullYear();
+  return `${d}/${m}/${y}`;
+}
+
+/**
  * True when the row has any affiliate tracking data filled in.
  * @param {Record<string, unknown>|null|undefined} entry
  */

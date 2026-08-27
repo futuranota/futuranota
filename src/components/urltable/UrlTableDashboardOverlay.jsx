@@ -326,6 +326,19 @@ export function UrlTableDashboardOverlay({
     }
   };
 
+  const handlePersistEntryKeepOpen = async (nextEntry) => {
+    if (!nextEntry?.id) return null;
+    const entry = mergeAffiliateDraftAndStaging(
+      draftRef.current,
+      nextEntry,
+      nextEntry.id,
+    );
+    const link = await persistAffiliateEntry(entry);
+    if (!link) throw new Error("Failed to persist affiliate row");
+    setStagingEntry(link);
+    return link;
+  };
+
   const handleSave = async () => {
     if (saving || deleting) return;
     if (!objectId) {
@@ -485,6 +498,7 @@ export function UrlTableDashboardOverlay({
               entry={viewingEntry}
               mode={detailMode === "stats" ? "stats" : "calculator"}
               onSave={handleSaveEntryDetail}
+              onPersist={handlePersistEntryKeepOpen}
               onBack={handleBackFromDetail}
               onClose={affiliateImmersive ? handleImmersiveClose : null}
               immersive={affiliateImmersive}

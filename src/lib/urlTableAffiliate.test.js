@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  affiliateCookieExpiresAt,
+  formatAffiliateCookieExpiresLabel,
   formatAffiliateMoney,
   fromAffiliateDateInputValue,
   normalizeAffiliateCurrency,
@@ -58,5 +60,16 @@ describe("resolveAffiliateLifecycle pending", () => {
     expect(resolved.affiliateStatus).toBe("pending");
     expect(resolved.daysRemaining).toBe(30);
     expect(resolved.activatedAt).toBe(iso);
+  });
+});
+
+describe("affiliateCookieExpiresAt", () => {
+  it("adds cookie days to start date", () => {
+    const iso = fromAffiliateDateInputValue("2026-08-26");
+    const expires = affiliateCookieExpiresAt(iso, 10);
+    expect(expires?.getFullYear()).toBe(2026);
+    expect(expires?.getMonth()).toBe(8); // September
+    expect(expires?.getDate()).toBe(5);
+    expect(formatAffiliateCookieExpiresLabel(iso, 10)).toBe("05/09/2026");
   });
 });
