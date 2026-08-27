@@ -16,6 +16,7 @@ export const FORECAST_HORIZON_DAYS = Math.min(FORECAST_MOCK_HORIZON_DAYS, 6);
 
 export const FORECAST_MESSAGES = {
   noNode: "Select a node to fetch forecast",
+  noDay: "Open a forecast day above to choose the date",
   past: "Forecast no longer available",
   future: "data not available yet",
   locationNotFound: "Location not found. Try City,Country (e.g. Houston,US) or use geolocation.",
@@ -196,13 +197,14 @@ export function formatForecastWindowLabel(dayIds) {
 }
 
 /**
- * Gate for the node forecast search button.
+ * Gate for the forecast search button (panel day first, node date fallback).
  * @param {{
  *   hasLocation: boolean,
  *   panelStatus: string,
  *   panelLocationKey: string,
  *   locationKey: string,
  *   dayIds: string[],
+ *   selectedDayId?: string,
  *   node: object|null,
  * }} params
  */
@@ -212,8 +214,11 @@ export function getForecastSearchGate({
   panelLocationKey,
   locationKey,
   dayIds,
+  selectedDayId = "",
   node,
 }) {
+  const windowLabel = formatForecastWindowLabel(dayIds);
+
   if (!hasLocation) {
     return { enabled: false, reason: "location" };
   }
@@ -224,11 +229,33 @@ export function getForecastSearchGate({
     return { enabled: false, reason: "panel" };
   }
 
+  const panelDay = String(selectedDayId || "").trim();
+  if (panelDay && dayIds.includes(panelDay)) {
+    const date = startOfCalendarDay(parseDate(`${panelDay}T12:00:00`));
+    const availability = getForecastAvailability(date, new Date(), dayIds.length - 1);
+    if (availability === "past") {
+      return {
+        enabled: false,
+        reason: "past",
+        dateIso: panelDay,
+        windowLabel,
+        fromPanel: true,
+      };
+    }
+    return {
+      enabled: true,
+      reason: "panelDay",
+      dateIso: panelDay,
+      windowLabel,
+      fromPanel: true,
+    };
+  }
+
   if (!node) {
     return {
       enabled: false,
-      reason: "noNode",
-      windowLabel: formatForecastWindowLabel(dayIds),
+      reason: "noDay",
+      windowLabel,
     };
   }
 
@@ -237,8 +264,8 @@ export function getForecastSearchGate({
   if (!dateIso) {
     return {
       enabled: false,
-      reason: "noNode",
-      windowLabel: formatForecastWindowLabel(dayIds),
+      reason: "noDay",
+      windowLabel,
     };
   }
 
@@ -247,7 +274,8 @@ export function getForecastSearchGate({
       enabled: true,
       reason: "ready",
       dateIso,
-      windowLabel: formatForecastWindowLabel(dayIds),
+      windowLabel,
+      fromPanel: false,
     };
   }
 
@@ -257,7 +285,8 @@ export function getForecastSearchGate({
       enabled: false,
       reason: "past",
       dateIso,
-      windowLabel: formatForecastWindowLabel(dayIds),
+      windowLabel,
+      fromPanel: false,
     };
   }
 
@@ -265,38 +294,36 @@ export function getForecastSearchGate({
     enabled: false,
     reason: "outOfRange",
     dateIso,
-    windowLabel: formatForecastWindowLabel(dayIds),
+    windowLabel,
+    fromPanel: false,
   };
 }
 
 /**
+ * @param {Date} date
+ * @param {"schedule"|"date"|"created"|"panel"} resolvedFrom
+ * @param {string|null} scheduleIso
  * @param {object|null} node
- * @param {Date} [baseToday]
+ * @param {Date} baseToday
  * @param {import('./weatherLocation.js').WeatherLocation} [weatherLocation]
  */
-export async function fetchForecastForNode(node, baseToday = new Date(), weatherLocation) {
-  if (!node) {
-    return {
-      status: "error",
-      message: FORECAST_MESSAGES.noNode,
-    };
-  }
-
-  const { date, resolvedFrom, scheduleIso } = resolveForecastTargetDate(node);
-  if (!date) {
-    return {
-      status: "error",
-      message: FORECAST_MESSAGES.noNode,
-    };
-  }
-
+async function fetchForecastForDateInternal(
+  date,
+  resolvedFrom,
+  scheduleIso,
+  node,
+  baseToday,
+  weatherLocation,
+) {
   const availability = getForecastAvailability(date, baseToday);
   const uiDate = formatForecastUiDate(date);
-  const sourceLabel = resolvedFrom === "schedule"
-    ? (formatScheduleLabelFromIso(scheduleIso) || `schedule: ${uiDate}`)
-    : resolvedFrom === "date"
-      ? `date: ${uiDate}`
-      : `created: ${uiDate}`;
+  const sourceLabel = resolvedFrom === "panel"
+    ? `forecast: ${uiDate}`
+    : resolvedFrom === "schedule"
+      ? (formatScheduleLabelFromIso(scheduleIso) || `schedule: ${uiDate}`)
+      : resolvedFrom === "date"
+        ? `date: ${uiDate}`
+        : `created: ${uiDate}`;
 
   if (availability === "past") {
     return {
@@ -326,7 +353,7 @@ export async function fetchForecastForNode(node, baseToday = new Date(), weather
 
   await new Promise((r) => setTimeout(r, 200));
 
-  const dateIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const dateIso = toForecastDateIso(date);
   const { data: { session } } = await supabase.auth.getSession();
   const headers = session?.access_token
     ? { Authorization: `Bearer ${session.access_token}` }
@@ -409,6 +436,62 @@ export async function fetchForecastForNode(node, baseToday = new Date(), weather
     day: result.day,
     disclaimer: "Weather estimates only — not exact conditions.",
   };
+}
+
+/**
+ * Fetch forecast for a panel-selected day (YYYY-MM-DD).
+ * @param {string} dateIso
+ * @param {{ node?: object|null, baseToday?: Date, weatherLocation?: import('./weatherLocation.js').WeatherLocation }} [opts]
+ */
+export async function fetchForecastForPanelDay(dateIso, opts = {}) {
+  const raw = String(dateIso || "").trim();
+  const date = startOfCalendarDay(parseDate(`${raw}T12:00:00`));
+  if (!date) {
+    return {
+      status: "error",
+      message: FORECAST_MESSAGES.noDay,
+    };
+  }
+  const scheduleIso = `${raw}T12:00:00`;
+  return fetchForecastForDateInternal(
+    date,
+    "panel",
+    scheduleIso,
+    opts.node ?? null,
+    opts.baseToday ?? new Date(),
+    opts.weatherLocation,
+  );
+}
+
+/**
+ * @param {object|null} node
+ * @param {Date} [baseToday]
+ * @param {import('./weatherLocation.js').WeatherLocation} [weatherLocation]
+ */
+export async function fetchForecastForNode(node, baseToday = new Date(), weatherLocation) {
+  if (!node) {
+    return {
+      status: "error",
+      message: FORECAST_MESSAGES.noNode,
+    };
+  }
+
+  const { date, resolvedFrom, scheduleIso } = resolveForecastTargetDate(node);
+  if (!date) {
+    return {
+      status: "error",
+      message: FORECAST_MESSAGES.noNode,
+    };
+  }
+
+  return fetchForecastForDateInternal(
+    date,
+    resolvedFrom,
+    scheduleIso,
+    node,
+    baseToday,
+    weatherLocation,
+  );
 }
 
 /**

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useForecastPanelStore } from "../../stores/forecastPanelStore.js";
 import {
   ForecastConditionIcon,
   ForecastIconRain,
@@ -27,7 +28,14 @@ function TempPair({ high, low }) {
 export function ForecastDayAccordion({ day, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   const [periodMode, setPeriodMode] = useState("day");
+  const selectedDayId = useForecastPanelStore((s) => s.selectedDayId);
+  const setSelectedDayId = useForecastPanelStore((s) => s.setSelectedDayId);
+  const isSelected = selectedDayId === day.id;
   const wind = day.wind || {};
+
+  useEffect(() => {
+    if (defaultOpen) setSelectedDayId(day.id);
+  }, [defaultOpen, day.id, setSelectedDayId]);
   const activePeriod = periodMode === "night" ? day.night : day.day;
   const activeMetrics = periodMode === "night" ? day.nightMetrics : day.dayMetrics;
   const summaryIcon = activePeriod?.conditionIcon || day.conditionIcon;
@@ -35,7 +43,11 @@ export function ForecastDayAccordion({ day, defaultOpen = false }) {
 
   return (
     <article
-      className={"forecast-accordion" + (open ? " is-open" : "")}
+      className={
+        "forecast-accordion"
+        + (open ? " is-open" : "")
+        + (isSelected ? " is-selected" : "")
+      }
       data-state={open ? "open" : "closed"}
     >
       <h3 className="forecast-accordion__heading">
@@ -43,7 +55,13 @@ export function ForecastDayAccordion({ day, defaultOpen = false }) {
           type="button"
           className="forecast-accordion__trigger"
           aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            setOpen((wasOpen) => {
+              const next = !wasOpen;
+              if (next) setSelectedDayId(day.id);
+              return next;
+            });
+          }}
         >
           <span className="forecast-accordion__summary">
             <span className="forecast-summary__label">{day.label}</span>

@@ -4,11 +4,13 @@ import {
   buildForecastNodePayload,
   buildForecastNodeTitle,
   fetchForecastForNode,
+  fetchForecastForPanelDay,
   formatForecastUiDate,
   getForecastSearchGate,
   resolveActiveForecastNode,
   resolveForecastTargetDate,
 } from "../../lib/forecastSearch.js";
+import { parseDate, startOfCalendarDay } from "../../temporal.js";
 import {
   getWeatherLocationKey,
   hasWeatherLocation,
@@ -69,11 +71,16 @@ function resolveFooterHint(gate, t, vars = {}, showInstruction = false) {
   if (gate.reason === "outOfRange") {
     return forecastSearchHint("outOfRange", t, vars);
   }
-  if (gate.enabled && gate.reason === "ready") {
-    return t("intel.forecastSearchHintReady", vars);
+  if (gate.reason === "noDay") {
+    return t("intel.forecastSearchHintNoDay");
+  }
+  if (gate.enabled && (gate.reason === "ready" || gate.reason === "panelDay")) {
+    return gate.fromPanel
+      ? t("intel.forecastSearchHintPanelDay", vars)
+      : t("intel.forecastSearchHintReady", vars);
   }
   if (showInstruction) {
-    return t("intel.forecastSearchInstruction", vars);
+    return t("intel.forecastSearchInstruction");
   }
   return "";
 }
@@ -101,6 +108,7 @@ export function ForecastSearchFooter({
   const panelStatus = useForecastPanelStore((s) => s.status);
   const panelLocationKey = useForecastPanelStore((s) => s.locationKey);
   const panelDayIds = useForecastPanelStore((s) => s.dayIds);
+  const selectedDayId = useForecastPanelStore((s) => s.selectedDayId);
   const plan = usePlanStore((s) => s.profile.plan);
   const isPro = usePlanStore((s) => s.isPro());
   const weatherActionsUsed = usePlanStore((s) => s.profile.weatherActionsCount ?? 0);
@@ -137,9 +145,10 @@ export function ForecastSearchFooter({
       panelLocationKey,
       locationKey,
       dayIds: panelDayIds,
+      selectedDayId,
       node: activeNode,
     }),
-    [weatherLocation, panelStatus, panelLocationKey, locationKey, panelDayIds, activeNode],
+    [weatherLocation, panelStatus, panelLocationKey, locationKey, panelDayIds, selectedDayId, activeNode],
   );
 
   useEffect(() => {
@@ -147,7 +156,7 @@ export function ForecastSearchFooter({
       setResult(null);
       setStatus("idle");
     }
-  }, [gate.enabled, locationKey, panelLocationKey, panelDayIds]);
+  }, [gate.enabled, locationKey, panelLocationKey, panelDayIds, selectedDayId]);
 
   const hintVars = { window: gate.windowLabel || "" };
   const showInstruction = !hasInsertedForecastNode;
@@ -163,7 +172,9 @@ export function ForecastSearchFooter({
 
     const node = resolveNode();
     setStatus("loading");
-    const next = await fetchForecastForNode(node, new Date(), weatherLocation);
+    const next = gate.fromPanel && gate.dateIso
+      ? await fetchForecastForPanelDay(gate.dateIso, { node, weatherLocation })
+      : await fetchForecastForNode(node, new Date(), weatherLocation);
     if (next.status === "success" && next.location) {
       rememberResolvedLabel(next.location);
     }
@@ -199,8 +210,12 @@ export function ForecastSearchFooter({
 
   const loading = status === "loading";
   const insertDisabled = !canUseWeatherAction;
-  const targetDate = activeNode ? resolveForecastTargetDate(activeNode).date : null;
-  const pillDate = targetDate ? formatForecastUiDate(targetDate) : "";
+  const panelPillDate = selectedDayId
+    ? formatForecastUiDate(startOfCalendarDay(parseDate(`${selectedDayId}T12:00:00`)))
+    : "";
+  const nodeTargetDate = activeNode ? resolveForecastTargetDate(activeNode).date : null;
+  const nodePillDate = nodeTargetDate ? formatForecastUiDate(nodeTargetDate) : "";
+  const pillDate = panelPillDate || nodePillDate;
 
   return (
     <div className="forecast-search-footer">

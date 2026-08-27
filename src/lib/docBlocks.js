@@ -541,20 +541,170 @@ export const MOODBOARD_SLOT_NOTE_BODY_MAX = 400;
  */
 export const MOODBOARD_SLOT_NOTE_BODY_SCALE_LIMIT = 30;
 
-/** Per-slot content: image upload vs research sticky (3:2 medium frames). */
+/** Per-slot content: image, research sticky, or weather forecast (3:2 medium). */
 export const MOODBOARD_SLOT_CONTENT_MODES = {
   IMAGE: "image",
   NOTE: "note",
+  WEATHER: "weather",
 };
 
 /**
  * @param {unknown} value
- * @returns {"image" | "note"}
+ * @returns {"image" | "note" | "weather"}
  */
 export function normalizeMoodboardSlotContentMode(value) {
-  return String(value || "").trim().toLowerCase() === MOODBOARD_SLOT_CONTENT_MODES.NOTE
-    ? MOODBOARD_SLOT_CONTENT_MODES.NOTE
-    : MOODBOARD_SLOT_CONTENT_MODES.IMAGE;
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === MOODBOARD_SLOT_CONTENT_MODES.NOTE) return MOODBOARD_SLOT_CONTENT_MODES.NOTE;
+  if (raw === MOODBOARD_SLOT_CONTENT_MODES.WEATHER) return MOODBOARD_SLOT_CONTENT_MODES.WEATHER;
+  return MOODBOARD_SLOT_CONTENT_MODES.IMAGE;
+}
+
+/**
+ * Persistable weather-forecast payload for a moodboard slot (or null).
+ * @param {unknown} raw
+ * @returns {object|null}
+ */
+export function normalizeMoodboardWeatherPayload(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (String(raw.kind || "") !== "weather-forecast") return null;
+  return {
+    kind: "weather-forecast",
+    scheduleLabel: raw.scheduleLabel ?? null,
+    scheduleIso: raw.scheduleIso ?? null,
+    resolvedFrom: raw.resolvedFrom ?? null,
+    uiDate: String(raw.uiDate || ""),
+    location: String(raw.location || ""),
+    asOf: raw.asOf ?? null,
+    condition: raw.condition ?? null,
+    conditionIcon: raw.conditionIcon ?? null,
+    high: raw.high ?? null,
+    low: raw.low ?? null,
+    precipPct: raw.precipPct ?? null,
+    wind: raw.wind && typeof raw.wind === "object" ? raw.wind : {},
+    summary: raw.summary ?? null,
+    disclaimer: raw.disclaimer ?? null,
+    fetchedAt: String(raw.fetchedAt || ""),
+  };
+}
+
+/**
+ * Weather mode + no payload yet (waiting for canvas connect).
+ * @param {object|null|undefined} slot
+ */
+export function isMoodboardWeatherPlaceholder(slot) {
+  if (normalizeMoodboardSlotContentMode(slot?.contentMode) !== MOODBOARD_SLOT_CONTENT_MODES.WEATHER) {
+    return false;
+  }
+  return !normalizeMoodboardWeatherPayload(slot?.weatherPayload);
+}
+
+/**
+ * Weather mode with a live forecast payload.
+ * @param {object|null|undefined} slot
+ */
+export function isMoodboardWeatherFilled(slot) {
+  if (normalizeMoodboardSlotContentMode(slot?.contentMode) !== MOODBOARD_SLOT_CONTENT_MODES.WEATHER) {
+    return false;
+  }
+  return Boolean(normalizeMoodboardWeatherPayload(slot?.weatherPayload));
+}
+
+/**
+ * First free weather placeholder across moodboard blocks.
+ * @param {unknown} blocks
+ * @returns {{ blockId: string, colIndex: number, imageIndex: number } | null}
+ */
+export function findMoodboardWeatherTarget(blocks) {
+  if (!Array.isArray(blocks)) return null;
+  for (const block of blocks) {
+    if (!block || block.type !== DOC_BLOCK_TYPES.MOODBOARD || !block.id) continue;
+    const columns = Array.isArray(block.columns) ? block.columns : [];
+    for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
+      const images = Array.isArray(columns[colIndex]?.images) ? columns[colIndex].images : [];
+      for (let imageIndex = 0; imageIndex < images.length; imageIndex += 1) {
+        if (isMoodboardWeatherPlaceholder(images[imageIndex])) {
+          return { blockId: String(block.id), colIndex, imageIndex };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * True when any moodboard weather slot already holds this forecast instance.
+ * @param {unknown} blocks
+ * @param {object} payload
+ */
+export function moodboardHasWeatherPayload(blocks, payload) {
+  const next = normalizeMoodboardWeatherPayload(payload);
+  if (!next || !Array.isArray(blocks)) return false;
+  for (const block of blocks) {
+    if (!block || block.type !== DOC_BLOCK_TYPES.MOODBOARD) continue;
+    const columns = Array.isArray(block.columns) ? block.columns : [];
+    for (const column of columns) {
+      const images = Array.isArray(column?.images) ? column.images : [];
+      for (const slot of images) {
+        const existing = normalizeMoodboardWeatherPayload(slot?.weatherPayload);
+        if (
+          existing
+          && existing.fetchedAt === next.fetchedAt
+          && existing.uiDate === next.uiDate
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Write forecast payload into a weather placeholder slot.
+ * @param {unknown} blocks
+ * @param {{ blockId: string, colIndex: number, imageIndex: number }} target
+ * @param {object} payload
+ * @returns {object[]|null} next blocks array, or null on failure
+ */
+export function fillMoodboardWeatherSlot(blocks, target, payload) {
+  const weatherPayload = normalizeMoodboardWeatherPayload(payload);
+  if (!weatherPayload || !target?.blockId) return null;
+  if (!Array.isArray(blocks)) return null;
+  const colIndex = Number(target.colIndex);
+  const imageIndex = Number(target.imageIndex);
+  if (!Number.isInteger(colIndex) || !Number.isInteger(imageIndex)) return null;
+  if (colIndex < 0 || imageIndex < 0) return null;
+
+  let found = false;
+  const nextBlocks = blocks.map((block) => {
+    if (!block || block.id !== target.blockId || block.type !== DOC_BLOCK_TYPES.MOODBOARD) {
+      return block;
+    }
+    const columns = Array.isArray(block.columns) ? block.columns.map((col, cIdx) => {
+      if (cIdx !== colIndex) return col;
+      const images = Array.isArray(col?.images) ? [...col.images] : [];
+      if (imageIndex >= images.length) return col;
+      const prev = images[imageIndex] || emptyMoodboardSlot();
+      if (!isMoodboardWeatherPlaceholder(prev)) return col;
+      images[imageIndex] = normalizeMoodboardSlot({
+        ...prev,
+        contentMode: MOODBOARD_SLOT_CONTENT_MODES.WEATHER,
+        weatherPayload,
+        imageSaved: true,
+      });
+      found = true;
+      return createMoodboardColumn(col.recipe, {
+        images,
+        stickyText: col.stickyText,
+        stickyTitle: col.stickyTitle,
+        infoLabel: col.infoLabel,
+        noteStyle: col.noteStyle,
+      });
+    }) : [];
+    if (!found) return block;
+    return { ...block, columns, moodboardSaved: false };
+  });
+  return found ? nextBlocks : null;
 }
 
 /**
@@ -887,6 +1037,10 @@ function normalizeMoodboardSlot(slot) {
     : "";
   const wallColor = normalizeWallColor(slot?.wallColor);
   const contentMode = normalizeMoodboardSlotContentMode(slot?.contentMode);
+  const weatherPayload = contentMode === MOODBOARD_SLOT_CONTENT_MODES.WEATHER
+    ? normalizeMoodboardWeatherPayload(slot?.weatherPayload)
+    : null;
+  const weatherFilled = Boolean(weatherPayload);
   return {
     slotId: String(slot?.slotId || generateId("MBS")),
     src,
@@ -894,8 +1048,12 @@ function normalizeMoodboardSlot(slot) {
     alt: slot?.alt || "",
     width: Number.isFinite(slot?.width) ? slot.width : 0,
     height: Number.isFinite(slot?.height) ? slot.height : 0,
-    /** Filled slot: local image and/or external link (Drive / Dropbox / …). */
-    imageSaved: Boolean((slot?.imageSaved && hasImage) || hasLink),
+    /** Filled slot: local image, external link, or weather payload. */
+    imageSaved: Boolean(
+      (slot?.imageSaved && hasImage)
+      || hasLink
+      || weatherFilled,
+    ),
     /** "image" when src exists; "file" when link-only (board shows file icon). */
     kind: hasImage ? "image" : (hasLink ? "file" : "image"),
     externalUrl,
@@ -907,6 +1065,7 @@ function normalizeMoodboardSlot(slot) {
     sourceMediaUrl,
     wallColor,
     contentMode,
+    weatherPayload,
     noteHeadline: String(slot?.noteHeadline ?? "").slice(0, MOODBOARD_SLOT_NOTE_HEADLINE_MAX),
     noteBody: String(slot?.noteBody ?? "").slice(0, MOODBOARD_SLOT_NOTE_BODY_MAX),
   };
@@ -1010,6 +1169,10 @@ export function countMoodboardSavedImages(block) {
   for (const column of columns) {
     const images = Array.isArray(column?.images) ? column.images : [];
     for (const image of images) {
+      if (isMoodboardWeatherFilled(image)) {
+        count += 1;
+        continue;
+      }
       if (image?.imageSaved && (
         image?.src
         || image?.libraryItemId

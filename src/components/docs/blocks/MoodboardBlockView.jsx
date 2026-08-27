@@ -34,9 +34,11 @@ import {
   normalizeMoodboardOverlays,
   normalizeMoodboardPointerContrast,
   normalizeMoodboardSlotContentMode,
+  normalizeMoodboardWeatherPayload,
   resolveStickyNoteTextScale,
   resizeMoodboardColumns,
 } from "../../../lib/docBlocks.js";
+import { ForecastNodeView } from "../../intel/ForecastNodeView.jsx";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { listHintedLibraryCatalogs, resolveWallColor } from "../../../lib/folderLibrary.js";
 import {
@@ -60,6 +62,7 @@ import {
   findMoodboardAnchorImg,
   getObjectFitContentRect,
   measureMoodboardSlotAnchorRects,
+  mergeSlotAnchorRects,
   projectBoardPctToImagePct,
   resolveOverlayBoardPosition,
 } from "../../../lib/moodboardOverlayAnchor.js";
@@ -698,25 +701,13 @@ export function MoodboardBlockView({
         prev.w === width && prev.h === nextH ? prev : { w: width, h: nextH }
       ));
       // After height settles, measure painted image boxes for overlay anchors.
-      requestAnimationFrame(() => {
+      const applyAnchorMeasure = () => {
         const nextRects = measureMoodboardSlotAnchorRects(boardRef.current);
-        setSlotAnchorRects((prev) => {
-          const prevKeys = Object.keys(prev);
-          const nextKeys = Object.keys(nextRects);
-          if (prevKeys.length === nextKeys.length
-            && nextKeys.every((key) => {
-              const a = prev[key];
-              const b = nextRects[key];
-              return a && b
-                && Math.abs(a.leftPct - b.leftPct) < 0.05
-                && Math.abs(a.topPct - b.topPct) < 0.05
-                && Math.abs(a.widthPct - b.widthPct) < 0.05
-                && Math.abs(a.heightPct - b.heightPct) < 0.05;
-            })) {
-            return prev;
-          }
-          return nextRects;
-        });
+        setSlotAnchorRects((prev) => mergeSlotAnchorRects(prev, nextRects));
+      };
+      requestAnimationFrame(() => {
+        applyAnchorMeasure();
+        requestAnimationFrame(applyAnchorMeasure);
       });
     };
 
@@ -737,6 +728,48 @@ export function MoodboardBlockView({
     };
   }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey, boardExpanded, isEdit]);
 
+  // Expand/collapse moves the board into a portal and changes object-fit.
+  // Drop stale inline geometry immediately so we never paint image-% with the wrong board box.
+  useLayoutEffect(() => {
+    setSlotAnchorRects({});
+  }, [boardExpanded]);
+
+  // Remeasure slot photos after expand portal layout (and whenever images change).
+  useLayoutEffect(() => {
+    let cancelled = false;
+    const rafIds = [];
+    const measure = () => {
+      if (cancelled) return;
+      const board = boardRef.current;
+      if (!board) return;
+      const nextRects = measureMoodboardSlotAnchorRects(board);
+      setSlotAnchorRects((prev) => mergeSlotAnchorRects(prev, nextRects));
+    };
+    measure();
+    rafIds.push(requestAnimationFrame(() => {
+      measure();
+      rafIds.push(requestAnimationFrame(measure));
+    }));
+
+    const board = boardRef.current;
+    /** @type {ResizeObserver | null} */
+    let imgRo = null;
+    if (board && typeof ResizeObserver !== "undefined") {
+      imgRo = new ResizeObserver(() => {
+        requestAnimationFrame(measure);
+      });
+      board.querySelectorAll("img[data-mb-slot-img]").forEach((node) => {
+        imgRo.observe(node);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      rafIds.forEach((id) => cancelAnimationFrame(id));
+      imgRo?.disconnect();
+    };
+  }, [boardExpanded, columnsGeomKey, boardHeight, boardSize.w]);
+
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
     onChange?.({ ...patch, moodboardSaved: false });
@@ -749,7 +782,7 @@ export function MoodboardBlockView({
 
   const refreshSlotAnchorRects = useCallback(() => {
     const nextRects = measureMoodboardSlotAnchorRects(boardRef.current);
-    setSlotAnchorRects(nextRects);
+    setSlotAnchorRects((prev) => mergeSlotAnchorRects(prev, nextRects));
   }, []);
 
   const addOverlayAt = (kind, clientX, clientY) => {
@@ -1301,7 +1334,8 @@ export function MoodboardBlockView({
           : null,
         sourceMediaUrl: "",
         wallColor: hasImage ? (draft.wallColor || prev.wallColor || null) : null,
-        contentMode: prev.contentMode || MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+        contentMode: MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+        weatherPayload: null,
         noteHeadline: prev.noteHeadline || "",
         noteBody: prev.noteBody || "",
       };
@@ -1322,13 +1356,25 @@ export function MoodboardBlockView({
       const images = Array.isArray(col.images) ? [...col.images] : [];
       if (!images[imageIndex]) return col;
       const prev = images[imageIndex];
-      images[imageIndex] = {
-        ...emptySlot(),
-        slotId: prev.slotId,
-        contentMode: prev.contentMode,
-        noteHeadline: prev.noteHeadline,
-        noteBody: prev.noteBody,
-      };
+      const mode = normalizeMoodboardSlotContentMode(prev.contentMode);
+      if (mode === MOODBOARD_SLOT_CONTENT_MODES.WEATHER) {
+        // Filled weather → back to waiting placeholder (keep mode).
+        images[imageIndex] = {
+          ...emptySlot(),
+          slotId: prev.slotId,
+          contentMode: MOODBOARD_SLOT_CONTENT_MODES.WEATHER,
+          weatherPayload: null,
+          imageSaved: false,
+        };
+      } else {
+        images[imageIndex] = {
+          ...emptySlot(),
+          slotId: prev.slotId,
+          contentMode: prev.contentMode,
+          noteHeadline: prev.noteHeadline,
+          noteBody: prev.noteBody,
+        };
+      }
       return createMoodboardColumn(col.recipe, {
         images,
         ...columnTextPatch(col),
@@ -1352,8 +1398,38 @@ export function MoodboardBlockView({
   };
 
   const setSlotContentMode = (colIndex, imageIndex, mode) => {
+    const next = normalizeMoodboardSlotContentMode(mode);
+    if (next === MOODBOARD_SLOT_CONTENT_MODES.WEATHER) {
+      patchSlotFields(colIndex, imageIndex, {
+        contentMode: MOODBOARD_SLOT_CONTENT_MODES.WEATHER,
+        weatherPayload: null,
+        src: "",
+        name: "",
+        alt: "",
+        width: 0,
+        height: 0,
+        libraryItemId: "",
+        externalUrl: "",
+        imageSaved: false,
+        noteHeadline: "",
+        noteBody: "",
+      });
+      return;
+    }
+    if (next === MOODBOARD_SLOT_CONTENT_MODES.NOTE) {
+      patchSlotFields(colIndex, imageIndex, {
+        contentMode: MOODBOARD_SLOT_CONTENT_MODES.NOTE,
+        weatherPayload: null,
+        src: "",
+        libraryItemId: "",
+        externalUrl: "",
+        imageSaved: false,
+      });
+      return;
+    }
     patchSlotFields(colIndex, imageIndex, {
-      contentMode: normalizeMoodboardSlotContentMode(mode),
+      contentMode: MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+      weatherPayload: null,
     });
   };
 
@@ -1469,10 +1545,75 @@ export function MoodboardBlockView({
     const image = column.images?.[imageIndex] || emptySlot();
     const allowsNoteSwitch = sizeClass === "medium";
     const contentMode = normalizeMoodboardSlotContentMode(image.contentMode);
+    const isWeatherSlot = allowsNoteSwitch
+      && contentMode === MOODBOARD_SLOT_CONTENT_MODES.WEATHER;
     const isNoteSlot = allowsNoteSwitch
       && contentMode === MOODBOARD_SLOT_CONTENT_MODES.NOTE;
     const cellAspect = moodboardCellCssAspectRatio(boardLayout, sizeClass, colIndex);
     const slotFrameLabel = moodboardSlotFrameLabel(boardLayout, sizeClass, colIndex);
+
+    if (isWeatherSlot) {
+      const weatherPayload = normalizeMoodboardWeatherPayload(image.weatherPayload);
+      const filled = Boolean(weatherPayload);
+      return (
+        <div className="doc-moodboard__cell-wrap">
+          <div
+            className={
+              "doc-moodboard__cell doc-moodboard__cell--medium doc-moodboard__cell--weather"
+              + (filled ? "" : " doc-moodboard__cell--empty doc-moodboard__cell--weather-placeholder")
+            }
+            data-mb-slot={image.slotId || undefined}
+            style={boardExpanded ? { aspectRatio: cellAspect } : undefined}
+          >
+            {isEdit ? (
+              <button
+                type="button"
+                className="doc-moodboard__slot-mode-btn"
+                onClick={() => setSlotContentMode(
+                  colIndex,
+                  imageIndex,
+                  MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+                )}
+                title={t("doc.moodboard.slotModeImage")}
+              >
+                {t("doc.moodboard.slotModeImage")}
+              </button>
+            ) : null}
+            {filled ? (
+              <>
+                <div className="doc-moodboard__slot-weather">
+                  <ForecastNodeView
+                    payload={weatherPayload}
+                    compact
+                    className="doc-moodboard__slot-weather-body"
+                  />
+                </div>
+                {isEdit ? (
+                  <div className="doc-moodboard__media-actions">
+                    <button
+                      type="button"
+                      className="doc-moodboard__media-btn"
+                      onClick={() => clearImage(colIndex, imageIndex)}
+                    >
+                      {t("doc.imageBlock.remove")}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="doc-moodboard__slot-weather-placeholder" aria-label={t("doc.moodboard.slotWeatherWaiting")}>
+                <span className="doc-moodboard__slot-weather-title">
+                  {t("doc.moodboard.slotModeWeather")}
+                </span>
+                <span className="doc-moodboard__slot-weather-hint">
+                  {t("doc.moodboard.slotWeatherWaiting")}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     if (isNoteSlot) {
       const noteScale = resolveStickyNoteTextScale(image.noteBody);
@@ -1588,17 +1729,30 @@ export function MoodboardBlockView({
     ) : null;
 
     const modeSwitch = allowsNoteSwitch && isEdit ? (
-      <button
-        type="button"
-        className="doc-moodboard__slot-mode-btn doc-moodboard__slot-mode-btn--on-image"
-        onClick={(event) => {
-          event.stopPropagation();
-          setSlotContentMode(colIndex, imageIndex, MOODBOARD_SLOT_CONTENT_MODES.NOTE);
-        }}
-        title={t("doc.moodboard.slotModeNote")}
-      >
-        {t("doc.moodboard.slotModeNote")}
-      </button>
+      <div className="doc-moodboard__slot-mode-row">
+        <button
+          type="button"
+          className="doc-moodboard__slot-mode-btn doc-moodboard__slot-mode-btn--on-image"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSlotContentMode(colIndex, imageIndex, MOODBOARD_SLOT_CONTENT_MODES.NOTE);
+          }}
+          title={t("doc.moodboard.slotModeNote")}
+        >
+          {t("doc.moodboard.slotModeNote")}
+        </button>
+        <button
+          type="button"
+          className="doc-moodboard__slot-mode-btn doc-moodboard__slot-mode-btn--on-image"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSlotContentMode(colIndex, imageIndex, MOODBOARD_SLOT_CONTENT_MODES.WEATHER);
+          }}
+          title={t("doc.moodboard.slotModeWeather")}
+        >
+          {t("doc.moodboard.slotModeWeather")}
+        </button>
+      </div>
     ) : null;
 
     return (
@@ -1746,6 +1900,32 @@ export function MoodboardBlockView({
                   {t("doc.moodboard.ratioCardHint")}
                 </span>
               </button>
+              {allowsNoteSwitch && isEdit ? (
+                <div className="doc-moodboard__empty-slot-modes">
+                  <button
+                    type="button"
+                    className="doc-moodboard__slot-mode-btn"
+                    onClick={() => setSlotContentMode(
+                      colIndex,
+                      imageIndex,
+                      MOODBOARD_SLOT_CONTENT_MODES.NOTE,
+                    )}
+                  >
+                    {t("doc.moodboard.slotModeNote")}
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-moodboard__slot-mode-btn"
+                    onClick={() => setSlotContentMode(
+                      colIndex,
+                      imageIndex,
+                      MOODBOARD_SLOT_CONTENT_MODES.WEATHER,
+                    )}
+                  >
+                    {t("doc.moodboard.slotModeWeather")}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -2168,6 +2348,8 @@ export function MoodboardBlockView({
                 const selected = isEdit && selectedOverlayId === overlay.id;
                 const isPointer = overlay.kind === MOODBOARD_OVERLAY_KINDS.POINTER;
                 const boardPos = resolveOverlayBoardPosition(overlay, slotAnchorRects);
+                // Anchored overlay waiting for slot measure — never paint image-% as board %.
+                if (boardPos.pending) return null;
                 const viewOverlay = {
                   ...overlay,
                   xPct: boardPos.xPct,

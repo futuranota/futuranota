@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   contentRectToBoardPct,
+  mergeSlotAnchorRects,
   parseObjectPosition,
   projectBoardPctToImagePct,
   projectImagePctToBoardPct,
@@ -60,19 +61,46 @@ describe("image ↔ board projection", () => {
       { MBS1: imageRect },
     );
     expect(pos.anchored).toBe(true);
+    expect(pos.pending).toBe(false);
     expect(pos.xPct).toBeCloseTo(20);
     expect(pos.yPct).toBeCloseTo(45);
     expect(pos.endXPct).toBeCloseTo(40);
     expect(pos.endYPct).toBeCloseTo(45);
   });
 
-  it("resolveOverlayBoardPosition falls back without rect", () => {
+  it("resolveOverlayBoardPosition marks pending when anchored without rect", () => {
     const pos = resolveOverlayBoardPosition(
       { xPct: 12, yPct: 34, anchorSlotId: "missing" },
       {},
     );
+    expect(pos.pending).toBe(true);
+    expect(pos.anchored).toBe(false);
+  });
+
+  it("resolveOverlayBoardPosition stays board-local without anchor", () => {
+    const pos = resolveOverlayBoardPosition(
+      { xPct: 12, yPct: 34 },
+      {},
+    );
+    expect(pos.pending).toBe(false);
     expect(pos.anchored).toBe(false);
     expect(pos.xPct).toBe(12);
     expect(pos.yPct).toBe(34);
+  });
+});
+
+describe("mergeSlotAnchorRects", () => {
+  const a = { leftPct: 1, topPct: 2, widthPct: 3, heightPct: 4 };
+
+  it("keeps previous when next is empty", () => {
+    expect(mergeSlotAnchorRects({ S1: a }, {})).toEqual({ S1: a });
+  });
+
+  it("upserts without dropping sibling keys on partial next", () => {
+    const b = { leftPct: 10, topPct: 20, widthPct: 30, heightPct: 40 };
+    expect(mergeSlotAnchorRects({ S1: a, S2: a }, { S1: b })).toEqual({
+      S1: b,
+      S2: a,
+    });
   });
 });

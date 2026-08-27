@@ -13680,10 +13680,102 @@ body.doc-content-resizing * {
   cursor: pointer;
 }
 
+.doc-moodboard__slot-mode-row {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+}
+
+.doc-moodboard__slot-mode-row .doc-moodboard__slot-mode-btn {
+  position: static;
+}
+
+.doc-moodboard__empty-slot-modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.doc-moodboard__empty-slot-modes .doc-moodboard__slot-mode-btn {
+  position: static;
+}
+
 .doc-moodboard__slot-mode-btn--on-image {
   background: rgba(20, 20, 20, 0.55);
   border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-moodboard__cell--weather {
+  background: #151515;
+  overflow: hidden;
+}
+
+.doc-moodboard__slot-weather {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+}
+
+.doc-moodboard__slot-weather-body {
+  width: 100%;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.doc-moodboard__slot-weather .forecast-node-view {
+  padding: 0;
+  gap: 4px;
+}
+
+.doc-moodboard__slot-weather .forecast-node-view__meta,
+.doc-moodboard__slot-weather .forecast-node-view__source,
+.doc-moodboard__slot-weather .forecast-node-view__location {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.doc-moodboard__slot-weather .forecast-node-view__headline,
+.doc-moodboard__slot-weather .forecast-node-view__stats,
+.doc-moodboard__slot-weather .forecast-node-view__date {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.doc-moodboard__slot-weather-placeholder {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  background: #151515;
+}
+
+.doc-moodboard__slot-weather-title {
+  font-family: "Inter", var(--font-doc), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.doc-moodboard__slot-weather-hint {
+  font-family: "Inter", var(--font-doc), sans-serif;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .doc-moodboard__slot-note-headline,

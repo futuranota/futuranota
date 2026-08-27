@@ -29,14 +29,28 @@ export function parseObjectPosition(value) {
 }
 
 /**
+ * Intrinsic pixel size — prefer natural, then width/height attrs (saved slot dims).
+ * @param {HTMLImageElement} img
+ * @returns {{ nw: number, nh: number }}
+ */
+function resolveImageIntrinsicSize(img) {
+  const nw = img.naturalWidth
+    || Number(img.getAttribute("width"))
+    || 0;
+  const nh = img.naturalHeight
+    || Number(img.getAttribute("height"))
+    || 0;
+  return { nw, nh };
+}
+
+/**
  * Painted image rectangle in viewport coords (accounts for object-fit).
  * @param {HTMLImageElement} img
  * @returns {{ left: number, top: number, width: number, height: number }}
  */
 export function getObjectFitContentRect(img) {
   const elRect = img.getBoundingClientRect();
-  const nw = img.naturalWidth || 0;
-  const nh = img.naturalHeight || 0;
+  const { nw, nh } = resolveImageIntrinsicSize(img);
   if (!(elRect.width > 0) || !(elRect.height > 0)) {
     return { left: elRect.left, top: elRect.top, width: 0, height: 0 };
   }
@@ -183,7 +197,42 @@ export function measureMoodboardSlotAnchorRects(boardEl) {
 }
 
 /**
+ * Never wipe good rects with an empty measure (expand portal flash).
+ * Only upserts keys present in `next` — partial measures must not delete siblings.
+ * @param {Record<string, { leftPct: number, topPct: number, widthPct: number, heightPct: number }>} prev
+ * @param {Record<string, { leftPct: number, topPct: number, widthPct: number, heightPct: number }>} next
+ */
+export function mergeSlotAnchorRects(prev, next) {
+  const safePrev = prev && typeof prev === "object" ? prev : {};
+  const safeNext = next && typeof next === "object" ? next : {};
+  const nextKeys = Object.keys(safeNext);
+  if (nextKeys.length === 0) return safePrev;
+
+  let changed = false;
+  const out = { ...safePrev };
+  for (const key of nextKeys) {
+    const a = safePrev[key];
+    const b = safeNext[key];
+    if (!b) continue;
+    if (
+      !a
+      || Math.abs(a.leftPct - b.leftPct) >= 0.05
+      || Math.abs(a.topPct - b.topPct) >= 0.05
+      || Math.abs(a.widthPct - b.widthPct) >= 0.05
+      || Math.abs(a.heightPct - b.heightPct) >= 0.05
+    ) {
+      out[key] = b;
+      changed = true;
+    }
+  }
+  return changed ? out : safePrev;
+}
+
+/**
  * Resolve overlay board % from stored coords (+ optional image anchor).
+ * When `anchorSlotId` is set but the slot rect is missing, `pending: true`
+ * — never treat image-local % as board % (that jumps on expand).
+ *
  * @param {{
  *   xPct: number,
  *   yPct: number,
@@ -195,7 +244,17 @@ export function measureMoodboardSlotAnchorRects(boardEl) {
  */
 export function resolveOverlayBoardPosition(overlay, slotRects) {
   const anchorId = overlay?.anchorSlotId ? String(overlay.anchorSlotId) : "";
-  const imageRect = anchorId && slotRects ? slotRects[anchorId] : null;
+  if (!anchorId) {
+    return {
+      xPct: overlay.xPct,
+      yPct: overlay.yPct,
+      endXPct: overlay.endXPct ?? overlay.xPct,
+      endYPct: overlay.endYPct ?? overlay.yPct,
+      anchored: false,
+      pending: false,
+    };
+  }
+  const imageRect = slotRects ? slotRects[anchorId] : null;
   if (!imageRect) {
     return {
       xPct: overlay.xPct,
@@ -203,6 +262,7 @@ export function resolveOverlayBoardPosition(overlay, slotRects) {
       endXPct: overlay.endXPct ?? overlay.xPct,
       endYPct: overlay.endYPct ?? overlay.yPct,
       anchored: false,
+      pending: true,
     };
   }
   const origin = projectImagePctToBoardPct(imageRect, overlay.xPct, overlay.yPct);
@@ -217,5 +277,6 @@ export function resolveOverlayBoardPosition(overlay, slotRects) {
     endXPct: tip.xPct,
     endYPct: tip.yPct,
     anchored: true,
+    pending: false,
   };
 }

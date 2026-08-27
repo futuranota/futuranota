@@ -138,7 +138,12 @@ import {
   buildForecastEmbeddedFromPayload,
   nodeContentAcceptsIntelWidget,
 } from './lib/nodeIntelWidget.js';
-import { parseNodeWritingBody } from './lib/nodeInlineContent.js';
+import {
+  fillMoodboardWeatherSlot,
+  findMoodboardWeatherTarget,
+  moodboardHasWeatherPayload,
+} from './lib/docBlocks.js';
+import { parseNodeWritingBody, serializeNodeWritingBody } from './lib/nodeInlineContent.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
@@ -905,6 +910,61 @@ useEffect(() => {
         && block.embedded.uiDate === payload.uiDate
       ));
     if (alreadyEmbedded) return;
+
+    // Weather → moodboard 3:2 placeholder (macronode body first, then parent folder doc).
+    if (widgetKind === "weather-forecast") {
+      const parentDocId = targetEntity.parentDocId || null;
+      const parentDoc = parentDocId
+        ? (useDocsStore.getState().getDoc?.(parentDocId)
+          || useDocsStore.getState().docs?.[parentDocId]
+          || null)
+        : null;
+      const docBlocks = Array.isArray(parentDoc?.blocks) ? parentDoc.blocks : [];
+      const nodeBlocks = parseNodeWritingBody(targetEntity.content).blocks;
+
+      if (
+        moodboardHasWeatherPayload(nodeBlocks, payload)
+        || moodboardHasWeatherPayload(docBlocks, payload)
+      ) {
+        return;
+      }
+
+      const nodeWeatherTarget = findMoodboardWeatherTarget(nodeBlocks);
+      if (nodeWeatherTarget) {
+        const nextNodeBlocks = fillMoodboardWeatherSlot(nodeBlocks, nodeWeatherTarget, payload);
+        if (nextNodeBlocks) {
+          const nextContent = serializeNodeWritingBody({ blocks: nextNodeBlocks });
+          useNodesStore.getState().updateNode(targetEntity.id, { content: nextContent });
+          if (parentDocId) {
+            useNodesStore.getState().syncNodeToParentDoc(targetEntity.id, parentDocId);
+            if (expandedDocId === parentDocId) {
+              setDocViewGeneration((n) => n + 1);
+            }
+          }
+          setToast({
+            message: `Forecast added to moodboard in "${targetEntity.title || targetEnd.title || "document"}"`,
+            kind: "ok",
+          });
+          return;
+        }
+      }
+
+      const docWeatherTarget = findMoodboardWeatherTarget(docBlocks);
+      if (docWeatherTarget && parentDocId) {
+        const nextBlocks = fillMoodboardWeatherSlot(docBlocks, docWeatherTarget, payload);
+        if (nextBlocks) {
+          useDocsStore.getState().updateDoc(parentDocId, { blocks: nextBlocks });
+          if (expandedDocId === parentDocId) {
+            setDocViewGeneration((n) => n + 1);
+          }
+          setToast({
+            message: `Forecast added to moodboard in "${parentDoc?.title || targetEntity.title || "document"}"`,
+            kind: "ok",
+          });
+          return;
+        }
+      }
+    }
 
     const embedded = widgetKind === "weather-forecast"
       ? buildForecastEmbeddedFromPayload(payload)

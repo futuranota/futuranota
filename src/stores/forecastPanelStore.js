@@ -10,19 +10,27 @@ export const useForecastPanelStore = create(
       locationKey: "",
       dayIds: [],
       forecastLocation: "",
+      /** YYYY-MM-DD — user picks by expanding a day in the forecast panel. */
+      selectedDayId: "",
 
       setLoading: (locationKey) => set({
         status: "loading",
         locationKey,
         dayIds: [],
         forecastLocation: "",
+        selectedDayId: "",
       }),
 
-      setReady: ({ locationKey, dayIds, forecastLocation }) => set({
-        status: "ready",
-        locationKey,
-        dayIds: Array.isArray(dayIds) ? dayIds : [],
-        forecastLocation: forecastLocation || "",
+      setReady: ({ locationKey, dayIds, forecastLocation }) => set((state) => {
+        const ids = Array.isArray(dayIds) ? dayIds : [];
+        const selectedDayId = ids.includes(state.selectedDayId) ? state.selectedDayId : "";
+        return {
+          status: "ready",
+          locationKey,
+          dayIds: ids,
+          forecastLocation: forecastLocation || "",
+          selectedDayId,
+        };
       }),
 
       setError: (locationKey) => set({
@@ -30,6 +38,11 @@ export const useForecastPanelStore = create(
         locationKey,
         dayIds: [],
         forecastLocation: "",
+        selectedDayId: "",
+      }),
+
+      setSelectedDayId: (dayId) => set({
+        selectedDayId: String(dayId || "").trim(),
       }),
 
       reset: () => set({
@@ -37,6 +50,7 @@ export const useForecastPanelStore = create(
         locationKey: "",
         dayIds: [],
         forecastLocation: "",
+        selectedDayId: "",
       }),
     }),
     { name: "forecast-panel-store" },

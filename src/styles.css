@@ -3413,6 +3413,11 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 .forecast-accordion.is-open .forecast-accordion__icon--minus {
   opacity: 1;
 }
+.forecast-accordion.is-selected .forecast-accordion__trigger {
+  outline: 1px solid rgba(185, 229, 254, 0.45);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .forecast-accordion__content {
   margin-top: 10px;
 }
