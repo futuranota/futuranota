@@ -48,6 +48,7 @@ function rowToEntry(row) {
     affiliateStatus: String(row.affiliate_status ?? ""),
     activatedAt: row.activated_at ? String(row.activated_at) : null,
     clientsWon: Math.max(0, Math.floor(toNullableNumber(row.clients_won) ?? 0)),
+    currency: String(row.currency ?? "USD").trim().toUpperCase() || "USD",
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
   };
@@ -77,6 +78,7 @@ function entryToRow(entry, userId, now) {
     affiliate_status: entry.affiliateStatus ?? "",
     activated_at: entry.activatedAt || null,
     clients_won: entry.clientsWon ?? 0,
+    currency: String(entry.currency ?? "USD").trim().toUpperCase() || "USD",
     created_at: entry.createdAt || now,
     updated_at: now,
   };

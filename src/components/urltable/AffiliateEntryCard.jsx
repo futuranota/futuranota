@@ -289,7 +289,7 @@ export function AffiliateEntryCard({
             onKeyDown={(e) => e.stopPropagation()}
           />
         </label>
-        <label>
+        <label className="affiliate-entry-card__status-field">
           <span>{labels.status || t("urlTableAffiliate.statusLabel")}</span>
           <select
             value={statusValue}

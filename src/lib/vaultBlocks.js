@@ -48,6 +48,7 @@ export function createPasswordEntry(patch = {}) {
  * @property {string} [affiliateStatus]
  * @property {string|null} [activatedAt]
  * @property {number} [clientsWon]
+ * @property {string} [currency]
  */
 
 export function createLinkEntry(patch = {}) {
@@ -67,6 +68,7 @@ export function createLinkEntry(patch = {}) {
     affiliateStatus: affiliate.affiliateStatus,
     activatedAt: affiliate.activatedAt,
     clientsWon: affiliate.clientsWon,
+    currency: affiliate.currency,
   };
 }
 

@@ -70,4 +70,19 @@ describe("mergeAffiliateDraftAndStaging", () => {
     expect(merged.commissionRate).toBe(10);
     expect(merged.productPrice).toBe(100);
   });
+
+  it("keeps currency from staging", () => {
+    const staging = createLinkEntry({
+      name: "Old",
+      currency: "EUR",
+      commissionRate: 5,
+    });
+    const merged = mergeAffiliateDraftAndStaging(
+      { name: "New", affiliateStatus: "pending" },
+      staging,
+      staging.id,
+    );
+    expect(merged.currency).toBe("EUR");
+    expect(merged.commissionRate).toBe(5);
+  });
 });

@@ -5,6 +5,21 @@ export const AFFILIATE_CATEGORY = "affiliado";
 
 export const AFFILIATE_STATUSES = /** @type {const} */ (["pending", "active", "expired"]);
 
+export const AFFILIATE_CURRENCY_PRESETS = /** @type {const} */ ([
+  "USD",
+  "EUR",
+  "GBP",
+  "JPY",
+  "CAD",
+  "AUD",
+  "CHF",
+  "MXN",
+  "BRL",
+  "INR",
+  "CNY",
+  "KRW",
+]);
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -29,6 +44,41 @@ export function normalizeAffiliateStatus(value) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeAffiliateCurrency(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return raw || "USD";
+}
+
+/**
+ * @param {string|null|undefined} activatedAt
+ * @returns {string}
+ */
+export function toAffiliateDateInputValue(activatedAt) {
+  if (!activatedAt) return "";
+  const date = new Date(activatedAt);
+  if (!Number.isFinite(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * @param {string} value YYYY-MM-DD
+ * @returns {string|null}
+ */
+export function fromAffiliateDateInputValue(value) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  const parsed = new Date(`${trimmed}T00:00:00`);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+/**
  * Affiliate / cookie tracking fields on a URL table row.
  * @param {Record<string, unknown>} [patch]
  */
@@ -43,15 +93,15 @@ export function createAffiliateFields(patch = {}) {
   const activatedAt = patch.activatedAt
     ? String(patch.activatedAt)
     : null;
+  const currency = normalizeAffiliateCurrency(patch.currency);
 
   return {
     commissionRate,
     productPrice,
     cookieDays,
     affiliateStatus,
-    activatedAt: affiliateStatus === "active" || affiliateStatus === "expired"
-      ? activatedAt
-      : (affiliateStatus === "pending" ? null : activatedAt),
+    activatedAt,
+    currency,
     clientsWon,
   };
 }
@@ -173,10 +223,11 @@ export function applyAffiliateStatusChange(entry, nextStatus, now = new Date()) 
 
   if (next === "active") {
     const wasActive = current.affiliateStatus === "active" && current.activatedAt;
+    const planned = entry?.activatedAt ? String(entry.activatedAt) : null;
     return {
       ...current,
       affiliateStatus: "active",
-      activatedAt: wasActive ? current.activatedAt : iso,
+      activatedAt: wasActive ? current.activatedAt : (planned || iso),
     };
   }
 
@@ -226,16 +277,23 @@ export function withResolvedAffiliateLifecycle(entry, now = new Date()) {
 
 /**
  * @param {number|null|undefined} value
- * @param {Intl.NumberFormatOptions} [options]
+ * @param {Intl.NumberFormatOptions & { currency?: string }} [options]
  */
 export function formatAffiliateMoney(value, options = {}) {
   const n = toNonNegNumber(value) ?? 0;
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-    ...options,
-  }).format(n);
+  const { currency: currencyOpt, ...rest } = options;
+  const code = normalizeAffiliateCurrency(currencyOpt);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+      ...rest,
+    }).format(n);
+  } catch {
+    const digits = rest.maximumFractionDigits ?? 2;
+    return `${code} ${n.toFixed(digits)}`;
+  }
 }
 
 /**
@@ -274,6 +332,7 @@ export function formatAffiliateRowMeta(entry, now = new Date()) {
   }
   if (fields.productPrice != null) {
     parts.push(formatAffiliateMoney(fields.productPrice, {
+      currency: fields.currency,
       maximumFractionDigits: fields.productPrice % 1 === 0 ? 0 : 2,
     }));
   }

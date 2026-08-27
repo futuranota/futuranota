@@ -1,28 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AFFILIATE_CATEGORY,
+  AFFILIATE_CURRENCY_PRESETS,
   applyAffiliateStatusChange,
   computeAffiliateEarnings,
   computeAffiliatePerSale,
   createAffiliateFields,
   formatAffiliateMoney,
+  fromAffiliateDateInputValue,
+  normalizeAffiliateCurrency,
   resolveAffiliateLifecycle,
+  toAffiliateDateInputValue,
 } from "../../lib/urlTableAffiliate.js";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
+import { AffiliateInfoHover } from "./AffiliateInfoHover.jsx";
+
+const CURRENCY_CUSTOM = "custom";
+
+function openDatePicker(e) {
+  e.stopPropagation();
+  const input = e.currentTarget;
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+    } catch {
+      /* some browsers reject showPicker outside direct user gesture */
+    }
+  }
+}
+
+function hasCookieWindowData(draft) {
+  return draft?.cookieDays != null || Boolean(draft?.activatedAt);
+}
 
 /**
  * Per-row affiliate / stats page inside the URL table overlay.
- *
- * @param {Object} props
- * @param {import("../../lib/vaultBlocks.js").LinkEntry} props.entry
- * @param {'stats'|'calculator'} [props.mode]
- * @param {(next: import("../../lib/vaultBlocks.js").LinkEntry) => void | Promise<void>} props.onSave
- * @param {() => void} props.onBack
- * @param {(() => void)|null} [props.onClose]
- * @param {boolean} [props.immersive]
- * @param {React.MutableRefObject<(() => import("../../lib/vaultBlocks.js").LinkEntry|null)|null>} [props.entrySnapshotRef]
  */
 export function UrlTableEntryDetailView({
   entry,
@@ -49,11 +63,20 @@ export function UrlTableEntryDetailView({
     [draft.affiliateStatus, draft.activatedAt, draft.cookieDays],
   );
 
+  const rawCurrency = String(draft.currency ?? "").trim().toUpperCase();
+  const isPresetCurrency = AFFILIATE_CURRENCY_PRESETS.includes(rawCurrency);
+  const currencySelectValue = !rawCurrency || isPresetCurrency
+    ? (rawCurrency || "USD")
+    : CURRENCY_CUSTOM;
+  const displayCurrency = rawCurrency || "USD";
+  const moneyOpts = { currency: displayCurrency };
   const perSale = computeAffiliatePerSale(draft);
   const earnings = computeAffiliateEarnings(draft);
   const cookieNumeral = lifecycle.affiliateStatus === "pending"
     ? (draft.cookieDays ?? null)
     : lifecycle.daysRemaining;
+  const cookieStartDate = toAffiliateDateInputValue(draft.activatedAt);
+  const showCookieInfo = hasCookieWindowData(draft);
 
   const buildPersistedEntry = () => {
     const affiliate = createAffiliateFields(draft);
@@ -72,7 +95,8 @@ export function UrlTableEntryDetailView({
       ...affiliate,
       ...withStatus,
       affiliateStatus: resolved.affiliateStatus || status,
-      activatedAt: resolved.activatedAt,
+      activatedAt: draft.activatedAt || withStatus.activatedAt || resolved.activatedAt,
+      currency: displayCurrency,
       url: normalizeUrlInput(draft.url),
       category: String(draft.category ?? "").trim() || AFFILIATE_CATEGORY,
     });
@@ -93,6 +117,20 @@ export function UrlTableEntryDetailView({
       ...prev,
       [field]: field === "clientsWon" || field === "cookieDays" ? Math.floor(n) : n,
     }));
+  };
+
+  const handleCurrencySelect = (raw) => {
+    if (raw === CURRENCY_CUSTOM) {
+      setDraft((prev) => {
+        const current = String(prev.currency ?? "").trim().toUpperCase();
+        if (AFFILIATE_CURRENCY_PRESETS.includes(current)) {
+          return { ...prev, currency: "" };
+        }
+        return prev;
+      });
+      return;
+    }
+    setDraft((prev) => ({ ...prev, currency: raw }));
   };
 
   const handleSave = async () => {
@@ -157,7 +195,7 @@ export function UrlTableEntryDetailView({
             {t("urlTableAffiliate.perSale")}
           </span>
           <strong className="url-table-entry-detail__stat-value">
-            {formatAffiliateMoney(perSale)}
+            {formatAffiliateMoney(perSale, moneyOpts)}
           </strong>
         </div>
         <div className="url-table-entry-detail__stat">
@@ -165,12 +203,18 @@ export function UrlTableEntryDetailView({
             {t("urlTableAffiliate.earnings")}
           </span>
           <strong className="url-table-entry-detail__stat-value">
-            {formatAffiliateMoney(earnings)}
+            {formatAffiliateMoney(earnings, moneyOpts)}
           </strong>
         </div>
         <div className="url-table-entry-detail__stat">
-          <span className="url-table-entry-detail__stat-label">
+          <span className="url-table-entry-detail__stat-label url-table-entry-detail__stat-label--with-info">
             {t("urlTableAffiliate.cookieLeft")}
+            {showCookieInfo ? (
+              <AffiliateInfoHover
+                label={t("urlTableAffiliate.cookieWindowInfoAria")}
+                text={t("urlTableAffiliate.cookieWindowInfo")}
+              />
+            ) : null}
           </span>
           <div className="url-table-entry-detail__stat-cookie">
             <strong className="url-table-entry-detail__stat-value">
@@ -213,13 +257,57 @@ export function UrlTableEntryDetailView({
             </label>
 
             <label className="url-table-entry-detail__field">
-              <span>{t("urlTableAffiliate.cookieDays")}</span>
+              <span>{t("urlTableAffiliate.currency")}</span>
+              <select
+                value={currencySelectValue}
+                onChange={(e) => handleCurrencySelect(e.target.value)}
+              >
+                {AFFILIATE_CURRENCY_PRESETS.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+                <option value={CURRENCY_CUSTOM}>{t("urlTableAffiliate.currencyCustom")}</option>
+              </select>
+              {currencySelectValue === CURRENCY_CUSTOM ? (
+                <input
+                  type="text"
+                  value={rawCurrency}
+                  placeholder={t("urlTableAffiliate.currencyCustomPlaceholder")}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    currency: e.target.value.toUpperCase(),
+                  }))}
+                />
+              ) : null}
+            </label>
+
+            <label className="url-table-entry-detail__field url-table-entry-detail__field--wide url-table-entry-detail__cookie-block">
+              <span className="url-table-entry-detail__label-row">
+                {t("urlTableAffiliate.cookieDays")}
+                {showCookieInfo ? (
+                  <AffiliateInfoHover
+                    label={t("urlTableAffiliate.cookieWindowInfoAria")}
+                    text={t("urlTableAffiliate.cookieWindowInfo")}
+                  />
+                ) : null}
+              </span>
+              <input
+                type="date"
+                className="doc-new-date url-table-entry-detail__date"
+                value={cookieStartDate}
+                onChange={(e) => {
+                  const iso = fromAffiliateDateInputValue(e.target.value);
+                  setDraft((prev) => ({ ...prev, activatedAt: iso }));
+                }}
+                onClick={openDatePicker}
+                onFocus={openDatePicker}
+              />
               <input
                 type="number"
                 min="0"
                 step="1"
+                className="url-table-entry-detail__cookie-days"
                 value={draft.cookieDays ?? ""}
-                placeholder=""
+                placeholder={t("urlTableAffiliate.cookieDaysDurationPlaceholder")}
                 onChange={(e) => patchNumber("cookieDays", e.target.value)}
               />
             </label>
@@ -265,8 +353,9 @@ export function UrlTableEntryDetailView({
 /** @param {import("../../lib/vaultBlocks.js").LinkEntry} entry */
 function seedDraft(entry) {
   const base = createLinkEntry(entry);
-  if (!base.affiliateStatus) {
-    return { ...base, affiliateStatus: "pending" };
-  }
-  return base;
+  return {
+    ...base,
+    affiliateStatus: base.affiliateStatus || "pending",
+    currency: normalizeAffiliateCurrency(base.currency),
+  };
 }

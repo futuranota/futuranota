@@ -1528,6 +1528,12 @@
   background: #1a1a1a;
   box-sizing: border-box;
   overflow: hidden;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.affiliate-queue-card:hover {
+  border-color: #635F56;
+  background: color-mix(in oklab, #635F56 12%, #1a1a1a);
 }
 
 .affiliate-queue-card__media {
@@ -1622,7 +1628,7 @@
   gap: 6px;
   padding: 4px 6px;
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.5);
+  background: transparent;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -1648,8 +1654,8 @@
   transition: background 0.15s ease;
 }
 
-.affiliate-queue-card__stats:hover {
-  background: rgba(255, 255, 255, 0.14);
+.affiliate-queue-card:hover .affiliate-queue-card__stats {
+  background: #635F56;
 }
 
 .affiliate-queue-card__stats-icon {
@@ -2053,6 +2059,10 @@
   grid-column: 1 / -1;
 }
 
+.affiliate-entry-card__status-field {
+  max-width: 50%;
+}
+
 .affiliate-entry-card__fields label {
   display: flex;
   flex-direction: column;
@@ -2370,6 +2380,65 @@
 
 .url-table-entry-detail__field--wide {
   grid-column: 1 / -1;
+}
+
+.url-table-entry-detail__label-row,
+.url-table-entry-detail__stat-label--with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.url-table-entry-detail__cookie-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.url-table-entry-detail__date {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.url-table-entry-detail__cookie-days {
+  margin-top: 0;
+}
+
+.affiliate-info-hover {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.affiliate-info-hover__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: help;
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.affiliate-info-hover__btn:hover,
+.affiliate-info-hover__btn:focus-visible {
+  opacity: 1;
+}
+
+.affiliate-info-hover__icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.affiliate-info-hover__pop {
+  max-width: 260px;
+  z-index: 1400;
 }
 
 .url-table-entry-detail__field input,

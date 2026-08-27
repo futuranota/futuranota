@@ -24,6 +24,7 @@ const STORAGE_KEY = "futuranota.urlTableEntries.v1";
  * @property {string} [affiliateStatus]
  * @property {string|null} [activatedAt]
  * @property {number} [clientsWon]
+ * @property {string} [currency]
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -76,6 +77,7 @@ function normalizeStoredEntry(entry) {
     affiliateStatus: link.affiliateStatus,
     activatedAt: link.activatedAt,
     clientsWon: link.clientsWon,
+    currency: link.currency,
     createdAt: entry?.createdAt || now,
     updatedAt: entry?.updatedAt || now,
   };
