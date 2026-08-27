@@ -2393,6 +2393,18 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: #151515;
+  box-sizing: border-box;
+}
+
+.url-table-entry-detail__cookie-block .url-table-entry-detail__label-row {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .url-table-entry-detail__date {

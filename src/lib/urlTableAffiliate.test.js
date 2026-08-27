@@ -3,6 +3,7 @@ import {
   formatAffiliateMoney,
   fromAffiliateDateInputValue,
   normalizeAffiliateCurrency,
+  resolveAffiliateLifecycle,
   toAffiliateDateInputValue,
 } from "./urlTableAffiliate.js";
 
@@ -43,5 +44,19 @@ describe("affiliate date helpers", () => {
 
   it("returns empty for invalid date input", () => {
     expect(fromAffiliateDateInputValue("")).toBeNull();
+  });
+});
+
+describe("resolveAffiliateLifecycle pending", () => {
+  it("preserves activatedAt while pending", () => {
+    const iso = fromAffiliateDateInputValue("2026-08-26");
+    const resolved = resolveAffiliateLifecycle({
+      affiliateStatus: "pending",
+      cookieDays: 30,
+      activatedAt: iso,
+    });
+    expect(resolved.affiliateStatus).toBe("pending");
+    expect(resolved.daysRemaining).toBe(30);
+    expect(resolved.activatedAt).toBe(iso);
   });
 });

@@ -35,6 +35,10 @@ function hasCookieWindowData(draft) {
   return draft?.cookieDays != null || Boolean(draft?.activatedAt);
 }
 
+function todayDateInputValue() {
+  return toAffiliateDateInputValue(new Date().toISOString());
+}
+
 /**
  * Per-row affiliate / stats page inside the URL table overlay.
  */
@@ -75,27 +79,41 @@ export function UrlTableEntryDetailView({
   const cookieNumeral = lifecycle.affiliateStatus === "pending"
     ? (draft.cookieDays ?? null)
     : lifecycle.daysRemaining;
-  const cookieStartDate = toAffiliateDateInputValue(draft.activatedAt);
+  const todayInput = todayDateInputValue();
+  const cookieStartDate = toAffiliateDateInputValue(draft.activatedAt) || todayInput;
   const showCookieInfo = hasCookieWindowData(draft);
 
+  const ensureTodayActivatedAt = (prev) => {
+    if (prev.activatedAt && toAffiliateDateInputValue(prev.activatedAt) === todayInput) {
+      return prev.activatedAt;
+    }
+    return fromAffiliateDateInputValue(todayInput);
+  };
+
   const buildPersistedEntry = () => {
-    const affiliate = createAffiliateFields(draft);
+    const activatedAt = draft.cookieDays != null || draft.activatedAt
+      ? (draft.activatedAt && toAffiliateDateInputValue(draft.activatedAt) === todayInput
+        ? draft.activatedAt
+        : fromAffiliateDateInputValue(todayInput))
+      : (draft.activatedAt || null);
+    const affiliate = createAffiliateFields({ ...draft, activatedAt });
     const status = affiliate.affiliateStatus || "pending";
     const withStatus = applyAffiliateStatusChange(
-      { ...draft, ...affiliate, affiliateStatus: status },
+      { ...draft, ...affiliate, affiliateStatus: status, activatedAt },
       status,
     );
     const resolved = resolveAffiliateLifecycle({
       ...draft,
       ...affiliate,
       ...withStatus,
+      activatedAt: activatedAt || withStatus.activatedAt,
     });
     return createLinkEntry({
       ...draft,
       ...affiliate,
       ...withStatus,
       affiliateStatus: resolved.affiliateStatus || status,
-      activatedAt: draft.activatedAt || withStatus.activatedAt || resolved.activatedAt,
+      activatedAt: activatedAt || withStatus.activatedAt || resolved.activatedAt,
       currency: displayCurrency,
       url: normalizeUrlInput(draft.url),
       category: String(draft.category ?? "").trim() || AFFILIATE_CATEGORY,
@@ -113,10 +131,16 @@ export function UrlTableEntryDetailView({
     }
     const n = Number(trimmed);
     if (!Number.isFinite(n) || n < 0) return;
-    setDraft((prev) => ({
-      ...prev,
-      [field]: field === "clientsWon" || field === "cookieDays" ? Math.floor(n) : n,
-    }));
+    setDraft((prev) => {
+      const next = {
+        ...prev,
+        [field]: field === "clientsWon" || field === "cookieDays" ? Math.floor(n) : n,
+      };
+      if (field === "cookieDays") {
+        next.activatedAt = ensureTodayActivatedAt(prev);
+      }
+      return next;
+    });
   };
 
   const handleCurrencySelect = (raw) => {
@@ -280,7 +304,7 @@ export function UrlTableEntryDetailView({
               ) : null}
             </label>
 
-            <label className="url-table-entry-detail__field url-table-entry-detail__field--wide url-table-entry-detail__cookie-block">
+            <div className="url-table-entry-detail__field url-table-entry-detail__cookie-block">
               <span className="url-table-entry-detail__label-row">
                 {t("urlTableAffiliate.cookieDays")}
                 {showCookieInfo ? (
@@ -294,12 +318,28 @@ export function UrlTableEntryDetailView({
                 type="date"
                 className="doc-new-date url-table-entry-detail__date"
                 value={cookieStartDate}
-                onChange={(e) => {
-                  const iso = fromAffiliateDateInputValue(e.target.value);
-                  setDraft((prev) => ({ ...prev, activatedAt: iso }));
+                min={todayInput}
+                max={todayInput}
+                onChange={() => {
+                  setDraft((prev) => ({
+                    ...prev,
+                    activatedAt: fromAffiliateDateInputValue(todayInput),
+                  }));
                 }}
-                onClick={openDatePicker}
-                onFocus={openDatePicker}
+                onClick={(e) => {
+                  openDatePicker(e);
+                  setDraft((prev) => ({
+                    ...prev,
+                    activatedAt: ensureTodayActivatedAt(prev),
+                  }));
+                }}
+                onFocus={(e) => {
+                  openDatePicker(e);
+                  setDraft((prev) => ({
+                    ...prev,
+                    activatedAt: ensureTodayActivatedAt(prev),
+                  }));
+                }}
               />
               <input
                 type="number"
@@ -310,7 +350,7 @@ export function UrlTableEntryDetailView({
                 placeholder={t("urlTableAffiliate.cookieDaysDurationPlaceholder")}
                 onChange={(e) => patchNumber("cookieDays", e.target.value)}
               />
-            </label>
+            </div>
 
             <label className="url-table-entry-detail__field">
               <span>{t("urlTableAffiliate.clientsWon")}</span>

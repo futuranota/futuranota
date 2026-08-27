@@ -181,7 +181,7 @@ export function resolveAffiliateLifecycle(entry, now = new Date()) {
     return {
       affiliateStatus: "pending",
       daysRemaining: fields.cookieDays,
-      activatedAt: null,
+      activatedAt: fields.activatedAt,
       didExpire: false,
     };
   }
@@ -214,10 +214,11 @@ export function applyAffiliateStatusChange(entry, nextStatus, now = new Date()) 
   }
 
   if (next === "pending") {
+    const planned = entry?.activatedAt ? String(entry.activatedAt) : current.activatedAt;
     return {
       ...current,
       affiliateStatus: "pending",
-      activatedAt: null,
+      activatedAt: planned || null,
     };
   }
 
