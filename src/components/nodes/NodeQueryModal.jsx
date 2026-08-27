@@ -55,7 +55,9 @@ import { mergeVideoNodeContent } from "../../lib/videoEmbed.js";
 import { VideoEmbedBar } from "../intel/VideoEmbedBar.jsx";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
+import { parseWeatherForecastNodeContent } from "../../lib/forecastSearch.js";
 import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
+import { ForecastNodeView } from "../intel/ForecastNodeView.jsx";
 import {
   listAdoptableDocs,
   resolveAdoptableDocLabel,
@@ -495,7 +497,9 @@ export function NodeQueryModal({
 
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
-  const showTextSizeControls = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
+  const forecastPayload =
+    dataType === NODE_DATA_TYPES.TEXT ? parseWeatherForecastNodeContent(content) : null;
+  const showTextSizeControls = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload && !forecastPayload;
   const scheduleStartIso = anchorDate && anchorTime ? `${anchorDate}T${anchorTime}:00` : "";
   const scheduleFinishIso = anchorDate && anchorFinishTime ? `${anchorDate}T${anchorFinishTime}:00` : "";
   const scheduleHasAny = Boolean(anchorDate || anchorTime || anchorFinishTime);
@@ -507,7 +511,7 @@ export function NodeQueryModal({
         ? t("meta.scheduleFinishInvalid")
         : "");
 
-  const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
+  const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload && !forecastPayload;
 
   // Local source of truth for the writing stack so empty/blank cells survive
   // while editing (serialized content drops them). Re-seed only when the node
@@ -2738,6 +2742,11 @@ export function NodeQueryModal({
             <CalendarEventNodeView
               content={content}
               className="node-query-modal__calendar-body"
+            />
+          ) : forecastPayload ? (
+            <ForecastNodeView
+              content={content}
+              className="node-query-modal__forecast-body"
             />
           ) : (
             <SlashAwareTextarea

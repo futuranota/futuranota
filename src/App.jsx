@@ -139,11 +139,10 @@ import {
   nodeContentAcceptsIntelWidget,
 } from './lib/nodeIntelWidget.js';
 import {
-  fillMoodboardWeatherSlot,
-  findMoodboardWeatherTarget,
-  moodboardHasWeatherPayload,
-} from './lib/docBlocks.js';
-import { parseNodeWritingBody, serializeNodeWritingBody } from './lib/nodeInlineContent.js';
+  applyMoodboardWeatherFill,
+  resolveMoodboardWeatherFillPlan,
+} from './lib/moodboardWeatherFill.js';
+import { parseNodeWritingBody } from './lib/nodeInlineContent.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
@@ -839,27 +838,45 @@ useEffect(() => {
     setToast({ message: `Node added · "${title}"`, kind: "ok" });
   }, [insertNodeToCanvas]);
 
-  const handleInsertForecastNode = ({ title, payload, sourceNode, anchorAt }) => {
-    const parentDocId = sourceNode?.parentDocId || null;
+  const handleInsertForecastNode = ({ title, payload, anchorAt }) => {
     const addNode = useNodesStore.getState().addNode;
     const nodeId = addNode(
       title,
       "text",
       JSON.stringify(payload),
-      parentDocId,
+      null,
       {
         anchorAt: anchorAt || null,
         sourceQuery: title,
       },
     );
-    if (parentDocId) {
-      useNodesStore.getState().syncNodeToParentDoc(nodeId, parentDocId);
-      if (expandedDocId === parentDocId) {
-        setDocViewGeneration((n) => n + 1);
-      }
-    }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
+  };
+
+  const handleFillMoodboardWeather = ({ payload, plan }) => {
+    if (!plan || !payload) return false;
+    const nodesApi = useNodesStore.getState();
+    const docsApi = useDocsStore.getState();
+    const ok = applyMoodboardWeatherFill(plan, payload, {
+      getNode: (id) => nodesApi.getNode(id) || nodesApi.nodes?.[id],
+      updateNode: (id, patch) => nodesApi.updateNode(id, patch),
+      syncNodeToParentDoc: (nodeId, parentDocId) => {
+        nodesApi.syncNodeToParentDoc(nodeId, parentDocId);
+      },
+      getDoc: (id) => docsApi.getDoc?.(id) || docsApi.docs?.[id],
+      updateDoc: (id, patch) => docsApi.updateDoc(id, patch),
+    });
+    if (!ok) return false;
+    const parentDocId = plan.parentDocId || null;
+    if (parentDocId && expandedDocId === parentDocId) {
+      setDocViewGeneration((n) => n + 1);
+    }
+    setToast({
+      message: `Forecast added to moodboard in "${plan.docTitle || "document"}"`,
+      kind: "ok",
+    });
+    return true;
   };
 
   /* Connect a macronode with a forecast/calendar node on canvas → paste the widget
@@ -919,46 +936,25 @@ useEffect(() => {
           || useDocsStore.getState().docs?.[parentDocId]
           || null)
         : null;
-      const docBlocks = Array.isArray(parentDoc?.blocks) ? parentDoc.blocks : [];
-      const nodeBlocks = parseNodeWritingBody(targetEntity.content).blocks;
-
-      if (
-        moodboardHasWeatherPayload(nodeBlocks, payload)
-        || moodboardHasWeatherPayload(docBlocks, payload)
-      ) {
-        return;
-      }
-
-      const nodeWeatherTarget = findMoodboardWeatherTarget(nodeBlocks);
-      if (nodeWeatherTarget) {
-        const nextNodeBlocks = fillMoodboardWeatherSlot(nodeBlocks, nodeWeatherTarget, payload);
-        if (nextNodeBlocks) {
-          const nextContent = serializeNodeWritingBody({ blocks: nextNodeBlocks });
-          useNodesStore.getState().updateNode(targetEntity.id, { content: nextContent });
-          if (parentDocId) {
-            useNodesStore.getState().syncNodeToParentDoc(targetEntity.id, parentDocId);
-            if (expandedDocId === parentDocId) {
-              setDocViewGeneration((n) => n + 1);
-            }
-          }
-          setToast({
-            message: `Forecast added to moodboard in "${targetEntity.title || targetEnd.title || "document"}"`,
-            kind: "ok",
-          });
-          return;
-        }
-      }
-
-      const docWeatherTarget = findMoodboardWeatherTarget(docBlocks);
-      if (docWeatherTarget && parentDocId) {
-        const nextBlocks = fillMoodboardWeatherSlot(docBlocks, docWeatherTarget, payload);
-        if (nextBlocks) {
-          useDocsStore.getState().updateDoc(parentDocId, { blocks: nextBlocks });
-          if (expandedDocId === parentDocId) {
+      const plan = resolveMoodboardWeatherFillPlan(targetEntity, parentDoc);
+      if (plan) {
+        const nodesApi = useNodesStore.getState();
+        const docsApi = useDocsStore.getState();
+        const filled = applyMoodboardWeatherFill(plan, payload, {
+          getNode: (id) => nodesApi.getNode(id) || nodesApi.nodes?.[id],
+          updateNode: (id, patch) => nodesApi.updateNode(id, patch),
+          syncNodeToParentDoc: (nodeId, docId) => {
+            nodesApi.syncNodeToParentDoc(nodeId, docId);
+          },
+          getDoc: (id) => docsApi.getDoc?.(id) || docsApi.docs?.[id],
+          updateDoc: (id, patch) => docsApi.updateDoc(id, patch),
+        });
+        if (filled) {
+          if (parentDocId && expandedDocId === parentDocId) {
             setDocViewGeneration((n) => n + 1);
           }
           setToast({
-            message: `Forecast added to moodboard in "${parentDoc?.title || targetEntity.title || "document"}"`,
+            message: `Forecast added to moodboard in "${plan.docTitle || targetEntity.title || "document"}"`,
             kind: "ok",
           });
           return;
@@ -2205,6 +2201,7 @@ useEffect(() => {
             selection={selection}
             canvasNodes={canvasNodes}
             onInsertForecastNode={handleInsertForecastNode}
+            onFillMoodboardWeather={handleFillMoodboardWeather}
             onInsertEventNode={handleInsertEventNode}
             onSlashCreateNode={createNodeFromSlashAndInsert}
             objectsById={objects}

@@ -22,6 +22,7 @@ import {
   persistForecastNodeInserted,
   readForecastNodeInserted,
 } from "../../lib/weatherUsage.js";
+import { resolveMoodboardWeatherFillPlan } from "../../lib/moodboardWeatherFill.js";
 import { useForecastPanelStore } from "../../stores/forecastPanelStore.js";
 import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
 import { ForecastConditionIcon, ForecastIconRain, ForecastIconWind } from "./ForecastIcons.jsx";
@@ -92,6 +93,7 @@ export function ForecastSearchFooter({
   selection = [],
   canvasNodes = [],
   onInsertForecastNode,
+  onFillMoodboardWeather,
 }) {
   const { t } = useI18n();
   const [status, setStatus] = useState("idle");
@@ -138,6 +140,17 @@ export function ForecastSearchFooter({
     [resolveNode],
   );
 
+  const parentDoc = useMemo(() => {
+    const docId = activeNode?.parentDocId || null;
+    if (!docId) return null;
+    return docsById[docId] || null;
+  }, [activeNode, docsById]);
+
+  const moodboardFillPlan = useMemo(
+    () => resolveMoodboardWeatherFillPlan(activeNode, parentDoc),
+    [activeNode, parentDoc],
+  );
+
   const gate = useMemo(
     () => getForecastSearchGate({
       hasLocation: hasWeatherLocation(weatherLocation),
@@ -182,6 +195,30 @@ export function ForecastSearchFooter({
     setStatus(next.status === "success" ? "success" : "unavailable");
   };
 
+  const handleAddToMoodboard = async () => {
+    if (!result || result.status !== "success" || !moodboardFillPlan || !onFillMoodboardWeather) return;
+    if (!canUseWeatherAction) {
+      notifyWeatherActionLimit();
+      return;
+    }
+
+    const spent = await usePlanStore.getState().incrementWeatherAction();
+    if (!spent) {
+      notifyWeatherActionLimit();
+      return;
+    }
+
+    persistForecastNodeInserted();
+    setHasInsertedForecastNode(true);
+
+    const payload = buildForecastNodePayload(result);
+    const ok = onFillMoodboardWeather({ payload, plan: moodboardFillPlan });
+    if (ok) {
+      setResult(null);
+      setStatus("idle");
+    }
+  };
+
   const handleInsert = async () => {
     if (!result || result.status !== "success" || !onInsertForecastNode) return;
     if (!canUseWeatherAction) {
@@ -203,13 +240,14 @@ export function ForecastSearchFooter({
     onInsertForecastNode({
       title,
       payload,
-      sourceNode: result.node,
       anchorAt: result.scheduleIso || null,
     });
   };
 
   const loading = status === "loading";
-  const insertDisabled = !canUseWeatherAction;
+  const actionDisabled = !canUseWeatherAction;
+  const showMoodboardFill = Boolean(moodboardFillPlan);
+  const showInsertFallback = !showMoodboardFill && Boolean(onInsertForecastNode);
   const panelPillDate = selectedDayId
     ? formatForecastUiDate(startOfCalendarDay(parseDate(`${selectedDayId}T12:00:00`)))
     : "";
@@ -300,18 +338,46 @@ export function ForecastSearchFooter({
                   <p className="forecast-search-result__disclaimer">{result.disclaimer}</p>
                 </div>
               </div>
-              <button
-                type="button"
-                className={
-                  "forecast-search-result__insert btn xs"
-                  + (insertDisabled ? " is-disabled" : "")
-                }
-                onClick={handleInsert}
-                disabled={insertDisabled}
-                title={insertDisabled ? limitMessage : undefined}
-              >
-                Insert node
-              </button>
+              <div className="forecast-search-result__actions">
+                {showMoodboardFill ? (
+                  <button
+                    type="button"
+                    className={
+                      "forecast-search-result__insert btn xs"
+                      + (actionDisabled ? " is-disabled" : "")
+                    }
+                    onClick={handleAddToMoodboard}
+                    disabled={actionDisabled}
+                    title={actionDisabled ? limitMessage : undefined}
+                  >
+                    {t("intel.forecastSearchAddToMoodboard")}
+                  </button>
+                ) : null}
+                {showInsertFallback ? (
+                  <button
+                    type="button"
+                    className={
+                      "forecast-search-result__insert btn xs ghost"
+                      + (actionDisabled ? " is-disabled" : "")
+                    }
+                    onClick={handleInsert}
+                    disabled={actionDisabled}
+                    title={actionDisabled ? limitMessage : undefined}
+                  >
+                    {t("intel.forecastSearchInsertNode")}
+                  </button>
+                ) : null}
+              </div>
+              {!showMoodboardFill && activeNode ? (
+                <p className="forecast-search-result__slot-hint">
+                  {t("intel.forecastSearchHintNoWeatherSlot")}
+                </p>
+              ) : null}
+              {!activeNode && gate.enabled ? (
+                <p className="forecast-search-result__slot-hint">
+                  {t("intel.forecastSearchHintSelectDoc")}
+                </p>
+              ) : null}
             </>
           ) : (
             <p className="forecast-search-result__message">{result.message}</p>

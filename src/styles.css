@@ -3697,6 +3697,21 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 .forecast-search-result__insert {
   margin-top: 10px;
 }
+.forecast-search-result__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.forecast-search-result__actions .forecast-search-result__insert {
+  margin-top: 0;
+}
+.forecast-search-result__slot-hint {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: var(--mute);
+  line-height: 1.35;
+}
 .forecast-search-result__message {
   margin: 0;
   font-size: 11px;
