@@ -5,6 +5,13 @@ import { normalizeFolderLibraryItems, normalizeLibrarySets, normalizePromptClass
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
+import { mergeEntityMapsPreferNewer } from "../../lib/mergeEntityMapsPreferNewer.js";
+import {
+  isLinkedFolderChildNode,
+  nodeEntityPersistedContentCharCount,
+  nodeHasPersistedContent,
+  nodePersistedContentCharCount,
+} from "../../lib/nodePersistedContentScore.js";
 import {
   clearLastSyncedAt,
   fetchWorkspaceVersion,
@@ -1026,7 +1033,7 @@ function workspaceContentScore(state) {
 
   for (const node of Object.values(nodes)) {
     if (!node || typeof node !== "object") continue;
-    contentChars += String(node.content || "").length;
+    contentChars += nodePersistedContentCharCount(node.content);
     contentChars += String(node.title || "").length;
     bumpUpdated(node.updatedAt || node.createdAt);
   }
@@ -1067,76 +1074,27 @@ function isLocalRicherThanRemote(local, remote) {
 
 /**
  * Merge maps: remote decides which ids exist; local can win field content when both exist.
- * Local-only ids are kept when their wall-clock activity is after lastSyncedAt (unsynced creates).
+ * Local-only ids are kept when their wall-clock activity is after lastSyncedAt (unsynced creates)
+ * or when shouldKeepLocalOnly says so (e.g. linked folder docs with /code body).
  * Prefer max(updatedAt, createdAt): Created UI uses noon-of-day (isoFromDateInput), which is
  * often ≤ lastSyncedAt even for brand-new rows that still have updatedAt = now.
  * This stops deleted folders in a fat localStorage from resurrecting after purge.
  * @param {Record<string, object>} remoteMap
  * @param {Record<string, object>} localMap
  * @param {(item: object) => number} [contentLen]
- * @param {{ lastSyncedAt?: string|null, allowAllLocalOnly?: boolean }} [opts]
+ * @param {{ lastSyncedAt?: string|null, allowAllLocalOnly?: boolean, preferRicherContent?: boolean, shouldKeepLocalOnly?: (item: object) => boolean }} [opts]
  */
-function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen, opts = {}) {
-  const remote = remoteMap && typeof remoteMap === "object" ? remoteMap : {};
-  const local = localMap && typeof localMap === "object" ? localMap : {};
-  const lastSyncedMs = parseVersionMs(opts.lastSyncedAt) || 0;
-  const allowAllLocalOnly = Boolean(opts.allowAllLocalOnly);
-  const out = {};
-  const len = typeof contentLen === "function"
-    ? contentLen
-    : (item) => String(item?.content || item?.body || item?.title || "").length;
-
-  for (const [id, remoteItem] of Object.entries(remote)) {
-    if (!id || !remoteItem || typeof remoteItem !== "object") continue;
-    if (
-      pendingDeletedDocIds.has(id)
-      || pendingDeletedNodeIds.has(id)
-      || pendingDeletedCompanyIds.has(id)
-    ) continue;
-    const localItem = local[id];
-    if (!localItem || typeof localItem !== "object") {
-      out[id] = remoteItem;
-      continue;
-    }
-    const localT = Date.parse(String(localItem.updatedAt || localItem.createdAt || "")) || 0;
-    const remoteT = Date.parse(String(remoteItem.updatedAt || remoteItem.createdAt || "")) || 0;
-    if (localT > remoteT) {
-      // #region agent log
-      if ((localItem.scheduleStartAt || localItem.launchAt) && !remoteItem.scheduleStartAt && !remoteItem.launchAt) {
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'E',location:'persistenceMiddleware.js:mergeEntityMapsPreferNewer',message:'Local newer won over remote-cleared schedule',data:{id,title:localItem.title||null,localT,remoteT,localStart:localItem.scheduleStartAt||null,localLaunch:localItem.launchAt||null,remoteStart:remoteItem.scheduleStartAt||null,remoteLaunch:remoteItem.launchAt||null},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
-      out[id] = localItem;
-    } else if (localT === remoteT && len(localItem) > len(remoteItem)) {
-      out[id] = localItem;
-    } else {
-      out[id] = remoteItem;
-    }
-  }
-
-  for (const [id, localItem] of Object.entries(local)) {
-    if (!id || !localItem || typeof localItem !== "object") continue;
-    if (out[id]) continue;
-    if (pendingDeletedDocIds.has(id) || pendingDeletedNodeIds.has(id) || pendingDeletedCompanyIds.has(id)) continue;
-    if (allowAllLocalOnly) {
-      out[id] = localItem;
-      continue;
-    }
-    // No sync baseline: only keep local-only when remote has no membership yet
-    // (true first sync). If remote already has rows, local-only = deleted/stale.
-    if (lastSyncedMs <= 0) {
-      if (Object.keys(remote).length === 0) out[id] = localItem;
-      continue;
-    }
-    const updatedMs = Date.parse(String(localItem.updatedAt || "")) || 0;
-    const createdMs = Date.parse(String(localItem.createdAt || "")) || 0;
-    const localMs = Math.max(updatedMs, createdMs);
-    // Unsynced create/edit after last successful cloud sync.
-    if (localMs > lastSyncedMs) {
-      out[id] = localItem;
-    }
-  }
-  return out;
+function mergeMapsWithTombstones(remoteMap, localMap, contentLen, opts = {}) {
+  const pendingDeletedIds = new Set([
+    ...pendingDeletedDocIds,
+    ...pendingDeletedNodeIds,
+    ...pendingDeletedCompanyIds,
+  ]);
+  return mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen, {
+    ...opts,
+    pendingDeletedIds,
+    parseVersionMs,
+  });
 }
 
 /**
@@ -1209,7 +1167,7 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
 
   const mergeOpts = { lastSyncedAt: readLastSyncedAt() };
 
-  const docs = mergeEntityMapsPreferNewer(
+  const docs = mergeMapsWithTombstones(
     remoteState.docs,
     localState.docs,
     (doc) => {
@@ -1221,13 +1179,18 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
     },
     mergeOpts,
   );
-  const nodes = mergeEntityMapsPreferNewer(
+  const nodes = mergeMapsWithTombstones(
     remoteState.nodes,
     localState.nodes,
-    (node) => String(node?.content || "").length + String(node?.title || "").length,
-    mergeOpts,
+    (node) => nodeEntityPersistedContentCharCount(node),
+    {
+      ...mergeOpts,
+      preferRicherContent: true,
+      shouldKeepLocalOnly: (node) =>
+        nodeHasPersistedContent(node) && isLinkedFolderChildNode(node),
+    },
   );
-  const objectsRaw = mergeEntityMapsPreferNewer(
+  const objectsRaw = mergeMapsWithTombstones(
     remoteState.objects,
     localState.objects,
     (obj) => String(obj?.name || "").length,
@@ -1310,25 +1273,25 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
       objects: rebuildObjectChildren(objectsRaw, docs),
       docs,
       nodes: nodesWithSchedule,
-      canvasNodes: mergeEntityMapsPreferNewer(
+      canvasNodes: mergeMapsWithTombstones(
         remoteState.canvasNodes,
         localState.canvasNodes,
         undefined,
         mergeOpts,
       ),
-      canvasConnections: mergeEntityMapsPreferNewer(
+      canvasConnections: mergeMapsWithTombstones(
         remoteState.canvasConnections,
         localState.canvasConnections,
         undefined,
         mergeOpts,
       ),
-      groupings: mergeEntityMapsPreferNewer(
+      groupings: mergeMapsWithTombstones(
         remoteState.groupings,
         localState.groupings,
         undefined,
         mergeOpts,
       ),
-      timelines: mergeEntityMapsPreferNewer(
+      timelines: mergeMapsWithTombstones(
         remoteState.timelines,
         localState.timelines,
         undefined,

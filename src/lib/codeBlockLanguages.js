@@ -1,6 +1,7 @@
 export const CODE_BLOCK_LANGUAGES = [
   { id: "javascript", label: "JavaScript" },
   { id: "typescript", label: "TypeScript" },
+  { id: "tsx", label: "TSX (React)" },
   { id: "python", label: "Python" },
   { id: "html", label: "HTML" },
   { id: "css", label: "CSS" },

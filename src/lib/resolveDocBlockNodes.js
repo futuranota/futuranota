@@ -69,17 +69,19 @@ export function repairDocNodeLinks(docsById, nodesById) {
   for (const doc of Object.values(docsById)) {
     if (!doc?.id) continue;
     const blockIds = [...collectNodeIdsReferencedByBlocks(doc.blocks)];
-    if (!blockIds.length) continue;
+    const parentLinkedIds = Object.values(nextNodes)
+      .filter((node) => node?.parentDocId === doc.id && node?.id)
+      .map((node) => node.id);
 
     const existingNodeIds = Array.isArray(doc.nodeIds) ? doc.nodeIds.filter(Boolean) : [];
-    const mergedIds = [...new Set([...existingNodeIds, ...blockIds])];
+    const mergedIds = [...new Set([...existingNodeIds, ...blockIds, ...parentLinkedIds])];
     if (mergedIds.length !== existingNodeIds.length
       || mergedIds.some((id, i) => id !== existingNodeIds[i])) {
       nextDocs[doc.id] = { ...doc, nodeIds: mergedIds };
       changed = true;
     }
 
-    for (const nodeId of blockIds) {
+    for (const nodeId of [...new Set([...blockIds, ...parentLinkedIds])]) {
       const node = nextNodes[nodeId];
       if (!node) continue;
       if (node.parentDocId !== doc.id) {

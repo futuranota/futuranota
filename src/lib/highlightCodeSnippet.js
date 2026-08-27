@@ -51,6 +51,7 @@ for (const [name, grammar] of LANGUAGE_REGISTRATIONS) {
 const HIGHLIGHT_LANGUAGE_MAP = {
   javascript: "javascript",
   typescript: "typescript",
+  tsx: "typescript",
   python: "python",
   html: "xml",
   css: "css",

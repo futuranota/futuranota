@@ -92,6 +92,7 @@ import {
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -1214,6 +1215,7 @@ export function NodeWritingBlockStack({
                   if (!(block.code || "").trim()) return;
                   updateBlockAt(blockIndex, { codeSaved: true });
                   onFocusTargetChange?.(null);
+                  flushPersistenceSync().catch(() => {});
                 }}
                 onEdit={() => {
                   updateBlockAt(blockIndex, { codeSaved: false });
