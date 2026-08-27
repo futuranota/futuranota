@@ -59,9 +59,7 @@ export function UrlTableDashboardOverlay({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewEntryId, setViewEntryId] = useState(null);
-  const [detailSaving, setDetailSaving] = useState(false);
   const draftRef = useRef(draft);
-  const detailSaveRef = useRef(null);
   const detailEntryRef = useRef(null);
   const confirmOpenRef = useRef(false);
   draftRef.current = draft;
@@ -85,7 +83,6 @@ export function UrlTableDashboardOverlay({
     resetAffiliateEditor();
     setQuery(initialSearch);
     setCategoryFilter("");
-    setDetailSaving(false);
     setSaving(false);
   }, [sessionKey, initialSearch]);
 
@@ -164,8 +161,8 @@ export function UrlTableDashboardOverlay({
   })();
 
   const viewingEntry = viewEntryId
-    ? (session.entries || []).find((entry) => entry.id === viewEntryId)
-      || (stagingEntry?.id === viewEntryId ? stagingEntry : null)
+    ? (stagingEntry?.id === viewEntryId ? stagingEntry : null)
+      || (session.entries || []).find((entry) => entry.id === viewEntryId)
     : null;
 
   const commitDraftIfReady = (currentEntries) => currentEntries;
@@ -197,10 +194,6 @@ export function UrlTableDashboardOverlay({
   const affiliateImmersive = isAffiliateTable && !affiliateQueueView;
 
   const showAffiliateShellHeader = !isAffiliateTable || affiliateQueueView;
-
-  const showAffiliateShellFooter = isAffiliateTable
-    && viewingEntry
-    && detailMode === "calculator";
 
   const showAffiliateHeaderSearch = affiliateQueueView;
 
@@ -259,20 +252,6 @@ export function UrlTableDashboardOverlay({
     if (panelMode === "edit" && editingEntryId === entryId) {
       resetAffiliateEditor();
     }
-  };
-
-  const handleDeleteEntryFromDetail = async (entryId) => {
-    if (!entryId || deleting || detailSaving) return;
-    const name = String(viewingEntry?.name ?? "").trim() || t("urlTableAffiliate.untitled");
-    const confirmed = await askConfirm({
-      title: t("urlTableAffiliate.deleteRow"),
-      message: t("urlTableLibrary.deleteConfirm", { title: name }),
-      confirmLabel: t("urlTableAffiliate.deleteRow"),
-      cancelLabel: t("common.cancel"),
-    });
-    if (!confirmed) return;
-    handleDeleteEntry(entryId);
-    resetAffiliateEditor();
   };
 
   const handleViewStats = (entry) => {
@@ -334,7 +313,12 @@ export function UrlTableDashboardOverlay({
     if (!nextEntry?.id) return;
     setSaving(true);
     try {
-      const link = await persistAffiliateEntry(nextEntry);
+      const entry = mergeAffiliateDraftAndStaging(
+        draftRef.current,
+        nextEntry,
+        nextEntry.id,
+      );
+      const link = await persistAffiliateEntry(entry);
       if (!link) throw new Error("Failed to persist affiliate row");
       resetAffiliateEditor();
     } finally {
@@ -504,9 +488,7 @@ export function UrlTableDashboardOverlay({
               onBack={handleBackFromDetail}
               onClose={affiliateImmersive ? handleImmersiveClose : null}
               immersive={affiliateImmersive}
-              flushSaveRef={detailSaveRef}
               entrySnapshotRef={detailEntryRef}
-              onSavingChange={setDetailSaving}
             />
           ) : isAffiliateTable ? (
             <>
@@ -585,64 +567,36 @@ export function UrlTableDashboardOverlay({
           )}
         </div>
 
-        {(showAffiliateShellFooter || !isAffiliateTable) ? (
+        {!isAffiliateTable ? (
         <footer className="url-table-page-overlay__footer">
-          {viewingEntry && detailMode === "calculator" ? (
-            <>
-              <button
-                type="button"
-                className={
-                  "doc-new-action doc-new-action--save url-table-dashboard__save"
-                  + (detailSaving || saving ? " doc-new-action--save-loading" : "")
-                }
-                onClick={() => detailSaveRef.current?.()}
-                disabled={saving || deleting || detailSaving}
-                aria-busy={detailSaving || saving}
-              >
-                {(detailSaving || saving) ? <SearchSpinner size={14} /> : null}
-                {(detailSaving || saving) ? t("urlTableAffiliate.saving") : t("common.save")}
-              </button>
-              <button
-                type="button"
-                className="btn xs url-table-page-overlay__delete-btn"
-                onClick={() => handleDeleteEntryFromDetail(viewingEntry.id)}
-                disabled={saving || deleting || detailSaving}
-              >
-                {t("urlTableAffiliate.deleteRow")}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className={
-                  "doc-new-action doc-new-action--save url-table-dashboard__save"
-                  + (saving ? " doc-new-action--save-loading" : "")
-                }
-                onClick={handleSave}
-                disabled={saving || deleting}
-                aria-busy={saving}
-              >
-                {saving ? <SearchSpinner size={14} /> : null}
-                {saving ? t("urlTableAffiliate.saving") : t("common.save")}
-              </button>
-              {tableId ? (
-                <button
-                  type="button"
-                  className="btn xs url-table-page-overlay__delete-btn"
-                  onClick={handleDelete}
-                  disabled={saving || deleting}
-                >
-                  {t("urlTableLibrary.delete")}
-                </button>
-              ) : null}
-            </>
-          )}
+          <button
+            type="button"
+            className={
+              "doc-new-action doc-new-action--save url-table-dashboard__save"
+              + (saving ? " doc-new-action--save-loading" : "")
+            }
+            onClick={handleSave}
+            disabled={saving || deleting}
+            aria-busy={saving}
+          >
+            {saving ? <SearchSpinner size={14} /> : null}
+            {saving ? t("urlTableAffiliate.saving") : t("common.save")}
+          </button>
+          {tableId ? (
+            <button
+              type="button"
+              className="btn xs url-table-page-overlay__delete-btn"
+              onClick={handleDelete}
+              disabled={saving || deleting}
+            >
+              {t("urlTableLibrary.delete")}
+            </button>
+          ) : null}
         </footer>
         ) : null}
       </div>
       <MarkLoadingOverlay
-        open={!isAffiliateTable && (saving || detailSaving)}
+        open={!isAffiliateTable && saving}
         label={t("urlTableAffiliate.saving")}
       />
     </div>,

@@ -73,7 +73,12 @@ export function AffiliateQueueCard({
             aria-label={labels.stats || t("urlTableAffiliate.stats")}
             title={labels.stats || t("urlTableAffiliate.stats")}
           >
-            <span className="affiliate-queue-card__stats-icon" aria-hidden />
+            <img
+              className="affiliate-queue-card__stats-icon"
+              src="/uploads/ChartPieSlice.svg"
+              alt=""
+              draggable={false}
+            />
           </button>
           <button
             type="button"

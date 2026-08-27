@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AFFILIATE_CATEGORY,
-  AFFILIATE_STATUSES,
   applyAffiliateStatusChange,
   computeAffiliateEarnings,
   computeAffiliatePerSale,
@@ -11,6 +10,7 @@ import {
 } from "../../lib/urlTableAffiliate.js";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 
 /**
  * Per-row affiliate / stats page inside the URL table overlay.
@@ -22,9 +22,7 @@ import { useI18n } from "../../i18n/useI18n.js";
  * @param {() => void} props.onBack
  * @param {(() => void)|null} [props.onClose]
  * @param {boolean} [props.immersive]
- * @param {React.MutableRefObject<(() => void)|null>} [props.flushSaveRef]
  * @param {React.MutableRefObject<(() => import("../../lib/vaultBlocks.js").LinkEntry|null)|null>} [props.entrySnapshotRef]
- * @param {(saving: boolean) => void} [props.onSavingChange]
  */
 export function UrlTableEntryDetailView({
   entry,
@@ -33,9 +31,7 @@ export function UrlTableEntryDetailView({
   onBack,
   onClose = null,
   immersive = false,
-  flushSaveRef = null,
   entrySnapshotRef = null,
-  onSavingChange = null,
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(() => seedDraft(entry));
@@ -99,22 +95,9 @@ export function UrlTableEntryDetailView({
     }));
   };
 
-  const handleStatusChange = (nextStatus) => {
-    const applied = applyAffiliateStatusChange(draft, nextStatus);
-    setDraft((prev) => {
-      const category = String(prev.category ?? "").trim() || AFFILIATE_CATEGORY;
-      return {
-        ...prev,
-        ...applied,
-        category,
-      };
-    });
-  };
-
   const handleSave = async () => {
     if (saving || isStatsOnly) return;
     setSaving(true);
-    onSavingChange?.(true);
     setSaveError("");
     try {
       const next = buildPersistedEntry();
@@ -124,19 +107,8 @@ export function UrlTableEntryDetailView({
       setSaveError(t("urlTableAffiliate.saveFailed"));
     } finally {
       setSaving(false);
-      onSavingChange?.(false);
     }
   };
-
-  useEffect(() => {
-    if (!flushSaveRef) return undefined;
-    flushSaveRef.current = () => {
-      void handleSave();
-    };
-    return () => {
-      flushSaveRef.current = null;
-    };
-  });
 
   useEffect(() => {
     if (!entrySnapshotRef) return undefined;
@@ -217,16 +189,6 @@ export function UrlTableEntryDetailView({
         <>
           <div className="url-table-entry-detail__grid">
             <label className="url-table-entry-detail__field">
-              <span>{t("urlTableAffiliate.businessName")}</span>
-              <input
-                type="text"
-                value={draft.name}
-                placeholder={t("urlTableAffiliate.businessNamePlaceholder")}
-                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-              />
-            </label>
-
-            <label className="url-table-entry-detail__field">
               <span>{t("urlTableAffiliate.commissionRate")}</span>
               <input
                 type="number"
@@ -263,20 +225,6 @@ export function UrlTableEntryDetailView({
             </label>
 
             <label className="url-table-entry-detail__field">
-              <span>{t("urlTableAffiliate.statusLabel")}</span>
-              <select
-                value={lifecycle.affiliateStatus || "pending"}
-                onChange={(e) => handleStatusChange(e.target.value)}
-              >
-                {AFFILIATE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {t(`urlTableAffiliate.status.${status}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="url-table-entry-detail__field">
               <span>{t("urlTableAffiliate.clientsWon")}</span>
               <input
                 type="number"
@@ -292,6 +240,22 @@ export function UrlTableEntryDetailView({
           {saveError ? (
             <p className="url-table-entry-detail__error">{saveError}</p>
           ) : null}
+
+          <div className="url-table-entry-detail__actions">
+            <button
+              type="button"
+              className={
+                "doc-new-action doc-new-action--save url-table-dashboard__save"
+                + (saving ? " doc-new-action--save-loading" : "")
+              }
+              onClick={() => void handleSave()}
+              disabled={saving}
+              aria-busy={saving}
+            >
+              {saving ? <SearchSpinner size={14} /> : null}
+              {saving ? t("urlTableAffiliate.saving") : t("common.save")}
+            </button>
+          </div>
         </>
       )}
     </div>
