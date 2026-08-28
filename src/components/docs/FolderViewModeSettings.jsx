@@ -6,21 +6,22 @@ import {
   normalizeFolderViewMode,
 } from "../../lib/folderViewMode.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { PremiumToggle } from "../shared/PremiumToggle.jsx";
 
 const SETTINGS_ICON = "/uploads/settings.svg";
-const CAMPAIGN_ICON = "/uploads/web-advertising.svg";
+const CAMPAIGN_ICON = "/uploads/ad-frame.svg";
 
 const VIEW_OPTIONS = [
   {
     id: FOLDER_VIEW_MODE_STORY,
-    icon: "/uploads/storybook.svg",
+    icon: "/uploads/descriptive-view.svg",
     titleKey: "meta.folderViewStoryTitle",
     structureKey: "meta.folderViewStoryStructure",
     bodyKey: "meta.folderViewStoryBody",
   },
   {
     id: FOLDER_VIEW_MODE_QUICK,
-    icon: "/uploads/links-type.svg",
+    icon: "/uploads/quickview.svg",
     titleKey: "meta.folderViewQuickTitle",
     structureKey: "meta.folderViewQuickStructure",
     bodyKey: "meta.folderViewQuickBody",
@@ -98,28 +99,11 @@ function FolderViewModeOverlay({
                 </span>
               </span>
             </div>
-            <div className="doc-new-campaign-toggle" role="group" aria-label={t("meta.campaignMode")}>
-              <button
-                type="button"
-                className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCampaignActiveChange?.(true);
-                }}
-              >
-                {t("sidebar.campaignDocActive")}
-              </button>
-              <button
-                type="button"
-                className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCampaignActiveChange?.(false);
-                }}
-              >
-                {t("sidebar.campaignDocInactive")}
-              </button>
-            </div>
+            <PremiumToggle
+              checked={Boolean(campaignActive)}
+              onChange={onCampaignActiveChange}
+              aria-label={t("meta.campaignMode")}
+            />
           </div>
         ) : null}
 
