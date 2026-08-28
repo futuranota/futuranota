@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { startOfCalendarDay } from "../temporal.js";
 import {
+  addToTimelineExcludedFileIds,
+  filterTimelineFileQueue,
   isTimelineFileCanvasNode,
+  mergeTimelineExcludedFileIds,
   mergeTimelineFileQueues,
+  pickTimelineFileQueueOnHydrate,
   pushFileToTimelineQueue,
+  removeFromTimelineExcludedFileIds,
   resolveCanvasEntityId,
   resolveFileRailDisplayDate,
+  resolveTimelineFileQueueOnHydrate,
 } from "./timelineFileQueue.js";
 
 describe("timelineFileQueue", () => {
@@ -43,6 +49,39 @@ describe("timelineFileQueue", () => {
 
   it("mergeTimelineFileQueues unions in order without dupes", () => {
     expect(mergeTimelineFileQueues(["a", "b"], ["b", "c"], [])).toEqual(["a", "b", "c"]);
+  });
+
+  it("tracks doc-wire removals without deleting the document entity", () => {
+    let excluded = [];
+    excluded = addToTimelineExcludedFileIds(excluded, "studios");
+    expect(filterTimelineFileQueue(["studios", "slot"], excluded)).toEqual(["slot"]);
+    excluded = removeFromTimelineExcludedFileIds(excluded, "studios");
+    expect(filterTimelineFileQueue(["studios", "slot"], excluded)).toEqual(["studios", "slot"]);
+  });
+
+  it("pickTimelineFileQueueOnHydrate prefers live over stale remote", () => {
+    expect(pickTimelineFileQueueOnHydrate(["a"], ["b", "c"], ["d"])).toEqual(["a"]);
+    expect(pickTimelineFileQueueOnHydrate([], ["b"], ["a", "c"])).toEqual(["b"]);
+    expect(pickTimelineFileQueueOnHydrate([], [], ["a", "c"])).toEqual(["a", "c"]);
+    expect(pickTimelineFileQueueOnHydrate([], [], [])).toEqual([]);
+  });
+
+  it("resolveTimelineFileQueueOnHydrate keeps removals across hydrate sources", () => {
+    const out = resolveTimelineFileQueueOnHydrate({
+      liveQueue: [],
+      localQueue: [],
+      remoteQueue: ["studios", "slot"],
+      liveExcluded: [],
+      localExcluded: ["studios"],
+      remoteExcluded: [],
+      nodeIds: ["studios", "slot"],
+    });
+    expect(out.timelineFileQueue).toEqual(["slot"]);
+    expect(out.timelineExcludedFileIds).toEqual(["studios"]);
+  });
+
+  it("mergeTimelineExcludedFileIds unions removal ledger", () => {
+    expect(mergeTimelineExcludedFileIds(["a"], ["b", "a"])).toEqual(["a", "b"]);
   });
 
   it("keeps insert order without duplicating", () => {

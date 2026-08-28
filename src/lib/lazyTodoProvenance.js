@@ -1,6 +1,13 @@
 import { anchorFieldsFromIso } from "./nodeAnchor.js";
 import { todayDateInputValue, formatMmDdYy } from "./docDates.js";
 import { lazyTodoHasContent } from "./lazyTodoItemKeyDown.js";
+import { resolveProductDocDisplayTitle } from "./templateDoc.js";
+
+/** @param {object|null|undefined} folder */
+function resolveFolderTitle(folder) {
+  if (!folder || typeof folder !== "object") return "";
+  return String(resolveProductDocDisplayTitle(folder) || folder.name || "").trim();
+}
 
 /** Bucket key when the linked document has no schedule date. */
 export const LAZY_TODO_UNSCHEDULED_DAY_KEY = "__unscheduled__";
@@ -59,7 +66,7 @@ export function resolveLazyTodoProvenance(item, opts = {}) {
   const documentTitle = String(node?.title || node?.sourceQuery || item?.listTitle || "").trim();
   const folderId = node?.parentDocId != null ? String(node.parentDocId).trim() : "";
   const folder = folderId ? docsById[folderId] : null;
-  const folderTitle = String(folder?.title || folder?.name || "").trim();
+  const folderTitle = resolveFolderTitle(folder);
   const anchorDate = scheduleDayKeyForNode(node);
   const dayKey = anchorDate || LAZY_TODO_UNSCHEDULED_DAY_KEY;
 

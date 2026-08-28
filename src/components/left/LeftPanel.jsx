@@ -1998,7 +1998,7 @@ export function LeftPanel({
   onOpenNewUrlTable,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
-  onOpenLazyTodoDayMerge,
+  onOpenLazyTodoShellMerge,
   onStepPlaybookRemoved,
   onUrlTablesDeleted,
   timelineCanvasSelection = [],
@@ -2813,8 +2813,8 @@ export function LeftPanel({
     onOpenLazyTodoItem?.(item);
   };
 
-  const handleOpenLazyTodoDayMergeFromQueue = (payload) => {
-    onOpenLazyTodoDayMerge?.(payload);
+  const handleOpenLazyTodoShellMergeFromQueue = (payload) => {
+    onOpenLazyTodoShellMerge?.(payload);
   };
 
   const handleNewLazyTodoFromQueue = () => {
@@ -5470,7 +5470,7 @@ export function LeftPanel({
             objectId={filterObjectId}
             onClose={closeLazyTodosView}
             onOpenItem={handleOpenLazyTodoFromQueue}
-            onOpenDayMerge={handleOpenLazyTodoDayMergeFromQueue}
+            onOpenShellMerge={handleOpenLazyTodoShellMergeFromQueue}
             onNew={handleNewLazyTodoFromQueue}
           />
         ) : null}
@@ -5521,7 +5521,7 @@ export function LeftPanel({
                 objectId={filterObjectId}
                 onClose={closeLazyTodosView}
                 onOpenItem={handleOpenLazyTodoFromQueue}
-                onOpenDayMerge={handleOpenLazyTodoDayMergeFromQueue}
+                onOpenShellMerge={handleOpenLazyTodoShellMergeFromQueue}
                 onNew={handleNewLazyTodoFromQueue}
               />
             ) : null}

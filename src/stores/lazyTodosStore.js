@@ -3,8 +3,14 @@ import { devtools } from "zustand/middleware";
 import { createTodoItem } from "../lib/docBlocks.js";
 import { generateId } from "../lib/ids.js";
 import { lazyTodoHasContent } from "../lib/lazyTodoItemKeyDown.js";
+import {
+  createShellId,
+  resolveShellId,
+  shellIdForDocument,
+  LAZY_TODO_SHELL_CARD_LIMIT,
+} from "../lib/lazyTodoShell.js";
 
-const STORAGE_KEY = "futuranota.lazyTodos.v3";
+const STORAGE_KEY = "futuranota.lazyTodos.v4";
 /** Shared with lazyTodosSync for cross-tab tombstone adoption. */
 export const LAZY_TODOS_DELETED_STORAGE_KEY = "futuranota.lazyTodos.deleted.v1";
 const DELETED_STORAGE_KEY = LAZY_TODOS_DELETED_STORAGE_KEY;
@@ -16,6 +22,7 @@ const DELETED_STORAGE_KEY = LAZY_TODOS_DELETED_STORAGE_KEY;
  * @property {string} id
  * @property {string|null} objectId
  * @property {string|null} [documentId] Linked document (node) id for Gina / in-doc create.
+ * @property {string} [shellId] Stable queue shell — groups cards in Lazy To-do section.
  * @property {string} reminder
  * @property {string} listTitle
  * @property {{ id: string, text: string, checked: boolean }[]} items
@@ -94,10 +101,12 @@ function normalizeItem(item) {
   const documentId = item?.documentId != null && String(item.documentId).trim()
     ? String(item.documentId).trim()
     : null;
+  const id = String(item?.id || generateId("LAZY"));
   const next = {
-    id: String(item?.id || generateId("LAZY")),
+    id,
     objectId: item?.objectId ?? null,
     documentId,
+    shellId: resolveShellId({ ...item, id, documentId }),
     reminder: String(item?.reminder ?? ""),
     listTitle: String(item?.listTitle ?? "To do").trim() || "To do",
     items,
@@ -175,10 +184,14 @@ export const useLazyTodosStore = create(
           ? String(extras.documentId).trim()
           : null;
         const listTitle = String(extras?.listTitle ?? "").trim() || "To do";
+        const shellId = extras?.shellId != null && String(extras.shellId).trim()
+          ? String(extras.shellId).trim()
+          : (documentId ? shellIdForDocument(documentId) : createShellId());
         const nextItem = normalizeItem({
           id: generateId("LAZY"),
           objectId: objectId || null,
           documentId,
+          shellId,
           reminder: "",
           listTitle,
           items: [createTodoItem()],
@@ -213,9 +226,34 @@ export const useLazyTodosStore = create(
         )[0];
       },
 
+      findItemsByShellId: (shellId) => {
+        const id = shellId != null ? String(shellId).trim() : "";
+        if (!id) return [];
+        return get().items.filter((item) => resolveShellId(item) === id);
+      },
+
+      /**
+       * Add a new checklist card to an existing shell (queue merge UI).
+       * @param {string} shellId
+       * @param {string|null} objectId
+       * @param {{ listTitle?: string }} [extras]
+       */
+      createDraftInShell: (shellId, objectId = null, extras = {}) => {
+        const targetShell = String(shellId || "").trim();
+        if (!targetShell) return null;
+        const siblings = get().findItemsByShellId(targetShell);
+        if (siblings.length >= LAZY_TODO_SHELL_CARD_LIMIT) return null;
+        return get().createDraftItem(objectId, {
+          shellId: targetShell,
+          listTitle: extras?.listTitle,
+          documentId: null,
+        });
+      },
+
       addItem: ({
         objectId = null,
         documentId = null,
+        shellId = null,
         reminder = "",
         listTitle = "To do",
         items = [createTodoItem()],
@@ -230,10 +268,15 @@ export const useLazyTodosStore = create(
         if (!lazyTodoHasContent(payload)) return null;
 
         const stamp = nowIso();
+        const docId = documentId || null;
+        const resolvedShell = shellId != null && String(shellId).trim()
+          ? String(shellId).trim()
+          : (docId ? shellIdForDocument(docId) : createShellId());
         const nextItem = normalizeItem({
           id: generateId("LAZY"),
           objectId: objectId || null,
-          documentId: documentId || null,
+          documentId: docId,
+          shellId: resolvedShell,
           ...payload,
           createdAt: stamp,
           updatedAt: stamp,
@@ -270,20 +313,32 @@ export const useLazyTodosStore = create(
         set((state) => {
           const items = state.items.map((item) => {
             if (item.id !== id) return item;
+            let nextPatch = patch;
+            if (patch.documentId !== undefined) {
+              const docId = patch.documentId != null
+                ? String(patch.documentId).trim()
+                : "";
+              if (docId) {
+                nextPatch = {
+                  ...patch,
+                  shellId: shellIdForDocument(docId),
+                };
+              }
+            }
             const next = normalizeItem({
               ...item,
-              ...patch,
+              ...nextPatch,
               id: item.id,
               createdAt: item.createdAt,
               updatedAt: nowIso(),
-              pendingSync: patch.pendingSync !== undefined
-                ? patch.pendingSync
+              pendingSync: nextPatch.pendingSync !== undefined
+                ? nextPatch.pendingSync
                 : item.pendingSync,
-              items: patch.items != null
-                ? normalizeTodoItems(patch.items)
+              items: nextPatch.items != null
+                ? normalizeTodoItems(nextPatch.items)
                 : item.items,
             });
-            if (patch.pendingSync === false) delete next.pendingSync;
+            if (nextPatch.pendingSync === false) delete next.pendingSync;
             return next;
           });
           persistItems(items);
@@ -316,6 +371,7 @@ export const useLazyTodosStore = create(
         return get().addItem({
           objectId: normalized.objectId,
           documentId: normalized.documentId,
+          shellId: normalized.shellId,
           reminder: normalized.reminder,
           listTitle: normalized.listTitle,
           items: normalized.items,

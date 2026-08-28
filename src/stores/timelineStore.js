@@ -13,7 +13,9 @@ import {
 } from "../lib/timelineSelection.js";
 import {
   isTimelineFileCanvasNode,
+  addToTimelineExcludedFileIds,
   pushFileToTimelineQueue,
+  removeFromTimelineExcludedFileIds,
   resolveCanvasEntityId,
 } from "../lib/timelineFileQueue.js";
 import {
@@ -74,6 +76,8 @@ export const useTimelineStore = create(
       timelineDocQueue: [],
       /** File (macronodo) entity ids queued for the doc-wire rail. */
       timelineFileQueue: [],
+      /** Doc-wire × removals — keeps files off the rail without deleting them. */
+      timelineExcludedFileIds: [],
       /** Optional headline block id per queued doc (from canvas child selection). */
       timelineDocQueueFocusByDocId: {},
       /** Snapshot anchor dates + macronodos per queued doc (persists without canvas). */
@@ -352,6 +356,7 @@ export const useTimelineStore = create(
       clearTimelineDocQueue: () => set({
         timelineDocQueue: [],
         timelineFileQueue: [],
+        timelineExcludedFileIds: [],
         timelineDocQueueFocusByDocId: {},
         timelineDocSnapshotsByDocId: {},
         timelineExcludedChildrenByDocId: {},
@@ -453,6 +458,10 @@ export const useTimelineStore = create(
         if (!entityId) return;
         set((state) => ({
           timelineFileQueue: (state.timelineFileQueue || []).filter((id) => id !== entityId),
+          timelineExcludedFileIds: addToTimelineExcludedFileIds(
+            state.timelineExcludedFileIds,
+            entityId,
+          ),
         }));
       },
 
@@ -627,6 +636,7 @@ export const useTimelineStore = create(
         const prevQueue = get().timelineDocQueue;
         let queue = prevQueue;
         let fileQueue = [...(get().timelineFileQueue || [])];
+        let excludedFileIds = [...(get().timelineExcludedFileIds || [])];
         let filesAdded = 0;
         let filesTouched = 0;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
@@ -700,6 +710,7 @@ export const useTimelineStore = create(
             const nextFiles = pushFileToTimelineQueue(fileQueue, entityId);
             if (nextFiles.length !== fileQueue.length) filesAdded += 1;
             fileQueue = nextFiles;
+            excludedFileIds = removeFromTimelineExcludedFileIds(excludedFileIds, entityId);
             continue;
           }
           // Folder cards (DOCUMENT) only belong on the folder rail — never
@@ -883,6 +894,7 @@ export const useTimelineStore = create(
         set({
           timelineDocQueue: queue,
           timelineFileQueue: fileQueue,
+          timelineExcludedFileIds: excludedFileIds,
           timelineViewMode: filesTouched > 0 || filesAdded > 0
             ? "doc-wire"
             : get().timelineViewMode,

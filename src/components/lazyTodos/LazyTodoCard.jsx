@@ -12,9 +12,9 @@ import { useDocsStore } from "../../stores/docsStore.js";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { LazyTodoFolderChip } from "./LazyTodoFolderChip.jsx";
 
-const COMPLETED_ICON_SRC = "/uploads/completed.svg";
-const FILE_ICON_SRC = "/uploads/file-sticker.svg";
+const COMPLETED_ICON_SRC = "/uploads/CheckSquareOffset.svg";
 
 /**
  * Meaningful checklist rows (ignore blank stubs).
@@ -36,7 +36,6 @@ function allChecklistDone(items) {
  * @param {() => void} props.onCompleted
  * @param {() => void} [props.onSave]
  * @param {() => void} [props.onCloseTab]
- * @param {(documentId: string) => void} [props.onOpenDocument]
  * @param {(folderId: string) => void} [props.onOpenFolder]
  * @param {boolean} [props.showCloseTab]
  * @param {'dashboard' | 'merged' | 'default'} [props.variant]
@@ -47,7 +46,6 @@ export function LazyTodoCard({
   onCompleted,
   onSave,
   onCloseTab,
-  onOpenDocument,
   onOpenFolder,
   showCloseTab,
   variant = "default",
@@ -66,7 +64,6 @@ export function LazyTodoCard({
     fallback: t("lazyTodos.todoLabel"),
   });
   const [focusItemId, setFocusItemId] = useState(null);
-  const [provenanceOpen, setProvenanceOpen] = useState(Boolean(provenance.documentId));
   const { done, total } = lazyTodoProgress(item);
   const isDashboard = variant === "dashboard";
   const isMerged = variant === "merged";
@@ -120,20 +117,7 @@ export function LazyTodoCard({
     onChange?.({ listTitle: liveDocTitle });
   }, [liveDocTitle, item.listTitle, onChange]);
 
-  const handleFileClick = (event) => {
-    stopBubble(event);
-    setProvenanceOpen(true);
-    if (provenance.canOpenDocument && provenance.documentId) {
-      onOpenDocument?.(provenance.documentId);
-    }
-  };
-
-  const handleFolderClick = (event) => {
-    stopBubble(event);
-    if (provenance.canOpenFolder && provenance.folderId) {
-      onOpenFolder?.(provenance.folderId);
-    }
-  };
+  const showFolderChip = Boolean(provenance.documentId && provenance.folderId);
 
   const completedButton = (
     <button
@@ -151,19 +135,6 @@ export function LazyTodoCard({
       <span>{t("lazyTodos.completed")}</span>
     </button>
   );
-
-  const titleAddon = provenance.documentId ? (
-    <button
-      type="button"
-      className="lazy-todo-card__file-btn"
-      onClick={handleFileClick}
-      aria-label={t("lazyTodos.openDocument")}
-      title={t("lazyTodos.openDocument")}
-      disabled={!provenance.canOpenDocument}
-    >
-      <img src={FILE_ICON_SRC} alt="" aria-hidden draggable={false} />
-    </button>
-  ) : null;
 
   return (
     <article
@@ -224,7 +195,6 @@ export function LazyTodoCard({
               listTitleEditable={false}
               linksEnabled={false}
               showDragHandle={false}
-              titleAddon={titleAddon}
               items={item.items || [createTodoItem()]}
               focusItemId={focusItemId}
               onItemsChange={(items) => onChange({ items })}
@@ -248,48 +218,28 @@ export function LazyTodoCard({
         </div>
       </div>
 
-      {provenanceOpen || provenance.documentId ? (
-        <div className="lazy-todo-card__provenance">
-          {provenance.documentId ? (
-            <button
-              type="button"
-              className="lazy-todo-card__provenance-folder"
-              onClick={handleFolderClick}
-              disabled={!provenance.canOpenFolder}
-              title={
-                provenance.canOpenFolder
-                  ? t("lazyTodos.openFolder")
-                  : t("lazyTodos.folderUnknown")
-              }
-            >
-              <span className="lazy-todo-card__provenance-label">
-                {t("lazyTodos.folderLabel")}
-              </span>
-              <span className="lazy-todo-card__provenance-value">
-                {provenance.folderTitle || t("lazyTodos.folderUnknown")}
-              </span>
-            </button>
-          ) : (
-            <span className="lazy-todo-card__provenance-muted">
-              {t("lazyTodos.noLinkedDocument")}
-            </span>
-          )}
-        </div>
-      ) : null}
-
       {isDashboard || isMerged ? (
         <footer className="lazy-todo-card__footer">
-          {isDashboard ? (
-            <button
-              type="button"
-              className="lazy-todo-card__save-btn"
-              onClick={() => onSave?.()}
-            >
-              {t("lazyTodos.save")}
-            </button>
-          ) : (
-            <span />
-          )}
+          <div className="lazy-todo-card__footer-start">
+            {isDashboard ? (
+              <button
+                type="button"
+                className="lazy-todo-card__save-btn"
+                onClick={() => onSave?.()}
+              >
+                {t("lazyTodos.save")}
+              </button>
+            ) : null}
+            {showFolderChip ? (
+              <LazyTodoFolderChip
+                folderTitle={provenance.folderTitle}
+                folderId={provenance.folderId}
+                canOpenFolder={provenance.canOpenFolder}
+                onOpenFolder={onOpenFolder}
+              />
+            ) : null}
+          </div>
+
           <button
             type="button"
             className="btn xs lazy-todo-card__complete-btn lazy-todo-card__complete-btn--footer"

@@ -224,7 +224,7 @@ export function QLoopsLibraryPanel({
                               aria-hidden
                             />
                             <img
-                              src="/uploads/step-by-step.svg"
+                              src="/uploads/RepeatOnce.svg"
                               alt=""
                               aria-hidden
                               className="steps-library-panel__card-icon"
@@ -247,7 +247,7 @@ export function QLoopsLibraryPanel({
                             onClick={() => onOpenLoop?.(loop)}
                           >
                             <img
-                              src="/uploads/step-by-step.svg"
+                              src="/uploads/RepeatOnce.svg"
                               alt=""
                               aria-hidden
                               className="steps-library-panel__card-icon"

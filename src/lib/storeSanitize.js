@@ -93,6 +93,16 @@ export function sanitizePersistedSnapshot(parsed) {
     }
   }
 
+  if (Array.isArray(parsed.timelineFileQueue)) {
+    snapshot.timelineFileQueue = parsed.timelineFileQueue;
+  }
+  if (Array.isArray(parsed.timelineExcludedFileIds)) {
+    snapshot.timelineExcludedFileIds = parsed.timelineExcludedFileIds.filter(Boolean);
+  }
+  if (typeof parsed.timelineViewMode === "string") {
+    snapshot.timelineViewMode = parsed.timelineViewMode === "doc-wire" ? "doc-wire" : "folders";
+  }
+
   if (typeof parsed.scheduledAutoRunEnabled === "boolean") {
     snapshot.scheduledAutoRunEnabled = parsed.scheduledAutoRunEnabled;
   }

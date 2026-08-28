@@ -24,7 +24,8 @@ import {
 import { scheduleDocImageDataUrlBackfill } from "../../lib/migrateDocImageDataUrls.js";
 import {
   filterTimelineFileQueueToExistingNodes,
-  mergeTimelineFileQueues,
+  mergeTimelineExcludedFileIds,
+  resolveTimelineFileQueueOnHydrate,
 } from "../../lib/timelineFileQueue.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 import { useUIStateStore } from "../uiStateStore.js";
@@ -914,6 +915,9 @@ function pickTimelineUiState(state) {
   return {
     timelineDocQueue: Array.isArray(state.timelineDocQueue) ? state.timelineDocQueue : [],
     timelineFileQueue: Array.isArray(state.timelineFileQueue) ? state.timelineFileQueue : [],
+    timelineExcludedFileIds: Array.isArray(state.timelineExcludedFileIds)
+      ? state.timelineExcludedFileIds
+      : [],
     timelineDocQueueFocusByDocId: state.timelineDocQueueFocusByDocId || {},
     timelineDocSnapshotsByDocId: state.timelineDocSnapshotsByDocId || {},
     timelineExcludedChildrenByDocId: state.timelineExcludedChildrenByDocId || {},
@@ -949,6 +953,7 @@ function filterTimelineUiToExistingDocs(ui, docIds, nodeIds = []) {
       ui.timelineFileQueue,
       nodeIds,
     ),
+    timelineExcludedFileIds: (ui.timelineExcludedFileIds || []).filter((id) => nodeSet.has(id)),
     timelineDocQueueFocusByDocId: filterMap(ui.timelineDocQueueFocusByDocId),
     timelineDocSnapshotsByDocId: filterMap(ui.timelineDocSnapshotsByDocId),
     timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
@@ -971,6 +976,7 @@ function emptyWorkspaceSnapshot() {
     currentTier: "all",
     timelineDocQueue: [],
     timelineFileQueue: [],
+    timelineExcludedFileIds: [],
     timelineDocQueueFocusByDocId: {},
     timelineDocSnapshotsByDocId: {},
     timelineExcludedChildrenByDocId: {},
@@ -1404,6 +1410,7 @@ export function initPersistenceMiddleware(stores) {
     currentTier: useTimelineStore.getState().currentTier,
     timelineDocQueue: useTimelineStore.getState().timelineDocQueue,
     timelineFileQueue: useTimelineStore.getState().timelineFileQueue,
+    timelineExcludedFileIds: useTimelineStore.getState().timelineExcludedFileIds,
     timelineDocQueueFocusByDocId: useTimelineStore.getState().timelineDocQueueFocusByDocId,
     timelineDocSnapshotsByDocId: useTimelineStore.getState().timelineDocSnapshotsByDocId,
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
@@ -1470,6 +1477,7 @@ export function initPersistenceMiddleware(stores) {
     if (
       Array.isArray(stripped.timelineDocQueue)
       || Array.isArray(stripped.timelineFileQueue)
+      || Array.isArray(stripped.timelineExcludedFileIds)
       || Array.isArray(stripped.timelineDateNodeIds)
       || stripped.timelineGuestLinksById
       || stripped.timelineViewMode
@@ -1477,6 +1485,9 @@ export function initPersistenceMiddleware(stores) {
       useTimelineStore.setState({
         timelineDocQueue: Array.isArray(stripped.timelineDocQueue) ? stripped.timelineDocQueue : [],
         timelineFileQueue: Array.isArray(stripped.timelineFileQueue) ? stripped.timelineFileQueue : [],
+        timelineExcludedFileIds: Array.isArray(stripped.timelineExcludedFileIds)
+          ? stripped.timelineExcludedFileIds
+          : [],
         timelineDocQueueFocusByDocId: stripped.timelineDocQueueFocusByDocId || {},
         timelineDocSnapshotsByDocId: stripped.timelineDocSnapshotsByDocId || {},
         timelineExcludedChildrenByDocId: stripped.timelineExcludedChildrenByDocId || {},
@@ -1961,9 +1972,14 @@ export function initPersistenceMiddleware(stores) {
           .eq("user_id", userId)
           .maybeSingle();
         if (!timelineUiErr && timelineUiRow?.payload && typeof timelineUiRow.payload === "object") {
+          const remotePayload = timelineUiRow.payload;
           timelineUi = {
             ...timelineUi,
-            ...timelineUiRow.payload,
+            ...remotePayload,
+            timelineExcludedFileIds: mergeTimelineExcludedFileIds(
+              timelineUi.timelineExcludedFileIds,
+              remotePayload.timelineExcludedFileIds,
+            ),
           };
         } else if (timelineUiErr && !String(timelineUiErr.message || "").includes("does not exist")) {
           console.warn("Timeline UI load:", timelineUiErr.message);
@@ -1973,16 +1989,21 @@ export function initPersistenceMiddleware(stores) {
       }
 
       const filteredTimelineUi = filterTimelineUiToExistingDocs(timelineUi, docIds, nodeIds);
-      const liveFileQueue = useTimelineStore.getState().timelineFileQueue || [];
-      const localFileQueue = loadLocalTimelineUiFallback().timelineFileQueue || [];
-      const mergedFileQueue = mergeTimelineFileQueues(
-        liveFileQueue,
-        localFileQueue,
-        filteredTimelineUi.timelineFileQueue,
-      );
+      const localTimelineUi = loadLocalTimelineUiFallback();
+      const liveTimeline = useTimelineStore.getState();
+      const resolvedFileQueue = resolveTimelineFileQueueOnHydrate({
+        liveQueue: liveTimeline.timelineFileQueue || [],
+        localQueue: localTimelineUi.timelineFileQueue || [],
+        remoteQueue: filteredTimelineUi.timelineFileQueue || [],
+        liveExcluded: liveTimeline.timelineExcludedFileIds || [],
+        localExcluded: localTimelineUi.timelineExcludedFileIds || [],
+        remoteExcluded: filteredTimelineUi.timelineExcludedFileIds || [],
+        nodeIds,
+      });
       useTimelineStore.setState({
         timelineDocQueue: filteredTimelineUi.timelineDocQueue,
-        timelineFileQueue: mergedFileQueue,
+        timelineFileQueue: resolvedFileQueue.timelineFileQueue,
+        timelineExcludedFileIds: resolvedFileQueue.timelineExcludedFileIds,
         timelineDocQueueFocusByDocId: filteredTimelineUi.timelineDocQueueFocusByDocId,
         timelineDocSnapshotsByDocId: filteredTimelineUi.timelineDocSnapshotsByDocId,
         timelineExcludedChildrenByDocId: filteredTimelineUi.timelineExcludedChildrenByDocId,

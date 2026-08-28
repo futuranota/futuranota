@@ -51,7 +51,11 @@ import {
   resolveCampaignSourceTitle,
 } from "./campaignDocSource.js";
 import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
-import { resolveFileRailDisplayDate, resolveCanvasEntityId } from "./timelineFileQueue.js";
+import {
+  filterTimelineFileQueue,
+  resolveFileRailDisplayDate,
+  resolveCanvasEntityId,
+} from "./timelineFileQueue.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
@@ -1509,6 +1513,7 @@ export function buildTacticalDocWireRow(params) {
   const folderView = buildTacticalObjectRows(params);
   const {
     timelineFileQueue = [],
+    timelineExcludedFileIds = [],
     pairStretches = [],
     today = new Date(),
     rangeOverride = null,
@@ -1519,7 +1524,10 @@ export function buildTacticalDocWireRow(params) {
     filterObjectId = null,
   } = params || {};
 
-  const fileQueue = Array.isArray(timelineFileQueue) ? timelineFileQueue : [];
+  const fileQueue = filterTimelineFileQueue(
+    Array.isArray(timelineFileQueue) ? timelineFileQueue : [],
+    timelineExcludedFileIds,
+  );
   const queueIndex = new Map(fileQueue.map((id, i) => [id, i]));
   const nodeByCanvasNoteId = new Map();
   for (const node of canvasNodes || []) {

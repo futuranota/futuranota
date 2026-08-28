@@ -9,7 +9,7 @@ import { IePackChooserModal } from "./IePackChooserModal.jsx";
 const IE_PACK_ICON_SRC = "/uploads/import.svg";
 const EXPORT_ICON_SRC = "/uploads/botones/Export.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
-const QLOOPS_ICON_SRC = "/uploads/step-by-step.svg";
+const QLOOPS_ICON_SRC = "/uploads/RepeatOnce.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
 const CAMPAIGN_ICON_SRC = "/uploads/web-advertising.svg";

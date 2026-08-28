@@ -6,7 +6,7 @@ import { suggestNextQLoopIndex } from "../../../lib/qloopsLibrary.js";
 import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 const URL_TABLE_ICON = "/uploads/url-table.svg";
-const QLOOP_ICON = "/uploads/step-by-step.svg";
+const QLOOP_ICON = "/uploads/RepeatOnce.svg";
 
 /**
  * @param {Object} props

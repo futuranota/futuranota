@@ -917,6 +917,7 @@ export function TacticalTimeline({
   const setTimelineViewMode = useTimelineStore((s) => s.setTimelineViewMode);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
   const timelineFileQueue = useTimelineStore((s) => s.timelineFileQueue);
+  const timelineExcludedFileIds = useTimelineStore((s) => s.timelineExcludedFileIds);
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
@@ -981,6 +982,7 @@ export function TacticalTimeline({
         objectTimelineTitles,
         timelineDocQueue,
         timelineFileQueue,
+        timelineExcludedFileIds,
         timelineDocSnapshotsByDocId,
         timelineExcludedChildrenByDocId,
         timelineAgentSets,
@@ -1009,6 +1011,7 @@ export function TacticalTimeline({
       objectTimelineTitles,
       timelineDocQueue,
       timelineFileQueue,
+      timelineExcludedFileIds,
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
       timelineAgentSets,

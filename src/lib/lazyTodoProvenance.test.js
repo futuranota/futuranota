@@ -53,6 +53,30 @@ describe("lazyTodoProvenance", () => {
     expect(provenance.canOpenFolder).toBe(true);
   });
 
+  it("resolves product folder display title from category and version", () => {
+    const provenance = resolveLazyTodoProvenance(
+      { documentId: "n1" },
+      {
+        nodesById: {
+          n1: {
+            id: "n1",
+            title: "Launch doc",
+            parentDocId: "folder-prod",
+          },
+        },
+        docsById: {
+          "folder-prod": {
+            id: "folder-prod",
+            docKind: "product",
+            category: "Marketing",
+            version: "Q3",
+          },
+        },
+      },
+    );
+    expect(provenance.folderTitle).toBe("Marketing Q3");
+  });
+
   it("groups todos by document schedule day", () => {
     const today = "2026-08-24";
     const groups = groupLazyTodosByScheduleDay(

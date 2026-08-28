@@ -149,3 +149,23 @@ export function cloneLazyTodo(item) {
     items: (item.items || []).map((entry) => ({ ...entry })),
   };
 }
+
+/**
+ * Aggregate checklist progress for single or shell-merge session.
+ *
+ * @param {LazyTodoItem|null|undefined} session
+ * @param {{ items?: LazyTodoItem[] }|null|undefined} shellMerge
+ */
+export function lazyTodoSessionProgress(session, shellMerge = null) {
+  const items = shellMerge?.items?.length
+    ? shellMerge.items
+    : (session ? [session] : []);
+  let done = 0;
+  let total = 0;
+  for (const item of items) {
+    const progress = lazyTodoProgress(item);
+    done += progress.done;
+    total += progress.total;
+  }
+  return { done, total };
+}

@@ -66,6 +66,79 @@ export function pushFileToTimelineQueue(queue, entityId) {
   return [...queue, entityId];
 }
 
+/** Union doc-wire removal ledger (× on rail — survives hydrate). */
+export function mergeTimelineExcludedFileIds(...lists) {
+  const out = [];
+  const seen = new Set();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const id of list) {
+      const key = String(id || "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(key);
+    }
+  }
+  return out;
+}
+
+export function addToTimelineExcludedFileIds(excluded, entityId) {
+  if (!entityId) return Array.isArray(excluded) ? excluded : [];
+  const prev = Array.isArray(excluded) ? excluded : [];
+  if (prev.includes(entityId)) return prev;
+  return [...prev, entityId];
+}
+
+export function removeFromTimelineExcludedFileIds(excluded, entityId) {
+  if (!entityId) return Array.isArray(excluded) ? excluded : [];
+  return (Array.isArray(excluded) ? excluded : []).filter((id) => id !== entityId);
+}
+
+/** Drop files the user removed from the doc-wire rail (does not delete the document). */
+export function filterTimelineFileQueue(queue, excludedFileIds = []) {
+  if (!Array.isArray(queue)) return [];
+  const drop = new Set(
+    (Array.isArray(excludedFileIds) ? excludedFileIds : []).filter(Boolean),
+  );
+  if (!drop.size) return queue;
+  return queue.filter((id) => !drop.has(id));
+}
+
+/**
+ * Pick one doc-wire queue on hydrate — never union stale remote/local copies.
+ * Prefers live (in-memory) → localStorage → Supabase payload when non-empty.
+ */
+export function pickTimelineFileQueueOnHydrate(...queues) {
+  for (const queue of queues) {
+    if (Array.isArray(queue) && queue.length > 0) return [...queue];
+  }
+  for (const queue of queues) {
+    if (Array.isArray(queue)) return [...queue];
+  }
+  return [];
+}
+
+/**
+ * Resolve doc-wire queue after hydrate: one source + removal ledger + existing nodes.
+ */
+export function resolveTimelineFileQueueOnHydrate({
+  liveQueue = [],
+  localQueue = [],
+  remoteQueue = [],
+  liveExcluded = [],
+  localExcluded = [],
+  remoteExcluded = [],
+  nodeIds = [],
+} = {}) {
+  const excluded = mergeTimelineExcludedFileIds(liveExcluded, localExcluded, remoteExcluded);
+  const preferred = pickTimelineFileQueueOnHydrate(liveQueue, localQueue, remoteQueue);
+  const withoutRemoved = filterTimelineFileQueue(preferred, excluded);
+  return {
+    timelineFileQueue: filterTimelineFileQueueToExistingNodes(withoutRemoved, nodeIds),
+    timelineExcludedFileIds: excluded,
+  };
+}
+
 /**
  * Display date for a file on the rail.
  * Real schedule (`anchorAt`) when present; otherwise today (no commitment).

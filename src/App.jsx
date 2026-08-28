@@ -30,11 +30,11 @@ import { useLazyTodosStore } from './stores/lazyTodosStore.js';
 import { cloneLazyTodo } from './lib/lazyTodos.js';
 import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
 import {
-  LAZY_TODO_UNSCHEDULED_DAY_KEY,
-  collectQueuedLazyTodosForDay,
-  scheduleDayKeyForLazyTodo,
-} from './lib/lazyTodoProvenance.js';
-import { todayDateInputValue } from './lib/docDates.js';
+  collectQueuedLazyTodosForShell,
+  resolveShellId,
+  shellDisplayTitle,
+  shellIdForDocument,
+} from './lib/lazyTodoShell.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
@@ -267,7 +267,7 @@ function Dashboard({ company, onBack }) {
   const passwordTableSaveLockRef = useRef(false);
   activePasswordTableSessionRef.current = activePasswordTableSession;
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
-  const [activeLazyTodoDayMerge, setActiveLazyTodoDayMerge] = useState(null);
+  const [activeLazyTodoShellMerge, setActiveLazyTodoShellMerge] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const docCloseInterceptorRef = useRef(null);
@@ -1787,46 +1787,24 @@ useEffect(() => {
     if (!objectId) return;
     const documentId = extras?.documentId ? String(extras.documentId).trim() : "";
     const listTitle = String(extras?.listTitle ?? "").trim() || undefined;
-    const today = todayDateInputValue();
-    const nodesById = useNodesStore.getState().nodes;
-    const storeItems = useLazyTodosStore.getState().items;
 
-    const parkCurrentIndividual = () => {
+    const openSingle = (item) => {
+      if (!item?.id) return;
+      setActiveLazyTodoShellMerge(null);
       setActiveLazyTodo((current) => {
-        if (current) {
+        if (current && current.id !== item.id) {
           if (lazyTodoHasContent(current)) {
             parkLazyTodo({ ...current, status: 'queued' });
           } else if (current.id) {
             removeLazyTodo(current.id);
           }
         }
-        return null;
+        activateLazyTodo(item.id);
+        return cloneLazyTodo({ ...item, status: 'active' });
       });
     };
 
-    const openDayMerge = (dayKey, focusItem) => {
-      if (!focusItem?.id || !dayKey) return false;
-      const dayItems = collectQueuedLazyTodosForDay(
-        objectId,
-        dayKey,
-        useLazyTodosStore.getState().items,
-        useNodesStore.getState().nodes,
-        { extraItem: focusItem },
-      );
-      if (!dayItems.length) return false;
-      parkCurrentIndividual();
-      setActiveLazyTodoDayMerge({
-        dayKey,
-        items: dayItems.map((item) => cloneLazyTodo({
-          ...item,
-          status: item.id === focusItem.id ? 'active' : 'queued',
-        })),
-        initialActiveItemId: focusItem.id,
-      });
-      return true;
-    };
-
-    // Document-linked: reopen existing list if present; else create a fresh id.
+    // Document-linked: always one card for this document — never queue merge.
     if (documentId) {
       const existing = useLazyTodosStore.getState().findItemByDocumentId(documentId);
       if (existing?.id) {
@@ -1837,23 +1815,7 @@ useEffect(() => {
           updateLazyTodo(existing.id, { listTitle: nextTitle });
         }
         const opened = nextTitle ? { ...existing, listTitle: nextTitle } : existing;
-        const dayKey = scheduleDayKeyForLazyTodo(opened, nodesById);
-        if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY && openDayMerge(dayKey, opened)) {
-          activateLazyTodo(existing.id);
-          return;
-        }
-        setActiveLazyTodoDayMerge(null);
-        setActiveLazyTodo((current) => {
-          if (current) {
-            if (lazyTodoHasContent(current)) {
-              parkLazyTodo({ ...current, status: 'queued' });
-            } else if (current.id && current.id !== existing.id) {
-              removeLazyTodo(current.id);
-            }
-          }
-          activateLazyTodo(existing.id);
-          return cloneLazyTodo({ ...opened, status: 'active' });
-        });
+        openSingle(opened);
         return;
       }
 
@@ -1862,52 +1824,14 @@ useEffect(() => {
         listTitle,
       });
       if (!draft?.id) return;
-      const dayKey = scheduleDayKeyForLazyTodo(draft, nodesById);
-      if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY && openDayMerge(dayKey, draft)) {
-        return;
-      }
-      setActiveLazyTodoDayMerge(null);
-      setActiveLazyTodo((current) => {
-        if (current && current.id !== draft.id) {
-          if (lazyTodoHasContent(current)) {
-            parkLazyTodo({ ...current, status: 'queued' });
-          } else if (current.id) {
-            removeLazyTodo(current.id);
-          }
-        }
-        return cloneLazyTodo({ ...draft, status: 'active' });
-      });
+      openSingle(draft);
       return;
     }
 
-    // Queue New (no document): join Today merge when that bucket already exists.
-    const todayQueued = collectQueuedLazyTodosForDay(
-      objectId,
-      today,
-      storeItems,
-      nodesById,
-    );
-    if (todayQueued.length > 0) {
-      const draft = createDraftLazyTodo(objectId, { listTitle });
-      if (draft?.id && openDayMerge(today, draft)) {
-        return;
-      }
-    }
-
-    setActiveLazyTodoDayMerge(null);
-    setActiveLazyTodo((current) => {
-      if (current) {
-        if (lazyTodoHasContent(current)) {
-          parkLazyTodo({ ...current, status: 'queued' });
-        } else if (current.id) {
-          removeLazyTodo(current.id);
-        }
-      }
-      return createDraftLazyTodo(objectId, {
-        documentId: null,
-        listTitle,
-      });
-    });
+    // Queue + New: independent shell (no document), single card.
+    const draft = createDraftLazyTodo(objectId, { listTitle });
+    if (!draft?.id) return;
+    openSingle(draft);
   }, [activateLazyTodo, createDraftLazyTodo, parkLazyTodo, removeLazyTodo, updateLazyTodo]);
 
   const lazyTodoCreateRequest = useUIStateStore((s) => s.lazyTodoCreateRequest);
@@ -1936,45 +1860,69 @@ useEffect(() => {
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;
     const nodesById = useNodesStore.getState().nodes;
-    const dayKey = scheduleDayKeyForLazyTodo(item, nodesById);
-    if (dayKey !== LAZY_TODO_UNSCHEDULED_DAY_KEY) {
-      const dayItems = collectQueuedLazyTodosForDay(
-        item.objectId,
-        dayKey,
-        useLazyTodosStore.getState().items,
-        nodesById,
-        { extraItem: item },
-      );
-      if (dayItems.length) {
-        setActiveLazyTodo((current) => {
-          if (current) {
-            if (lazyTodoHasContent(current)) {
-              parkLazyTodo({ ...current, status: 'queued' });
-            } else if (current.id) {
-              removeLazyTodo(current.id);
-            }
+    const shellId = resolveShellId(item);
+    const shellItems = collectQueuedLazyTodosForShell(
+      item.objectId,
+      shellId,
+      useLazyTodosStore.getState().items,
+      { extraItem: item },
+    );
+
+    if (shellItems.length > 1) {
+      setActiveLazyTodo((current) => {
+        if (current) {
+          if (lazyTodoHasContent(current)) {
+            parkLazyTodo({ ...current, status: 'queued' });
+          } else if (current.id) {
+            removeLazyTodo(current.id);
           }
-          return null;
-        });
-        activateLazyTodo(item.id);
-        setActiveLazyTodoDayMerge({
-          dayKey,
-          items: dayItems.map((entry) => cloneLazyTodo({
-            ...entry,
-            status: entry.id === item.id ? 'active' : 'queued',
-          })),
-          initialActiveItemId: item.id,
-        });
-        return;
-      }
+        }
+        return null;
+      });
+      activateLazyTodo(item.id);
+      setActiveLazyTodoShellMerge({
+        shellId,
+        shellLabel: shellDisplayTitle(shellItems, nodesById),
+        items: shellItems.map((entry) => cloneLazyTodo({
+          ...entry,
+          status: entry.id === item.id ? 'active' : 'queued',
+        })),
+        initialActiveItemId: item.id,
+      });
+      return;
     }
 
-    setActiveLazyTodoDayMerge(null);
+    // Single-card shell from queue fallback path — still use merge shell for accordion UX.
+    if (item.status === 'queued') {
+      setActiveLazyTodo((current) => {
+        if (current) {
+          if (lazyTodoHasContent(current)) {
+            parkLazyTodo({ ...current, status: 'queued' });
+          } else if (current.id && current.id !== item.id) {
+            removeLazyTodo(current.id);
+          }
+        }
+        return null;
+      });
+      activateLazyTodo(item.id);
+      setActiveLazyTodoShellMerge({
+        shellId,
+        shellLabel: shellDisplayTitle(shellItems, nodesById),
+        items: shellItems.map((entry) => cloneLazyTodo({
+          ...entry,
+          status: entry.id === item.id ? 'active' : 'queued',
+        })),
+        initialActiveItemId: item.id,
+      });
+      return;
+    }
+
+    setActiveLazyTodoShellMerge(null);
     setActiveLazyTodo((current) => {
       if (current) {
         if (lazyTodoHasContent(current)) {
           parkLazyTodo({ ...current, status: 'queued' });
-        } else if (current.id) {
+        } else if (current.id && current.id !== item.id) {
           removeLazyTodo(current.id);
         }
       }
@@ -1983,10 +1931,11 @@ useEffect(() => {
     });
   }, [activateLazyTodo, parkLazyTodo, removeLazyTodo]);
 
-  const handleOpenLazyTodoDayMerge = useCallback((payload) => {
-    const dayKey = String(payload?.dayKey || "").trim();
+  const handleOpenLazyTodoShellMerge = useCallback((payload) => {
+    const shellId = String(payload?.shellId || "").trim();
     const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.id) : [];
-    if (!dayKey || !items.length) return;
+    if (!shellId || !items.length) return;
+    const nodesById = useNodesStore.getState().nodes;
     setActiveLazyTodo((current) => {
       if (current) {
         if (lazyTodoHasContent(current)) {
@@ -1997,52 +1946,69 @@ useEffect(() => {
       }
       return null;
     });
-    setActiveLazyTodoDayMerge({
-      dayKey,
+    setActiveLazyTodoShellMerge({
+      shellId,
+      shellLabel: payload?.shellLabel || shellDisplayTitle(items, nodesById),
       items: items.map((item) => cloneLazyTodo({ ...item, status: 'queued' })),
       initialActiveItemId: payload?.initialActiveItemId || items[0]?.id || null,
     });
   }, [parkLazyTodo, removeLazyTodo]);
 
-  const handleLazyTodoDayMergeChange = useCallback((itemId, patch) => {
+  const handleLazyTodoShellMergeChange = useCallback((itemId, patch) => {
     if (!itemId || !patch) return;
     const storePatch = {};
     if (patch.reminder !== undefined) storePatch.reminder = patch.reminder;
     if (patch.listTitle !== undefined) storePatch.listTitle = patch.listTitle;
     if (patch.items !== undefined) storePatch.items = patch.items;
-    if (patch.documentId !== undefined) storePatch.documentId = patch.documentId;
+    if (patch.documentId !== undefined) {
+      storePatch.documentId = patch.documentId;
+      const docId = patch.documentId != null ? String(patch.documentId).trim() : "";
+      if (docId) storePatch.shellId = shellIdForDocument(docId);
+    }
     if (Object.keys(storePatch).length) updateLazyTodo(itemId, storePatch);
-    setActiveLazyTodoDayMerge((current) => {
+    setActiveLazyTodoShellMerge((current) => {
       if (!current) return current;
+      const nextItems = current.items.map((item) => (
+        item.id === itemId ? { ...item, ...patch, ...storePatch } : item
+      ));
       return {
         ...current,
-        items: current.items.map((item) => (
-          item.id === itemId ? { ...item, ...patch } : item
-        )),
+        shellLabel: shellDisplayTitle(nextItems, useNodesStore.getState().nodes),
+        items: nextItems,
       };
     });
   }, [updateLazyTodo]);
 
-  const handleLazyTodoDayMergeCompleted = useCallback((itemId) => {
+  const handleLazyTodoShellMergeCompleted = useCallback((itemId) => {
     if (!itemId) return;
     removeLazyTodo(itemId);
-    setActiveLazyTodoDayMerge((current) => {
+    let clearedSession = false;
+    setActiveLazyTodoShellMerge((current) => {
       if (!current) return current;
       const nextItems = current.items.filter((item) => item.id !== itemId);
-      if (!nextItems.length) return null;
-      return { ...current, items: nextItems };
+      if (!nextItems.length) {
+        clearedSession = true;
+        return null;
+      }
+      const nodesById = useNodesStore.getState().nodes;
+      return {
+        ...current,
+        shellLabel: shellDisplayTitle(nextItems, nodesById),
+        items: nextItems,
+      };
     });
+    if (clearedSession) {
+    }
   }, [removeLazyTodo]);
 
-  const handleLazyTodoDayMergeClose = useCallback(() => {
-    setActiveLazyTodoDayMerge((current) => {
+  const handleLazyTodoShellMergeClose = useCallback(() => {
+    setActiveLazyTodoShellMerge((current) => {
       if (current?.items?.length) {
         for (const item of current.items) {
           if (!item?.id) continue;
           if (lazyTodoHasContent(item)) {
             parkLazyTodo({ ...item, status: 'queued' });
           } else {
-            // Drop empty drafts created via New that never got content.
             const storeItem = useLazyTodosStore.getState().items.find(
               (entry) => entry.id === item.id,
             );
@@ -2106,11 +2072,6 @@ useEffect(() => {
       setExpandedNodeId(nodeId);
     });
   }, [nodeEntities, expandedDocId]);
-
-  const handleLazyTodoOpenDocument = useCallback((documentId) => {
-    if (!documentId) return;
-    openNodeOverlay(documentId, { contentFocus: true });
-  }, [openNodeOverlay]);
 
   const handleLazyTodoOpenFolder = useCallback((folderId) => {
     if (!folderId) return;
@@ -2261,7 +2222,7 @@ useEffect(() => {
             onOpenNewUrlTable={handleOpenNewUrlTable}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
-            onOpenLazyTodoDayMerge={handleOpenLazyTodoDayMerge}
+            onOpenLazyTodoShellMerge={handleOpenLazyTodoShellMerge}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
             onUrlTablesDeleted={handleUrlTablesDeleted}
             timelineCanvasSelection={selection}
@@ -2453,18 +2414,16 @@ useEffect(() => {
           onCloseTab={handleLazyTodoCloseTab}
           onSave={handleLazyTodoSave}
           onCompleted={handleLazyTodoCompleted}
-          onOpenDocument={handleLazyTodoOpenDocument}
           onOpenFolder={handleLazyTodoOpenFolder}
         />
       ) : null}
 
-      {activeLazyTodoDayMerge ? (
+      {activeLazyTodoShellMerge ? (
         <LazyTodoMergedDayOverlay
-          session={activeLazyTodoDayMerge}
-          onChangeItem={handleLazyTodoDayMergeChange}
-          onCompletedItem={handleLazyTodoDayMergeCompleted}
-          onClose={handleLazyTodoDayMergeClose}
-          onOpenDocument={handleLazyTodoOpenDocument}
+          session={activeLazyTodoShellMerge}
+          onChangeItem={handleLazyTodoShellMergeChange}
+          onCompletedItem={handleLazyTodoShellMergeCompleted}
+          onClose={handleLazyTodoShellMergeClose}
           onOpenFolder={handleLazyTodoOpenFolder}
         />
       ) : null}

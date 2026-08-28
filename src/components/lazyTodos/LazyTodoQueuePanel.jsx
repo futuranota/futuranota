@@ -2,30 +2,30 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLazyTodosStore } from "../../stores/lazyTodosStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { filterLazyTodos } from "../../lib/lazyTodos.js";
-import {
-  LAZY_TODO_UNSCHEDULED_DAY_KEY,
-  groupLazyTodosByScheduleDay,
-} from "../../lib/lazyTodoProvenance.js";
-import { todayDateInputValue } from "../../lib/docDates.js";
+import { groupLazyTodosByShell } from "../../lib/lazyTodoShell.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 
 /**
- * Queue: one stacked card per schedule day. Click opens the merged day shell
- * (all file to-dos inside). No per-file rows outside.
+ * Queue: one stacked card per shell. Click opens the merged shell
+ * (all checklist cards inside). No schedule-date grouping.
  *
  * @param {Object} props
  * @param {string|null} props.objectId
  * @param {() => void} props.onClose
  * @param {(item: import("../../lib/lazyTodos.js").LazyTodoItem) => void} [props.onOpenItem]
- * @param {(payload: { dayKey: string, items: import("../../lib/lazyTodos.js").LazyTodoItem[] }) => void} [props.onOpenDayMerge]
+ * @param {(payload: {
+ *   shellId: string,
+ *   shellLabel: string,
+ *   items: import("../../lib/lazyTodos.js").LazyTodoItem[],
+ * }) => void} [props.onOpenShellMerge]
  * @param {() => void} props.onNew
  */
 export function LazyTodoQueuePanel({
   objectId = null,
   onClose,
   onOpenItem: _onOpenItem,
-  onOpenDayMerge,
+  onOpenShellMerge,
   onNew,
 }) {
   const { t } = useI18n();
@@ -36,7 +36,7 @@ export function LazyTodoQueuePanel({
   const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
-  const [selectedDayKeys, setSelectedDayKeys] = useState([]);
+  const [selectedShellIds, setSelectedShellIds] = useState([]);
 
   useEffect(() => {
     requeueOrphanedActives?.();
@@ -50,54 +50,41 @@ export function LazyTodoQueuePanel({
     return filterLazyTodos(scoped, query, { nodesById });
   }, [items, objectId, query, nodesById]);
 
-  const dayGroups = useMemo(
-    () => groupLazyTodosByScheduleDay(queuedItems, {
+  const shellGroups = useMemo(
+    () => groupLazyTodosByShell(queuedItems, {
       nodesById,
-      today: todayDateInputValue(),
       requireContent: false,
     }),
     [queuedItems, nodesById],
   );
 
-  const dayLabelFor = useCallback((group) => {
-    if (group.kind === "today") return t("lazyTodos.dayToday");
-    if (group.kind === "tomorrow") return t("lazyTodos.dayTomorrow");
-    if (group.kind === "past") {
-      return `${t("lazyTodos.dayPast")}${group.display ? ` · ${group.display}` : ""}`;
-    }
-    if (group.kind === "unscheduled" || group.dayKey === LAZY_TODO_UNSCHEDULED_DAY_KEY) {
-      return t("lazyTodos.dayUnscheduled");
-    }
-    return group.display || group.dayKey;
-  }, [t]);
-
   const exitBulkSelectMode = useCallback(() => {
     setBulkSelectMode(false);
-    setSelectedDayKeys([]);
+    setSelectedShellIds([]);
   }, []);
 
   const toggleBulkSelectMode = useCallback(() => {
     setBulkSelectMode((active) => {
       if (active) {
-        setSelectedDayKeys([]);
+        setSelectedShellIds([]);
         return false;
       }
-      setSelectedDayKeys([]);
+      setSelectedShellIds([]);
       return true;
     });
   }, []);
 
-  const toggleSelectDay = useCallback((dayKey) => {
-    if (!dayKey) return;
-    setSelectedDayKeys((prev) => (
-      prev.includes(dayKey)
-        ? prev.filter((entry) => entry !== dayKey)
-        : [...prev, dayKey]
+  const toggleSelectShell = useCallback((shellId) => {
+    if (!shellId) return;
+    setSelectedShellIds((prev) => (
+      prev.includes(shellId)
+        ? prev.filter((entry) => entry !== shellId)
+        : [...prev, shellId]
     ));
   }, []);
 
   const handleDeleteSelected = async () => {
-    const groups = dayGroups.filter((group) => selectedDayKeys.includes(group.dayKey));
+    const groups = shellGroups.filter((group) => selectedShellIds.includes(group.shellId));
     const ids = groups.flatMap((group) => group.items.map((item) => item.id).filter(Boolean));
     if (!ids.length) return;
     const confirmed = await askConfirm({
@@ -113,15 +100,19 @@ export function LazyTodoQueuePanel({
     exitBulkSelectMode();
   };
 
-  const openDay = useCallback((group) => {
+  const openShell = useCallback((group) => {
     if (!group?.items?.length) return;
-    if (onOpenDayMerge) {
-      onOpenDayMerge({ dayKey: group.dayKey, items: group.items });
+    if (onOpenShellMerge) {
+      onOpenShellMerge({
+        shellId: group.shellId,
+        shellLabel: group.title,
+        items: group.items,
+        initialActiveItemId: group.items[0]?.id || null,
+      });
       return;
     }
-    // Fallback: open first item if merge handler missing
     _onOpenItem?.(group.items[0]);
-  }, [onOpenDayMerge, _onOpenItem]);
+  }, [onOpenShellMerge, _onOpenItem]);
 
   const stopBubble = (event) => {
     event.stopPropagation();
@@ -197,7 +188,7 @@ export function LazyTodoQueuePanel({
               {bulkSelectMode ? (
                 <div className="lp-folder-bulk-bar" role="status">
                   <span className="lp-folder-bulk-bar__count">
-                    {t("lazyTodos.selectCount", { count: selectedDayKeys.length })}
+                    {t("lazyTodos.selectCount", { count: selectedShellIds.length })}
                   </span>
                   <div className="lp-folder-bulk-bar__actions">
                     <button
@@ -210,7 +201,7 @@ export function LazyTodoQueuePanel({
                     <button
                       type="button"
                       className="btn xs lp-folder-bulk-bar__delete"
-                      disabled={selectedDayKeys.length === 0}
+                      disabled={selectedShellIds.length === 0}
                       onClick={handleDeleteSelected}
                     >
                       {t("lazyTodos.deleteSelected")}
@@ -219,19 +210,19 @@ export function LazyTodoQueuePanel({
                 </div>
               ) : null}
 
-              {dayGroups.length ? (
+              {shellGroups.length ? (
                 <ul
                   className={
                     "lazy-todo-queue-panel__list"
                     + (bulkSelectMode ? " lazy-todo-queue-panel__list--selecting" : "")
                   }
                 >
-                  {dayGroups.map((group) => {
-                    const label = dayLabelFor(group);
-                    const selected = selectedDayKeys.includes(group.dayKey);
+                  {shellGroups.map((group) => {
+                    const label = group.title || t("lazyTodos.todoLabel");
+                    const selected = selectedShellIds.includes(group.shellId);
                     return (
                       <li
-                        key={group.dayKey}
+                        key={group.shellId}
                         className={
                           "lazy-todo-queue-panel__row"
                           + (bulkSelectMode ? " lazy-todo-queue-panel__row--select-mode" : "")
@@ -245,7 +236,7 @@ export function LazyTodoQueuePanel({
                               "lazy-todo-queue-panel__card lazy-todo-queue-panel__card--select"
                               + (selected ? " is-selected" : "")
                             }
-                            onClick={() => toggleSelectDay(group.dayKey)}
+                            onClick={() => toggleSelectShell(group.shellId)}
                             aria-pressed={selected}
                           >
                             <span
@@ -266,7 +257,7 @@ export function LazyTodoQueuePanel({
                                 {label}
                               </span>
                               <span className="lazy-todo-queue-panel__card-sub dim">
-                                {t("lazyTodos.dayMergeCount", { count: group.items.length })}
+                                {t("lazyTodos.shellMergeCount", { count: group.items.length })}
                               </span>
                             </span>
                           </button>
@@ -274,8 +265,8 @@ export function LazyTodoQueuePanel({
                           <button
                             type="button"
                             className="lazy-todo-queue-panel__card"
-                            onClick={() => openDay(group)}
-                            aria-label={t("lazyTodos.daySectionAria", { label })}
+                            onClick={() => openShell(group)}
+                            aria-label={t("lazyTodos.shellSectionAria", { label })}
                           >
                             <img
                               src="/uploads/to-do.svg"
@@ -288,7 +279,7 @@ export function LazyTodoQueuePanel({
                                 {label}
                               </span>
                               <span className="lazy-todo-queue-panel__card-sub dim">
-                                {t("lazyTodos.dayMergeCount", { count: group.items.length })}
+                                {t("lazyTodos.shellMergeCount", { count: group.items.length })}
                               </span>
                             </span>
                             <span className="lazy-todo-queue-panel__card-chevron" aria-hidden>
