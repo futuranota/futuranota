@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
+import { createTodoItem, convertImageLayoutBlock, countMoodboardSavableContent, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
   getLibraryHashActionAtCaret,
@@ -1439,7 +1439,7 @@ export function NodeWritingBlockStack({
                 libraryOwnerKind={libraryOwnerKind}
                 onChange={(patch) => {
                   const patchHasSavedImage = Array.isArray(patch.columns)
-                    && countMoodboardSavedImages(patch) > 0;
+                    && countMoodboardSavableContent(patch) > 0;
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex
@@ -1452,7 +1452,7 @@ export function NodeWritingBlockStack({
                   updateBlocks(next);
                 }}
                 onSave={() => {
-                  if (countMoodboardSavedImages(block) < 1) return;
+                  if (countMoodboardSavableContent(block) < 1) return;
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex

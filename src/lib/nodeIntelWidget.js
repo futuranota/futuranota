@@ -26,7 +26,10 @@ export function buildCalendarEmbeddedFromPayload(payload) {
   if (!displayModel) return null;
   return {
     kind: "calendar-event",
-    displayModel,
+    displayModel: {
+      intro: "",
+      sections: displayModel.sections,
+    },
     // Kept for canvas-connection dedupe (same event + date already pasted).
     eventId: payload.eventId || null,
     uiDate: payload.uiDate || null,

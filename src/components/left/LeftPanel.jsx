@@ -5354,6 +5354,7 @@ export function LeftPanel({
               ) : null}
               <PackActionsBar
                 placement="objects"
+                isAdmin={isGinaAdmin}
                 onOpenImport={() => {
                   setPanelType("Documents");
                   if (selectedObjectId || filterObjectId) {
@@ -5484,6 +5485,7 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
+                    isAdmin={isGinaAdmin}
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
@@ -5524,6 +5526,7 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
+                    isAdmin={isGinaAdmin}
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
@@ -5676,6 +5679,7 @@ export function LeftPanel({
                   </div>
                   <PackActionsBar
                     placement="documents"
+                    isAdmin={isGinaAdmin}
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={guestWorkspace ? undefined : openStepsLibraryFromToolbar}

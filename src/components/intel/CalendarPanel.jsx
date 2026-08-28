@@ -105,7 +105,6 @@ export function CalendarPanel({
   selection = [],
   canvasNodes = [],
   onInsertEventNode,
-  onFillMoodboardCalendar,
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -143,9 +142,7 @@ export function CalendarPanel({
         <CalendarEventCanvas
           activeNode={activeNode}
           today={today}
-          docsById={docsById}
           onInsertEventNode={onInsertEventNode}
-          onFillMoodboardCalendar={onFillMoodboardCalendar}
         />
       ) : null}
     </div>

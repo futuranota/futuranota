@@ -10,6 +10,7 @@ import {
   buildStickyContentFromCalendarSource,
   findMoodboardStickyTarget,
   isMoodboardStickyEmpty,
+  isMoodboardCalendarWireTarget,
   resolveMoodboardCalendarFillPlan,
 } from "./moodboardCalendarFill.js";
 
@@ -19,7 +20,7 @@ function moodboardBlock(id = "mb1") {
     type: DOC_BLOCK_TYPES.MOODBOARD,
     columns: [
       createMoodboardColumn(null),
-      createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY),
+      createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY, { calendarWireEnabled: true }),
       createMoodboardColumn(null),
     ],
   };
@@ -40,10 +41,16 @@ describe("isMoodboardStickyEmpty", () => {
 });
 
 describe("findMoodboardStickyTarget", () => {
-  it("finds first empty notes column", () => {
+  it("finds first calendar-wire notes column", () => {
     const target = findMoodboardStickyTarget([moodboardBlock()]);
     expect(target?.blockId).toBe("mb1");
     expect(target?.colIndex).toBe(1);
+  });
+
+  it("ignores empty notes without calendar wire toggle", () => {
+    const block = moodboardBlock();
+    block.columns[1] = createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY);
+    expect(findMoodboardStickyTarget([block])).toBeNull();
   });
 });
 
@@ -67,6 +74,85 @@ describe("buildStickyContentFromCalendarSource", () => {
     });
     expect(content?.stickyTitle).toBe("Labor Day");
     expect(content?.stickyText).toMatch(/Labor Day/i);
+  });
+
+  it("omits scanner intro for document integration", () => {
+    const content = buildStickyContentFromCalendarSource({
+      status: "success",
+      rangeDays: 7,
+      scheduleIso: "2026-01-01",
+      rangeEnd: new Date("2026-01-08"),
+      events: [{
+        title: "New Year's Day",
+        date: "2026-01-01",
+        dateEnd: "2026-01-01",
+      }],
+      event: {
+        title: "New Year's Day",
+        date: "2026-01-01",
+        dateEnd: "2026-01-01",
+      },
+    });
+    expect(content?.stickyText).not.toMatch(/scanned/i);
+    expect(content?.stickyText).toMatch(/Winter/i);
+    expect(content?.stickyText).not.toMatch(/Event \[/i);
+  });
+
+  it("integrates all events from calendar-event payload displayModel (connect path)", () => {
+    const content = buildStickyContentFromCalendarSource({
+      kind: "calendar-event",
+      scheduleIso: "2025-12-31",
+      rangeDays: 7,
+      rangeLabel: "Week",
+      title: "New Year's Eve",
+      date: "2025-12-31",
+      displayModel: {
+        intro: "",
+        sections: [{
+          season: "Winter",
+          events: [
+            { name: "New Year's Eve", date: "12/31" },
+            { name: "New Year's Day", date: "01/01" },
+            { name: "Orthodox Christmas Day", date: "01/07" },
+          ],
+        }],
+      },
+    });
+    expect(content?.stickyTitle).toBe("Winter");
+    expect(content?.stickyText).toMatch(/New Year's Eve/i);
+    expect(content?.stickyText).toMatch(/New Year's Day/i);
+    expect(content?.stickyText).toMatch(/Orthodox Christmas Day/i);
+  });
+
+  it("integrates all events from panel fetchResult", () => {
+    const content = buildStickyContentFromCalendarSource({
+      status: "success",
+      rangeDays: 7,
+      scheduleIso: "2025-12-31",
+      rangeEnd: new Date("2026-01-08T12:00:00"),
+      rangeLabel: "Week",
+      events: [
+        { title: "New Year's Eve", date: "2025-12-31", dateEnd: "2025-12-31" },
+        { title: "New Year's Day", date: "2026-01-01", dateEnd: "2026-01-01" },
+        { title: "Orthodox Christmas Day", date: "2026-01-07", dateEnd: "2026-01-07" },
+      ],
+      event: { title: "New Year's Eve", date: "2025-12-31", dateEnd: "2025-12-31" },
+    });
+    expect(content?.stickyTitle).toBe("Winter");
+    expect(content?.stickyText).toMatch(/Orthodox Christmas Day/i);
+    expect(content?.stickyText).not.toMatch(/scanned/i);
+  });
+});
+
+describe("isMoodboardCalendarWireTarget", () => {
+  it("requires empty notes and wire toggle", () => {
+    const wired = createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY, {
+      calendarWireEnabled: true,
+    });
+    expect(isMoodboardCalendarWireTarget(wired)).toBe(true);
+
+    const emptyNoWire = createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY);
+    expect(isMoodboardCalendarWireTarget(emptyNoWire)).toBe(false);
   });
 });
 
@@ -104,10 +190,18 @@ describe("applyMoodboardCalendarFill", () => {
     const plan = resolveMoodboardCalendarFillPlan(nodes["NODE-1"], null);
     const ok = applyMoodboardCalendarFill(plan, {
       kind: "calendar-event",
-      scopeBrief: "Within 7 days: Labor Day on Sep 1.",
+      scheduleIso: "2026-09-01",
+      rangeDays: 7,
       title: "Labor Day",
       date: "2026-09-01",
       rangeLabel: "Week",
+      displayModel: {
+        intro: "",
+        sections: [{
+          season: "Summer",
+          events: [{ name: "Labor Day", date: "09/01" }],
+        }],
+      },
     }, {
       getNode: (id) => nodes[id],
       updateNode: (id, patch) => {

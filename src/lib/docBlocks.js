@@ -1089,7 +1089,7 @@ function migrateMoodboardRecipe(value) {
 
 /**
  * @param {string|null} recipe
- * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string, noteStyle?: string }} [patch]
+ * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string, noteStyle?: string, calendarWireEnabled?: boolean, stickyFromCalendar?: boolean }} [patch]
  */
 export function createMoodboardColumn(recipe = null, patch = {}) {
   const resolved = migrateMoodboardRecipe(recipe);
@@ -1112,6 +1112,14 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
       ? patch.noteStyle
       : MOODBOARD_NOTE_STYLES.MARKER,
   );
+  const calendarWireEnabled = resolved === MOODBOARD_RECIPES.MEDIUM_STICKY
+    && Object.prototype.hasOwnProperty.call(patch, "calendarWireEnabled")
+    ? Boolean(patch.calendarWireEnabled)
+    : false;
+  const stickyFromCalendar = resolved === MOODBOARD_RECIPES.MEDIUM_STICKY
+    && Object.prototype.hasOwnProperty.call(patch, "stickyFromCalendar")
+    ? Boolean(patch.stickyFromCalendar)
+    : false;
   return {
     recipe: resolved,
     images,
@@ -1119,6 +1127,8 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
     stickyTitle,
     infoLabel: String(patch.infoLabel ?? "").slice(0, MOODBOARD_INFO_MAX),
     noteStyle,
+    calendarWireEnabled,
+    stickyFromCalendar,
   };
 }
 
@@ -1129,6 +1139,8 @@ function normalizeMoodboardColumn(column) {
     stickyTitle: column?.stickyTitle,
     infoLabel: column?.infoLabel,
     noteStyle: column?.noteStyle,
+    calendarWireEnabled: column?.calendarWireEnabled,
+    stickyFromCalendar: column?.stickyFromCalendar,
   });
 }
 
@@ -1181,6 +1193,28 @@ export function countMoodboardSavedImages(block) {
     }
   }
   return count;
+}
+
+/**
+ * Notes columns with body text count as savable moodboard content.
+ * @param {object} block
+ */
+export function countMoodboardNotesContent(block) {
+  const columns = Array.isArray(block?.columns) ? block.columns : migrateLegacyMoodboardColumns(block);
+  let count = 0;
+  for (const column of columns) {
+    if (column?.recipe !== MOODBOARD_RECIPES.MEDIUM_STICKY) continue;
+    if (String(column?.stickyText ?? "").trim()) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Images, weather slots, or filled Notes columns — enough to Save moodboard.
+ * @param {object} block
+ */
+export function countMoodboardSavableContent(block) {
+  return countMoodboardSavedImages(block) + countMoodboardNotesContent(block);
 }
 
 /**
@@ -1320,6 +1354,7 @@ function normalizeMoodboardBlock(block) {
   const boardSurface = normalizeMoodboardBoardSurface(block?.boardSurface);
   const columns = migrateLegacyMoodboardColumns({ ...block, boardLayout });
   const savedCount = countMoodboardSavedImages({ columns });
+  const savableCount = countMoodboardSavableContent({ columns });
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
     : IMAGE_SPLIT_BODY_MODE.TEXT;
@@ -1347,7 +1382,7 @@ function normalizeMoodboardBlock(block) {
         ? normalizeEmbeddedTodoItems(block.todoItems)
         : [],
     openFilePicker: Boolean(block?.openFilePicker),
-    moodboardSaved: Boolean(block?.moodboardSaved) && savedCount > 0,
+    moodboardSaved: Boolean(block?.moodboardSaved) && savableCount > 0,
   };
 }
 
@@ -1905,7 +1940,7 @@ export function docBlockHasContent(block) {
   }
   if (type === DOC_BLOCK_TYPES.MOODBOARD) {
     const normalized = normalizeMoodboardBlock(block);
-    return countMoodboardSavedImages(normalized) > 0
+    return countMoodboardSavableContent(normalized) > 0
       || Boolean(normalized.moodboardSaved)
       || Boolean((normalized.caption || "").trim())
       || Boolean((normalized.body || "").trim())

@@ -152,10 +152,11 @@ function buildSeasonGroupedLines(scoped, locale) {
 
 /**
  * @param {object} fetchResult
- * @param {{ locale?: 'en'|'es' }} [options]
+ * @param {{ locale?: 'en'|'es', omitIntro?: boolean }} [options]
  */
 export function buildEventCalendarScopeBrief(fetchResult, options = {}) {
   const locale = options.locale === "es" ? "es" : "en";
+  const omitIntro = options.omitIntro === true;
 
   const rangeDays = fetchResult?.rangeDays ?? EVENT_CALENDAR_RANGES.week?.days ?? 7;
   const scheduleIso = typeof fetchResult?.scheduleIso === "string" && fetchResult.scheduleIso
@@ -186,13 +187,17 @@ export function buildEventCalendarScopeBrief(fetchResult, options = {}) {
     };
   }
 
-  const intro = translate("eventCalendar.scopeIntro", locale, { days: rangeDays });
+  const intro = omitIntro
+    ? ""
+    : translate("eventCalendar.scopeIntro", locale, { days: rangeDays });
   const sections = buildSeasonGroupedSections(scoped, locale);
   const seasonLines = buildSeasonGroupedLines(scoped, locale);
 
   return {
     headline: "",
-    body: [intro, "", ...seasonLines].join("\n"),
+    body: omitIntro
+      ? seasonLines.join("\n")
+      : [intro, "", ...seasonLines].join("\n"),
     displayModel: { intro, sections },
     eventCount: scoped.length,
     hasData: true,

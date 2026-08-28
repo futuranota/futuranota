@@ -3,15 +3,16 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
- * Chooser after clicking toolbar “i/e pack”.
+ * Admin hub: Import pack, Export pack, or Export all.
  *
  * @param {{
  *   onClose?: () => void,
  *   onImport?: () => void,
  *   onExport?: () => void,
+ *   onExportAll?: () => void,
  * }} props
  */
-export function IePackChooserModal({ onClose, onImport, onExport }) {
+export function IePackChooserModal({ onClose, onImport, onExport, onExportAll }) {
   const { t } = useI18n();
 
   useEffect(() => {
@@ -63,13 +64,23 @@ export function IePackChooserModal({ onClose, onImport, onExport }) {
           </button>
           <button
             type="button"
-            className="ie-pack-chooser__btn ie-pack-chooser__btn--primary"
+            className="ie-pack-chooser__btn"
             onClick={() => {
               onClose?.();
               onExport?.();
             }}
           >
             {t("pack.exportPack")}
+          </button>
+          <button
+            type="button"
+            className="ie-pack-chooser__btn ie-pack-chooser__btn--primary"
+            onClick={() => {
+              onClose?.();
+              onExportAll?.();
+            }}
+          >
+            {t("pack.exportAll")}
           </button>
         </div>
       </div>

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { parseScopeBriefText } from "../../../lib/calendarEventDisplay.js";
+import {
+  isMoodboardStickyEmpty,
+} from "../../../lib/moodboardCalendarFill.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
   MOODBOARD_BOARD_LAYOUTS,
@@ -24,6 +28,7 @@ import {
   MOODBOARD_STICKY_TITLE_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
+  countMoodboardSavableContent,
   createMoodboardColumn,
   createMoodboardOverlay,
   moodboardColumnCountForLayout,
@@ -95,6 +100,8 @@ const BOARD_ASPECT_HALVES = 1; // 1:1
 const BOARD_ASPECT_FULL = 9 / 16;
 
 const EXPAND_ALL_SRC = "/uploads/expandall.svg";
+const NOTES_CLEAR_SRC = "/uploads/SpinnerGap.svg";
+const CALENDAR_WIRE_ICON_SRC = "/uploads/botones/e-c.svg";
 
 const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.TWISTED, labelKey: "doc.moodboard.overlayTwisted" },
@@ -157,6 +164,53 @@ function pointerArrowGeometry(overlay, boardW, boardH) {
     tipR,
     angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
   };
+}
+
+function MoodboardNotesBodyStatic({ text, title = "" }) {
+  const model = parseScopeBriefText(text);
+  const titleNorm = String(title || "").trim().toLowerCase();
+
+  if (model?.sections?.length) {
+    return (
+      <div
+        className="doc-moodboard__notes-body doc-moodboard__notes-body--static doc-moodboard__notes-body--structured"
+      >
+        {model.sections.map((section) => {
+          const seasonNorm = String(section.season || "").trim().toLowerCase();
+          const skipSeasonHeader = seasonNorm && titleNorm && seasonNorm === titleNorm;
+          return (
+            <section
+              key={section.season || section.events[0]?.name}
+              className="doc-moodboard__notes-season-block"
+            >
+              {section.season && !skipSeasonHeader ? (
+                <div className="doc-moodboard__notes-season">{section.season}</div>
+              ) : null}
+              <ul className="doc-moodboard__notes-events">
+                {section.events.map((event) => (
+                  <li
+                    key={`${event.name}-${event.date}`}
+                    className="doc-moodboard__notes-event"
+                  >
+                    <span className="doc-moodboard__notes-event-name">{event.name}</span>
+                    {event.date ? (
+                      <span className="doc-moodboard__notes-event-date tnum">{event.date}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="doc-moodboard__notes-body doc-moodboard__notes-body--static">
+      {text || ""}
+    </div>
+  );
 }
 
 function OverlayPointerRailIcon() {
@@ -299,7 +353,19 @@ function columnTextPatch(col) {
     stickyTitle: col.stickyTitle,
     infoLabel: col.infoLabel,
     noteStyle: col.noteStyle,
+    calendarWireEnabled: col.calendarWireEnabled,
+    stickyFromCalendar: col.stickyFromCalendar,
   };
+}
+
+/** Calendar connect / structured brief → same read-only notes UI as after Save. */
+function moodboardNotesUseIntegratedView(column, isEdit) {
+  if (!isEdit) return true;
+  const notesEmpty = isMoodboardStickyEmpty(column);
+  if (notesEmpty) return false;
+  if (Boolean(column?.stickyFromCalendar)) return true;
+  const model = parseScopeBriefText(column?.stickyText || "");
+  return Boolean(model?.sections?.length);
 }
 
 function emptySlot() {
@@ -568,7 +634,8 @@ export function MoodboardBlockView({
   const overlays = normalizeMoodboardOverlays(block?.overlays);
   overlaysRef.current = overlays;
   const savedImageCount = countMoodboardSavedImages({ columns });
-  const moodboardSaved = Boolean(block?.moodboardSaved && savedImageCount > 0);
+  const savableContentCount = countMoodboardSavableContent({ columns });
+  const moodboardSaved = Boolean(block?.moodboardSaved && savableContentCount > 0);
   const isEdit = !moodboardSaved;
 
   useEffect(() => {
@@ -1224,6 +1291,22 @@ export function MoodboardBlockView({
     patchColumns((col, index) => (index === colIndex ? createMoodboardColumn(null) : col));
   };
 
+  const clearNotesContent = (colIndex) => {
+    if (!isEdit) return;
+    patchColumns((col, index) => {
+      if (index !== colIndex || col.recipe !== MOODBOARD_RECIPES.MEDIUM_STICKY) return col;
+      return createMoodboardColumn(MOODBOARD_RECIPES.MEDIUM_STICKY, {
+        images: col.images,
+        stickyTitle: "",
+        stickyText: "",
+        infoLabel: col.infoLabel,
+        noteStyle: col.noteStyle,
+        calendarWireEnabled: false,
+        stickyFromCalendar: false,
+      });
+    });
+  };
+
   const setBoardLayout = (nextLayout) => {
     if (!isEdit) return;
     const layout = normalizeMoodboardBoardLayout(nextLayout);
@@ -1518,7 +1601,7 @@ export function MoodboardBlockView({
     if (next !== cur) handleFieldChange({ caption: next });
   };
 
-  const canSave = savedImageCount > 0 && !uploadingKey;
+  const canSave = savableContentCount > 0 && !uploadingKey;
   const attachmentImage = attachmentSlot
     ? (pendingLibraryPick
       || columns[attachmentSlot.colIndex]?.images?.[attachmentSlot.imageIndex]
@@ -1582,11 +1665,13 @@ export function MoodboardBlockView({
             {filled ? (
               <>
                 <div className="doc-moodboard__slot-weather">
-                  <ForecastNodeView
-                    payload={weatherPayload}
-                    compact
-                    className="doc-moodboard__slot-weather-body"
-                  />
+                  <div className="doc-moodboard__slot-weather-panel">
+                    <ForecastNodeView
+                      payload={weatherPayload}
+                      compact
+                      className="doc-moodboard__slot-weather-body"
+                    />
+                  </div>
                 </div>
                 {isEdit ? (
                   <div className="doc-moodboard__media-actions">
@@ -1601,13 +1686,18 @@ export function MoodboardBlockView({
                 ) : null}
               </>
             ) : (
-              <div className="doc-moodboard__slot-weather-placeholder" aria-label={t("doc.moodboard.slotWeatherWaiting")}>
-                <span className="doc-moodboard__slot-weather-title">
-                  {t("doc.moodboard.slotModeWeather")}
-                </span>
-                <span className="doc-moodboard__slot-weather-hint">
-                  {t("doc.moodboard.slotWeatherWaiting")}
-                </span>
+              <div
+                className="doc-moodboard__slot-weather-placeholder"
+                aria-label={t("doc.moodboard.slotWeatherWaiting")}
+              >
+                <div className="doc-moodboard__slot-weather-panel doc-moodboard__slot-weather-panel--placeholder">
+                  <span className="doc-moodboard__slot-weather-title">
+                    {t("doc.moodboard.slotModeWeather")}
+                  </span>
+                  <span className="doc-moodboard__slot-weather-hint">
+                    {t("doc.moodboard.slotWeatherWaiting")}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -1938,6 +2028,11 @@ export function MoodboardBlockView({
     const recipe = column.recipe;
     const isActive = activeCol === colIndex;
     const colRecipes = recipeOptionsForColumn(boardLayout, colIndex);
+    const notesIntegratedView = recipe === MOODBOARD_RECIPES.MEDIUM_STICKY
+      && moodboardNotesUseIntegratedView(column, isEdit);
+    const showColClear = isEdit && (
+      recipe !== MOODBOARD_RECIPES.MEDIUM_STICKY || !notesIntegratedView
+    );
 
     return (
       <div
@@ -1998,9 +2093,17 @@ export function MoodboardBlockView({
 
         {recipe === MOODBOARD_RECIPES.MEDIUM_STICKY ? (
           <div className="doc-moodboard__recipe doc-moodboard__recipe--medium-sticky">
+            {(() => {
+              const notesEmpty = isMoodboardStickyEmpty(column);
+              const calendarWireOn = Boolean(column.calendarWireEnabled);
+              const calendarWireWaiting = calendarWireOn && notesEmpty;
+              const notesEditChrome = isEdit && !notesIntegratedView;
+              return (
             <div
               className={
                 "doc-moodboard__notes"
+                + (notesEditChrome ? " doc-moodboard__notes--edit" : "")
+                + (calendarWireWaiting ? " doc-moodboard__notes--wire-waiting" : "")
                 + (
                   normalizeMoodboardNoteStyle(column.noteStyle)
                     === MOODBOARD_NOTE_STYLES.INTER
@@ -2015,7 +2118,51 @@ export function MoodboardBlockView({
                 alt=""
                 draggable={false}
               />
-              {isEdit ? (
+              {isEdit && notesEmpty ? (
+                <div
+                  className="doc-moodboard__notes-wire-toggle"
+                  role="group"
+                  aria-label={t("doc.moodboard.calendarWireToggle")}
+                >
+                  <button
+                    type="button"
+                    className={
+                      "doc-moodboard__notes-wire-btn"
+                      + (calendarWireOn ? " is-active" : "")
+                      + (!notesEmpty ? " is-disabled" : "")
+                    }
+                    aria-pressed={calendarWireOn}
+                    disabled={!notesEmpty}
+                    title={
+                      !notesEmpty
+                        ? t("doc.moodboard.calendarWireToggleDisabled")
+                        : t("doc.moodboard.calendarWireToggle")
+                    }
+                    onClick={() => {
+                      if (!notesEmpty) return;
+                      patchColumns((col, index) => (
+                        index === colIndex
+                          ? createMoodboardColumn(col.recipe, {
+                            images: col.images,
+                            ...columnTextPatch(col),
+                            calendarWireEnabled: !calendarWireOn,
+                          })
+                          : col
+                      ));
+                    }}
+                  >
+                    <img
+                      className="doc-moodboard__notes-wire-icon"
+                      src={CALENDAR_WIRE_ICON_SRC}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                    <span>{t("doc.moodboard.calendarWireToggle")}</span>
+                  </button>
+                </div>
+              ) : null}
+              {notesEditChrome && !calendarWireWaiting ? (
                 <div
                   className="doc-moodboard__notes-style-toggle"
                   role="group"
@@ -2060,7 +2207,11 @@ export function MoodboardBlockView({
                 </div>
               ) : null}
               <div className="doc-moodboard__notes-title-wrap">
-                {isEdit ? (
+                {notesIntegratedView && !calendarWireWaiting ? (
+                  <div className="doc-moodboard__notes-title doc-moodboard__notes-title--static">
+                    {(column.stickyTitle || "").trim() || MOODBOARD_NOTES_TITLE_DEFAULT}
+                  </div>
+                ) : notesEditChrome && !calendarWireWaiting ? (
                   <input
                     className="doc-moodboard__notes-title"
                     type="text"
@@ -2085,11 +2236,26 @@ export function MoodboardBlockView({
                   />
                 ) : (
                   <div className="doc-moodboard__notes-title doc-moodboard__notes-title--static">
-                    {(column.stickyTitle || "").trim() || MOODBOARD_NOTES_TITLE_DEFAULT}
+                    {MOODBOARD_NOTES_TITLE_DEFAULT}
                   </div>
                 )}
               </div>
-              {isEdit ? (
+              {isEdit && calendarWireWaiting ? (
+                <div className="doc-moodboard__notes-wire-hint" role="status">
+                  <span className="doc-moodboard__notes-wire-hint-title">
+                    {t("doc.moodboard.calendarWireToggle")}
+                  </span>
+                  <span className="doc-moodboard__notes-wire-hint-body">
+                    {t("doc.moodboard.calendarWireHint")}
+                  </span>
+                </div>
+              ) : null}
+              {notesIntegratedView && !calendarWireWaiting ? (
+                <MoodboardNotesBodyStatic
+                  text={column.stickyText || ""}
+                  title={column.stickyTitle || ""}
+                />
+              ) : notesEditChrome && !calendarWireWaiting ? (
                 <textarea
                   className="doc-moodboard__notes-body"
                   maxLength={MOODBOARD_NOTES_BODY_MAX}
@@ -2111,22 +2277,40 @@ export function MoodboardBlockView({
                     ));
                   }}
                 />
-              ) : (
-                <div className="doc-moodboard__notes-body doc-moodboard__notes-body--static">
-                  {column.stickyText || ""}
-                </div>
-              )}
+              ) : null}
             </div>
+              );
+            })()}
           </div>
         ) : null}
 
-        {recipe && isEdit ? (
+        {recipe && showColClear ? (
           <button
             type="button"
             className="doc-moodboard__col-clear"
-            onClick={() => clearColumn(colIndex)}
+            onClick={() => (
+              recipe === MOODBOARD_RECIPES.MEDIUM_STICKY
+                ? clearNotesContent(colIndex)
+                : clearColumn(colIndex)
+            )}
+            aria-label={
+              recipe === MOODBOARD_RECIPES.MEDIUM_STICKY
+                ? t("doc.moodboard.clearNotes")
+                : t("doc.moodboard.clearColumn")
+            }
+            title={
+              recipe === MOODBOARD_RECIPES.MEDIUM_STICKY
+                ? t("doc.moodboard.clearNotes")
+                : t("doc.moodboard.clearColumn")
+            }
           >
-            {t("doc.moodboard.clearColumn")}
+            <img
+              className="doc-moodboard__col-clear-icon"
+              src={NOTES_CLEAR_SRC}
+              alt=""
+              aria-hidden
+              draggable={false}
+            />
           </button>
         ) : null}
       </div>

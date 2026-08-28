@@ -760,7 +760,6 @@ function IntelFoldersSection({
             selection={selection}
             canvasNodes={canvasNodes}
             onInsertEventNode={onInsertEventNode}
-            onFillMoodboardCalendar={onFillMoodboardCalendar}
           />
         )}
         {bodyMode === "forecast" && <ForecastPanel today={today} />}

@@ -154,6 +154,24 @@
   cursor: pointer;
 }
 
+.pack-actions .btn.pack-actions__btn--toolbar.pack-actions__btn--primary {
+  color: #111;
+  border-color: transparent;
+  background: #fff;
+}
+
+.pack-actions .btn.pack-actions__btn--toolbar.pack-actions__btn--primary:hover:not(:disabled),
+.pack-actions .btn.pack-actions__btn--toolbar.pack-actions__btn--primary:active:not(:disabled) {
+  color: #111;
+  border-color: transparent;
+  background: #fff;
+  opacity: 0.92;
+}
+
+.pack-actions .btn.pack-actions__btn--toolbar.pack-actions__btn--primary .pack-actions__btn-icon {
+  background-color: #111;
+}
+
 /* Open buttons in steps / to-do panels — card surface, not toolbar gray */
 .btn.pack-actions__btn--toolbar.panel-list-open-btn {
   color: rgba(232, 220, 200, 0.72);

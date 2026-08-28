@@ -12,6 +12,7 @@ import {
 import {
   convertImageLayoutBlock,
   countMoodboardSavedImages,
+  countMoodboardSavableContent,
   createDocBlock,
   createTodoItem,
   applyTodoSlashToImageSplit,
@@ -1988,23 +1989,23 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               libraryOwnerKind={libraryOwnerKind}
               autoFocusBody={
                 focusBlockId === block.id
-                && countMoodboardSavedImages(block) > 0
+                && countMoodboardSavableContent(block) > 0
                 && !block.moodboardSaved
               }
               onChange={(patch) => {
-                const patchHasSavedImage = Array.isArray(patch.columns)
-                  && countMoodboardSavedImages(patch) > 0;
+                const patchHasSavableContent = Array.isArray(patch.columns)
+                  && countMoodboardSavableContent(patch) > 0;
                 let next = updateBlockAt(blocksRef.current, index, patch);
-                if (patchHasSavedImage) {
+                if (patchHasSavableContent) {
                   next = ensureEmptyTextBlockAfter(next, index);
                 }
                 setBlocks(next);
-                if (patchHasSavedImage) {
+                if (patchHasSavableContent) {
                   requestContentGrow();
                 }
               }}
               onSave={() => {
-                if (countMoodboardSavedImages(block) < 1) return;
+                if (countMoodboardSavableContent(block) < 1) return;
                 let next = updateBlockAt(blocksRef.current, index, { moodboardSaved: true });
                 next = ensureEmptyTextBlockAfter(next, index);
                 setBlocks(next);

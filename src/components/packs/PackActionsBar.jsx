@@ -28,6 +28,7 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {Object} props
  * @param {'objects'|'documents'} props.placement
  * @param {() => void} props.onOpenImport
+ * @param {boolean} [props.isAdmin]
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
@@ -42,6 +43,7 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
 export function PackActionsBar({
   placement,
   onOpenImport,
+  isAdmin = false,
   onOpenStepsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
@@ -77,6 +79,14 @@ export function PackActionsBar({
       (o) => o.label.toLowerCase() === filterValue.toLowerCase(),
     )?.id ?? ""
     : "";
+
+  const handleExportAll = async () => {
+    const result = await exportWorkspaceTreeZip();
+    if (!result?.ok) {
+      throw new Error(result?.error || t("pack.exportAllFailed"));
+    }
+    setExportModalOpen(false);
+  };
 
   return (
     <>
@@ -144,47 +154,56 @@ export function PackActionsBar({
           </select>
         ) : null}
 
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar pack-actions__btn--ie"
-          onClick={() => setIeChooserOpen(true)}
-          title={t("pack.iePackTitle")}
-        >
-          <PackActionsToolbarIcon src={IE_PACK_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.iePack")}</span>
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar pack-actions__btn--ie"
+            onClick={() => setIeChooserOpen(true)}
+            title={t("pack.iePackTitle")}
+          >
+            <PackActionsToolbarIcon src={IE_PACK_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.iePack")}</span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn xs pack-actions__btn pack-actions__btn--toolbar pack-actions__btn--ie"
+              onClick={() => onOpenImport?.()}
+              title={t("pack.importPackTitle")}
+            >
+              <PackActionsToolbarIcon src={IE_PACK_ICON_SRC} />
+              <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
+            </button>
 
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={() => setExportModalOpen(true)}
-          title={t("pack.exportAllOpenTitle")}
-        >
-          <PackActionsToolbarIcon src={EXPORT_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
-        </button>
+            <button
+              type="button"
+              className="btn xs pack-actions__btn pack-actions__btn--toolbar pack-actions__btn--primary"
+              onClick={() => setExportModalOpen(true)}
+              title={t("pack.exportAllOpenTitle")}
+            >
+              <PackActionsToolbarIcon src={EXPORT_ICON_SRC} />
+              <span className="pack-actions__btn-label">{t("pack.exportAll")}</span>
+            </button>
+          </>
+        )}
       </div>
 
-      {ieChooserOpen ? (
+      {isAdmin && ieChooserOpen ? (
         <IePackChooserModal
           onClose={() => setIeChooserOpen(false)}
           onImport={() => onOpenImport?.()}
           onExport={() => setExportPackOpen(true)}
+          onExportAll={() => setExportModalOpen(true)}
         />
       ) : null}
       {exportModalOpen ? (
         <ExportWorkspaceModal
           onClose={() => setExportModalOpen(false)}
-          onExportAll={async () => {
-            const result = await exportWorkspaceTreeZip();
-            if (!result?.ok) {
-              throw new Error(result?.error || t("pack.exportAllFailed"));
-            }
-            setExportModalOpen(false);
-          }}
+          onExportAll={handleExportAll}
         />
       ) : null}
-      {exportPackOpen ? (
+      {isAdmin && exportPackOpen ? (
         <ExportPackModal onClose={() => setExportPackOpen(false)} />
       ) : null}
     </>

@@ -50,8 +50,8 @@ export const STUDIO_MOCKUPS = /** @type {const} */ ([
 
 export const STUDIO_DEFAULT_TEXT_COLOR = "#E7E9EA";
 
-/** Official Vimeo signup for users without an account. */
-export const VIMEO_JOIN_URL = "https://vimeo.com/join";
+/** Vimeo homepage — CTA link in Studio embed step. */
+export const VIMEO_JOIN_URL = "https://vimeo.com/";
 
 export const STUDIO_SESSION_KEY = "fn-studio-v1";
 

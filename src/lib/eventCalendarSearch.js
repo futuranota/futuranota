@@ -180,8 +180,13 @@ export async function fetchEventsForNode(node, baseToday = new Date(), rangeId =
 /**
  * @param {object} fetchResult
  */
-export function buildEventNodePayload(fetchResult) {
+export function buildEventNodePayload(fetchResult, options = {}) {
   const event = fetchResult.event;
+  const locale = options.locale === "es" ? "es" : "en";
+  const integrationBrief = buildEventCalendarScopeBrief(fetchResult, {
+    locale,
+    omitIntro: true,
+  });
   return {
     kind: "calendar-event",
     scheduleLabel: fetchResult.sourceLabel,
@@ -191,9 +196,12 @@ export function buildEventNodePayload(fetchResult) {
     rangeId: fetchResult.rangeId || null,
     rangeDays: fetchResult.rangeDays ?? null,
     rangeLabel: fetchResult.rangeLabel || null,
-    scopeHeadline: fetchResult.scopeBrief?.headline || null,
-    scopeBrief: fetchResult.scopeBrief?.body || null,
-    displayModel: fetchResult.scopeBrief?.displayModel || null,
+    rangeEnd: fetchResult.rangeEnd || null,
+    targetDate: fetchResult.targetDate || null,
+    events: Array.isArray(fetchResult.events) ? fetchResult.events : [],
+    scopeHeadline: integrationBrief.headline || null,
+    scopeBrief: integrationBrief.body || null,
+    displayModel: integrationBrief.displayModel || null,
     eventId: event?.id || null,
     title: event?.title || null,
     summary: event?.summary || null,
