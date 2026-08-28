@@ -142,6 +142,10 @@ import {
   applyMoodboardWeatherFill,
   resolveMoodboardWeatherFillPlan,
 } from './lib/moodboardWeatherFill.js';
+import {
+  applyMoodboardCalendarFill,
+  resolveMoodboardCalendarFillPlan,
+} from './lib/moodboardCalendarFill.js';
 import { parseNodeWritingBody } from './lib/nodeInlineContent.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
@@ -879,6 +883,32 @@ useEffect(() => {
     return true;
   };
 
+  const handleFillMoodboardCalendar = ({ plan, fetchResult, locale }) => {
+    if (!plan || !fetchResult) return false;
+    const nodesApi = useNodesStore.getState();
+    const docsApi = useDocsStore.getState();
+    const ok = applyMoodboardCalendarFill(plan, fetchResult, {
+      getNode: (id) => nodesApi.getNode(id) || nodesApi.nodes?.[id],
+      updateNode: (id, patch) => nodesApi.updateNode(id, patch),
+      syncNodeToParentDoc: (nodeId, parentDocId) => {
+        nodesApi.syncNodeToParentDoc(nodeId, parentDocId);
+      },
+      getDoc: (id) => docsApi.getDoc?.(id) || docsApi.docs?.[id],
+      updateDoc: (id, patch) => docsApi.updateDoc(id, patch),
+      locale: locale === "es" ? "es" : "en",
+    });
+    if (!ok) return false;
+    const parentDocId = plan.parentDocId || null;
+    if (parentDocId && expandedDocId === parentDocId) {
+      setDocViewGeneration((n) => n + 1);
+    }
+    setToast({
+      message: `Event calendar added to moodboard in "${plan.docTitle || "document"}"`,
+      kind: "ok",
+    });
+    return true;
+  };
+
   /* Connect a macronode with a forecast/calendar node on canvas → paste the widget
      into the macronode body (writing tail stays editable below the widget). */
   const handleCanvasConnectionCreated = (fromId, toId) => {
@@ -962,6 +992,39 @@ useEffect(() => {
       }
     }
 
+    if (widgetKind === "calendar-event") {
+      const parentDocId = targetEntity.parentDocId || null;
+      const parentDoc = parentDocId
+        ? (useDocsStore.getState().getDoc?.(parentDocId)
+          || useDocsStore.getState().docs?.[parentDocId]
+          || null)
+        : null;
+      const plan = resolveMoodboardCalendarFillPlan(targetEntity, parentDoc);
+      if (plan) {
+        const nodesApi = useNodesStore.getState();
+        const docsApi = useDocsStore.getState();
+        const filled = applyMoodboardCalendarFill(plan, payload, {
+          getNode: (id) => nodesApi.getNode(id) || nodesApi.nodes?.[id],
+          updateNode: (id, patch) => nodesApi.updateNode(id, patch),
+          syncNodeToParentDoc: (nodeId, docId) => {
+            nodesApi.syncNodeToParentDoc(nodeId, docId);
+          },
+          getDoc: (id) => docsApi.getDoc?.(id) || docsApi.docs?.[id],
+          updateDoc: (id, patch) => docsApi.updateDoc(id, patch),
+        });
+        if (filled) {
+          if (parentDocId && expandedDocId === parentDocId) {
+            setDocViewGeneration((n) => n + 1);
+          }
+          setToast({
+            message: `Event calendar added to moodboard in "${plan.docTitle || targetEntity.title || "document"}"`,
+            kind: "ok",
+          });
+          return;
+        }
+      }
+    }
+
     const embedded = widgetKind === "weather-forecast"
       ? buildForecastEmbeddedFromPayload(payload)
       : buildCalendarEmbeddedFromPayload(payload);
@@ -985,25 +1048,18 @@ useEffect(() => {
     });
   };
 
-  const handleInsertEventNode = ({ title, payload, sourceNode, anchorAt }) => {
-    const parentDocId = sourceNode?.parentDocId || null;
+  const handleInsertEventNode = ({ title, payload, anchorAt }) => {
     const addNode = useNodesStore.getState().addNode;
     const nodeId = addNode(
       title,
       "text",
       JSON.stringify(payload),
-      parentDocId,
+      null,
       {
         anchorAt: anchorAt || null,
         sourceQuery: title,
       },
     );
-    if (parentDocId) {
-      useNodesStore.getState().syncNodeToParentDoc(nodeId, parentDocId);
-      if (expandedDocId === parentDocId) {
-        setDocViewGeneration((n) => n + 1);
-      }
-    }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
   };
@@ -2202,6 +2258,7 @@ useEffect(() => {
             canvasNodes={canvasNodes}
             onInsertForecastNode={handleInsertForecastNode}
             onFillMoodboardWeather={handleFillMoodboardWeather}
+            onFillMoodboardCalendar={handleFillMoodboardCalendar}
             onInsertEventNode={handleInsertEventNode}
             onSlashCreateNode={createNodeFromSlashAndInsert}
             objectsById={objects}

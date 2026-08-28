@@ -704,6 +704,7 @@ function IntelFoldersSection({
   canvasNodes = [],
   onInsertForecastNode,
   onFillMoodboardWeather,
+  onFillMoodboardCalendar,
   onInsertEventNode,
   corpusBrandName = "",
   corpusObjectId = null,
@@ -759,6 +760,7 @@ function IntelFoldersSection({
             selection={selection}
             canvasNodes={canvasNodes}
             onInsertEventNode={onInsertEventNode}
+            onFillMoodboardCalendar={onFillMoodboardCalendar}
           />
         )}
         {bodyMode === "forecast" && <ForecastPanel today={today} />}
@@ -832,6 +834,7 @@ function IntelPanel({
   canvasNodes = [],
   onInsertForecastNode,
   onFillMoodboardWeather,
+  onFillMoodboardCalendar,
   onInsertEventNode,
   onSlashCreateNode,
   objectsById = {},
@@ -947,6 +950,7 @@ function IntelPanel({
           canvasNodes={canvasNodes}
             onInsertForecastNode={onInsertForecastNode}
             onFillMoodboardWeather={onFillMoodboardWeather}
+            onFillMoodboardCalendar={onFillMoodboardCalendar}
             onInsertEventNode={onInsertEventNode}
           corpusBrandName={corpusScopeBrand}
           corpusObjectId={corpusObjectId}

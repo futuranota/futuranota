@@ -16,6 +16,7 @@ import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { usePlanStore } from "../../stores/planStore.js";
 import { formatCalendarSearchCounter, notifyCalendarSearchLimit } from "../../lib/calendarUsage.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { resolveMoodboardCalendarFillPlan } from "../../lib/moodboardCalendarFill.js";
 
 const CALENDAR_EVENT_ILLUSTRATION = "/uploads/botones/e-c.svg";
 const DEFAULT_RANGE_ID = "week";
@@ -61,7 +62,9 @@ function RangeSwitchRow({ value, onChange, disabled }) {
 export function CalendarEventCanvas({
   activeNode,
   today = new Date(),
+  docsById = {},
   onInsertEventNode,
+  onFillMoodboardCalendar,
 }) {
   const [phase, setPhase] = useState("empty");
   const [result, setResult] = useState(null);
@@ -98,6 +101,14 @@ export function CalendarEventCanvas({
   const targetDate = activeNode ? resolveForecastTargetDate(activeNode).date : null;
   const pillDate = targetDate ? formatForecastUiDate(targetDate) : "";
   const canSearch = Boolean(activeNode && targetDate);
+
+  const parentDoc = activeNode?.parentDocId
+    ? docsById[activeNode.parentDocId] || null
+    : null;
+  const moodboardFillPlan = useMemo(
+    () => resolveMoodboardCalendarFillPlan(activeNode, parentDoc),
+    [activeNode, parentDoc],
+  );
 
   const runSearch = useCallback(async () => {
     if (!canSearch) return;
@@ -146,10 +157,20 @@ export function CalendarEventCanvas({
     onInsertEventNode({
       title: buildEventNodeTitle(result),
       payload: buildEventNodePayload(result),
-      sourceNode: result.node,
       anchorAt: result.scheduleIso || null,
     });
   };
+
+  const handleFillMoodboard = () => {
+    if (!result || result.status !== "success" || !moodboardFillPlan || !onFillMoodboardCalendar) return;
+    const ok = onFillMoodboardCalendar({ plan: moodboardFillPlan, fetchResult: result, locale });
+    if (ok) {
+      setPhase("empty");
+      setResult(null);
+    }
+  };
+
+  const showMoodboardFill = Boolean(moodboardFillPlan && onFillMoodboardCalendar);
 
   const controlsRow = (
     <div className="cal-event-canvas__controls-row">
@@ -222,7 +243,36 @@ export function CalendarEventCanvas({
     return (
       <div className="cal-event-canvas cal-event-canvas--result" aria-label="Event calendar result">
         {controlsRow}
-        <CalendarEventResultBox result={displayResult} onInsert={handleInsert} />
+        <CalendarEventResultBox
+          result={displayResult}
+          onInsert={handleInsert}
+          showInsert={!showMoodboardFill}
+        />
+        {showMoodboardFill ? (
+          <div className="forecast-search-result__actions">
+            <button
+              type="button"
+              className="forecast-search-result__insert btn xs"
+              onClick={handleFillMoodboard}
+            >
+              {t("intel.calendarSearchAddToMoodboard")}
+            </button>
+            {onInsertEventNode ? (
+              <button
+                type="button"
+                className="forecast-search-result__insert btn xs ghost"
+                onClick={handleInsert}
+              >
+                {t("intel.calendarSearchInsertNode")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {!showMoodboardFill && activeNode ? (
+          <p className="forecast-search-result__slot-hint">
+            {t("intel.calendarSearchHintNoStickySlot")}
+          </p>
+        ) : null}
       </div>
     );
   }
