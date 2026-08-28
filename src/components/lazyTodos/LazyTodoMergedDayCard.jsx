@@ -85,21 +85,18 @@ export function LazyTodoMergedDayCard({
   const [focusItemId, setFocusItemId] = useState(null);
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
 
+  // Re-sync only when the day bucket list changes — never override user accordion toggles.
   useEffect(() => {
     if (!items.length) {
       setActiveItemId(null);
       return;
     }
-    if (
-      initialActiveItemId
-      && items.some((item) => item.id === initialActiveItemId)
-    ) {
-      setActiveItemId(initialActiveItemId);
-      return;
-    }
-    if (activeItemId && items.some((item) => item.id === activeItemId)) return;
-    setActiveItemId(items[0].id);
-  }, [items, activeItemId, initialActiveItemId]);
+    setActiveItemId((current) => {
+      if (current && items.some((item) => item.id === current)) return current;
+      if (current === null) return null;
+      return items[0]?.id ?? null;
+    });
+  }, [items]);
 
   const activeItem = useMemo(
     () => items.find((item) => item.id === activeItemId) || null,
