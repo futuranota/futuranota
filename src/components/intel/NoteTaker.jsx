@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
@@ -21,14 +21,16 @@ import {
 import { DocSlashCommandPicker } from "../docs/blocks/DocSlashCommandPicker.jsx";
 import { NodeWritingBlockStack } from "../nodes/NodeWritingBlockStack.jsx";
 import {
+  getDocumentSlashCommandsForUser,
   isNodeSlashCommandEnabled,
-  NODE_SLASH_COMMANDS,
-  parseNodeSlashQuery,
+  parseSlashQueryFromCommands,
 } from "../../lib/docBlockSlash.js";
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useAuthStore } from "../../stores/authStore.js";
+import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import {
   listAdoptableDocs,
   resolveAdoptableDocLabel,
@@ -84,6 +86,12 @@ export function NoteTaker({
   videoEmbed = null,
 }) {
   const { t } = useI18n();
+  const userEmail = useAuthStore((s) => s.user?.email);
+  const isSlashAdmin = isAdminSessionEmail(userEmail);
+  const slashCommands = useMemo(
+    () => getDocumentSlashCommandsForUser(isSlashAdmin),
+    [isSlashAdmin],
+  );
   const addNode = useNodesStore((s) => s.addNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const updateNode = useNodesStore((s) => s.updateNode);
@@ -242,7 +250,7 @@ export function NoteTaker({
   ]);
 
   const appendBlockFromPicker = useCallback((alias) => {
-    const parsed = parseNodeSlashQuery(alias);
+    const parsed = parseSlashQueryFromCommands(alias, slashCommands);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
     const snap = writingCaretRef.current;
@@ -292,7 +300,7 @@ export function NoteTaker({
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true, focusKey });
     }
-  }, [writingBody.blocks, writingFocusTarget]);
+  }, [slashCommands, writingBody.blocks, writingFocusTarget]);
 
   const createIntelNode = useCallback(
     (draftBody) => {
@@ -617,7 +625,7 @@ export function NoteTaker({
             </div>
             <DocSlashCommandPicker
               variant="pad"
-              commands={NODE_SLASH_COMMANDS}
+              commands={slashCommands}
               onSelectCommand={appendBlockFromPicker}
               isCommandEnabled={isNodeSlashCommandEnabled}
             />

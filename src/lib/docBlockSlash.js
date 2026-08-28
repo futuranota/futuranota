@@ -56,6 +56,7 @@ export const DOC_SLASH_COMMANDS = [
     aliases: ["productcard", "product-card", "product card"],
     blockType: DOC_BLOCK_TYPES.PRODUCT_CARD,
     nodeDataType: NODE_DATA_TYPES.TEXT,
+    menuHidden: true,
   },
   {
     label: "Imagen",
@@ -63,12 +64,13 @@ export const DOC_SLASH_COMMANDS = [
     aliases: ["imagen", "image", "img"],
     blockType: DOC_BLOCK_TYPES.IMAGE,
     nodeDataType: NODE_DATA_TYPES.TEXT,
+    menuHidden: true,
   },
   {
     label: "Image card",
-    menuLabel: "Card",
-    menuGroup: "imageCard",
-    menuGroupLabel: "Image Card",
+    menuLabel: "Image Card",
+    menuGroup: "cards",
+    menuGroupLabel: "CARDS",
     ghostHint: "image card",
     aliases: [
       "imagecard",
@@ -84,9 +86,9 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Banner",
-    menuLabel: "Banner",
-    menuGroup: "imageCard",
-    menuGroupLabel: "Image Card",
+    menuLabel: "Banner Card",
+    menuGroup: "cards",
+    menuGroupLabel: "CARDS",
     ghostHint: "banner",
     aliases: ["banner", "imagebanner", "image-banner", "image banner"],
     blockType: DOC_BLOCK_TYPES.BANNER,
@@ -94,9 +96,9 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Moodboard",
-    menuLabel: "Board",
-    menuGroup: "moodboard",
-    menuGroupLabel: "Moodboard",
+    menuLabel: "Moodboard",
+    menuGroup: "cards",
+    menuGroupLabel: "CARDS",
     ghostHint: "moodboard",
     aliases: ["moodboard", "mood board", "mood-board", "board"],
     blockType: DOC_BLOCK_TYPES.MOODBOARD,
@@ -104,6 +106,8 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Code",
+    menuGroup: "extra",
+    menuGroupLabel: "EXTRA",
     ghostHint: "code",
     aliases: ["code", "codigo", "snippet", "codeblock"],
     blockType: DOC_BLOCK_TYPES.CODE,
@@ -111,6 +115,7 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Password",
+    menuHidden: true,
     ghostHint: "queue to table",
     aliases: [
       "password",
@@ -127,6 +132,7 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "URL",
+    menuHidden: true,
     ghostHint: "queue to table",
     aliases: ["queue to table", "queuetotable", "queuetable", "urltable", "linktable", "link", "enlace", "url", "bookmark"],
     blockType: DOC_BLOCK_TYPES.LINK_VAULT,
@@ -152,11 +158,14 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Agent",
+    menuGroup: "extra",
+    menuGroupLabel: "EXTRA",
     ghostHint: "agent",
     aliases: ["agent"],
     blockType: DOC_BLOCK_TYPES.AGENT,
     nodeDataType: NODE_DATA_TYPES.TEXT,
     macroOnly: true,
+    adminOnly: true,
   },
 ];
 
@@ -240,7 +249,7 @@ export function getLibraryHashActionAtCaret(text, caret) {
 
 /**
  * Collapse flat slash commands into menu rows for the [+] picker.
- * Commands with the same `menuGroup` render under one header (Image Card, Moodboard…).
+ * Commands with the same `menuGroup` render under one header (CARDS, EXTRA…).
  * @param {typeof DOC_SLASH_COMMANDS} commands
  * @returns {Array<
  *   | { kind: "command"; command: (typeof DOC_SLASH_COMMANDS)[number] }
@@ -278,16 +287,44 @@ export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => Boolean(cmd.macronodeHeading),
 );
 
-/** Documents (and node writing surfaces): tools except Create a document and in-body Todo list. */
-export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
+/** Documents (and node writing surfaces): tools except Create a document, in-body Todo list, and hidden menu items. */
+const BASE_DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO && !cmd.menuHidden,
 );
+
+/** @deprecated Prefer getDocumentSlashCommandsForUser for picker + writing surfaces. */
+export const DOCUMENT_SLASH_COMMANDS = BASE_DOCUMENT_SLASH_COMMANDS;
+
+/**
+ * @param {typeof DOC_SLASH_COMMANDS} commands
+ * @param {{ isAdmin?: boolean }} [opts]
+ */
+export function filterSlashCommandsForUser(commands, { isAdmin = false } = {}) {
+  return commands.filter((cmd) => {
+    if (cmd.menuHidden) return false;
+    if (cmd.adminOnly && !isAdmin) return false;
+    return true;
+  });
+}
+
+/**
+ * Slash commands for document / node writing (picker + typed slash), scoped to user.
+ * @param {boolean} isAdmin
+ */
+export function getDocumentSlashCommandsForUser(isAdmin) {
+  return filterSlashCommandsForUser(BASE_DOCUMENT_SLASH_COMMANDS, { isAdmin });
+}
+
+/** @param {boolean} isAdmin */
+export function getDocumentSlashGhostHintsForUser(isAdmin) {
+  return getDocumentSlashCommandsForUser(isAdmin).map((c) => c.ghostHint ?? c.label);
+}
 
 export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 
-export const DOCUMENT_SLASH_GHOST_HINTS = DOCUMENT_SLASH_COMMANDS.map(
+export const DOCUMENT_SLASH_GHOST_HINTS = BASE_DOCUMENT_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 

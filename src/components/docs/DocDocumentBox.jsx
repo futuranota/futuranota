@@ -4,18 +4,16 @@ import {
   createDocBlock,
   DOC_BLOCK_TYPES,
   docBlocksToBody,
-  hasProductCardBlock,
   normalizeDocBlocks,
   updateBlockAt,
 } from "../../lib/docBlocks.js";
 import {
   createDocBlockFromSlash,
   createBlocksFromSlash,
-  DOCUMENT_SLASH_COMMANDS,
-  DOCUMENT_SLASH_GHOST_HINTS,
   FOLDER_SLASH_COMMANDS,
   FOLDER_SLASH_GHOST_HINTS,
-  parseDocumentSlashQuery,
+  getDocumentSlashCommandsForUser,
+  getDocumentSlashGhostHintsForUser,
   parseFolderSlashQuery,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
@@ -45,6 +43,8 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { resolveFolderStatus } from "../../lib/folderStatus.js";
 import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
+import { useAuthStore } from "../../stores/authStore.js";
+import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 
 /** TEMP: taller content expand + equal overlay pad — folder Assistance only. */
 function isAssistanceFolderExpandPadTest(title, category) {
@@ -146,6 +146,8 @@ export function DocDocumentBox({
   onShredFolderNode = null,
 }) {
   const { t } = useI18n();
+  const userEmail = useAuthStore((s) => s.user?.email);
+  const isSlashAdmin = isAdminSessionEmail(userEmail);
   const [campaignChildFilter, setCampaignChildFilter] = useState("all");
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const isProductMode = metaMode === "product";
@@ -155,11 +157,20 @@ export function DocDocumentBox({
    * Folders: Create a document only. Writing toolkit (image-split, …) lives in documents/macronodes.
    */
   const isFolderSlashSurface = metaMode === "content" || docKind === "content";
-  const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;
+  const documentSlashCommands = useMemo(
+    () => getDocumentSlashCommandsForUser(isSlashAdmin),
+    [isSlashAdmin],
+  );
+  const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : documentSlashCommands;
   // Folder surface: typed slash still works; floating btn creates a document (no color menu).
   const pickerCommands = isFolderSlashSurface ? [] : slashCommands;
-  const slashGhostHints = isFolderSlashSurface ? FOLDER_SLASH_GHOST_HINTS : DOCUMENT_SLASH_GHOST_HINTS;
-  const parseScopedSlashQuery = isFolderSlashSurface ? parseFolderSlashQuery : parseDocumentSlashQuery;
+  const slashGhostHints = isFolderSlashSurface
+    ? FOLDER_SLASH_GHOST_HINTS
+    : getDocumentSlashGhostHintsForUser(isSlashAdmin);
+  const parseScopedSlashQuery = useCallback((query) => {
+    if (isFolderSlashSurface) return parseFolderSlashQuery(query);
+    return parseSlashQueryFromCommands(query, documentSlashCommands);
+  }, [documentSlashCommands, isFolderSlashSurface]);
   const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode && !isKnowledgeMode;
   const resolvedSubcategoryDocIds = subcategoryDocIds?.length
     ? subcategoryDocIds
@@ -571,15 +582,8 @@ export function DocDocumentBox({
 
   const isSlashCommandEnabled = useCallback((cmd) => {
     const parsed = parseSlashQueryFromCommands(cmd.aliases[0], slashCommands);
-    if (!parsed) return false;
-    if (
-      parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
-      && hasProductCardBlock(hasBlocks ? normalizedBlocks : [])
-    ) {
-      return false;
-    }
-    return true;
-  }, [hasBlocks, normalizedBlocks, slashCommands]);
+    return Boolean(parsed);
+  }, [slashCommands]);
 
   const insertSlashCommandFromPicker = useCallback((alias) => {
     if (hasBlocks) {
@@ -614,12 +618,6 @@ export function DocDocumentBox({
     if (!slashTail) return false;
     const parsed = parseScopedSlashQuery(slashTail.slice(1));
     if (!parsed) return false;
-    if (
-      parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
-      && hasProductCardBlock(normalizedBlocks)
-    ) {
-      return false;
-    }
 
     const { prefix } = splitBodyForSlash(body);
     const inserted = createBlocksFromSlash(parsed, prefix);

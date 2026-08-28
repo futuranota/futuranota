@@ -13,11 +13,9 @@ import {
   isNodeSlashCommandEnabled,
   isDocLinkedNodeSlashCommandEnabled,
   LIBRARY_SLASH_ACTIONS,
-  NODE_SLASH_COMMANDS,
-  DOC_LINKED_NODE_SLASH_COMMANDS,
-  DOCUMENT_SLASH_GHOST_HINTS,
-  parseNodeSlashQuery,
-  parseDocLinkedNodeSlashQuery,
+  getDocumentSlashCommandsForUser,
+  getDocumentSlashGhostHintsForUser,
+  parseSlashQueryFromCommands,
 } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
@@ -68,6 +66,7 @@ import {
 import { useI18n } from "../../i18n/useI18n.js";
 import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
+import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
 import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
@@ -1471,12 +1470,19 @@ export function NodeQueryModal({
 
   const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
   const linkedFromDocument = Boolean(onBackToDocument);
-  const activeSlashCommands = linkedFromDocument
-    ? DOC_LINKED_NODE_SLASH_COMMANDS
-    : NODE_SLASH_COMMANDS;
-  const resolveSlashQuery = linkedFromDocument
-    ? parseDocLinkedNodeSlashQuery
-    : parseNodeSlashQuery;
+  const isSlashAdmin = isAdminSessionEmail(userEmail);
+  const activeSlashCommands = useMemo(
+    () => getDocumentSlashCommandsForUser(isSlashAdmin),
+    [isSlashAdmin],
+  );
+  const resolveSlashQuery = useCallback(
+    (query) => parseSlashQueryFromCommands(query, activeSlashCommands),
+    [activeSlashCommands],
+  );
+  const activeSlashGhostHints = useMemo(
+    () => getDocumentSlashGhostHintsForUser(isSlashAdmin),
+    [isSlashAdmin],
+  );
   const isSlashCommandEnabled = linkedFromDocument
     ? isDocLinkedNodeSlashCommandEnabled
     : isNodeSlashCommandEnabled;
@@ -2803,7 +2809,7 @@ export function NodeQueryModal({
                 parseSlashQuery={resolveSlashQuery}
                 slashGhostHints={
                   linkedFromDocument
-                    ? DOCUMENT_SLASH_GHOST_HINTS
+                    ? activeSlashGhostHints
                     : undefined
                 }
                 textPlaceholder={
