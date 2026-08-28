@@ -20402,6 +20402,10 @@ body.doc-content-resizing * {
   width: min(720px, calc(100vw - 48px));
 }
 
+.folder-library-element-modal--prompt.folder-library-element-modal--visual {
+  width: min(720px, calc(100vw - 48px));
+}
+
 .folder-library-element-modal--video {
   width: min(880px, calc(100vw - 40px));
   max-height: min(92vh, 860px);
@@ -22751,6 +22755,21 @@ body.doc-content-resizing * {
   overflow: visible;
 }
 
+.folder-library-element-modal--visual .folder-library-element-modal__body--image-first {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr);
+  gap: 16px;
+  overflow: visible;
+}
+
+.folder-library-element-modal--visual .folder-library-element-modal__body--image-first .folder-library-element-modal__media {
+  order: 1;
+}
+
+.folder-library-element-modal--visual .folder-library-element-modal__body--image-first .folder-library-element-modal__fields {
+  order: 2;
+}
+
 .folder-library-element-modal--video .folder-library-element-modal__body {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 52%);
 }
@@ -23184,7 +23203,15 @@ body.doc-content-resizing * {
 }
 
 .folder-library-element-modal--visual .folder-library-element-modal__media--ref {
-  min-height: 180px;
+  min-height: 0;
+}
+
+.folder-library-element-modal--visual .folder-library-element-modal__media--ref .folder-library-element-modal__drop {
+  min-height: 300px;
+}
+
+.folder-library-element-modal--visual .folder-library-element-modal__media--ref .folder-library-element-modal__preview {
+  min-height: 300px;
 }
 
 .folder-library-element-modal__flags {

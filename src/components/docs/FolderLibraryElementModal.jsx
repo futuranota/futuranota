@@ -376,6 +376,7 @@ export function FolderLibraryElementModal({
       ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
       : "image/*";
   const showMediaPanel = isSkillLike || isVideoLike || isVisualMode || Boolean(mediaUrl);
+  const useImageFirstLayout = isImageLike && !isSkillLike && isVisualMode;
   const openReferenceUpload = () => {
     fileInputRef.current?.click();
   };
@@ -436,7 +437,12 @@ export function FolderLibraryElementModal({
           </button>
         </header>
 
-        <div className="folder-library-element-modal__body">
+        <div
+          className={
+            "folder-library-element-modal__body"
+            + (useImageFirstLayout ? " folder-library-element-modal__body--image-first" : "")
+          }
+        >
           <div className="folder-library-element-modal__fields">
             <label className="folder-library-element-modal__field">
               <span className="folder-library-element-modal__label">{t("doc.library.nameLabel")}</span>

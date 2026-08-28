@@ -774,13 +774,15 @@ export function FolderLibraryOverlay({
   const renderItemGrid = (list, emptyKey, ownerOverride = null, pickRows = null) => (
     list.length === 0 ? (
       <div className="folder-library-overlay__empty">
-        <p>{emptyAttachmentsCopy || (showingAttachments ? t(emptyKey) : t("doc.library.emptyPromptStart"))}</p>
+        <p>{emptyAttachmentsCopy || (showingAttachments ? t(emptyKey) : t(filterTab === "visual" ? "doc.library.emptyImagesStart" : "doc.library.emptyPromptStart"))}</p>
         <button
           type="button"
           className="folder-library-overlay__empty-add"
           onClick={handleHeaderCreate}
         >
-          {showingAttachments ? t("doc.library.add") : t("doc.library.addPrompt")}
+          {showingAttachments
+            ? t("doc.library.add")
+            : (filterTab === "visual" ? t("doc.library.addImage") : t("doc.library.addPrompt"))}
         </button>
       </div>
     ) : (
@@ -854,8 +856,8 @@ export function FolderLibraryOverlay({
               type="button"
               className="folder-library-overlay__cell-add"
               onClick={handleHeaderCreate}
-              aria-label={filterTab === "visual" ? t("doc.library.tabImageCards") : t("doc.library.addPrompt")}
-              title={filterTab === "visual" ? t("doc.library.tabImageCards") : t("doc.library.addPrompt")}
+              aria-label={filterTab === "visual" ? t("doc.library.addImage") : t("doc.library.addPrompt")}
+              title={filterTab === "visual" ? t("doc.library.addImage") : t("doc.library.addPrompt")}
             >
               +
             </button>
