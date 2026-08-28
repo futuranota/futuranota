@@ -90,9 +90,17 @@ import {
   buildStepPlaybookRefFromDoc,
 } from "../../lib/appendCapturedTextToStepPlaybook.js";
 import { useDocsStore } from "../../stores/docsStore.js";
+import { collectSavedQLoops } from "../../lib/qloopsLibrary.js";
+import { insertQLoopQueryIntoNodeBlocks } from "../../lib/insertQLoopQueryNode.js";
+import { stripAtMentionQuery } from "../../lib/insertQLoopQuery.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
+
+function isQloopSlashAlias(slash) {
+  const alias = String(slash ?? "").slice(1).trim().toLowerCase().replace(/\s+/g, "");
+  return ["qloop", "ql", "queryloop"].includes(alias);
+}
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -691,6 +699,54 @@ export function NodeWritingBlockStack({
     attempt();
   }, []);
 
+  const qloopCandidates = useMemo(() => {
+    if (!companyObjectId) return null;
+    return collectSavedQLoops(docs, { objectId: companyObjectId });
+  }, [companyObjectId, docs]);
+  const [qloopPickerBlockId, setQloopPickerBlockId] = useState(null);
+
+  const handleInsertQLoopQuery = useCallback(({
+    blockIndex,
+    mentionQuery = null,
+    loop,
+    query,
+    textValue,
+    caretOffset = null,
+  }) => {
+    if (!loop || !query) return;
+    const stripped = stripAtMentionQuery(textValue, mentionQuery);
+    const current = normalizeWritingBlocks(blocksRef.current).map((entry, index) => (
+      index === blockIndex ? { ...entry, text: stripped.text } : entry
+    ));
+    const result = insertQLoopQueryIntoNodeBlocks(current, {
+      blockIndex,
+      caretOffset: mentionQuery ? stripped.caret : caretOffset,
+      title: query.title,
+      qloopSource: {
+        loopId: loop.id,
+        loopDocId: loop.docId,
+        loopBlockId: loop.blockId,
+        queryId: query.id,
+        index: query.index,
+      },
+    });
+    updateBlocks(result.blocks);
+    setQloopPickerBlockId(null);
+    onFocusTargetChange?.(null);
+    focusBlockById(result.focusBlockId, 0);
+  }, [focusBlockById, onFocusTargetChange, updateBlocks]);
+
+  const qloopTextareaProps = useCallback((blockIndex, blockId) => ({
+    qloopCandidates,
+    docBlocksForQLoop: blocksRef.current,
+    qloopPickerForceOpen: qloopPickerBlockId === blockId,
+    onQloopPickerForceClose: () => setQloopPickerBlockId(null),
+    onInsertQLoopQuery: (payload) => handleInsertQLoopQuery({
+      blockIndex,
+      ...payload,
+    }),
+  }), [handleInsertQLoopQuery, qloopCandidates, qloopPickerBlockId]);
+
   const handleHeadingKeyDown = useCallback((blockIndex, e) => {
     const block = blocksRef.current[blockIndex];
     if (!block || !isHeadingBlockType(block.type)) return;
@@ -875,6 +931,13 @@ export function NodeWritingBlockStack({
 
       if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
         if (slash) {
+          if (isQloopSlashAlias(slash)) {
+            e.preventDefault();
+            const { prefix } = splitBodyForSlash(block.text);
+            updateBlockAt(blockIndex, { text: prefix });
+            setQloopPickerBlockId(block.id);
+            return;
+          }
           const parsed = parseSlashQuery(slash.slice(1));
           if (parsed) {
             e.preventDefault();
@@ -907,6 +970,13 @@ export function NodeWritingBlockStack({
     if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       const { slash } = splitBodyForSlash(block.text);
       if (slash) {
+        if (isQloopSlashAlias(slash)) {
+          e.preventDefault();
+          const { prefix } = splitBodyForSlash(block.text);
+          updateBlockAt(blockIndex, { text: prefix });
+          setQloopPickerBlockId(block.id);
+          return;
+        }
         const parsed = parseSlashQuery(slash.slice(1));
         if (parsed) {
           e.preventDefault();
@@ -1105,6 +1175,7 @@ export function NodeWritingBlockStack({
         linksEnabled={linksEnabled}
         placeholder={placeholder}
         autoFocus={isHeadingFocusTarget(focusTarget, blockIndex)}
+        variant={block.qloopSource ? "qloop" : null}
       />
       {showDeleteAction ? (
         <LinkedNodeDocActions
@@ -1635,6 +1706,7 @@ export function NodeWritingBlockStack({
                 minHeightPx={28}
                 maxHeightPx={null}
                 ghostHints={slashGhostHints}
+                {...qloopTextareaProps(blockIndex, block.id)}
               />
             ) : (
               <div onMouseDown={(e) => e.stopPropagation()}>
@@ -1694,6 +1766,7 @@ export function NodeWritingBlockStack({
                   minHeightPx={28}
                   maxHeightPx={null}
                   ghostHints={slashGhostHints}
+                  {...qloopTextareaProps(blockIndex, block.id)}
                 />
               </div>
             )}

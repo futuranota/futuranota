@@ -17,9 +17,13 @@ export function H1BlockView({
   shredNodeId = null,
   onOpenFile = null,
   shredDragEnabled = true,
+  variant = null,
 }) {
   return (
-    <div className="doc-h1-block">
+    <div className={
+      "doc-h1-block"
+      + (variant === "qloop" ? " doc-h1-block--qloop" : "")
+    }>
       <DocQueryHandleRow
         value={value}
         onChange={onChange}

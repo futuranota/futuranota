@@ -50,6 +50,7 @@ import { GinaCanvasFab } from './components/gina/GinaCanvasFab.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
 import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
+import { QLoopEditorOverlay } from './components/qloops/QLoopEditorOverlay.jsx';
 import { UrlTableDashboardOverlay } from './components/urltable/UrlTableDashboardOverlay.jsx';
 import { PasswordTableDashboardOverlay } from './components/passwordtable/PasswordTableDashboardOverlay.jsx';
 import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
@@ -60,6 +61,12 @@ import {
   stepPlaybookSessionFromRef,
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
+import {
+  createBlankQLoopSession,
+  persistQLoopSession,
+  qloopSessionFromRef,
+  qloopSessionHasContent,
+} from './lib/qloopSession.js';
 import {
   upsertStepPlaybookShareRequest,
   copyPublishedStepShare,
@@ -244,6 +251,10 @@ function Dashboard({ company, onBack }) {
   const stepPlaybookSaveLockRef = useRef(false);
   const [stepPlaybookShareBusy, setStepPlaybookShareBusy] = useState(false);
   activeStepPlaybookSessionRef.current = activeStepPlaybookSession;
+  const [activeQLoopSession, setActiveQLoopSession] = useState(null);
+  const activeQLoopSessionRef = useRef(null);
+  const qloopSaveLockRef = useRef(false);
+  activeQLoopSessionRef.current = activeQLoopSession;
   const [activeUrlTableSession, setActiveUrlTableSession] = useState(null);
   const activeUrlTableSessionRef = useRef(null);
   const urlTableSaveLockRef = useRef(false);
@@ -1509,6 +1520,88 @@ useEffect(() => {
     });
   }, []);
 
+  const handleOpenQLoop = useCallback((loop) => {
+    if (!loop) return;
+    setActiveQLoopSession(qloopSessionFromRef(loop));
+  }, []);
+
+  const handleOpenNewQLoop = useCallback((objectId) => {
+    if (!objectId) return;
+    setActiveQLoopSession(createBlankQLoopSession(objectId));
+  }, []);
+
+  const handleQLoopSessionChange = useCallback((patch) => {
+    setActiveQLoopSession((current) => {
+      if (!current) return current;
+      return { ...current, ...patch };
+    });
+  }, []);
+
+  const handleQLoopSessionClose = useCallback(async () => {
+    const current = activeQLoopSessionRef.current;
+    if (!current) return;
+    if (!current.saved && qloopSessionHasContent(current)) {
+      const confirmed = await askConfirm({
+        title: t('qloopsLibrary.discardDraftTitle'),
+        message: t('qloopsLibrary.discardDraftConfirm'),
+        confirmLabel: t('qloopsLibrary.discardDraftAction'),
+        cancelLabel: t('common.cancel'),
+      });
+      if (!confirmed) return;
+    }
+    setActiveQLoopSession(null);
+  }, [askConfirm, t]);
+
+  const handleQLoopSessionSaved = useCallback((finalizedQueries) => {
+    if (qloopSaveLockRef.current) return;
+    const current = activeQLoopSessionRef.current;
+    if (!current) return;
+
+    const merged = { ...current, queries: finalizedQueries, saved: true };
+    if (!qloopSessionHasContent(merged)) {
+      console.warn('[qloops] Save skipped: empty loop');
+      return;
+    }
+    if (!merged.objectId) {
+      console.warn('[qloops] Save skipped: missing company objectId');
+      return;
+    }
+
+    qloopSaveLockRef.current = true;
+    try {
+      const result = persistQLoopSession(merged, {
+        addDoc,
+        updateDoc,
+        docs: useDocsStore.getState().docs,
+        objects: useObjectsStore.getState().objects,
+        defaultTitle: t('qloopsLibrary.newDocTitle'),
+      });
+      if (!result?.docId) {
+        console.warn('[qloops] Save did not write a document', result);
+        return;
+      }
+      flushPersistenceSync().catch((err) => {
+        console.warn('[qloops] flush after save failed', err);
+      });
+      setActiveQLoopSession({
+        ...merged,
+        docId: result.docId,
+        blockId: result.blockId || merged.blockId,
+        saved: true,
+      });
+    } finally {
+      qloopSaveLockRef.current = false;
+    }
+  }, [addDoc, t, updateDoc]);
+
+  const handleQLoopRemoved = useCallback(({ docId, blockId }) => {
+    setActiveQLoopSession((current) => {
+      if (!current) return null;
+      if (current.docId === docId && current.blockId === blockId) return null;
+      return current;
+    });
+  }, []);
+
   const handleUrlTablesDeleted = useCallback((ids) => {
     const deleted = new Set((ids || []).filter(Boolean));
     if (!deleted.size) return;
@@ -2138,6 +2231,9 @@ useEffect(() => {
             onRunStepPlaybook={handleRunStepPlaybook}
             onOpenStepPlaybook={handleOpenStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
+            onOpenQLoop={handleOpenQLoop}
+            onOpenNewQLoop={handleOpenNewQLoop}
+            onQLoopRemoved={handleQLoopRemoved}
             onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
             onOpenUrlTableRef={handleOpenUrlTableRef}
             onOpenNewUrlTable={handleOpenNewUrlTable}
@@ -2316,6 +2412,15 @@ useEffect(() => {
           onRequestShare={handleStepPlaybookShareRequest}
           onCopyShare={handleStepPlaybookShareCopy}
           shareBusy={stepPlaybookShareBusy}
+        />
+      ) : null}
+
+      {activeQLoopSession ? (
+        <QLoopEditorOverlay
+          session={activeQLoopSession}
+          onChange={handleQLoopSessionChange}
+          onCloseTab={handleQLoopSessionClose}
+          onSaved={handleQLoopSessionSaved}
         />
       ) : null}
 

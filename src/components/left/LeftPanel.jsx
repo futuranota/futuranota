@@ -208,6 +208,7 @@ import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
+import { QLoopsLibraryPanel } from "../qloops/QLoopsLibraryPanel.jsx";
 import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
 import { UrlTableLibraryPanel } from "../urltable/UrlTableLibraryPanel.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
@@ -1989,6 +1990,9 @@ export function LeftPanel({
   onRunStepPlaybook,
   onOpenStepPlaybook,
   onOpenNewStepPlaybook,
+  onOpenQLoop,
+  onOpenNewQLoop,
+  onQLoopRemoved,
   onOpenUrlTableForCompany,
   onOpenUrlTableRef,
   onOpenNewUrlTable,
@@ -2042,6 +2046,7 @@ export function LeftPanel({
   const nodesMap = useNodesStore((s) => s.nodes);
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
+  const [qloopsLibraryActive, setQloopsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
   const [sidebarReorderDragId, setSidebarReorderDragId] = useState(/** @type {string | null} */ (null));
   const [sidebarReorderOverId, setSidebarReorderOverId] = useState(/** @type {string | null} */ (null));
@@ -2441,6 +2446,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
     setProductCategoryFilter(null);
@@ -2450,6 +2456,7 @@ export function LeftPanel({
   const openPackImportView = () => {
     setClickFolderView(null);
     setStepsLibraryActive(false);
+    setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
     setPackImportActive(true);
@@ -2462,6 +2469,7 @@ export function LeftPanel({
   const openStepsLibraryView = () => {
     setClickFolderView(null);
     setPackImportActive(false);
+    setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
     setStepsLibraryActive(true);
@@ -2471,10 +2479,24 @@ export function LeftPanel({
     setStepsLibraryActive(false);
   };
 
+  const openQLoopsLibraryFromToolbar = () => {
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
+    setUrlTableLibraryActive(false);
+    setQloopsLibraryActive(true);
+  };
+
+  const closeQLoopsLibraryView = () => {
+    setQloopsLibraryActive(false);
+  };
+
   const openLazyTodosView = () => {
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setQloopsLibraryActive(false);
     setUrlTableLibraryActive(false);
     setLazyTodosActive(true);
   };
@@ -2487,6 +2509,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(true);
   };
@@ -2696,6 +2719,7 @@ export function LeftPanel({
     setClickFolderView(isGuestObject(objects[objectId]) ? "subgroups" : null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
     setShowCreate(false);
@@ -2709,12 +2733,13 @@ export function LeftPanel({
 
   useEffect(() => {
     if (!guestWorkspace) return;
-    if (packImportActive || stepsLibraryActive || lazyTodosActive || urlTableLibraryActive) return;
+    if (packImportActive || stepsLibraryActive || qloopsLibraryActive || lazyTodosActive || urlTableLibraryActive) return;
     if (clickFolderView !== "subgroups") setClickFolderView("subgroups");
   }, [
     guestWorkspace,
     packImportActive,
     stepsLibraryActive,
+    qloopsLibraryActive,
     lazyTodosActive,
     urlTableLibraryActive,
     clickFolderView,
@@ -2806,6 +2831,22 @@ export function LeftPanel({
 
   const handleNewStepPlaybookFromLibrary = () => {
     onOpenNewStepPlaybook?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleNewQLoopFromLibrary = () => {
+    onOpenNewQLoop?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleOpenQLoopFromLibrary = (loop) => {
+    onOpenQLoop?.(loop);
+  };
+
+  const handleDeleteQLoopFromLibrary = ({ docId, blockId, docRemoved }) => {
+    if (docRemoved) {
+      onDocumentDeleted?.(docId);
+    }
+    onQLoopRemoved?.({ docId, blockId });
+    if (activeId === docId) setActiveId(null);
   };
 
   const handleRunPlaybookFromLibrary = (playbook) => {
@@ -5414,6 +5455,16 @@ export function LeftPanel({
           />
         ) : null}
 
+        {panelType === "Documents" && qloopsLibraryActive && !objectWorkspaceActive ? (
+          <QLoopsLibraryPanel
+            objectId={filterObjectId}
+            onClose={closeQLoopsLibraryView}
+            onOpenLoop={handleOpenQLoopFromLibrary}
+            onNew={handleNewQLoopFromLibrary}
+            onLoopDeleted={handleDeleteQLoopFromLibrary}
+          />
+        ) : null}
+
         {panelType === "Documents" && lazyTodosActive && !objectWorkspaceActive ? (
           <LazyTodoQueuePanel
             objectId={filterObjectId}
@@ -5455,6 +5506,16 @@ export function LeftPanel({
               />
             ) : null}
 
+            {qloopsLibraryActive ? (
+              <QLoopsLibraryPanel
+                objectId={filterObjectId}
+                onClose={closeQLoopsLibraryView}
+                onOpenLoop={handleOpenQLoopFromLibrary}
+                onNew={handleNewQLoopFromLibrary}
+                onLoopDeleted={handleDeleteQLoopFromLibrary}
+              />
+            ) : null}
+
             {lazyTodosActive ? (
               <LazyTodoQueuePanel
                 objectId={filterObjectId}
@@ -5475,7 +5536,7 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === null && !guestWorkspace ? (
+            {!packImportActive && !stepsLibraryActive && !qloopsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === null && !guestWorkspace ? (
               <>
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5489,6 +5550,7 @@ export function LeftPanel({
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenQLoopsLibrary={openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onToggleCampaignFilter={toggleCampaignFoldersFilter}
@@ -5515,7 +5577,7 @@ export function LeftPanel({
               </>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "groups" && !guestWorkspace ? (
+            {!packImportActive && !stepsLibraryActive && !qloopsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "groups" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5530,6 +5592,7 @@ export function LeftPanel({
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenQLoopsLibrary={openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onToggleCampaignFilter={toggleCampaignFoldersFilter}
@@ -5588,7 +5651,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" && !guestWorkspace ? (
+            {!packImportActive && !stepsLibraryActive && !qloopsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" && !guestWorkspace ? (
               <DepartmentsPanel
                 objectId={filterObjectId}
                 onBack={() => setClickFolderView(null)}
@@ -5597,7 +5660,7 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
+            {!packImportActive && !stepsLibraryActive && !qloopsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" && !guestWorkspace ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -5629,7 +5692,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" ? (
+            {!packImportActive && !stepsLibraryActive && !qloopsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -5683,6 +5746,7 @@ export function LeftPanel({
                     companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={guestWorkspace ? undefined : openStepsLibraryFromToolbar}
+                    onOpenQLoopsLibrary={guestWorkspace ? undefined : openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={guestWorkspace ? undefined : openLazyTodosFromToolbar}
                     onOpenUrlTable={guestWorkspace ? undefined : openUrlTableFromToolbar}
                     onToggleCampaignFilter={guestWorkspace ? undefined : toggleCampaignFoldersFilter}

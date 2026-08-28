@@ -170,6 +170,14 @@ export const LIBRARY_SLASH_ACTIONS = {
   OUTPUT: "libraryOutput",
 };
 
+export const TOOL_SLASH_ACTIONS = {
+  QLOOP: "openQLoopPicker",
+};
+
+export function isToolSlashAction(parsed) {
+  return parsed?.action === TOOL_SLASH_ACTIONS.QLOOP;
+}
+
 export const LIBRARY_SLASH_COMMANDS = [
   {
     label: "Input",

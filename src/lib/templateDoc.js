@@ -47,6 +47,15 @@ export function isDedicatedStepPlaybookDoc(doc) {
   return blocks.length === 1 && blocks[0]?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE;
 }
 
+/** Dedicated QLoops library doc — one qloop_sequence block, not a folder. */
+export function isDedicatedQLoopDoc(doc) {
+  if (!doc) return false;
+  const blocks = Array.isArray(doc.blocks) && doc.blocks.length
+    ? normalizeDocBlocks(doc.blocks)
+    : docBlocksFromBody(doc.body || doc.content || "");
+  return blocks.length === 1 && blocks[0]?.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE;
+}
+
 export function isProductDoc(doc) {
   if (!doc) return false;
   if (doc.docKind === DOC_KIND_KNOWLEDGE) return false;
@@ -132,6 +141,7 @@ function siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
     .filter((doc) => doc.parentObjectId === parentObjectId)
     .filter((doc) => !isTemplateDoc(doc))
     .filter((doc) => !isDedicatedStepPlaybookDoc(doc))
+    .filter((doc) => !isDedicatedQLoopDoc(doc))
     .filter((doc) => doc.id !== excludeDocId);
 }
 

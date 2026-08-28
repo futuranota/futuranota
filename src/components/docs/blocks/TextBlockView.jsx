@@ -57,6 +57,11 @@ export function TextBlockView({
   tagRefCandidates = null,
   markerRanges = null,
   boldRanges = null,
+  qloopCandidates = null,
+  docBlocksForQLoop = null,
+  onInsertQLoopQuery = null,
+  qloopPickerForceOpen = false,
+  onQloopPickerForceClose = null,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
@@ -233,6 +238,11 @@ export function TextBlockView({
         tagRefCandidates={tagRefCandidates}
         markerRanges={markerRanges}
         boldRanges={boldRanges}
+        qloopCandidates={qloopCandidates}
+        docBlocksForQLoop={docBlocksForQLoop}
+        onInsertQLoopQuery={onInsertQLoopQuery}
+        qloopPickerForceOpen={qloopPickerForceOpen}
+        onQloopPickerForceClose={onQloopPickerForceClose}
       />
       {onDetachFromNode ? (
         <LinkedNodeDocActions

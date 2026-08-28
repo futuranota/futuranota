@@ -67,6 +67,7 @@ import { DocMentionHoverCard } from "./DocMentionHoverCard.jsx";
 import { DocMentionMenu } from "./DocMentionMenu.jsx";
 import { DocLibraryNameMenu } from "./DocLibraryNameMenu.jsx";
 import { DocTagCommandPicker } from "./DocTagCommandPicker.jsx";
+import { AtToolCommandPicker } from "./AtToolCommandPicker.jsx";
 import { DocTagRefMenu } from "./DocTagRefMenu.jsx";
 
 const CARET_CAMERA_KEYS = new Set([
@@ -282,6 +283,11 @@ export function SlashAwareTextarea({
   libraryAssignFiles = null,
   libraryAssignAssets = null,
   onLibraryAssignSelect = null,
+  qloopCandidates = null,
+  docBlocksForQLoop = null,
+  onInsertQLoopQuery = null,
+  qloopPickerForceOpen = false,
+  onQloopPickerForceClose = null,
 }) {
   const { t } = useI18n();
   const internalRef = useRef(null);
@@ -307,6 +313,7 @@ export function SlashAwareTextarea({
   const [focused, setFocused] = useState(false);
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [forcedQloopPicker, setForcedQloopPicker] = useState(false);
   const [activeQuery, setActiveQuery] = useState(null);
   const [tagRefMenuIndex, setTagRefMenuIndex] = useState(0);
   const [tagRefMenuAnchor, setTagRefMenuAnchor] = useState(null);
@@ -331,7 +338,8 @@ export function SlashAwareTextarea({
 
   // null/undefined candidates => company missing; @ stays plain text.
   const mentionsEnabled = Array.isArray(mentionCandidates);
-  const hasCandidateSource = mentionsEnabled;
+  const atToolInvokeEnabled = qloopCandidates != null && Boolean(companyObjectId);
+  const hasCandidateSource = mentionsEnabled || atToolInvokeEnabled;
   const normalizedMentions = useMemo(
     () => (mentionsEnabled ? normalizeMentions(value, mentions) : []),
     [mentions, mentionsEnabled, value],
@@ -425,7 +433,12 @@ export function SlashAwareTextarea({
     && !showGhost
     && !activeTagRefQuery,
   );
-  const useTagCommandPicker = Boolean(showMentionMenu && companyObjectId);
+  const useTagCommandPicker = Boolean(showMentionMenu && companyObjectId && qloopCandidates == null);
+  const useAtToolPicker = Boolean(
+    showMentionMenu
+    && companyObjectId
+    && qloopCandidates != null,
+  );
   const useFlatMentionMenu = Boolean(showMentionMenu && !companyObjectId);
   const showTagRefMenu = Boolean(
     focused && hasTagRefSource && activeTagRefQuery && !showGhost && !activeQuery,
@@ -564,6 +577,7 @@ export function SlashAwareTextarea({
         active instanceof Element
         && (
           active.closest(".doc-tag-command-picker")
+          || active.closest(".at-tool-command-picker")
           || active.closest(".doc-mention-menu")
         )
       ) {
@@ -573,7 +587,10 @@ export function SlashAwareTextarea({
       // Do not clear the query or the tables→tags step gets torn down.
       if (
         typeof document !== "undefined"
-        && document.querySelector(".doc-tag-command-picker")
+        && (
+          document.querySelector(".doc-tag-command-picker")
+          || document.querySelector(".at-tool-command-picker")
+        )
       ) {
         return;
       }
@@ -732,6 +749,24 @@ export function SlashAwareTextarea({
     normalizedMentions,
     textareaRef,
   ]);
+
+  useEffect(() => {
+    if (!qloopPickerForceOpen) {
+      setForcedQloopPicker(false);
+      return;
+    }
+    const el = textareaRef.current;
+    if (!el) return;
+    const caret = typeof el.selectionStart === "number" ? el.selectionStart : value.length;
+    const rect = getCaretClientRect(el, caret);
+    const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
+    setMenuAnchor({
+      top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
+      lineHeight,
+    });
+    setForcedQloopPicker(true);
+  }, [qloopPickerForceOpen, textareaRef, value]);
 
   const dismissMentionPicker = useCallback(() => {
     const el = textareaRef.current;
@@ -1323,21 +1358,66 @@ export function SlashAwareTextarea({
   ]);
   deleteTagRefRef.current = deleteTagRef;
 
+  const insertQLoopSelection = useCallback(({ loop, query }) => {
+    if (!onInsertQLoopQuery || !loop || !query) return;
+    const queryAt = activeQueryRef.current || activeQuery;
+    const el = textareaRef.current;
+    const liveValue = el && typeof el.value === "string" ? el.value : value;
+    const caret = el && typeof el.selectionStart === "number" ? el.selectionStart : liveValue.length;
+    onInsertQLoopQuery({
+      loop,
+      query,
+      mentionQuery: queryAt,
+      textValue: liveValue,
+      caretOffset: queryAt ? null : caret,
+    });
+    clearMentionPickerDismiss();
+    setActiveQuery(null);
+    activeQueryRef.current = null;
+    setMenuAnchor(null);
+    setForcedQloopPicker(false);
+    onQloopPickerForceClose?.();
+  }, [
+    activeQuery,
+    clearMentionPickerDismiss,
+    onInsertQLoopQuery,
+    onQloopPickerForceClose,
+    textareaRef,
+    value,
+  ]);
+
   const insertCandidate = useCallback((candidate) => {
     const query = activeQueryRef.current || activeQuery;
     if (!candidate || !query) return;
-    const result = insertMentionAtQuery(value, normalizedMentions, query, candidate);
+    const el = textareaRef.current;
+    const liveValue = el && typeof el.value === "string" ? el.value : value;
+    const liveMentions = mentionsEnabled
+      ? normalizeMentions(liveValue, mentions)
+      : [];
+    const liveMarkers = markersEnabled
+      ? normalizeMarkerRanges(liveValue, markerRanges)
+      : [];
+    const liveBolds = boldEnabled
+      ? normalizeBoldRanges(liveValue, boldRanges)
+      : [];
+    const liveTagRefs = tagRefsEnabled
+      ? normalizeTagRefs(liveValue, optimisticTagRefs ?? tagRefs)
+      : [];
+    const liveLibraryNames = libraryNameRefsEnabled
+      ? normalizeLibraryNameRefs(liveValue, libraryNameRefs)
+      : [];
+    const result = insertMentionAtQuery(liveValue, liveMentions, query, candidate);
     const nextMarkers = markersEnabled
-      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
+      ? applyTextEditToMarkerRanges(liveValue, result.text, liveMarkers)
       : [];
     const nextBolds = boldEnabled
-      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      ? applyTextEditToBoldRanges(liveValue, result.text, liveBolds)
       : [];
     const nextTagRefs = tagRefsEnabled
-      ? applyTextEditToTagRefs(value, result.text, normalizedTagRefs)
+      ? applyTextEditToTagRefs(liveValue, result.text, liveTagRefs)
       : [];
     const nextLibraryNames = libraryNameRefsEnabled
-      ? applyTextEditToLibraryNameRefs(value, result.text, normalizedLibraryNameRefs)
+      ? applyTextEditToLibraryNameRefs(liveValue, result.text, liveLibraryNames)
       : [];
     emitChange(result.text, result.mentions, nextMarkers, nextBolds, nextTagRefs, nextLibraryNames);
     clearMentionPickerDismiss();
@@ -1354,14 +1434,18 @@ export function SlashAwareTextarea({
   }, [
     activeQuery,
     boldEnabled,
+    boldRanges,
     clearMentionPickerDismiss,
     emitChange,
+    libraryNameRefs,
+    libraryNameRefsEnabled,
+    markerRanges,
     markersEnabled,
-    normalizedBolds,
-    normalizedMarkers,
-    normalizedMentions,
-    normalizedTagRefs,
+    mentions,
+    mentionsEnabled,
+    optimisticTagRefs,
     syncMentionQuery,
+    tagRefs,
     tagRefsEnabled,
     textareaRef,
     value,
@@ -1771,8 +1855,8 @@ export function SlashAwareTextarea({
       dismissMentionPicker();
       return true;
     }
-    // DocTagCommandPicker owns arrows + Enter while open.
-    if (useTagCommandPicker) return false;
+    // DocTagCommandPicker / AtToolCommandPicker own keyboard while open.
+    if (useTagCommandPicker || useAtToolPicker || forcedQloopPicker) return false;
     if (!filteredCandidates.length) return false;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -1810,6 +1894,8 @@ export function SlashAwareTextarea({
     showTagRefMenu,
     tagRefMenuIndex,
     useTagCommandPicker,
+    useAtToolPicker,
+    forcedQloopPicker,
   ]);
 
   const handleTagRefChipKeyDown = useCallback((event) => {
@@ -2065,6 +2151,21 @@ export function SlashAwareTextarea({
         anchor={menuAnchor}
         onClose={dismissMentionPicker}
         onSelect={insertCandidate}
+      />
+      <AtToolCommandPicker
+        open={useAtToolPicker || forcedQloopPicker}
+        companyObjectId={companyObjectId}
+        anchor={menuAnchor}
+        qloopCandidates={qloopCandidates || []}
+        docBlocks={docBlocksForQLoop || []}
+        onClose={() => {
+          dismissMentionPicker();
+          setForcedQloopPicker(false);
+          onQloopPickerForceClose?.();
+        }}
+        onInsertQLoopQuery={insertQLoopSelection}
+        onSelectUrlTag={insertCandidate}
+        initialStep={forcedQloopPicker ? "qloops" : "root"}
       />
       <DocMentionMenu
         open={useFlatMentionMenu}

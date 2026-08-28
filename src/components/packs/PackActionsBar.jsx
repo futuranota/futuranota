@@ -9,6 +9,7 @@ import { IePackChooserModal } from "./IePackChooserModal.jsx";
 const IE_PACK_ICON_SRC = "/uploads/import.svg";
 const EXPORT_ICON_SRC = "/uploads/botones/Export.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
+const QLOOPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
 const CAMPAIGN_ICON_SRC = "/uploads/web-advertising.svg";
@@ -30,6 +31,7 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} props.onOpenImport
  * @param {boolean} [props.isAdmin]
  * @param {() => void} [props.onOpenStepsLibrary]
+ * @param {() => void} [props.onOpenQLoopsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
  * @param {() => void} [props.onToggleCampaignFilter]
@@ -45,6 +47,7 @@ export function PackActionsBar({
   onOpenImport,
   isAdmin = false,
   onOpenStepsLibrary,
+  onOpenQLoopsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
   onToggleCampaignFilter,
@@ -100,6 +103,17 @@ export function PackActionsBar({
           >
             <PackActionsToolbarIcon src={STEPS_ICON_SRC} />
             <span className="pack-actions__btn-label">{t("pack.stepsLibrary")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenQLoopsLibrary ? (
+          <button
+            type="button"
+            className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+            onClick={onOpenQLoopsLibrary}
+            title={t("pack.qloopsTitle")}
+          >
+            <PackActionsToolbarIcon src={QLOOPS_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.qloops")}</span>
           </button>
         ) : null}
         {companySelected && onOpenLazyTodos ? (

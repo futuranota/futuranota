@@ -36,6 +36,7 @@ const DOC_BLOCK_TYPES = {
   LINK_VAULT: "link_vault",
   AGENT: "agent",
   STEP_SEQUENCE: "step_sequence",
+  QLOOP_SEQUENCE: "qloop_sequence",
 };
 
 export const DEFAULT_AGENT_BLOCK_TITLE = "Agent";
@@ -339,6 +340,84 @@ function normalizeStepSequenceBlock(block) {
     steps: normalizeStepSequenceSteps(block?.steps),
     saved: Boolean(block?.saved),
     ...(sourceDocumentId ? { sourceDocumentId } : {}),
+  };
+}
+
+export function createQLoopEntry(patch = {}) {
+  const index = Number(patch.index);
+  return {
+    id: patch.id || generateId("QLQ"),
+    index: Number.isFinite(index) && index > 0 ? Math.floor(index) : 1,
+    title: String(patch.title ?? ""),
+    description: String(patch.description ?? ""),
+  };
+}
+
+export function qloopEntryHasContent(entry) {
+  return Boolean(String(entry?.title ?? "").trim());
+}
+
+export function normalizeQLoopQueries(queries) {
+  if (!Array.isArray(queries) || queries.length === 0) {
+    return [createQLoopEntry({ index: 1 })];
+  }
+  return queries.map((entry, queryIndex) => createQLoopEntry({
+    ...entry,
+    index: Number.isFinite(entry?.index) && entry.index > 0
+      ? Math.floor(entry.index)
+      : queryIndex + 1,
+  }));
+}
+
+function normalizeQLoopSequenceBlock(block) {
+  const queries = normalizeQLoopQueries(block?.queries).map((entry, queryIndex) => ({
+    ...entry,
+    index: queryIndex + 1,
+  }));
+  return {
+    title: String(block?.title ?? ""),
+    queries,
+    saved: Boolean(block?.saved),
+  };
+}
+
+export function getQLoopPreview(entry) {
+  return String(entry?.title ?? "").trim();
+}
+
+/** Trim trailing empty queries and guarantee at least one slot. */
+export function finalizeQLoopSequence(queries) {
+  const normalized = normalizeQLoopQueries(queries);
+  let end = normalized.length;
+  while (end > 1 && !qloopEntryHasContent(normalized[end - 1])) {
+    end -= 1;
+  }
+  return normalized.slice(0, end).map((entry, queryIndex) => ({
+    ...entry,
+    index: queryIndex + 1,
+  }));
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {{ loopId: string, loopDocId: string, loopBlockId: string, queryId: string, index: number }|undefined}
+ */
+export function normalizeQLoopSource(raw) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const loopDocId = String(raw.loopDocId ?? "").trim();
+  const loopBlockId = String(raw.loopBlockId ?? "").trim();
+  const queryId = String(raw.queryId ?? "").trim();
+  const loopId = String(raw.loopId ?? "").trim() || (loopDocId && loopBlockId
+    ? `${loopDocId}:${loopBlockId}`
+    : "");
+  if (!loopId) return undefined;
+  const index = Number(raw.index);
+  return {
+    loopId,
+    loopDocId,
+    loopBlockId,
+    queryId,
+    index: Number.isFinite(index) && index > 0 ? Math.floor(index) : 1,
   };
 }
 
@@ -1607,6 +1686,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     };
   }
 
+  if (type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
+    const normalized = normalizeQLoopSequenceBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.QLOOP_SEQUENCE,
+      ...normalized,
+    };
+  }
+
   return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch, id };
 }
 
@@ -1618,6 +1706,7 @@ export function normalizeDocBlock(block) {
   if (type === DOC_BLOCK_TYPES.H1) {
     const anchor = normalizeAnchorFields(block);
     const queryEnabled = Boolean(block.queryEnabled ?? block.nodeId);
+    const qloopSource = normalizeQLoopSource(block.qloopSource);
     return createDocBlock(DOC_BLOCK_TYPES.H1, {
       id: block.id,
       title: block.title || "",
@@ -1635,6 +1724,7 @@ export function normalizeDocBlock(block) {
         ? Boolean(block.macronodeHeading)
         : Boolean(block.nodeId || queryEnabled),
       hideColorLink: Boolean(block.hideColorLink),
+      ...(qloopSource ? { qloopSource } : {}),
     });
   }
 
@@ -1790,6 +1880,13 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
       id: block.id,
       ...normalizeStepSequenceBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
+    return createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE, {
+      id: block.id,
+      ...normalizeQLoopSequenceBlock(block),
     });
   }
 
@@ -1979,6 +2076,12 @@ export function docBlockHasContent(block) {
     if ((normalized.title || "").trim()) return true;
     if (normalized.saved) return true;
     return (normalized.steps || []).some(stepEntryHasContent);
+  }
+  if (type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
+    const normalized = normalizeQLoopSequenceBlock(block);
+    if ((normalized.title || "").trim()) return true;
+    if (normalized.saved) return true;
+    return (normalized.queries || []).some(qloopEntryHasContent);
   }
   return false;
 }
@@ -2234,6 +2337,20 @@ function parseStepSequenceSection(section) {
   }
 }
 
+function parseQLoopSequenceSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::qloopsequence")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE);
+  }
+}
+
 /** Text block with @mention snapshots (plain body cannot carry ranges). */
 function parseTextMentionsSection(section) {
   const lines = section.split("\n");
@@ -2373,6 +2490,12 @@ export function docBlocksFromBody(body) {
     const stepSequenceBlock = parseStepSequenceSection(section);
     if (stepSequenceBlock) {
       blocks.push(stepSequenceBlock);
+      continue;
+    }
+
+    const qloopSequenceBlock = parseQLoopSequenceSection(section);
+    if (qloopSequenceBlock) {
+      blocks.push(qloopSequenceBlock);
       continue;
     }
 
@@ -2542,6 +2665,14 @@ export function docBlocksToBody(blocks) {
         return `::stepsequence\n${JSON.stringify({
           title: normalized.title,
           steps: normalized.steps,
+          saved: normalized.saved,
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
+        const normalized = normalizeQLoopSequenceBlock(block);
+        return `::qloopsequence\n${JSON.stringify({
+          title: normalized.title,
+          queries: normalized.queries,
           saved: normalized.saved,
         })}`;
       }
@@ -2758,6 +2889,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT
     || block.type === DOC_BLOCK_TYPES.AGENT
     || block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE
+    || block.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE
   ) {
     return block;
   }

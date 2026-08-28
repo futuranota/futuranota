@@ -66,6 +66,12 @@ import {
   mergeBlockBoldRanges,
 } from "../../../lib/docTextBoldRanges.js";
 import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
+import { collectSavedQLoops } from "../../../lib/qloopsLibrary.js";
+import {
+  insertQLoopQueryIntoDocBlocks,
+  stripAtMentionQuery,
+} from "../../../lib/insertQLoopQuery.js";
+import { TOOL_SLASH_ACTIONS } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, ensureAllLinkedOwnerContinuationSlots, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
@@ -228,6 +234,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, tagMentionInSurface, urlTableEntries, urlTables]);
+  const docs = useDocsStore((s) => s.docs);
+  const qloopCandidates = useMemo(() => {
+    if (!companyObjectId) return null;
+    return collectSavedQLoops(docs, { objectId: companyObjectId });
+  }, [companyObjectId, docs]);
+  const [qloopPickerBlockId, setQloopPickerBlockId] = useState(null);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const nodesMap = useNodesStore((s) => s.nodes);
@@ -254,6 +266,47 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const parseScopedSlash = useCallback((query) => (
     parseSlashQueryFromCommands(query, slashCommandsRef.current)
   ), []);
+
+  const handleInsertQLoopQuery = useCallback(({
+    blockIndex,
+    mentionQuery = null,
+    loop,
+    query,
+    textValue,
+    caretOffset = null,
+  }) => {
+    if (!loop || !query) return;
+    const stripped = stripAtMentionQuery(textValue, mentionQuery);
+    const current = updateBlockAt(blocksRef.current, blockIndex, { text: stripped.text });
+    const result = insertQLoopQueryIntoDocBlocks(current, {
+      blockIndex,
+      caretOffset: mentionQuery ? stripped.caret : caretOffset,
+      title: query.title,
+      qloopSource: {
+        loopId: loop.id,
+        loopDocId: loop.docId,
+        loopBlockId: loop.blockId,
+        queryId: query.id,
+        index: query.index,
+      },
+    });
+    setBlocks(result.blocks);
+    setQloopPickerBlockId(null);
+    onFocusBlock?.(result.focusBlockId);
+    focusBlockCaret(result.focusBlockId, 0);
+    requestContentGrow();
+  }, [onFocusBlock]);
+
+  const qloopTextProps = useCallback((blockIndex, blockId) => ({
+    qloopCandidates,
+    docBlocksForQLoop: blocks,
+    qloopPickerForceOpen: qloopPickerBlockId === blockId,
+    onQloopPickerForceClose: () => setQloopPickerBlockId(null),
+    onInsertQLoopQuery: (payload) => handleInsertQLoopQuery({
+      blockIndex,
+      ...payload,
+    }),
+  }), [blocks, handleInsertQLoopQuery, qloopCandidates, qloopPickerBlockId]);
 
   const resyncAllTextHeights = useCallback(() => {
     const root = stackRef.current;
@@ -1116,8 +1169,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const tryConfirmSlashInText = (blockIndex, textValue) => {
-    const { slash } = splitBodyForSlash(textValue);
+    const { prefix, slash } = splitBodyForSlash(textValue);
     if (!slash) return false;
+    const qloopAlias = slash.slice(1).trim().toLowerCase().replace(/\s+/g, "");
+    if (["qloop", "ql", "queryloop"].includes(qloopAlias)) {
+      updateAt(blockIndex, { text: prefix });
+      const blockId = blocksRef.current[blockIndex]?.id;
+      if (blockId) setQloopPickerBlockId(blockId);
+      return true;
+    }
     const parsed = parseScopedSlash(slash.slice(1));
     if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
@@ -1771,6 +1831,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     ? () => handleQueryHandleClick(index)
                     : null
                 }
+                variant={block.qloopSource ? "qloop" : null}
                 shredDragEnabled={allowShredDrag}
                 onFocus={() => {
                   if (folderIndexMode || collapsedPadWriteByOwnerId[block.id]) return;
@@ -2399,6 +2460,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                         : {}),
                     })}
                     onKeyDown={(e) => handleTextKeyDown(index, e)}
+                    {...qloopTextProps(index, block.id)}
                   />
                 );
               }
@@ -2511,6 +2573,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onKeyDown={(e) => handleTextKeyDown(index, e)}
               onPaste={(e) => handleTextPaste(index, e)}
+              {...qloopTextProps(index, block.id)}
             />
               );
             })()
@@ -2563,6 +2626,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   );
                   if (writeIndex >= 0) handleTextKeyDown(writeIndex, e);
                 }}
+                {...qloopTextProps(
+                  blocksRef.current.findIndex((b) => b.id === collapsedActiveWriteId),
+                  collapsedActiveWriteId,
+                )}
               />
             </div>
           </div>

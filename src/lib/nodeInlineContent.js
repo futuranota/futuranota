@@ -1,4 +1,4 @@
-import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit } from "./docBlocks.js";
+import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit, normalizeQLoopSource } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { applyTextEditToMentions, normalizeMentions } from "./docMentions.js";
@@ -161,11 +161,13 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
 }
 
 export function createInlineH1Block(title = "", patch = {}) {
+  const qloopSource = normalizeQLoopSource(patch.qloopSource);
   return {
-    id: generateId("NH1"),
+    id: patch.id || generateId("NH1"),
     type: NODE_BLOCK_TYPES.H1,
     title,
     macronodeHeading: Boolean(patch.macronodeHeading),
+    ...(qloopSource ? { qloopSource } : {}),
   };
 }
 
@@ -270,6 +272,7 @@ export function normalizeWritingBlocks(blocks) {
 
   return blocks.map((block) => {
     if (block?.type === NODE_BLOCK_TYPES.H1) {
+      const qloopSource = normalizeQLoopSource(block.qloopSource);
       return {
         id: block.id || generateId("NH1"),
         type: NODE_BLOCK_TYPES.H1,
@@ -277,6 +280,7 @@ export function normalizeWritingBlocks(blocks) {
         macronodeHeading: block.macronodeHeading != null
           ? Boolean(block.macronodeHeading)
           : Boolean(block.nodeId || block.queryEnabled),
+        ...(qloopSource ? { qloopSource } : {}),
       };
     }
     if (block?.type === NODE_BLOCK_TYPES.H2) {

@@ -4063,3 +4063,321 @@
   text-decoration: underline;
 }
 
+/* QLoops library + editor */
+.qloops-library-panel__card-preview {
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.qloop-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: #0a0c10;
+}
+
+.qloop-editor-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: #0a0c10;
+  pointer-events: none;
+}
+
+.qloop-editor-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(760px, calc(100vw - 32px));
+  height: min(90vh, 840px);
+  max-height: min(90vh, 840px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.qloop-editor-overlay__top-actions {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+}
+
+.qloop-editor-overlay__close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #7d7e81;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.qloop-editor-overlay__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qloop-editor-overlay__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px 20px 20px;
+  --scroll-bg: #151515;
+}
+
+.qloop-sequence-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.qloop-sequence-editor__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qloop-sequence-editor__loop-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d7e81;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qloop-sequence-editor__loop-title {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #313338;
+  background: transparent;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 4px 0 8px;
+  outline: none;
+}
+
+.qloop-sequence-editor__slots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qloop-sequence-editor__slot {
+  border-top: 1px solid #313338;
+  border-bottom: 1px solid #313338;
+  padding: 12px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qloop-sequence-editor__slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.qloop-sequence-editor__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #dcb2a6;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dcb2a6;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.qloop-sequence-editor__slot-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qloop-sequence-editor__query-title {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 4px 0 6px;
+  outline: none;
+}
+
+.qloop-sequence-editor__query-description {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #7A818B;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 0;
+  resize: vertical;
+  min-height: 36px;
+  outline: none;
+  --scroll-bg: #151515;
+}
+
+.qloop-sequence-editor__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.qloop-sequence-editor__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: transparent;
+  color: #dcb2a6;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.qloop-sequence-editor__add:hover {
+  background: rgba(220, 178, 166, 0.08);
+  border-color: rgba(220, 178, 166, 0.35);
+}
+
+.qloop-sequence-editor__save:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.qloop-sequence-editor__save {
+  margin-left: auto;
+}
+
+/* QLoop H1 in documents */
+.doc-h1-block--qloop .doc-h1-block__input,
+.doc-h1-block--qloop .doc-query-handle-row__input {
+  color: #dcb2a6;
+}
+
+.doc-h1-block--qloop .doc-h1-block__input::placeholder,
+.doc-h1-block--qloop .doc-query-handle-row__input::placeholder {
+  color: color-mix(in oklab, #dcb2a6 45%, transparent);
+}
+
+/* @ picker — QLoops */
+.qloop-picker-menu {
+  min-width: 240px;
+  max-width: min(360px, 92vw);
+}
+
+.qloop-picker-menu__loop-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d7e81;
+  padding: 6px 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.qloop-picker-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.qloop-picker-menu__item:hover,
+.qloop-picker-menu__item.is-suggested {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qloop-picker-menu__item-index {
+  font-size: 11px;
+  font-weight: 700;
+  color: #dcb2a6;
+}
+
+.qloop-picker-menu__item-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.qloop-picker-menu__item-hint {
+  font-size: 11px;
+  color: #7A818B;
+  line-height: 1.35;
+}
+
+.qloop-picker-menu__back {
+  font-size: 11px;
+  color: #7A818B;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.qloop-picker-menu__back:hover {
+  color: #fff;
+}
+
+.at-tool-picker__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.at-tool-picker__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.at-tool-picker__item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
