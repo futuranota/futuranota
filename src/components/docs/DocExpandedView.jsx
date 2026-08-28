@@ -68,7 +68,6 @@ import {
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
-  listMoveTargetFolders,
   resolveAdoptableDocLabel,
   setEntityNodeParentDocument,
 } from "../../lib/nodeParentAdoption.js";
@@ -1083,11 +1082,6 @@ export function DocExpandedView({
   const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
   const canAssignChildParent = canReassignDocumentParent(doc, { parentDocId: doc.id });
-  const adoptableFolders = listMoveTargetFolders(allDocs, {
-    parentObjectId: draftParentId || null,
-    fromFolderDoc: doc,
-    excludeFolderId: doc.id,
-  });
   const draftSnapshot = buildDocPersistSnapshot({
     title: resolvePersistTitle({
       draftTitle,
@@ -2851,7 +2845,9 @@ export function DocExpandedView({
           requireParentFolder={Boolean(
             canAssignChildParent && isUnassignedDepartmentFolder(doc),
           )}
-          docs={adoptableFolders}
+          moveFromFolderDocId={doc.id}
+          moveExcludeFolderId={doc.id}
+          sectionMoveTargets={canAssignChildParent && !isUnassignedDepartmentFolder(doc)}
           parentObjectId={draftParentId || null}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}

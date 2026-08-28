@@ -869,6 +869,8 @@ export const messages = {
       deleteDocTitle: "Delete folder",
       deleteDocConfirm:
         "Delete \"{name}\" and its nodes? This cannot be undone.",
+      deleteDocSyncFailed:
+        "Folder \"{name}\" was removed here, but cloud sync failed. It may reappear on another device until sync succeeds — we'll keep retrying.",
       deleteNodeTitle: "Delete document",
       deleteNodeConfirm:
         "Delete \"{name}\"? This cannot be undone.",

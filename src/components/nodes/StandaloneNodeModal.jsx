@@ -207,7 +207,7 @@ export function StandaloneNodeModal({
     liveParentFolder,
     { parentDocId: node?.parentDocId || (isNew ? initialParentDocId : null) },
   );
-  const docList = listMoveTargetFolders(docs, {
+  const docList = listMoveTargetFolders(docsByStoreId, {
     parentObjectId,
     fromFolderDoc: liveParentFolder,
     excludeFolderId: liveParentFolder?.id || null,
@@ -694,6 +694,11 @@ export function StandaloneNodeModal({
           && isUnassignedDepartmentFolder(liveParentFolder),
         )}
         docs={docList}
+        moveFromFolderDocId={liveParentFolder?.id || null}
+        moveExcludeFolderId={liveParentFolder?.id || null}
+        sectionMoveTargets={Boolean(
+          canAssignParent && liveParentFolder && !isUnassignedDepartmentFolder(liveParentFolder),
+        )}
         parentObjectId={parentObjectId}
         anchorDate={anchorDate}
         anchorTime={anchorTime}

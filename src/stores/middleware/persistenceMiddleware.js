@@ -521,10 +521,32 @@ export function markDocsDeletedForSync(docIds, nodeIds = []) {
   }
 }
 
+/** True when a folder/doc id is tombstoned and must not merge back from remote. */
+export function isDocMarkedDeletedForSync(docId) {
+  const id = String(docId || "").trim();
+  return Boolean(id && pendingDeletedDocIds.has(id));
+}
+
 /** True when a node id is tombstoned and must not remarge into open folder drafts. */
 export function isNodeMarkedDeletedForSync(nodeId) {
   const id = String(nodeId || "").trim();
   return Boolean(id && pendingDeletedNodeIds.has(id));
+}
+
+/**
+ * Remove a node from the delete ledger so a recovered entity can sync again.
+ * @param {string} nodeId
+ * @returns {boolean}
+ */
+export function unmarkNodeDeletedForSync(nodeId) {
+  const id = String(nodeId || "").trim();
+  if (!id || !pendingDeletedNodeIds.has(id)) return false;
+  pendingDeletedNodeIds.delete(id);
+  deletedNodeMarkedAt.delete(id);
+  deleteTombstoneRevision += 1;
+  removeIdsFromTombstoneLedger("nodes", [id]);
+  writeTombstoneLedger();
+  return true;
 }
 
 /**
@@ -667,9 +689,9 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
       : deletedNodeMarkedAt;
   for (const id of ids) {
     if (stillRemote.has(id)) continue;
-    // Companies: NEVER auto-clear. A sibling tab / in-flight sync can re-upsert
-    // during grace; clearing the tombstone then lets hydrate resurrect forever.
-    if (table === "companies") {
+    // Companies + folders: NEVER auto-clear. A sibling tab / stale hydrate can
+    // re-upsert during grace; clearing the tombstone then lets ghosts resurrect.
+    if (table === "companies" || table === "campaigns") {
       heldForGrace.push(id);
       continue;
     }
@@ -1314,6 +1336,16 @@ function readLocalWorkspaceSnapshot() {
 }
 
 let flushPersistenceSyncImpl = async () => ({ ok: true });
+let reconcileWorkspaceDeletesImpl = () => false;
+
+/**
+ * Product rule: re-arm delete tombstones from disk and purge ghost folders from live stores.
+ * Safe to call on boot, after hydrate, and when sibling tabs update the delete ledger.
+ * @returns {boolean} true when live stores were stripped
+ */
+export function reconcileWorkspaceDeletes() {
+  return reconcileWorkspaceDeletesImpl();
+}
 
 export function initPersistenceMiddleware(stores) {
   if (initialized || typeof window === "undefined") return;
@@ -1468,6 +1500,7 @@ export function initPersistenceMiddleware(stores) {
           : [],
       });
     }
+    stripPendingDeletesFromLiveStores();
   };
 
   const finishWorkspaceHydration = () => {
@@ -1904,6 +1937,7 @@ export function initPersistenceMiddleware(stores) {
         nodes: safeNodes,
       });
 
+      reconcileWorkspaceDeletes();
       finishWorkspaceHydration();
 
       // Tombstones can clear now that hydrate has applied without resurrecting.
@@ -2477,7 +2511,11 @@ export function initPersistenceMiddleware(stores) {
   // back from futura-nota-v1 and cannot be re-upserted on version-gate skip.
   adoptTombstoneLedger(readTombstoneLedger());
   paintLocalWorkspace();
-  if (stripPendingDeletesFromLiveStores()) {
+  reconcileWorkspaceDeletesImpl = () => {
+    refreshTombstonesFromDisk();
+    return stripPendingDeletesFromLiveStores();
+  };
+  if (reconcileWorkspaceDeletes()) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
     } catch {
@@ -2496,7 +2534,7 @@ export function initPersistenceMiddleware(stores) {
       return;
     }
     if (!adoptTombstoneLedger(ledger)) return;
-    if (stripPendingDeletesFromLiveStores()) {
+    if (reconcileWorkspaceDeletes()) {
       debouncedRemoteSync();
     }
   });

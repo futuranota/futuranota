@@ -23,6 +23,8 @@ import {
   flushPersistenceSync,
   markDocsDeletedForSync,
 } from "./middleware/persistenceMiddleware.js";
+import { emitWorkspaceFolderDeleteSyncFailed } from "../lib/workspaceDeleteRepair.js";
+import { resolveProductDocDisplayTitle } from "../lib/templateDoc.js";
 
 export const useDocsStore = create(
   devtools(
@@ -328,6 +330,9 @@ export const useDocsStore = create(
         const existing = get().docs[id];
         const linkedNodes = useNodesStore.getState().getNodesByDoc(id);
         const linkedNodeIds = linkedNodes.map((node) => node.id).filter(Boolean);
+        const deleteLabel = existing
+          ? (resolveProductDocDisplayTitle(existing) || existing.title?.trim() || "Untitled")
+          : "Untitled";
         // Tombstone before local remove so an in-flight hydrate cannot resurrect.
         markDocsDeletedForSync(id, linkedNodeIds);
         for (const node of linkedNodes) {
@@ -342,9 +347,26 @@ export const useDocsStore = create(
           delete next[id];
           return { docs: next };
         });
-        flushPersistenceSync().catch((err) => {
-          console.warn("Flush after folder delete failed:", err);
-        });
+        return flushPersistenceSync()
+          .then((result) => {
+            if (!result?.ok) {
+              emitWorkspaceFolderDeleteSyncFailed({
+                docId: id,
+                label: deleteLabel,
+                error: result?.error,
+              });
+            }
+            return result;
+          })
+          .catch((err) => {
+            emitWorkspaceFolderDeleteSyncFailed({
+              docId: id,
+              label: deleteLabel,
+              error: err,
+            });
+            console.warn("Flush after folder delete failed:", err);
+            return { ok: false, error: err };
+          });
       },
     }),
     { name: "DocsStore" },

@@ -47,7 +47,6 @@ import {
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
-  listMoveTargetFolders,
   resolveAdoptableDocLabel,
   setEntityNodeParentDocument,
 } from "../../lib/nodeParentAdoption.js";
@@ -88,11 +87,6 @@ export function useDocBlockNodeModal({
     hostFolderDoc,
     { parentDocId: hostFolderDoc?.id || docId || null },
   );
-  const adoptableDocList = listMoveTargetFolders(docsById, {
-    parentObjectId,
-    fromFolderDoc: hostFolderDoc,
-    excludeFolderId: hostFolderDoc?.id || docId || null,
-  });
   const hostFolderLabel = hostFolderDoc
     ? resolveAdoptableDocLabel(hostFolderDoc)
     : (docTitle.trim() || "New document");
@@ -772,7 +766,11 @@ export function useDocBlockNodeModal({
       requireParentFolder={Boolean(
         canAssignParent && hostFolderDoc && isUnassignedDepartmentFolder(hostFolderDoc),
       )}
-      docs={adoptableDocList}
+      moveFromFolderDocId={hostFolderDoc?.id || docId || null}
+      moveExcludeFolderId={hostFolderDoc?.id || docId || null}
+      sectionMoveTargets={Boolean(
+        canAssignParent && hostFolderDoc && !isUnassignedDepartmentFolder(hostFolderDoc),
+      )}
       parentObjectId={parentObjectId}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}

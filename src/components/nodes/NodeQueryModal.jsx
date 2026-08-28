@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
@@ -59,8 +59,10 @@ import { parseWeatherForecastNodeContent } from "../../lib/forecastSearch.js";
 import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
 import { ForecastNodeView } from "../intel/ForecastNodeView.jsx";
 import {
-  listAdoptableDocs,
+  listMoveTargetFolders,
+  partitionMoveTargetFolders,
   resolveAdoptableDocLabel,
+  resolveMoveTargetFolderList,
   resolveNodeParentDocId,
 } from "../../lib/nodeParentAdoption.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -209,6 +211,12 @@ export function NodeQueryModal({
   onParentDocIdChange,
   /** When true, picker requires picking a destination folder (no empty option). */
   requireParentFolder = false,
+  /** When true, Uncategorized targets render under a labeled divider (same-dept origin). */
+  sectionMoveTargets = false,
+  /** Host folder id for move-target filtering (live store lookup). */
+  moveFromFolderDocId = null,
+  /** Folder id to omit from move targets (usually the host folder). */
+  moveExcludeFolderId = null,
   docs = [],
   parentObjectId = null,
   onClose,
@@ -288,8 +296,32 @@ export function NodeQueryModal({
   const libraryButtonAria = t("doc.library.openDocLibraryAria", { title: displayQuery });
   const queryEditable = Boolean(onQueryChange);
   const parentSelectable = Boolean(onParentDocIdChange);
-  const adoptableDocs = listAdoptableDocs(docs, { parentObjectId });
-  const adoptableDocsById = Object.fromEntries(adoptableDocs.map((d) => [d.id, d]));
+  const liveDocsById = useDocsStore((s) => s.docs);
+  const moveTargetFolders = useMemo(() => {
+    if (parentSelectable && parentObjectId) {
+      return listMoveTargetFolders(liveDocsById, {
+        parentObjectId,
+        fromFolderDoc: moveFromFolderDocId ? liveDocsById[moveFromFolderDocId] : null,
+        excludeFolderId: moveExcludeFolderId || null,
+      });
+    }
+    return resolveMoveTargetFolderList(docs, { parentObjectId });
+  }, [
+    liveDocsById,
+    parentObjectId,
+    moveFromFolderDocId,
+    moveExcludeFolderId,
+    parentSelectable,
+    docs,
+  ]);
+  const moveTargetPartition = useMemo(
+    () => (sectionMoveTargets ? partitionMoveTargetFolders(moveTargetFolders) : null),
+    [sectionMoveTargets, moveTargetFolders],
+  );
+  const adoptableDocsById = useMemo(
+    () => Object.fromEntries(moveTargetFolders.map((d) => [d.id, d])),
+    [moveTargetFolders],
+  );
   const resolvedParentDocId = parentDocId
     || resolveNodeParentDocId(
       parentDocId ? { parentDocId } : null,
@@ -2144,10 +2176,59 @@ export function NodeQueryModal({
                     role="listbox"
                     aria-label={t("canvas.moveToFolderAria")}
                   >
-                    {adoptableDocs.length === 0 ? (
+                    {moveTargetFolders.length === 0 ? (
                       <p className="node-query-modal__folder-empty">{t("canvas.assignParentEmpty")}</p>
+                    ) : moveTargetPartition?.showUncategorizedSection ? (
+                      <>
+                        {moveTargetPartition.sameDepartment.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            role="option"
+                            aria-selected={d.id === resolvedParentDocId}
+                            className={
+                              "node-query-modal__folder-option"
+                              + (d.id === resolvedParentDocId ? " is-active" : "")
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onParentDocIdChange(d.id);
+                              setParentFolderPickerOpen(false);
+                            }}
+                          >
+                            {resolveAdoptableDocLabel(d)}
+                          </button>
+                        ))}
+                        <div
+                          className="node-query-modal__folder-section-divider"
+                          role="presentation"
+                        >
+                          <span className="node-query-modal__folder-section-label">
+                            {t("sidebar.departmentFilterUnassigned")}
+                          </span>
+                        </div>
+                        {moveTargetPartition.uncategorized.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            role="option"
+                            aria-selected={d.id === resolvedParentDocId}
+                            className={
+                              "node-query-modal__folder-option"
+                              + (d.id === resolvedParentDocId ? " is-active" : "")
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onParentDocIdChange(d.id);
+                              setParentFolderPickerOpen(false);
+                            }}
+                          >
+                            {resolveAdoptableDocLabel(d)}
+                          </button>
+                        ))}
+                      </>
                     ) : (
-                      adoptableDocs.map((d) => (
+                      moveTargetFolders.map((d) => (
                         <button
                           key={d.id}
                           type="button"

@@ -113,6 +113,7 @@ import {
 import { pruneStaleTimelineSnapshotChildren } from './lib/nodeSurfacePurge.js';
 import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
 import { useI18n, translate } from './i18n/useI18n.js';
+import { WORKSPACE_FOLDER_DELETE_SYNC_FAILED } from './lib/workspaceDeleteRepair.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 import {
   filterSelectableCanvasNodeIds,
@@ -526,6 +527,27 @@ useEffect(() => {
   }, [timelineQueueMode, canvasNodes, nodeEntities, docs]);
 
   useEffect(() => { initStores(); }, []);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    import("./lib/workspaceRecovery.js").then(({ installWorkspaceRecoveryTools }) => {
+      installWorkspaceRecoveryTools();
+    });
+  }, []);
+
+  useEffect(() => {
+    const onFolderDeleteSyncFailed = (event) => {
+      const label = String(event?.detail?.label || "").trim() || "Untitled";
+      setToast({
+        message: t("sidebar.deleteDocSyncFailed", { name: label }),
+        kind: "warm",
+      });
+    };
+    window.addEventListener(WORKSPACE_FOLDER_DELETE_SYNC_FAILED, onFolderDeleteSyncFailed);
+    return () => {
+      window.removeEventListener(WORKSPACE_FOLDER_DELETE_SYNC_FAILED, onFolderDeleteSyncFailed);
+    };
+  }, [t]);
 
   // Paint dashboard canvas from persisted canvas store once (noteId alias for nodeId).
   useEffect(() => {

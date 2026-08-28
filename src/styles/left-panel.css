@@ -18182,6 +18182,22 @@ body.doc-content-resizing * {
   color: rgba(216, 216, 216, 0.55);
 }
 
+.node-query-modal__folder-section-divider {
+  margin: 4px 0 2px;
+  padding: 8px 8px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.node-query-modal__folder-section-label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #7a818b;
+}
+
 .node-query-modal__folder-option {
   display: block;
   width: 100%;

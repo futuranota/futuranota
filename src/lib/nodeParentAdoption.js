@@ -1,6 +1,7 @@
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
 import { isUnassignedDepartmentFolder } from "./departments.js";
+import { isWorkspaceFolderVisible } from "./workspaceDeleteRepair.js";
 import {
   isContentDoc,
   isKnowledgeDoc,
@@ -244,6 +245,7 @@ export function listAdoptableDocs(docs = {}, { parentObjectId } = {}) {
     ...listProductDocs(byId, parentObjectId),
   ]) {
     if (!doc?.id || seen.has(doc.id)) continue;
+    if (!isWorkspaceFolderVisible(doc)) continue;
     seen.add(doc.id);
     merged.push(doc);
   }
@@ -284,6 +286,38 @@ export function listMoveTargetFolders(docs = {}, options = {}) {
     if (aUncat !== bUncat) return aUncat ? 1 : -1;
     return resolveAdoptableDocLabel(a).localeCompare(resolveAdoptableDocLabel(b));
   });
+}
+
+/**
+ * Split move-target folders for picker UI: same department vs Uncategorized.
+ * @param {object[]} folders
+ * @returns {{ sameDepartment: object[], uncategorized: object[], showUncategorizedSection: boolean }}
+ */
+export function partitionMoveTargetFolders(folders = []) {
+  const sameDepartment = [];
+  const uncategorized = [];
+  for (const folder of folders) {
+    if (!folder?.id) continue;
+    if (isUnassignedDepartmentFolder(folder)) uncategorized.push(folder);
+    else sameDepartment.push(folder);
+  }
+  return {
+    sameDepartment,
+    uncategorized,
+    showUncategorizedSection: sameDepartment.length > 0 && uncategorized.length > 0,
+  };
+}
+
+/**
+ * Resolve picker rows: use pre-filtered array when provided, else full adoptable list.
+ * @param {object|object[]} docs
+ * @param {{ parentObjectId?: string|null }} [options]
+ */
+export function resolveMoveTargetFolderList(docs = {}, options = {}) {
+  if (Array.isArray(docs)) {
+    return docs.filter((d) => d?.id);
+  }
+  return listAdoptableDocs(docs, options);
 }
 
 /**

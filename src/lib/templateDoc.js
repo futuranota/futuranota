@@ -5,6 +5,7 @@ import {
   docBlocksFromBody,
   normalizeDocBlocks,
 } from "./docBlocks.js";
+import { isWorkspaceFolderVisible } from "./workspaceDeleteRepair.js";
 
 /** Document kind: product, content/campaign, global knowledge corpus, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
@@ -142,7 +143,8 @@ function siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
     .filter((doc) => !isTemplateDoc(doc))
     .filter((doc) => !isDedicatedStepPlaybookDoc(doc))
     .filter((doc) => !isDedicatedQLoopDoc(doc))
-    .filter((doc) => doc.id !== excludeDocId);
+    .filter((doc) => doc.id !== excludeDocId)
+    .filter((doc) => isWorkspaceFolderVisible(doc));
 }
 
 function productDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {

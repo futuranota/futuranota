@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { DOC_KIND_CONTENT, DOC_KIND_STANDARD, isUncategorizedFolderDoc } from "./templateDoc.js";
+import { markDocsDeletedForSync } from "../stores/middleware/persistenceMiddleware.js";
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
   listMoveTargetFolders,
+  partitionMoveTargetFolders,
 } from "./nodeParentAdoption.js";
 
 describe("move to folder — department + Uncategorized targets", () => {
@@ -140,5 +142,36 @@ describe("move to folder — department + Uncategorized targets", () => {
     const stagingIdx = targets.findIndex((d) => d.id === stagingNoDept.id);
     expect(blogsIdx).toBeGreaterThanOrEqual(0);
     expect(stagingIdx).toBeGreaterThan(blogsIdx);
+  });
+
+  it("partitions picker rows for sectioned Uncategorized UI", () => {
+    const targets = listMoveTargetFolders(allDocs, {
+      parentObjectId: "obj-1",
+      fromFolderDoc: ideasWithDept,
+      excludeFolderId: ideasWithDept.id,
+    });
+    const parts = partitionMoveTargetFolders(targets);
+    expect(parts.showUncategorizedSection).toBe(true);
+    expect(parts.sameDepartment.map((d) => d.id)).toEqual([blogsMarketing.id]);
+    expect(parts.uncategorized.map((d) => d.id).sort()).toEqual(
+      [ideasNoDept.id, stagingNoDept.id].sort(),
+    );
+  });
+
+  it("does not section when only one bucket has folders", () => {
+    const onlyDept = partitionMoveTargetFolders([blogsMarketing]);
+    expect(onlyDept.showUncategorizedSection).toBe(false);
+    const onlyUncat = partitionMoveTargetFolders([stagingNoDept]);
+    expect(onlyUncat.showUncategorizedSection).toBe(false);
+  });
+
+  it("excludes tombstoned folders from move targets", () => {
+    markDocsDeletedForSync(stagingNoDept.id);
+    const targets = listMoveTargetFolders(allDocs, {
+      parentObjectId: "obj-1",
+      fromFolderDoc: ideasWithDept,
+      excludeFolderId: ideasWithDept.id,
+    });
+    expect(targets.some((d) => d.id === stagingNoDept.id)).toBe(false);
   });
 });
