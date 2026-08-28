@@ -11,7 +11,6 @@ import {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
   createLibraryItem,
-  inferAttachmentKind,
   normalizeFolderLibraryCategory,
   normalizeLibraryOwnerKind,
   normalizeLibraryPresentation,
@@ -237,27 +236,6 @@ export function FolderLibraryElementModal({
     setError("");
     setWallColor(next);
     setWallHexDraft(next || "");
-  };
-
-  const applyAttachmentUrl = (rawUrl) => {
-    const url = String(rawUrl || "").trim();
-    if (!url) {
-      setAttachmentUrl(null);
-      setAttachmentName(null);
-      setAttachmentKind(null);
-      return;
-    }
-    setAttachmentUrl(url);
-    let name = url;
-    try {
-      const parsed = new URL(url);
-      const last = parsed.pathname.split("/").filter(Boolean).pop();
-      if (last) name = decodeURIComponent(last);
-    } catch {
-      /* keep full url as display name */
-    }
-    setAttachmentName(name);
-    setAttachmentKind(inferAttachmentKind(name, ""));
   };
 
   const handleSave = async () => {
@@ -547,30 +525,6 @@ export function FolderLibraryElementModal({
               </button>
             ) : null}
 
-            {isSkillLike ? (
-              <label className="folder-library-element-modal__field">
-                <span className="folder-library-element-modal__label">
-                  {t("doc.library.attachmentUrlLabel")}
-                </span>
-                <input
-                  className="folder-library-element-modal__input"
-                  type="url"
-                  inputMode="url"
-                  autoComplete="url"
-                  spellCheck={false}
-                  value={attachmentUrl || ""}
-                  placeholder={t("doc.library.attachmentUrlPlaceholder")}
-                  onChange={(e) => {
-                    setError("");
-                    applyAttachmentUrl(e.target.value);
-                  }}
-                />
-                <span className="folder-library-element-modal__hint">
-                  {t("doc.library.attachmentUrlHint")}
-                </span>
-              </label>
-            ) : null}
-
             {isImageLike ? (
               <div className="folder-library-element-modal__flag-block">
                 <div className="folder-library-element-modal__flags">
@@ -707,6 +661,7 @@ export function FolderLibraryElementModal({
               className={
                 "folder-library-element-modal__drop"
                 + (isVideoLike ? " folder-library-element-modal__drop--video" : "")
+                + (isSkillLike ? " folder-library-element-modal__drop--attachment" : "")
                 + (dragOver ? " is-dragover" : "")
                 + (hasUploadPreview ? " has-media" : "")
                 + (isImageLike && frameAspect ? " folder-library-element-modal__drop--framed" : "")
@@ -759,6 +714,30 @@ export function FolderLibraryElementModal({
                   src={mediaUrl}
                   alt=""
                 />
+              ) : isSkillLike ? (
+                uploading ? (
+                  <span className="folder-library-element-modal__upload-title">
+                    {t("doc.library.uploading")}
+                  </span>
+                ) : (
+                  <>
+                    <span className="folder-library-element-modal__upload-lead">
+                      <img
+                        src="/uploads/Clipboard.svg"
+                        alt=""
+                        aria-hidden
+                        className="folder-library-element-modal__upload-icon"
+                        draggable={false}
+                      />
+                      <span className="folder-library-element-modal__upload-title">
+                        {uploadTitle}
+                      </span>
+                    </span>
+                    <span className="folder-library-element-modal__upload-hint">
+                      {uploadHint}
+                    </span>
+                  </>
+                )
               ) : isVideoLike ? (
                 <>
                   <span className="folder-library-element-modal__plus" aria-hidden>+</span>

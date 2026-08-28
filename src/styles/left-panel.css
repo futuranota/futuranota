@@ -23533,6 +23533,19 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.75);
 }
 
+.folder-library-element-modal__upload-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8b939e;
+}
+
+.folder-library-element-modal__upload-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
 .folder-library-element-modal__upload-hint {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
