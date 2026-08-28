@@ -1,4 +1,4 @@
-import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit, normalizeQLoopSource } from "./docBlocks.js";
+import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit, normalizeQLoopSource, normalizeStepImage } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { applyTextEditToMentions, normalizeMentions } from "./docMentions.js";
@@ -303,12 +303,14 @@ export function normalizeWritingBlocks(blocks) {
     if (block?.type === NODE_BLOCK_TYPES.CODE) {
       const code = block.code || "";
       const hasCode = Boolean(code.trim());
+      const referenceImage = normalizeStepImage(block?.referenceImage);
       return {
         id: block.id || generateId("NCD"),
         type: NODE_BLOCK_TYPES.CODE,
         language: normalizeCodeLanguage(block.language),
         code,
         codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
+        referenceImage,
       };
     }
     if (block?.type === NODE_BLOCK_TYPES.PASSWORD_VAULT) {

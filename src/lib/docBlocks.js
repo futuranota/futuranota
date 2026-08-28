@@ -1487,6 +1487,7 @@ function normalizeCodeBlock(block) {
     language: normalizeCodeLanguage(block?.language),
     code,
     codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
+    referenceImage: normalizeStepImage(block?.referenceImage),
   };
 }
 
@@ -2644,10 +2645,12 @@ export function docBlocksToBody(blocks) {
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
+        const normalized = normalizeCodeBlock(block);
         return `::code\n${JSON.stringify({
-          language: normalizeCodeLanguage(block.language),
-          code: block.code || "",
-          codeSaved: Boolean(block.codeSaved),
+          language: normalized.language,
+          code: normalized.code,
+          codeSaved: normalized.codeSaved,
+          referenceImage: normalized.referenceImage,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {

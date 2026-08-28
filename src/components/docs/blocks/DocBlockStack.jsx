@@ -2175,9 +2175,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               language={block.language}
               code={block.code || ""}
               codeSaved={Boolean(block.codeSaved)}
+              referenceImage={block.referenceImage || null}
+              uploadScopeId={block.id}
               autoFocus={focusBlockId === block.id && !block.codeSaved}
               onLanguageChange={(language) => updateAt(index, { language, codeSaved: false })}
               onCodeChange={(code) => updateAt(index, { code, codeSaved: false })}
+              onReferenceImageChange={(referenceImage) => updateAt(index, { referenceImage, codeSaved: false })}
               onSave={() => {
                 if (!(block.code || "").trim()) return;
                 let next = updateBlockAt(blocksRef.current, index, { codeSaved: true });

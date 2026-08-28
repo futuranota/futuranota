@@ -70,8 +70,11 @@ function renderCodeBlock({
         language={block.language}
         code={block.code || ""}
         codeSaved={interactive ? showSaved : (showSaved || hasCode)}
+        referenceImage={block.referenceImage || null}
+        uploadScopeId={block.id}
         onLanguageChange={interactive ? (language) => updateAt(index, { language, codeSaved: false }) : undefined}
         onCodeChange={interactive ? (code) => updateAt(index, { code, codeSaved: false }) : undefined}
+        onReferenceImageChange={interactive ? (referenceImage) => updateAt(index, { referenceImage, codeSaved: false }) : undefined}
         onSave={interactive ? () => {
           if (!hasCode) return;
           let next = updateBlockAt(safeBlocks, index, { codeSaved: true });

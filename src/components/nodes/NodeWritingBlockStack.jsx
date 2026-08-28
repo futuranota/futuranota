@@ -1275,6 +1275,8 @@ export function NodeWritingBlockStack({
                 language={block.language}
                 code={block.code}
                 codeSaved={Boolean(block.codeSaved)}
+                referenceImage={block.referenceImage || null}
+                uploadScopeId={block.id}
                 compact
                 autoFocus={
                   focusTarget?.blockIndex === blockIndex
@@ -1283,6 +1285,7 @@ export function NodeWritingBlockStack({
                 }
                 onLanguageChange={(language) => updateBlockAt(blockIndex, { language, codeSaved: false })}
                 onCodeChange={(code) => updateBlockAt(blockIndex, { code, codeSaved: false })}
+                onReferenceImageChange={(referenceImage) => updateBlockAt(blockIndex, { referenceImage, codeSaved: false })}
                 onSave={() => {
                   if (!(block.code || "").trim()) return;
                   updateBlockAt(blockIndex, { codeSaved: true });
