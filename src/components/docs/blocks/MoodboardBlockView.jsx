@@ -1990,32 +1990,6 @@ export function MoodboardBlockView({
                   {t("doc.moodboard.ratioCardHint")}
                 </span>
               </button>
-              {allowsNoteSwitch && isEdit ? (
-                <div className="doc-moodboard__empty-slot-modes">
-                  <button
-                    type="button"
-                    className="doc-moodboard__slot-mode-btn"
-                    onClick={() => setSlotContentMode(
-                      colIndex,
-                      imageIndex,
-                      MOODBOARD_SLOT_CONTENT_MODES.NOTE,
-                    )}
-                  >
-                    {t("doc.moodboard.slotModeNote")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-moodboard__slot-mode-btn"
-                    onClick={() => setSlotContentMode(
-                      colIndex,
-                      imageIndex,
-                      MOODBOARD_SLOT_CONTENT_MODES.WEATHER,
-                    )}
-                  >
-                    {t("doc.moodboard.slotModeWeather")}
-                  </button>
-                </div>
-              ) : null}
             </div>
           )}
         </div>
@@ -2160,50 +2134,6 @@ export function MoodboardBlockView({
                     />
                     <span>{t("doc.moodboard.calendarWireToggle")}</span>
                   </button>
-                </div>
-              ) : null}
-              {notesEditChrome && !calendarWireWaiting ? (
-                <div
-                  className="doc-moodboard__notes-style-toggle"
-                  role="group"
-                  aria-label={t("doc.moodboard.noteStyleLabel")}
-                >
-                  {[
-                    {
-                      id: MOODBOARD_NOTE_STYLES.MARKER,
-                      labelKey: "doc.moodboard.noteStyleMarker",
-                    },
-                    {
-                      id: MOODBOARD_NOTE_STYLES.INTER,
-                      labelKey: "doc.moodboard.noteStyleInter",
-                    },
-                  ].map((option) => {
-                    const active = normalizeMoodboardNoteStyle(column.noteStyle) === option.id;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className={
-                          "doc-moodboard__notes-style-btn"
-                          + (active ? " is-active" : "")
-                        }
-                        aria-pressed={active}
-                        onClick={() => {
-                          patchColumns((col, index) => (
-                            index === colIndex
-                              ? createMoodboardColumn(col.recipe, {
-                                images: col.images,
-                                ...columnTextPatch(col),
-                                noteStyle: option.id,
-                              })
-                              : col
-                          ));
-                        }}
-                      >
-                        {t(option.labelKey)}
-                      </button>
-                    );
-                  })}
                 </div>
               ) : null}
               <div className="doc-moodboard__notes-title-wrap">
@@ -2741,55 +2671,39 @@ export function MoodboardBlockView({
             />
           ) : null}
 
-          <div className="doc-moodboard__float-actions">
-            {isEdit ? (
-              <button
-                type="button"
-                className="doc-moodboard__save"
-                disabled={!canSave}
-                onClick={() => {
-                  if (!canSave) return;
-                  onSave?.();
-                }}
-              >
-                {t("doc.moodboard.save")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="doc-moodboard__edit"
-                onClick={() => onEdit?.()}
-              >
-                {t("doc.moodboard.edit")}
-              </button>
-            )}
-            {onConvertLayout ? (
-              <>
+          <div className="doc-card-float-actions doc-card-float-actions--end">
+            <div className="doc-card-float-actions__group">
+              {isEdit ? (
                 <button
                   type="button"
-                  className="doc-moodboard__switch"
-                  onClick={() => onConvertLayout("image_split")}
+                  className="doc-card-float-btn"
+                  disabled={!canSave}
+                  onClick={() => {
+                    if (!canSave) return;
+                    onSave?.();
+                  }}
                 >
-                  {t("doc.layoutSwitch.imageSplit")}
+                  {t("doc.moodboard.save")}
                 </button>
+              ) : (
                 <button
                   type="button"
-                  className="doc-moodboard__switch"
-                  onClick={() => onConvertLayout("banner")}
+                  className="doc-card-float-btn"
+                  onClick={() => onEdit?.()}
                 >
-                  {t("doc.layoutSwitch.banner")}
+                  {t("doc.moodboard.edit")}
                 </button>
-              </>
-            ) : null}
-            {onDelete ? (
-              <button
-                type="button"
-                className="doc-moodboard__switch"
-                onClick={() => onDelete()}
-              >
-                {t("doc.imageBlock.remove")}
-              </button>
-            ) : null}
+              )}
+              {onDelete ? (
+                <button
+                  type="button"
+                  className="doc-card-float-btn"
+                  onClick={() => onDelete()}
+                >
+                  {t("doc.imageBlock.remove")}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

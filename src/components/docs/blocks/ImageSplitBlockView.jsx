@@ -941,11 +941,11 @@ export function ImageSplitBlockView({
   };
 
   const renderMediaBar = ({ showSources = true } = {}) => (
-    <div className="doc-image-split__media-actions">
+    <div className="doc-card-float-actions doc-image-split__media-actions">
       {isEdit ? (
         <button
           type="button"
-          className="doc-image-split__media-btn doc-image-split__media-btn--save"
+          className="doc-card-float-btn"
           disabled={!canSave}
           onClick={() => {
             if (!canSave) return;
@@ -958,28 +958,26 @@ export function ImageSplitBlockView({
       ) : (
         <button
           type="button"
-          className="doc-image-split__media-btn"
+          className="doc-card-float-btn"
           onClick={() => onEdit?.()}
         >
           {t("doc.imageSplit.edit")}
         </button>
       )}
-      <div className="doc-image-split__media-actions-end">
+      <div className="doc-card-float-actions__group">
         {isEdit && showSources ? (
-          <>
-            <button
-              type="button"
-              className="doc-image-split__media-btn"
-              onClick={() => setLibraryPickerOpen(true)}
-            >
-              {t("doc.imageSplit.pickLibrary")}
-            </button>
-          </>
+          <button
+            type="button"
+            className="doc-card-float-btn"
+            onClick={() => setLibraryPickerOpen(true)}
+          >
+            {t("doc.imageSplit.pickLibrary")}
+          </button>
         ) : null}
         {isEdit && onDelete ? (
           <button
             type="button"
-            className="doc-image-split__media-btn"
+            className="doc-card-float-btn"
             onClick={handleRemoveBlock}
           >
             {t("doc.imageBlock.remove")}

@@ -192,6 +192,32 @@ export function libraryItemToImageSplitPatch(item, ownerKind = "document", owner
 }
 
 /**
+ * Map a library ficha onto a Banner card image (photo pointer, no re-upload).
+ * @param {import("./folderLibraryNormalize.js").FolderLibraryItem|null|undefined} item
+ * @param {"folder"|"document"|string} [ownerKind]
+ * @param {string} [ownerId]
+ */
+export function libraryItemToBannerPatch(item, ownerKind = "document", ownerId = "") {
+  if (!item || !isMoodboardLibraryPick(item)) return null;
+  const src = String(item.mediaUrl || "").trim();
+  const tag = String(item.tag || "").trim();
+  const kind = ownerKind === "folder" ? "folder" : "document";
+  return {
+    src,
+    name: tag,
+    alt: tag,
+    width: 0,
+    height: 0,
+    imageSaved: Boolean(src),
+    libraryItemId: String(item.id || "").trim(),
+    libraryOwnerKind: kind,
+    libraryOwnerId: String(ownerId || "").trim(),
+    openFilePicker: false,
+    bannerSaved: false,
+  };
+}
+
+/**
  * @typedef {{ ownerKind: "folder"|"document", ownerId: string, items: Array<{ id?: string, mediaUrl?: string|null }> }} LibraryCatalog
  */
 

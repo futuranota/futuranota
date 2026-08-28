@@ -2126,6 +2126,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.BANNER ? (
             <BannerBlockView
               block={block}
+              libraryOwnerKind={libraryOwnerKind}
+              libraryOwnerId={libraryOwnerId}
+              folderLibraryId={folderLibraryId}
               onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
                 if (patch.imageSaved && patch.src) {

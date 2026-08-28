@@ -5,7 +5,9 @@ import {
   BANNER_HEADLINE_MAX_LINES,
   IMAGE_SPLIT_BODY_MAX_LINES,
 } from "../../../lib/docBlocks.js";
+import { libraryItemToBannerPatch } from "../../../lib/libraryImageCardPick.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 
 /** Empty / loading media aspect (height / width), aligned with image-card. */
 const BANNER_EMPTY_ASPECT = 0.72;
@@ -95,7 +97,9 @@ export function BannerBlockView({
   onSave,
   onEdit,
   onDelete,
-  onConvertLayout,
+  libraryOwnerKind = "folder",
+  libraryOwnerId = "",
+  folderLibraryId = "",
 }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
@@ -108,6 +112,12 @@ export function BannerBlockView({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [headlineAtLimit, setHeadlineAtLimit] = useState(false);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+
+  const pickerFolderId = libraryOwnerKind === "folder"
+    ? (libraryOwnerId || folderLibraryId)
+    : folderLibraryId;
+  const pickerDocumentId = libraryOwnerKind === "document" ? libraryOwnerId : "";
 
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const bannerSaved = Boolean(block?.bannerSaved && imageSaved);
@@ -225,6 +235,9 @@ export function BannerBlockView({
         width: converted.width,
         height: converted.height,
         imageSaved: true,
+        libraryItemId: "",
+        libraryOwnerKind: "",
+        libraryOwnerId: "",
         openFilePicker: false,
       });
     } catch (err) {
@@ -244,10 +257,21 @@ export function BannerBlockView({
       width: 0,
       height: 0,
       imageSaved: false,
+      libraryItemId: "",
+      libraryOwnerKind: "",
+      libraryOwnerId: "",
       openFilePicker: false,
     });
     setError(null);
   };
+
+  const handlePickLibraryItem = useCallback((item, ownerKind, ownerId) => {
+    if (!isEdit) return;
+    const patch = libraryItemToBannerPatch(item, ownerKind, ownerId);
+    if (!patch) return;
+    onChange?.({ ...patch, bannerSaved: false });
+    setLibraryPickerOpen(false);
+  }, [isEdit, onChange]);
 
   const handleRemoveBlock = () => {
     if (onDelete) {
@@ -362,45 +386,32 @@ export function BannerBlockView({
           >
             {imageSaved ? (
               <>
-                <img
-                  className="doc-banner__img"
-                  src={block.src}
-                  alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
-                  width={block.width || undefined}
-                  height={block.height || undefined}
-                  draggable={false}
-                />
                 {isEdit ? (
-                  <div className="doc-banner__media-actions">
-                    <button
-                      type="button"
-                      className="doc-banner__media-btn"
-                      onClick={() => inputRef.current?.click()}
-                      disabled={uploading}
-                    >
-                      {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
-                    </button>
-                    {onDelete ? (
-                      <button
-                        type="button"
-                        className="doc-banner__media-btn"
-                        onClick={handleRemoveBlock}
-                        disabled={uploading}
-                      >
-                        {t("doc.imageBlock.remove")}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="doc-banner__media-btn"
-                        onClick={handleClearImage}
-                        disabled={uploading}
-                      >
-                        {t("doc.imageBlock.remove")}
-                      </button>
-                    )}
-                  </div>
-                ) : null}
+                  <button
+                    type="button"
+                    className="doc-banner__img-btn"
+                    onClick={() => setLibraryPickerOpen(true)}
+                    aria-label={t("doc.imageSplit.pickLibrary")}
+                  >
+                    <img
+                      className="doc-banner__img"
+                      src={block.src}
+                      alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
+                      width={block.width || undefined}
+                      height={block.height || undefined}
+                      draggable={false}
+                    />
+                  </button>
+                ) : (
+                  <img
+                    className="doc-banner__img"
+                    src={block.src}
+                    alt={block.alt || block.name || t("doc.imageBlock.previewAlt")}
+                    width={block.width || undefined}
+                    height={block.height || undefined}
+                    draggable={false}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -412,7 +423,7 @@ export function BannerBlockView({
                     + (uploading ? " doc-banner__dropzone--busy" : "")
                   }
                   disabled={uploading || !isEdit}
-                  onClick={() => isEdit && inputRef.current?.click()}
+                  onClick={() => isEdit && setLibraryPickerOpen(true)}
                   onDragEnter={(event) => {
                     if (!isEdit) return;
                     event.preventDefault();
@@ -435,31 +446,21 @@ export function BannerBlockView({
                   }}
                 >
                   <span className="doc-banner__dropzone-title">
-                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
+                    {uploading
+                      ? t("doc.imageBlock.uploading")
+                      : t("doc.imageSplit.pickLibrary")}
                   </span>
                   <span className="doc-banner__dropzone-hint">
-                    {t("doc.imageBlock.uploadHint")}
+                    {t("doc.imageSplit.libraryDropHint")}
                   </span>
                 </button>
-                {isEdit && onDelete ? (
-                  <div className="doc-banner__media-actions">
-                    <button
-                      type="button"
-                      className="doc-banner__media-btn"
-                      onClick={handleRemoveBlock}
-                      disabled={uploading}
-                    >
-                      {t("doc.imageBlock.remove")}
-                    </button>
-                  </div>
-                ) : null}
               </>
             )}
-            <div className="doc-banner__float-actions">
+            <div className="doc-card-float-actions">
               {isEdit ? (
                 <button
                   type="button"
-                  className="doc-banner__save"
+                  className="doc-card-float-btn"
                   disabled={!canSave}
                   onClick={() => {
                     if (!canSave) return;
@@ -471,21 +472,33 @@ export function BannerBlockView({
               ) : (
                 <button
                   type="button"
-                  className="doc-banner__edit"
+                  className="doc-card-float-btn"
                   onClick={() => onEdit?.()}
                 >
                   {t("doc.banner.edit")}
                 </button>
               )}
-              {onConvertLayout ? (
-                <button
-                  type="button"
-                  className="doc-banner__switch"
-                  onClick={() => onConvertLayout("moodboard")}
-                >
-                  {t("doc.layoutSwitch.moodboard")}
-                </button>
-              ) : null}
+              <div className="doc-card-float-actions__group">
+                {isEdit ? (
+                  <button
+                    type="button"
+                    className="doc-card-float-btn"
+                    onClick={() => setLibraryPickerOpen(true)}
+                  >
+                    {t("doc.imageSplit.pickLibrary")}
+                  </button>
+                ) : null}
+                {isEdit && onDelete ? (
+                  <button
+                    type="button"
+                    className="doc-card-float-btn"
+                    onClick={handleRemoveBlock}
+                    disabled={uploading}
+                  >
+                    {t("doc.imageBlock.remove")}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -510,6 +523,18 @@ export function BannerBlockView({
           </div>
         </div>
       </div>
+
+      {libraryPickerOpen ? (
+        <LibraryImageCardPicker
+          folderId={pickerFolderId}
+          documentId={pickerDocumentId}
+          requireVisual
+          titleKey="doc.moodboard.libraryPickerTitle"
+          emptyKey="doc.moodboard.libraryPickerEmpty"
+          onPick={handlePickLibraryItem}
+          onClose={() => setLibraryPickerOpen(false)}
+        />
+      ) : null}
 
       {error ? <p className="doc-banner__error" role="alert">{error}</p> : null}
     </div>

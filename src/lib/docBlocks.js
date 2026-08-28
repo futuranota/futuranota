@@ -1475,6 +1475,11 @@ function normalizeBannerBlock(block) {
     width: Number.isFinite(block?.width) ? block.width : 0,
     height: Number.isFinite(block?.height) ? block.height : 0,
     imageSaved,
+    libraryItemId: String(block?.libraryItemId || "").trim(),
+    libraryOwnerKind: block?.libraryOwnerKind === "folder" ? "folder" : (
+      block?.libraryOwnerKind === "document" ? "document" : ""
+    ),
+    libraryOwnerId: String(block?.libraryOwnerId || "").trim(),
     openFilePicker: Boolean(block?.openFilePicker),
     bannerSaved: Boolean(block?.bannerSaved) && imageSaved,
   };
