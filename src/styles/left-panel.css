@@ -20510,7 +20510,6 @@ body.doc-content-resizing * {
 
 .folder-library-overlay__scope {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   margin: 0 18px 10px;
   padding: 4px;
@@ -20518,6 +20517,14 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+}
+
+.folder-library-overlay__scope--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.folder-library-overlay__scope--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .folder-library-overlay__scope-btn {

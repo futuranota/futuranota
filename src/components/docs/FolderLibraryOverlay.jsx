@@ -925,7 +925,10 @@ export function FolderLibraryOverlay({
 
           {showScopeBar ? (
             <div
-              className="folder-library-overlay__scope"
+              className={
+                "folder-library-overlay__scope"
+                + ` folder-library-overlay__scope--${scopeBarOptions.length}`
+              }
               role="tablist"
               aria-label={t("doc.library.scopeAria")}
             >
