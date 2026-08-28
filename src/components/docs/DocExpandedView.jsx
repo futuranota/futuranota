@@ -13,7 +13,7 @@ import { Modal } from "../shared/Modal.jsx";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { playTrashBoxSound } from "../../lib/trashBoxSound.js";
-import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
+import { MarkLoading, MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
@@ -68,7 +68,7 @@ import {
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
-  listAdoptableDocs,
+  listMoveTargetFolders,
   resolveAdoptableDocLabel,
   setEntityNodeParentDocument,
 } from "../../lib/nodeParentAdoption.js";
@@ -310,6 +310,7 @@ export function DocExpandedView({
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
   const doc = useDocsStore((s) => s.docs[docId]);
+  const docAvailable = Boolean(doc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const addDoc = useDocsStore((s) => s.addDoc);
   const linkDocToObject = useDocsStore((s) => s.linkDocToObject);
@@ -471,12 +472,19 @@ export function DocExpandedView({
   }, [hideDocForNodeModal]);
 
   useEffect(() => {
+    if (docAvailable) return undefined;
+    onClose();
+    return undefined;
+  }, [docAvailable, onClose]);
+
+  useEffect(() => {
     setIsDraftReady(false);
     skipDraftPersistRef.current = false;
     docIsDirtyRef.current = false;
     setShowCreateDocument(false);
-    const d = useDocsStore.getState().docs[docId];
-    if (!d) return;
+    if (!doc) return undefined;
+    try {
+    const d = doc;
     const cached = useUIStateStore.getState().docEditorDrafts[docId];
     const loadedBlocksRaw = normalizeDocBlocks(
       d.blocks?.length ? d.blocks : docBlocksFromBody(d.body ?? d.content ?? ""),
@@ -626,7 +634,12 @@ export function DocExpandedView({
     setShowUnsavedConfirm(false);
     storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(blocksForSnapshot).join("|");
     setIsDraftReady(true);
-  }, [docId]);
+    } catch (err) {
+      console.error("[DocExpandedView] failed to load draft", err);
+      onClose();
+    }
+    return undefined;
+  }, [docId, docAvailable, onClose]);
 
   // Migrate legacy data-URL block images + folder icon to Storage.
   useEffect(() => {
@@ -702,11 +715,18 @@ export function DocExpandedView({
     const nodesById = useNodesStore.getState().nodes;
 
     if (!hasNewLinkedIds) {
-      // Panel/shred deleted the node — strip leftover title layers from the open draft.
+      // Panel/shred deleted the node or it moved to another folder — strip stale layers.
       let pruned = nextBlocks;
       for (const block of nextBlocks) {
         if (!block?.nodeId) continue;
-        if (nodesById[block.nodeId] && !isNodeMarkedDeletedForSync(block.nodeId)) continue;
+        const node = nodesById[block.nodeId];
+        if (
+          node
+          && String(node.parentDocId || "") === String(doc.id)
+          && !isNodeMarkedDeletedForSync(block.nodeId)
+        ) {
+          continue;
+        }
         pruned = removeLinkedOwnerBundleFromBlocks(pruned, block.nodeId).blocks;
       }
       nextBlocks = pruned;
@@ -1050,14 +1070,24 @@ export function DocExpandedView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeNodeContext, showUnsavedConfirm, showNodeUnsavedConfirm, requestCloseDoc]);
 
-  if (!doc) return null;
+  if (!doc) {
+    return (
+      <div className="doc-overlay-shell-loading" role="status" aria-busy="true">
+        <MarkLoading label={t("common.loading")} />
+      </div>
+    );
+  }
 
   const objectList = Object.values(objects);
   const parentObject = draftParentId ? objects[draftParentId] : null;
   const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
   const canAssignChildParent = canReassignDocumentParent(doc, { parentDocId: doc.id });
-  const adoptableFolders = listAdoptableDocs(allDocs, { parentObjectId: draftParentId || null });
+  const adoptableFolders = listMoveTargetFolders(allDocs, {
+    parentObjectId: draftParentId || null,
+    fromFolderDoc: doc,
+    excludeFolderId: doc.id,
+  });
   const draftSnapshot = buildDocPersistSnapshot({
     title: resolvePersistTitle({
       draftTitle,
@@ -1702,6 +1732,25 @@ export function DocExpandedView({
     discardNodeModalWithoutSave();
   };
 
+  const stripMovedNodeFromOpenFolderDraft = (nodeId) => {
+    const { blocks: next } = removeLinkedOwnerBundleFromBlocks(
+      draftBlocksRef.current,
+      nodeId,
+    );
+    setDraftBlocks(next);
+    storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(next).join("|");
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const aligned = { ...prev, blocks: next };
+      docSnapshotRef.current = JSON.stringify(aligned);
+      return aligned;
+    });
+    const cached = useUIStateStore.getState().docEditorDrafts[docId];
+    if (cached) {
+      useUIStateStore.getState().setDocEditorDraft(docId, { ...cached, blocks: next });
+    }
+  };
+
   const handleChildParentDocIdChange = (nextId) => {
     const next = String(nextId || "").trim();
     const nodeId = activeNodeContext?.nodeId;
@@ -1711,9 +1760,8 @@ export function DocExpandedView({
       nodeEntityId: nodeId,
       docId: next,
     });
-    if (isUnassignedDepartmentFolder(doc)) {
-      discardNodeModalWithoutSave();
-    }
+    stripMovedNodeFromOpenFolderDraft(nodeId);
+    resetNodeModalState();
   };
 
   const flushAndCloseNodeModal = async ({ withMarkLoader = false } = {}) => {
@@ -2697,7 +2745,11 @@ export function DocExpandedView({
             isContentMode ? handleShredFolderNode : undefined
           }
         />
-        ) : null}
+        ) : (
+          <div className="doc-overlay-shell-loading" role="status" aria-busy="true">
+            <MarkLoading label={t("common.loading")} />
+          </div>
+        )}
       </div>
       {showCreateDocument ? (
         <StandaloneNodeModal

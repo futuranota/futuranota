@@ -610,6 +610,27 @@ export function removeLinkedOwnerBundleFromBlocks(blocks, nodeId) {
   return { blocks: next, removed: true };
 }
 
+/**
+ * Strip linked bundles whose node entity now lives under a different folder.
+ * @param {unknown} blocks
+ * @param {Record<string, { parentDocId?: string|null }>} nodesById
+ * @param {string|null|undefined} folderDocId
+ */
+export function pruneLinkedBundlesMovedOutOfFolder(blocks, nodesById, folderDocId) {
+  const folderId = String(folderDocId || "").trim();
+  if (!folderId) return normalizeDocBlocks(blocks);
+
+  let next = normalizeDocBlocks(blocks);
+  for (const block of next) {
+    if (!block?.nodeId) continue;
+    const node = nodesById?.[block.nodeId];
+    if (!node) continue;
+    if (String(node.parentDocId || "").trim() === folderId) continue;
+    next = removeLinkedOwnerBundleFromBlocks(next, block.nodeId).blocks;
+  }
+  return next;
+}
+
 /** Zustand node ids still referenced by saved doc blocks (h1, todo, date, metric, …). */
 export function isDocBlockLinkedToNode(block) {
   if (!block?.nodeId || !block.queryEnabled) return false;

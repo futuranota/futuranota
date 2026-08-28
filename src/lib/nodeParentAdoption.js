@@ -180,16 +180,15 @@ export function setEntityNodeParentDocument({
 }
 
 /**
- * UX gate: reassign parent only for orphans or docs under a folder with no department
- * (sidebar Uncategorized bucket). Folders that already have a department stay locked.
+ * UX gate: allow "Move to folder" for content/product hosts; block knowledge/template.
  * @param {object|null|undefined} parentFolderDoc
  * @param {{ parentDocId?: string|null }} [nodeLike]
  */
 export function canReassignDocumentParent(parentFolderDoc, nodeLike = {}) {
-  const parentId = String(nodeLike?.parentDocId || parentFolderDoc?.id || "").trim();
-  if (!parentId) return true;
+  void nodeLike;
   if (!parentFolderDoc) return true;
-  return isUnassignedDepartmentFolder(parentFolderDoc);
+  if (isKnowledgeDoc(parentFolderDoc) || isTemplateDoc(parentFolderDoc)) return false;
+  return isContentDoc(parentFolderDoc) || isProductDoc(parentFolderDoc);
 }
 
 /**
@@ -252,6 +251,39 @@ export function listAdoptableDocs(docs = {}, { parentObjectId } = {}) {
   return merged.sort((a, b) =>
     resolveAdoptableDocLabel(a).localeCompare(resolveAdoptableDocLabel(b)),
   );
+}
+
+/**
+ * Folders eligible as move targets from an open child document.
+ * Uncategorized origin → all adoptable folders; assigned dept → same dept + Uncategorized.
+ * @param {object|object[]} docs
+ * @param {{ parentObjectId?: string, fromFolderDoc?: object|null, excludeFolderId?: string|null }} [options]
+ */
+export function listMoveTargetFolders(docs = {}, options = {}) {
+  const { parentObjectId, fromFolderDoc = null, excludeFolderId = null } = options;
+  const all = listAdoptableDocs(docs, { parentObjectId });
+  const excludeId = String(excludeFolderId || "").trim();
+
+  const filtered = all.filter((folder) => {
+    if (excludeId && folder.id === excludeId) return false;
+    if (!fromFolderDoc || isUnassignedDepartmentFolder(fromFolderDoc)) return true;
+    if (isUnassignedDepartmentFolder(folder)) return true;
+    const fromDept = String(fromFolderDoc.departmentId || "").trim();
+    return String(folder.departmentId || "").trim() === fromDept;
+  });
+
+  if (!fromFolderDoc || isUnassignedDepartmentFolder(fromFolderDoc)) {
+    return filtered.sort((a, b) =>
+      resolveAdoptableDocLabel(a).localeCompare(resolveAdoptableDocLabel(b)),
+    );
+  }
+
+  return filtered.sort((a, b) => {
+    const aUncat = isUnassignedDepartmentFolder(a);
+    const bUncat = isUnassignedDepartmentFolder(b);
+    if (aUncat !== bUncat) return aUncat ? 1 : -1;
+    return resolveAdoptableDocLabel(a).localeCompare(resolveAdoptableDocLabel(b));
+  });
 }
 
 /**

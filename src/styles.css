@@ -7569,6 +7569,15 @@ textarea.note-form-field {
   overflow: hidden;
 }
 
+.doc-overlay-shell-loading {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  padding: 24px;
+}
+
 .doc-overlay-global-card .fn-doc-expanded {
   min-height: 0;
 }

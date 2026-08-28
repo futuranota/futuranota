@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
-import { mergeMissingLinkedOwnerBundlesLive } from "./docNodeSync.js";
+import { mergeMissingLinkedOwnerBundlesLive, pruneLinkedBundlesMovedOutOfFolder } from "./docNodeSync.js";
 
 function linkedH1(nodeId, title) {
   return createDocBlock(DOC_BLOCK_TYPES.H1, {
@@ -48,5 +48,28 @@ describe("mergeMissingLinkedOwnerBundlesLive", () => {
     const live = { "live-1": { id: "live-1", title: "Live doc" } };
     const merged = mergeMissingLinkedOwnerBundlesLive(draft, store, live, () => false);
     expect(merged.some((b) => b.nodeId === "live-1")).toBe(true);
+  });
+});
+
+describe("pruneLinkedBundlesMovedOutOfFolder", () => {
+  it("removes bundles whose node moved to another folder", () => {
+    const blocks = [
+      linkedH1("doc-a", "Still here"),
+      linkedH1("doc-b", "Moved away"),
+    ];
+    const nodesById = {
+      "doc-a": { id: "doc-a", parentDocId: "folder-1" },
+      "doc-b": { id: "doc-b", parentDocId: "folder-2" },
+    };
+    const pruned = pruneLinkedBundlesMovedOutOfFolder(blocks, nodesById, "folder-1");
+    expect(pruned.some((b) => b.nodeId === "doc-a")).toBe(true);
+    expect(pruned.some((b) => b.nodeId === "doc-b")).toBe(false);
+  });
+
+  it("keeps bundles that still belong to the open folder", () => {
+    const blocks = [linkedH1("doc-a", "Still here")];
+    const nodesById = { "doc-a": { id: "doc-a", parentDocId: "folder-1" } };
+    const pruned = pruneLinkedBundlesMovedOutOfFolder(blocks, nodesById, "folder-1");
+    expect(pruned).toHaveLength(1);
   });
 });

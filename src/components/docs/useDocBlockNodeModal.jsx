@@ -25,6 +25,7 @@ import {
   syncVideoNodeFromVideoBlock,
   isDocBlockLinkedToNode,
   shouldMirrorNodeContentInDoc,
+  removeLinkedOwnerBundleFromBlocks,
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
@@ -46,7 +47,7 @@ import {
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
-  listAdoptableDocs,
+  listMoveTargetFolders,
   resolveAdoptableDocLabel,
   setEntityNodeParentDocument,
 } from "../../lib/nodeParentAdoption.js";
@@ -87,7 +88,11 @@ export function useDocBlockNodeModal({
     hostFolderDoc,
     { parentDocId: hostFolderDoc?.id || docId || null },
   );
-  const adoptableDocList = listAdoptableDocs(docsById, { parentObjectId });
+  const adoptableDocList = listMoveTargetFolders(docsById, {
+    parentObjectId,
+    fromFolderDoc: hostFolderDoc,
+    excludeFolderId: hostFolderDoc?.id || docId || null,
+  });
   const hostFolderLabel = hostFolderDoc
     ? resolveAdoptableDocLabel(hostFolderDoc)
     : (docTitle.trim() || "New document");
@@ -606,14 +611,19 @@ export function useDocBlockNodeModal({
     const next = String(nextId || "").trim();
     const nodeId = activeNodeContext?.nodeId;
     if (!canAssignParent || !nodeId || !next) return;
-    if (next === (docId || hostFolderDoc?.id)) return;
+    const sourceFolderId = docId || hostFolderDoc?.id || null;
+    if (next === sourceFolderId) return;
     setEntityNodeParentDocument({
       nodeEntityId: nodeId,
       docId: next,
     });
-    if (hostFolderDoc && isUnassignedDepartmentFolder(hostFolderDoc)) {
-      flushAndCloseNodeModal();
+    const { blocks: nextBlocks } = removeLinkedOwnerBundleFromBlocks(blocks, nodeId);
+    setBlocks(nextBlocks);
+    if (docId) {
+      const body = docBlocksToBody(nextBlocks);
+      updateDoc(docId, { blocks: nextBlocks, body, content: body });
     }
+    resetNodeModal();
   };
 
   const handleNodeModalSave = () => {

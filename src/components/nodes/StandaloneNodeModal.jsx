@@ -8,7 +8,7 @@ const DOC_SAVE_LOADING_MIN_MS = 700;
 import {
   canReassignDocumentParent,
   isUnassignedDepartmentFolder,
-  listAdoptableDocs,
+  listMoveTargetFolders,
   resolveAdoptableDocLabel,
   resolveNodeParentDocId,
   setEntityNodeParentDocument,
@@ -203,12 +203,15 @@ export function StandaloneNodeModal({
     if (!id) return null;
     return docsByStoreId?.[id] || (Array.isArray(docs) ? docs.find((d) => d?.id === id) : null) || null;
   }, [node?.parentDocId, initialParentDocId, docsByStoreId, docs]);
-  // No-department / orphan only — folders with a department stay locked (UX trial).
   const canAssignParent = canReassignDocumentParent(
     liveParentFolder,
     { parentDocId: node?.parentDocId || (isNew ? initialParentDocId : null) },
   );
-  const docList = listAdoptableDocs(docs, { parentObjectId });
+  const docList = listMoveTargetFolders(docs, {
+    parentObjectId,
+    fromFolderDoc: liveParentFolder,
+    excludeFolderId: liveParentFolder?.id || null,
+  });
   const [query, setQuery] = useState(() => getNodeDisplayTitle(node) || "");
   const [dataType, setDataType] = useState(node?.dataType || NODE_DATA_TYPES.TEXT);
   const [content, setContent] = useState(() => contentToString(node?.content, node?.dataType));
@@ -372,7 +375,7 @@ export function StandaloneNodeModal({
     onClose?.();
   };
 
-  // Prefer live parent id (state can be empty when listAdoptableDocs omits the folder).
+  // Prefer live parent id (state can be empty when listMoveTargetFolders omits the folder).
   const resolvedParentDocId = parentDocId
     || node?.parentDocId
     || initialParentDocId

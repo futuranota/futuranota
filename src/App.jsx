@@ -48,6 +48,7 @@ import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { GinaCanvasFab } from './components/gina/GinaCanvasFab.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
+import { DocOverlayErrorBoundary } from './components/shared/DocOverlayErrorBoundary.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
 import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
 import { QLoopEditorOverlay } from './components/qloops/QLoopEditorOverlay.jsx';
@@ -1314,6 +1315,11 @@ useEffect(() => {
     if (expandedDocId === docId) setExpandedDocId(null);
   };
 
+  const closeExpandedDoc = useCallback(() => {
+    setExpandedDocId(null);
+    setDocOpenFocusBlockId(null);
+  }, []);
+
   const openDocumentOverlay = (docId, options = {}) => {
     if (!docId || !docs[docId]) return;
     const openTarget = () => {
@@ -1332,8 +1338,7 @@ useEffect(() => {
       docCloseInterceptorRef.current(onProceed);
       return;
     }
-    setExpandedDocId(null);
-    setDocOpenFocusBlockId(null);
+    closeExpandedDoc();
     onProceed?.();
   };
 
@@ -2443,24 +2448,30 @@ useEffect(() => {
       ) : null}
 
       {expandedDocId && (
-        <div className="doc-overlay-global">
+        <div
+          className="doc-overlay-global"
+          role="presentation"
+          onClick={() => closeExpandedDocForExternalAction()}
+        >
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
-            <DocExpandedView
-              key={`${expandedDocId}:${docViewGeneration}`}
-              docId={expandedDocId}
-              initialFocusBlockId={docOpenFocusBlockId}
-              onExpandNode={openNodeOverlay}
-              registerCloseInterceptor={registerDocCloseInterceptor}
-              onClose={() => {
-                setExpandedDocId(null);
-                setDocOpenFocusBlockId(null);
-              }}
-              onNavigateToDoc={(nextDocId) => openDocumentOverlay(nextDocId)}
-              onInsertToCanvas={insertNodeToCanvas}
-              onDocumentDeleted={handleDocumentDeleted}
-              onAfterDocSave={handleAfterDocSave}
-              onStepPlaybookRemoved={handleStepPlaybookRemoved}
-            />
+            <DocOverlayErrorBoundary
+              resetKey={`${expandedDocId}:${docViewGeneration}`}
+              onError={closeExpandedDoc}
+            >
+              <DocExpandedView
+                key={`${expandedDocId}:${docViewGeneration}`}
+                docId={expandedDocId}
+                initialFocusBlockId={docOpenFocusBlockId}
+                onExpandNode={openNodeOverlay}
+                registerCloseInterceptor={registerDocCloseInterceptor}
+                onClose={closeExpandedDoc}
+                onNavigateToDoc={(nextDocId) => openDocumentOverlay(nextDocId)}
+                onInsertToCanvas={insertNodeToCanvas}
+                onDocumentDeleted={handleDocumentDeleted}
+                onAfterDocSave={handleAfterDocSave}
+                onStepPlaybookRemoved={handleStepPlaybookRemoved}
+              />
+            </DocOverlayErrorBoundary>
           </div>
         </div>
       )}
