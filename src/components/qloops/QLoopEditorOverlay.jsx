@@ -1,14 +1,15 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { QLoopSequenceEditor } from "./QLoopSequenceEditor.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
+import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 
 /**
  * @param {Object} props
  * @param {import("../../lib/qloopSession.js").QLoopSession | null} props.session
  * @param {(patch: Partial<import("../../lib/qloopSession.js").QLoopSession>) => void} props.onChange
  * @param {() => void} props.onCloseTab
- * @param {(queries: import("../../lib/docBlocks.js").QLoopEntry[]) => void} props.onSaved
+ * @param {(queries: import("../../lib/docBlocks.js").QLoopEntry[]) => boolean|Promise<boolean>} [props.onSaved]
  */
 export function QLoopEditorOverlay({
   session,
@@ -17,16 +18,30 @@ export function QLoopEditorOverlay({
   onSaved,
 }) {
   const { t } = useI18n();
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || saving) return;
       event.preventDefault();
       onCloseTab?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCloseTab]);
+  }, [onCloseTab, saving]);
+
+  const handleSaved = useCallback(async (finalizedQueries) => {
+    if (saving || !onSaved) return;
+    setSaving(true);
+    try {
+      const ok = await onSaved(finalizedQueries);
+      if (ok) {
+        onCloseTab?.();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [onCloseTab, onSaved, saving]);
 
   if (!session) return null;
 
@@ -44,6 +59,7 @@ export function QLoopEditorOverlay({
             type="button"
             className="qloop-editor-overlay__close"
             onClick={onCloseTab}
+            disabled={saving}
             aria-label={t("qloopsLibrary.closeTab")}
             title={t("qloopsLibrary.closeTab")}
           >
@@ -56,15 +72,14 @@ export function QLoopEditorOverlay({
             blockId={session.blockId}
             title={session.title}
             queries={session.queries}
-            saved={session.saved}
+            saving={saving}
             onTitleChange={(nextTitle) => onChange({ title: nextTitle, saved: false })}
             onQueriesChange={(nextQueries) => onChange({ queries: nextQueries, saved: false })}
-            onSaved={(finalizedQueries) => {
-              onSaved?.(finalizedQueries);
-            }}
+            onSaved={handleSaved}
           />
         </div>
       </div>
+      <MarkLoadingOverlay open={saving} label={t("common.saving")} />
     </div>,
     document.body,
   );

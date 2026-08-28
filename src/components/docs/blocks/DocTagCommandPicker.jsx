@@ -5,6 +5,7 @@ import {
   normalizeTagKey,
 } from "../../../lib/urlTableTags.js";
 import { useUrlTableStore } from "../../../stores/urlTableStore.js";
+import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 const URL_TABLE_ICON = "/uploads/url-table.svg";
 
@@ -115,12 +116,7 @@ export function DocTagCommandPicker({
     }
   };
 
-  const style = {
-    position: "fixed",
-    top: anchor.top,
-    left: anchor.left,
-    zIndex: 10065,
-  };
+  const style = floatingMenuStyleFromAnchor(anchor);
 
   return createPortal(
     <div

@@ -56,6 +56,101 @@ export function readTextareaSelection(el) {
   return { start: lo, end: hi };
 }
 
+/** Default dimensions aligned with `.doc-tag-command-picker` in left-panel.css */
+export const FLOATING_MENU_DEFAULT_WIDTH = 320;
+export const FLOATING_MENU_DEFAULT_MAX_HEIGHT = 360;
+export const FLOATING_MENU_GAP = 6;
+export const FLOATING_MENU_VIEWPORT_PAD = 12;
+
+/**
+ * Chooses above/below placement for @ pickers and command menus.
+ * When opening above, uses translateY(-100%) so content grows upward from the caret.
+ *
+ * @param {DOMRect|{ top: number, bottom: number, left: number, right?: number }} caretRect
+ * @param {{
+ *   width?: number,
+ *   maxHeight?: number,
+ *   gap?: number,
+ *   pad?: number,
+ *   viewportWidth?: number,
+ *   viewportHeight?: number,
+ * }} [options]
+ * @returns {{
+ *   top: number,
+ *   left: number,
+ *   placement: "above"|"below",
+ *   transform?: string,
+ *   maxHeight: number,
+ * }}
+ */
+export function resolveFloatingMenuAnchor(caretRect, options = {}) {
+  const width = options.width ?? FLOATING_MENU_DEFAULT_WIDTH;
+  const maxHeight = options.maxHeight ?? FLOATING_MENU_DEFAULT_MAX_HEIGHT;
+  const gap = options.gap ?? FLOATING_MENU_GAP;
+  const pad = options.pad ?? FLOATING_MENU_VIEWPORT_PAD;
+  const viewportWidth = options.viewportWidth
+    ?? (typeof window !== "undefined" ? window.innerWidth : width + pad * 2);
+  const viewportHeight = options.viewportHeight
+    ?? (typeof window !== "undefined" ? window.innerHeight : maxHeight + pad * 2);
+
+  const effectiveMaxHeight = Math.min(maxHeight, Math.max(120, viewportHeight - pad * 2));
+
+  const spaceBelow = viewportHeight - pad - (caretRect.bottom + gap);
+  const spaceAbove = caretRect.top - gap - pad;
+  const openBelow = spaceBelow >= effectiveMaxHeight || spaceBelow >= spaceAbove;
+
+  let top;
+  let placement;
+  let transform;
+
+  if (openBelow) {
+    placement = "below";
+    top = caretRect.bottom + gap;
+    const overflow = top + effectiveMaxHeight - (viewportHeight - pad);
+    if (overflow > 0) {
+      top = Math.max(pad, top - overflow);
+    }
+  } else {
+    placement = "above";
+    top = caretRect.top - gap;
+    transform = "translateY(-100%)";
+    const menuTop = top - effectiveMaxHeight;
+    if (menuTop < pad) {
+      top = pad + effectiveMaxHeight;
+    }
+  }
+
+  let left = caretRect.left;
+  if (left + width > viewportWidth - pad) {
+    left = Math.max(pad, viewportWidth - pad - width);
+  }
+  left = Math.max(pad, left);
+
+  return {
+    top,
+    left,
+    placement,
+    ...(transform ? { transform } : {}),
+    maxHeight: effectiveMaxHeight,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof resolveFloatingMenuAnchor>|null|undefined} anchor
+ * @param {number} [zIndex=10065]
+ */
+export function floatingMenuStyleFromAnchor(anchor, zIndex = 10065) {
+  if (!anchor) return {};
+  return {
+    position: "fixed",
+    top: anchor.top,
+    left: anchor.left,
+    zIndex,
+    ...(anchor.transform ? { transform: anchor.transform } : {}),
+    ...(anchor.maxHeight ? { maxHeight: anchor.maxHeight } : {}),
+  };
+}
+
 /** Fixed position for the + button beside a textarea selection end. */
 export function resolveTextSelectionToolbarPosition(textarea, selectionStart, selectionEnd) {
   if (!textarea || textarea.tagName !== "TEXTAREA") return null;

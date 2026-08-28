@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 /**
  * Portal autocomplete for moodboard #tag refs (bare label, no "#").
@@ -37,12 +38,7 @@ export function DocTagRefMenu({
 
   if (!open || !anchor || typeof document === "undefined") return null;
 
-  const style = {
-    position: "fixed",
-    top: anchor.top,
-    left: anchor.left,
-    zIndex: 10060,
-  };
+  const style = floatingMenuStyleFromAnchor(anchor, 10060);
 
   return createPortal(
     <div

@@ -282,6 +282,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       blockIndex,
       caretOffset: mentionQuery ? stripped.caret : caretOffset,
       title: query.title,
+      description: query.description,
       qloopSource: {
         loopId: loop.id,
         loopDocId: loop.docId,

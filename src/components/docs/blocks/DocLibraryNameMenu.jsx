@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 /**
  * Autocomplete for document library image Names (invoke in prose).
@@ -43,12 +44,7 @@ export function DocLibraryNameMenu({
       className="doc-mention-menu"
       role="listbox"
       aria-label="Library names"
-      style={{
-        position: "fixed",
-        top: anchor.top,
-        left: anchor.left,
-        zIndex: 10060,
-      }}
+      style={floatingMenuStyleFromAnchor(anchor, 10060)}
     >
       {items.length === 0 ? (
         <p className="doc-mention-menu__empty">{emptyLabel}</p>

@@ -50,7 +50,7 @@ describe("insertQLoopQuery", () => {
     expect(result.focusBlockId).toBe(result.blocks[3].id);
   });
 
-  it("does not insert description or slot index into document text", () => {
+  it("prefills description in the text block below the H1", () => {
     const blocks = [
       createDocBlock(DOC_BLOCK_TYPES.TEXT, { id: "t1", text: "" }),
     ];
@@ -58,12 +58,16 @@ describe("insertQLoopQuery", () => {
       blockIndex: 0,
       caretOffset: 0,
       title: "Question only",
+      description: "Author note for this query",
       qloopSource,
     });
 
     const h1 = result.blocks.find((block) => block.type === DOC_BLOCK_TYPES.H1);
     expect(h1.title).toBe("Question only");
-    expect(JSON.stringify(result.blocks)).not.toContain("description");
+    const textBelow = result.blocks.find(
+      (block) => block.type === DOC_BLOCK_TYPES.TEXT && block.text?.includes("Author note"),
+    );
+    expect(textBelow?.text).toBe("Author note for this query");
     expect(h1.title).not.toContain("[2]");
   });
 

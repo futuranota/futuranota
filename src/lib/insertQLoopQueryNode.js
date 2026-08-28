@@ -14,12 +14,21 @@ function inlineH1FromQLoop(title, qloopSource) {
   });
 }
 
+function buildNodeTailText(description, afterText) {
+  const desc = String(description ?? "").trim();
+  const after = String(afterText ?? "");
+  if (desc && after.trim()) return `${desc}\n${after}`;
+  if (desc) return desc;
+  return after;
+}
+
 /**
  * @param {object[]} blocks
  * @param {{
  *   blockIndex: number,
  *   caretOffset?: number|null,
  *   title: string,
+ *   description?: string,
  *   qloopSource: object,
  * }} options
  */
@@ -27,21 +36,32 @@ export function insertQLoopQueryIntoNodeBlocks(blocks, {
   blockIndex,
   caretOffset = null,
   title,
+  description = "",
   qloopSource,
 }) {
   const normalized = normalizeWritingBlocks(blocks);
   const safeIndex = Math.max(0, Math.min(blockIndex, normalized.length - 1));
   const block = normalized[safeIndex];
   const h1 = inlineH1FromQLoop(title, qloopSource);
-  const tailText = createEmptyTextBlock("");
 
   if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) {
     const withH1 = insertBlockAfterIndex(normalized, safeIndex, h1);
     const h1Index = withH1.findIndex((entry) => entry.id === h1.id);
+    const tailText = createEmptyTextBlock(buildNodeTailText(description, ""));
     const withTail = insertBlockAfterIndex(withH1, h1Index, tailText);
+    const tailIndex = withTail.findIndex((entry) => entry.id === tailText.id);
+    if (!String(tailText.text ?? "").trim()) {
+      return {
+        blocks: withTail,
+        focusBlockId: tailText.id,
+        h1BlockId: h1.id,
+      };
+    }
+    const emptyTail = createEmptyTextBlock("");
+    withTail.splice(tailIndex + 1, 0, emptyTail);
     return {
       blocks: withTail,
-      focusBlockId: tailText.id,
+      focusBlockId: emptyTail.id,
       h1BlockId: h1.id,
     };
   }
@@ -65,7 +85,7 @@ export function insertQLoopQueryIntoNodeBlocks(blocks, {
     h1Index = safeIndex + 1;
   }
 
-  const afterBlock = createEmptyTextBlock(after);
+  const afterBlock = createEmptyTextBlock(buildNodeTailText(description, after));
   next.splice(h1Index + 1, 0, afterBlock);
 
   if (!String(afterBlock.text ?? "").trim()) {

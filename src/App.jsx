@@ -1552,19 +1552,19 @@ useEffect(() => {
     setActiveQLoopSession(null);
   }, [askConfirm, t]);
 
-  const handleQLoopSessionSaved = useCallback((finalizedQueries) => {
-    if (qloopSaveLockRef.current) return;
+  const handleQLoopSessionSaved = useCallback(async (finalizedQueries) => {
+    if (qloopSaveLockRef.current) return false;
     const current = activeQLoopSessionRef.current;
-    if (!current) return;
+    if (!current) return false;
 
     const merged = { ...current, queries: finalizedQueries, saved: true };
     if (!qloopSessionHasContent(merged)) {
       console.warn('[qloops] Save skipped: empty loop');
-      return;
+      return false;
     }
     if (!merged.objectId) {
       console.warn('[qloops] Save skipped: missing company objectId');
-      return;
+      return false;
     }
 
     qloopSaveLockRef.current = true;
@@ -1578,17 +1578,12 @@ useEffect(() => {
       });
       if (!result?.docId) {
         console.warn('[qloops] Save did not write a document', result);
-        return;
+        return false;
       }
-      flushPersistenceSync().catch((err) => {
+      await flushPersistenceSync().catch((err) => {
         console.warn('[qloops] flush after save failed', err);
       });
-      setActiveQLoopSession({
-        ...merged,
-        docId: result.docId,
-        blockId: result.blockId || merged.blockId,
-        saved: true,
-      });
+      return true;
     } finally {
       qloopSaveLockRef.current = false;
     }

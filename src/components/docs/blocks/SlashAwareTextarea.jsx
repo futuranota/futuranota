@@ -59,6 +59,7 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import {
   copyTextareaTypography,
   getCaretClientRect,
+  resolveFloatingMenuAnchor,
   resolveSlashGhostOverlayPosition,
   scrollTextareaCaretIntoCameraView,
   withPreservedWritingScroll,
@@ -80,6 +81,13 @@ const CARET_CAMERA_KEYS = new Set([
   "Home",
   "End",
 ]);
+
+function buildFloatingMenuAnchor(caretRect, lineHeight) {
+  return {
+    ...resolveFloatingMenuAnchor(caretRect),
+    lineHeight,
+  };
+}
 
 function collapseDuplicateSlashTail(value) {
   const tail = getSlashTail(value);
@@ -668,11 +676,7 @@ export function SlashAwareTextarea({
       setLibraryNameMenuAnchor(null);
       const rect = getCaretClientRect(el, mentionQuery.start);
       const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-      setMenuAnchor({
-        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-        lineHeight,
-      });
+      setMenuAnchor(buildFloatingMenuAnchor(rect, lineHeight));
       return;
     }
 
@@ -685,11 +689,7 @@ export function SlashAwareTextarea({
       setLibraryNameMenuAnchor(null);
       const rect = getCaretClientRect(el, tagRefQuery.start);
       const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-      setTagRefMenuAnchor({
-        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-        lineHeight,
-      });
+      setTagRefMenuAnchor(buildFloatingMenuAnchor(rect, lineHeight));
       return;
     }
 
@@ -704,11 +704,7 @@ export function SlashAwareTextarea({
         setLibraryNameMenuAnchor(null);
         const rect = getCaretClientRect(el, assignPath.start);
         const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-        setAssignPathMenuAnchor({
-          top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-          lineHeight,
-        });
+        setAssignPathMenuAnchor(buildFloatingMenuAnchor(rect, lineHeight));
         return;
       }
     }
@@ -726,11 +722,7 @@ export function SlashAwareTextarea({
         setActiveLibraryNameQuery(nameQuery);
         const rect = getCaretClientRect(el, nameQuery.start);
         const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-        setLibraryNameMenuAnchor({
-          top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-          lineHeight,
-        });
+        setLibraryNameMenuAnchor(buildFloatingMenuAnchor(rect, lineHeight));
         return;
       }
     }
@@ -760,11 +752,7 @@ export function SlashAwareTextarea({
     const caret = typeof el.selectionStart === "number" ? el.selectionStart : value.length;
     const rect = getCaretClientRect(el, caret);
     const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-    setMenuAnchor({
-      top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-      lineHeight,
-    });
+    setMenuAnchor(buildFloatingMenuAnchor(rect, lineHeight));
     setForcedQloopPicker(true);
   }, [qloopPickerForceOpen, textareaRef, value]);
 

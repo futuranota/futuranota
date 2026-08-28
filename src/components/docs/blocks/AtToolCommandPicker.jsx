@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { DocTagCommandPicker } from "./DocTagCommandPicker.jsx";
 import { suggestNextQLoopIndex } from "../../../lib/qloopsLibrary.js";
+import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 const URL_TABLE_ICON = "/uploads/url-table.svg";
 const QLOOP_ICON = "/uploads/step-by-step.svg";
@@ -111,12 +112,7 @@ export function AtToolCommandPicker({
     );
   }
 
-  const style = {
-    position: "fixed",
-    top: anchor.top,
-    left: anchor.left,
-    zIndex: 10065,
-  };
+  const style = floatingMenuStyleFromAnchor(anchor);
 
   return createPortal(
     <div

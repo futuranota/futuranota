@@ -6,22 +6,23 @@ import {
   qloopEntryHasContent,
 } from "../../lib/docBlocks.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 
 /**
  * @param {Object} props
  * @param {string} props.blockId
  * @param {string} props.title
  * @param {import("../../lib/docBlocks.js").QLoopEntry[]} props.queries
- * @param {boolean} [props.saved]
+ * @param {boolean} [props.saving]
  * @param {(title: string) => void} [props.onTitleChange]
  * @param {(queries: import("../../lib/docBlocks.js").QLoopEntry[]) => void} [props.onQueriesChange]
- * @param {(queries: import("../../lib/docBlocks.js").QLoopEntry[]) => void} [props.onSaved]
+ * @param {(queries: import("../../lib/docBlocks.js").QLoopEntry[]) => void | Promise<void>} [props.onSaved]
  */
 export function QLoopSequenceEditor({
   blockId,
   title,
   queries,
-  saved = false,
+  saving = false,
   onTitleChange,
   onQueriesChange,
   onSaved,
@@ -69,6 +70,7 @@ export function QLoopSequenceEditor({
   };
 
   const handleSave = () => {
+    if (saving) return;
     const finalized = finalizeQLoopSequence(normalized);
     const hasContent = String(title ?? "").trim() || finalized.some(qloopEntryHasContent);
     if (!hasContent) return;
@@ -95,6 +97,7 @@ export function QLoopSequenceEditor({
           onKeyDown={stopBubble}
           onKeyUp={stopBubble}
           onMouseDown={stopBubble}
+          disabled={saving}
         />
       </div>
 
@@ -110,7 +113,7 @@ export function QLoopSequenceEditor({
                   type="button"
                   className="btn xs ghost qloop-sequence-editor__move"
                   onClick={() => handleMoveQuery(entry.id, -1)}
-                  disabled={entry.index <= 1}
+                  disabled={saving || entry.index <= 1}
                   aria-label={t("qloopEditor.moveUp")}
                 >
                   ↑
@@ -119,7 +122,7 @@ export function QLoopSequenceEditor({
                   type="button"
                   className="btn xs ghost qloop-sequence-editor__move"
                   onClick={() => handleMoveQuery(entry.id, 1)}
-                  disabled={entry.index >= normalized.length}
+                  disabled={saving || entry.index >= normalized.length}
                   aria-label={t("qloopEditor.moveDown")}
                 >
                   ↓
@@ -128,7 +131,7 @@ export function QLoopSequenceEditor({
                   type="button"
                   className="btn xs ghost qloop-sequence-editor__remove"
                   onClick={() => handleRemoveQuery(entry.id)}
-                  disabled={normalized.length <= 1}
+                  disabled={saving || normalized.length <= 1}
                   aria-label={t("qloopEditor.removeQuery")}
                 >
                   ×
@@ -144,6 +147,7 @@ export function QLoopSequenceEditor({
               onKeyDown={stopBubble}
               onKeyUp={stopBubble}
               onMouseDown={stopBubble}
+              disabled={saving}
             />
             <textarea
               className="qloop-sequence-editor__query-description scroll-match-bg"
@@ -154,6 +158,7 @@ export function QLoopSequenceEditor({
               onKeyDown={stopBubble}
               onKeyUp={stopBubble}
               onMouseDown={stopBubble}
+              disabled={saving}
             />
           </div>
         ))}
@@ -164,6 +169,7 @@ export function QLoopSequenceEditor({
           type="button"
           className="qloop-sequence-editor__add"
           onClick={handleAddQuery}
+          disabled={saving}
           aria-label={t("qloopEditor.addQueryAria")}
           title={t("qloopEditor.addQueryAria")}
         >
@@ -171,11 +177,16 @@ export function QLoopSequenceEditor({
         </button>
         <button
           type="button"
-          className="doc-new-action doc-new-action--save qloop-sequence-editor__save"
+          className={
+            "doc-new-action doc-new-action--save qloop-sequence-editor__save"
+            + (saving ? " doc-new-action--save-loading" : "")
+          }
           onClick={handleSave}
-          disabled={saved}
+          disabled={saving}
+          aria-busy={saving}
         >
-          {saved ? t("qloopEditor.saved") : t("qloopEditor.save")}
+          {saving ? <SearchSpinner size={14} /> : null}
+          {saving ? t("common.saving") : t("qloopEditor.save")}
         </button>
       </div>
     </div>

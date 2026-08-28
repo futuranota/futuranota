@@ -722,6 +722,7 @@ export function NodeWritingBlockStack({
       blockIndex,
       caretOffset: mentionQuery ? stripped.caret : caretOffset,
       title: query.title,
+      description: query.description,
       qloopSource: {
         loopId: loop.id,
         loopDocId: loop.docId,

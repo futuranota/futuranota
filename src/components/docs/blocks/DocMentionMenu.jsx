@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { formatMentionToken } from "../../../lib/urlTableTags.js";
+import { floatingMenuStyleFromAnchor } from "../../../lib/textareaSelectionRect.js";
 
 /**
  * Portal autocomplete for company URL-table tags.
@@ -37,12 +38,7 @@ export function DocMentionMenu({
 
   if (!open || !anchor || typeof document === "undefined") return null;
 
-  const style = {
-    position: "fixed",
-    top: anchor.top,
-    left: anchor.left,
-    zIndex: 10060,
-  };
+  const style = floatingMenuStyleFromAnchor(anchor, 10060);
 
   return createPortal(
     <div
