@@ -98,9 +98,9 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #7A818B;
-  border: 1px solid rgba(122, 129, 139, 0.28);
-  background: rgba(35, 39, 47, 0.56);
+  color: var(--text-2);
+  border: 1px solid var(--border-subtle, var(--glass-border));
+  background: var(--elevated-surface);
   box-shadow: none;
   transition:
     color 0.15s ease,
@@ -110,17 +110,17 @@
 
 .pack-actions .btn.pack-actions__btn--toolbar:hover:not(:disabled),
 .pack-actions .btn.pack-actions__btn--toolbar:active:not(:disabled) {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(42, 46, 56, 0.72);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--elevated-surface-hover);
   box-shadow: none;
   transform: none;
 }
 
 .pack-actions .btn.pack-actions__btn--toolbar.is-active {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(55, 60, 72, 0.9);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--active-surface);
 }
 
 .pack-actions__btn-label {

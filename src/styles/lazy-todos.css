@@ -50,7 +50,7 @@
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__label {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__counter {
@@ -164,7 +164,7 @@
   height: 100%;
   resize: none;
   font-size: 15px;
-  color: #fff;
+  color: var(--text-primary);
   border-bottom: none;
   padding: 0;
   overflow: auto;
@@ -192,7 +192,7 @@
 .lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input,
 .lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__item-input,
 .lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__macro-title {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input {
@@ -243,7 +243,7 @@
 }
 
 .lazy-todo-card__close-x:hover {
-  color: #fff;
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -464,7 +464,7 @@
 .lazy-todo-queue-panel__row.is-selected .lazy-todo-queue-panel__card {
   border-color: rgba(255, 255, 255, 0.42);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  background: color-mix(in oklab, #151515 82%, #fff 8%);
+  background: color-mix(in oklab, var(--surface-base) 82%, #fff 8%);
 }
 
 .lazy-todo-queue-panel__card-icon {
@@ -552,7 +552,7 @@
   gap: 8px;
   padding: 8px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .lazy-todo-card__provenance-folder {
@@ -614,7 +614,7 @@
 }
 
 .lazy-todo-merged-day-card {
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .lazy-todo-merged-day-card .lazy-todo-card__todo {
@@ -633,14 +633,14 @@
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
-  background: color-mix(in oklab, #151515 70%, #000 30%);
+  background: color-mix(in oklab, var(--surface-base) 70%, #000 30%);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .lazy-todo-merged-section {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #151515;
+  background: var(--surface-base);
   overflow: hidden;
 }
 
@@ -734,7 +734,7 @@
   padding: 8px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #151515;
+  background: var(--surface-base);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
 }
 
@@ -793,8 +793,8 @@
   padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: #151515;
-  color: #fff;
+  background: var(--surface-base);
+  color: var(--text-primary);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -804,7 +804,7 @@
 
 .lazy-todo-folder-chip:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.28);
-  background: color-mix(in oklab, #151515 88%, #fff 12%);
+  background: color-mix(in oklab, var(--surface-base) 88%, #fff 12%);
 }
 
 .lazy-todo-folder-chip:disabled {

@@ -43,6 +43,7 @@ import {
   pickDocLibraryPreviews,
   promptPreviewText,
   resolveFichaPreviewKind,
+  libraryGridFaceOptions,
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
@@ -98,8 +99,8 @@ function formatBadge(item) {
   return "FILE";
 }
 
-function MediaBadge({ item, prefer }) {
-  if (!fichaShowsMediaBadge(item, prefer)) return null;
+function MediaBadge({ item, prefer, faceOptions = {} }) {
+  if (!fichaShowsMediaBadge(item, prefer, faceOptions)) return null;
   return (
     <img
       className="folder-library-overlay__cell-media-badge"
@@ -111,16 +112,16 @@ function MediaBadge({ item, prefer }) {
   );
 }
 
-function renderFichaFace(item, prefer, sponsoredLabel = "") {
+function renderFichaFace(item, prefer, sponsoredLabel = "", faceOptions = {}) {
   const isAttachment = item?.category === "skill" || item?.category === "pdf";
-  const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer);
+  const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer, faceOptions);
   if (kind === "prompt") {
     return (
       <>
         <span className="folder-library-overlay__cell-prompt">
           {promptPreviewText(item)}
         </span>
-        <MediaBadge item={item} prefer={prefer} />
+        <MediaBadge item={item} prefer={prefer} faceOptions={faceOptions} />
         {item?.sponsored && item?.mediaUrl ? (
           <LibrarySponsoredTag
             label={sponsoredLabel}
@@ -163,21 +164,21 @@ function renderFichaFace(item, prefer, sponsoredLabel = "") {
   );
 }
 
-function renderMiniFichaFace(item, prefer) {
-  const kind = resolveFichaPreviewKind(item, prefer);
+function renderMiniFichaFace(item, prefer, faceOptions = {}) {
+  const kind = resolveFichaPreviewKind(item, prefer, faceOptions);
   if (kind === "image") {
     return <img src={item.mediaUrl} alt="" />;
   }
   return (
     <>
       {promptPreviewText(item)}
-      <MediaBadge item={item} prefer={prefer} />
+      <MediaBadge item={item} prefer={prefer} faceOptions={faceOptions} />
     </>
   );
 }
 
-function miniFichaClass(item, prefer) {
-  const kind = resolveFichaPreviewKind(item, prefer);
+function miniFichaClass(item, prefer, faceOptions = {}) {
+  const kind = resolveFichaPreviewKind(item, prefer, faceOptions);
   return "folder-library-overlay__mini-prompt"
     + (kind === "image" ? " folder-library-overlay__mini-prompt--media" : "");
 }
@@ -842,11 +843,15 @@ export function FolderLibraryOverlay({
               }}
               title={item.tag}
             >
-              {renderFichaFace(
-                item,
-                (pickRows || filterTab === "visual") ? "image" : filterTab === "prompt" ? "prompt" : libraryTilePrefer("folder"),
-                t("doc.library.sponsoredTag"),
-              )}
+              {(() => {
+                const face = libraryGridFaceOptions(filterTab, Boolean(pickRows));
+                return renderFichaFace(
+                  item,
+                  face.prefer,
+                  t("doc.library.sponsoredTag"),
+                  { tabLocked: face.tabLocked },
+                );
+              })()}
               <span className="folder-library-overlay__cell-meta">
                 <span className="folder-library-overlay__cell-tag-row">
                   <span className="folder-library-overlay__cell-tag">{item.tag}</span>

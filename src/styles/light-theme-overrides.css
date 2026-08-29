@@ -1,0 +1,58 @@
+/* Light theme — residual overrides (ui-system-transformer pass 2)
+ * Most surfaces use semantic tokens in base CSS; keep only cascade edge-cases here.
+ */
+
+/* Icon masks: drop invert(1) on light */
+:root[data-theme="light"] .pack-actions .btn.pack-actions__btn--toolbar:hover .pack-actions__btn-icon,
+:root[data-theme="light"] .pack-actions .btn.pack-actions__btn--toolbar:active:not(:disabled) .pack-actions__btn-icon {
+  filter: brightness(0);
+}
+
+:root[data-theme="light"] .tl-tactical-view-toggle__btn.is-active img {
+  filter: brightness(0);
+}
+
+:root[data-theme="light"] .intel-folder-tabs__icon,
+:root[data-theme="light"] .intel-folder-tabs button[data-on="1"] .intel-folder-tabs__icon,
+:root[data-theme="light"] .intel-folder-tabs button:hover .intel-folder-tabs__icon {
+  filter: brightness(0);
+  opacity: 0.72;
+}
+
+/* Canvas / toolbar pink → accent-mark on light */
+:root[data-theme="light"] .canvas-toolbar .btn.primary,
+:root[data-theme="light"] .canvas-wrap .pill.ok,
+:root[data-theme="light"] .canvas-tool.active,
+:root[data-theme="light"] .canvas-empty-card .btn.primary {
+  color: var(--accent-mark);
+  border-color: var(--accent-mark-border);
+  background: color-mix(in oklab, var(--accent-mark) 12%, transparent);
+}
+
+:root[data-theme="light"] .canvas-tool.active {
+  background: var(--accent-mark-bg);
+  box-shadow: 0 0 0 1px var(--accent-mark-border) inset;
+}
+
+/* Doc marks — stronger on light body */
+:root[data-theme="light"] .doc-inplace-select-all__input::selection {
+  background: var(--accent-mark-bg);
+  color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
+}
+
+:root[data-theme="light"] .obj-create-role__btn.is-active {
+  color: var(--text-primary);
+  border-color: var(--accent-mark-border);
+  background: var(--accent-mark-bg);
+}
+
+/* Calendar search pill text */
+:root[data-theme="light"] .cal-event-canvas__search-pill .cal-event-canvas__date {
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] .cal-event-canvas__search-pill:hover:not(:disabled) {
+  background: var(--hover-surface-strong);
+  border-color: var(--border-strong);
+}

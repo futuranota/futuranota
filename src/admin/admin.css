@@ -12,7 +12,7 @@
   --admin-blue-soft: rgba(126, 200, 255, 0.14);
   --admin-blue-border: rgba(126, 200, 255, 0.45);
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) #151515;
+  scrollbar-color: rgba(255, 255, 255, 0.14) var(--surface-base);
 }
 
 .admin-shell,
@@ -727,7 +727,7 @@
 }
 
 .mgmt-provider-pie__tooltip-val {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -770,7 +770,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 10px;
@@ -984,7 +984,7 @@
 }
 
 .mgmt-feature-usage {
-  background: #151515;
+  background: var(--surface-base);
   transition: width 0.2s ease, margin-left 0.2s ease;
 }
 
@@ -992,7 +992,7 @@
 .mgmt-feature-usage .mgmt-table,
 .mgmt-feature-usage .mgmt-table th,
 .mgmt-feature-usage .mgmt-table td {
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .mgmt-feature-usage .mgmt-row--inactive td {
@@ -1068,7 +1068,7 @@
 
 .mgmt-filter-field select,
 .mgmt-filter-field input[type="date"] {
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   color: var(--text);
   border-radius: 8px;
@@ -1101,7 +1101,7 @@
 .mgmt-opex-form .mgmt-filter-field input[type="text"],
 .mgmt-opex-form .mgmt-filter-field input[type="number"],
 .mgmt-opex-form .mgmt-filter-field input[type="month"] {
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   color: var(--text);
   border-radius: 8px;
@@ -1131,7 +1131,7 @@
 .mgmt-gastos-form .mgmt-filter-field input[type="number"],
 .mgmt-gastos-form .mgmt-filter-field input[type="date"],
 .mgmt-gastos-form .mgmt-filter-field select {
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   color: var(--text);
   border-radius: 8px;
@@ -1174,7 +1174,7 @@
 }
 
 .mgmt-quota-card {
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px 16px;
@@ -1289,7 +1289,7 @@
 .mgmt-quota-preview {
   font-size: 12px;
   padding: 10px 12px;
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   border-radius: 8px;
   line-height: 1.45;
@@ -1298,7 +1298,7 @@
 .mgmt-quota-footer {
   margin-top: 14px;
   padding: 12px 14px;
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid var(--line);
   border-radius: 10px;
   font-size: 13px;
@@ -1571,7 +1571,7 @@
   width: 64px;
   height: 40px;
   border-radius: 6px;
-  background: #151515;
+  background: var(--surface-base);
   flex-shrink: 0;
   opacity: 0.5;
 }
@@ -1604,7 +1604,7 @@
   padding: 12px;
   border: 1px dashed rgba(255, 255, 255, 0.18);
   border-radius: 10px;
-  background: #151515;
+  background: var(--surface-base);
   color: var(--text, #e8e4dc);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;

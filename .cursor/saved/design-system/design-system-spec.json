@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "source": "hybrid",
+    "url": "http://localhost:5173/app",
+    "theme": "dark",
+    "audited_at": "2026-08-29T19:15:00Z",
+    "project": "futura-nota",
+    "product_constraints": {
+      "light_background": "#F1F1F1",
+      "light_text": "#3D3B3B",
+      "uniform_surfaces": true,
+      "overlays_stay_dark": true
+    }
+  },
+  "design_system": {
+    "colors": {
+      "background": {
+        "base": "#07090c",
+        "base_2": "#0c1014",
+        "gradient_a": "#080b10",
+        "gradient_b": "#0d1218",
+        "computed_body": "transparent over gradient"
+      },
+      "surface": {
+        "panel": "rgba(20, 24, 30, 0.62)",
+        "panel_solid": "#14181e",
+        "panel_2": "rgba(28, 33, 41, 0.55)",
+        "surface_base": "#151515",
+        "doc_focus": "rgb(22, 26, 29)"
+      },
+      "elevated": {
+        "folder_box_computed": "rgba(35, 39, 47, 0.56)",
+        "modal_shadow": "0 28px 64px rgba(0, 0, 0, 0.68)"
+      },
+      "text": {
+        "primary": "#e6e9ee",
+        "primary_computed": "rgb(230, 233, 238)",
+        "secondary": "#b1b6c0",
+        "dim": "#757b87",
+        "mute": "#4a4f59",
+        "toolbar_muted": "#7A818B",
+        "folder_box_computed": "rgb(121, 129, 139)"
+      },
+      "accent": {
+        "hud_mint": "#8ee9a3",
+        "brand_brush": "#f4a4be",
+        "doc_mark": "#dcb2a6",
+        "doc_mark_gradient": "linear-gradient(180deg, #f4c7ba, #dcb2a6)",
+        "ai_lavender": "#c9b8ff",
+        "cool": "#7aa8ff",
+        "warm": "#ffc56b",
+        "danger": "#ff7a85"
+      },
+      "border": {
+        "glass": "rgba(255, 255, 255, 0.06)",
+        "glass_2": "rgba(255, 255, 255, 0.1)",
+        "hairline": "rgba(255, 255, 255, 0.045)",
+        "border_strong": "rgba(255, 255, 255, 0.16)",
+        "folder_box_computed": "rgb(121, 129, 139)"
+      },
+      "overlay": {
+        "lp_overlay_scrim": "color-mix(in oklab, var(--bg) 55%, transparent)",
+        "lp_overlay_solid": "rgba(0, 0, 0, 0.72)",
+        "url_table_backdrop": "#0a0c10",
+        "url_table_shell": "linear-gradient(180deg, #1f2329, #14181f)"
+      }
+    },
+    "typography": {
+      "families": {
+        "body": "Hanken Grotesk, system-ui, sans-serif",
+        "display": "Space Grotesk, system-ui, sans-serif",
+        "mono": "JetBrains Mono, Geist Mono, ui-monospace, Menlo, monospace",
+        "doc_legacy": "Quicksand, system-ui, sans-serif"
+      },
+      "scale": {
+        "body": "13px",
+        "body_line_height": "1.5",
+        "doc": "14px",
+        "doc_line_height": "1.45",
+        "label": "10.5px",
+        "label_weight": "500",
+        "label_tracking": "0.08em uppercase"
+      },
+      "computed": {
+        "body_font_size": "13px",
+        "body_font_family": "Hanken Grotesk"
+      }
+    },
+    "spacing": {
+      "scale": {
+        "xs": "4px",
+        "sm": "6px",
+        "md": "10px",
+        "lg": "16px",
+        "xl": "24px"
+      },
+      "samples": {
+        "dash_main_gap": "10px",
+        "dash_main_padding": "10px 10px 0",
+        "dash_grid_columns": "256px 1fr 328px",
+        "lp_selectors_pad": "8px 10px",
+        "doc_modal_pad": "22px 15px 18px 15px"
+      }
+    },
+    "elevation": {
+      "shadow_sm": "0 1px 2px rgba(0,0,0,0.18)",
+      "shadow": "0 4px 20px -4px rgba(0,0,0,0.4), inset highlight",
+      "shadow_lg": "0 16px 48px -8px rgba(0,0,0,0.6)",
+      "modal_doc": "0 28px 64px rgba(0, 0, 0, 0.68)",
+      "glass_inset": "0 1px 0 rgba(255,255,255,0.04) inset"
+    },
+    "radius": {
+      "sm": "6px",
+      "base": "10px",
+      "lg": "14px",
+      "xl": "20px",
+      "modal": "14px",
+      "folder_box": "12px"
+    },
+    "states": {
+      "hover": {
+        "folder_box": "color #e8dcc8, background rgba(42, 46, 56, 0.72)",
+        "toolbar_btn": "color #fff, background rgba(255,255,255,0.08)",
+        "glass_panel": "background var(--panel-3)"
+      },
+      "active": {
+        "theme_toggle_dark": "moon pressed (browser verified)",
+        "tl_tactical_toggle": "color #fff, background color-mix(#fff 8%, surface-base)"
+      },
+      "disabled": {
+        "toolbar": "opacity reduced, cursor not-allowed"
+      }
+    }
+  },
+  "audit_findings": {
+    "hardcoded_colors": [
+      "src/styles/left-panel.css: 100× rgba(255,255,255,*) — borders, hooves, hovers (invisible on #F1F1F1)",
+      "src/styles/gina-chat.css: 101× rgba(255,255,255,*) — chat shell, viz, scrollbars",
+      "src/styles/steps-runner.css: 100× rgba(255,255,255,*) — mostly URL table (keep dark)",
+      "src/styles/studio.css: 74× rgba(255,255,255,*)",
+      "src/styles/lazy-todos.css: 44× rgba(255,255,255,*)",
+      "src/styles.css: 63× rgba(255,255,255,*)",
+      "Toolbar labels #7A818B hardcoded in left-panel.css (~8 occurrences)",
+      "Doc marks #dcb2a6 / #ffb4a8 hardcoded (~20+ rules) — washed on light without --accent-mark",
+      "Cal-event-canvas__title was #ffffff (fixed to var(--text-primary) in tokens pass; verify contrast on light)"
+    ],
+    "light_theme_gaps": [
+      ":root[data-theme=light] tokens exist (#F1F1F1, #3D3B3B) but only ~23 component overrides in styles.css vs ~100 white-rgba rules in left-panel alone",
+      "Uniform #F1F1F1 surfaces lack elevation layer: doc modal border:none + heavy dark shadow reads flat/washed on light",
+      "Folder box default uses rgba(35,39,47,0.56) — dark glass; light needs ink-based border + subtle fill",
+      "Icon filters brightness(0) invert(1) throughout — need light-specific brightness(0) rules",
+      "Marketing has 44+ light overrides; app workspace lags behind marketing polish",
+      "Missing semantic tokens in light: --border-subtle, --border-strong, --hover-surface, --shadow-elevated, --accent-mark (partially addressed in prior pass, not fully wired in components)",
+      "Gina chat gradient backgrounds still dark-oriented on var(--surface-base)",
+      "Selection ::selection uses #fff text — OK on coral mix; verify on light body selection"
+    ],
+    "contrast_issues": [
+      "Light: #7A818B toolbar text on #F1F1F1 ≈ 3.2:1 — fails WCAG AA for 13px body (needs #5C5A5A or darker)",
+      "Light: #dcb2a6 doc marks on #F1F1F1 — decorative only; mark background needs --accent-mark-bg at ~22% for visibility",
+      "Light: secondary hint text #9fa1a6 on white (Calendar) — migrated to var(--text-2); verify after transform",
+      "Dark: current dashboard passes — primary #e6e9ee on #07090c gradient OK"
+    ]
+  },
+  "transformation_proposal": {
+    "target_theme": "light",
+    "new_palette": {
+      "background": {
+        "base": "#F1F1F1",
+        "surface": "#F1F1F1",
+        "elevated": "#F1F1F1",
+        "note": "Uniform per product constraint; depth via border + shadow tokens, not lighter grays"
+      },
+      "text": {
+        "primary": "#3D3B3B",
+        "secondary": "#5C5A5A",
+        "muted": "#6E6C6C",
+        "dim": "#6E6C6C",
+        "toolbar": "#5C5A5A"
+      },
+      "border": {
+        "subtle": "rgba(61, 59, 59, 0.12)",
+        "strong": "rgba(61, 59, 59, 0.22)",
+        "hairline": "rgba(61, 59, 59, 0.12)",
+        "glass": "rgba(61, 59, 59, 0.12)",
+        "glass_2": "rgba(61, 59, 59, 0.18)"
+      },
+      "interactive": {
+        "hover_surface": "rgba(61, 59, 59, 0.06)",
+        "hover_surface_strong": "rgba(61, 59, 59, 0.10)",
+        "active_surface": "rgba(61, 59, 59, 0.08)"
+      },
+      "elevation": {
+        "shadow_sm": "0 1px 2px rgba(61, 59, 59, 0.08)",
+        "shadow": "0 4px 16px rgba(61, 59, 59, 0.10)",
+        "shadow_elevated": "0 24px 48px rgba(61, 59, 59, 0.12)",
+        "modal": "0 24px 48px rgba(61, 59, 59, 0.14)"
+      },
+      "accent": {
+        "hud": "#2a8a4a",
+        "doc_mark": "#c48678",
+        "doc_mark_bg": "rgba(196, 134, 120, 0.22)",
+        "doc_mark_border": "rgba(196, 134, 120, 0.45)",
+        "brand_brush": "#c48678",
+        "ai": "#6a4cc8"
+      },
+      "overlay": {
+        "note": "Fullscreen overlays unchanged — stay dark",
+        "scrim": "rgba(0, 0, 0, 0.72)",
+        "shell": "#14181f"
+      },
+      "css_tokens_to_add": {
+        "--surface-base": "#F1F1F1",
+        "--text-primary": "#3D3B3B",
+        "--border-subtle": "rgba(61, 59, 59, 0.12)",
+        "--border-strong": "rgba(61, 59, 59, 0.22)",
+        "--hover-surface": "rgba(61, 59, 59, 0.06)",
+        "--shadow-elevated": "0 24px 48px rgba(61, 59, 59, 0.12)",
+        "--accent-mark": "#c48678",
+        "--accent-mark-bg": "rgba(196, 134, 120, 0.22)"
+      }
+    },
+    "rationale": "Futura Nota dark (Lumen v0.5) is coherent: deep charcoal gradient (#07090c), document surfaces #151515, mint HUD, coral doc marks. Light tokens (#F1F1F1 / #3D3B3B) exist at :root level but ~350+ component rules still use dark-only white rgba borders and hovers that disappear on light — causing the 'pale' look users reported. Product requires uniform #F1F1F1 (sidebar = canvas = docs) with readable ink details; fullscreen overlays (URL table, export, confirm) stay dark for contrast. Transformation replaces white-rgba drawing with ink-based borders, hovers, and softer elevations; strengthens coral marks for body highlights; keeps dark mode untouched.",
+    "changes_by_component": {
+      "doc-new-modal": [
+        "Add border: 1px solid var(--border-subtle)",
+        "Replace box-shadow 0 28px 64px rgba(0,0,0,0.68) with var(--shadow-elevated) on light",
+        "Meta strip, Save/Aa buttons: use var(--accent-mark) not washed #dcb2a6",
+        "Doc body marks: background var(--accent-mark-bg), text stays var(--text-primary)"
+      ],
+      "doc-editor": [
+        "Slash preview, body field: ensure color var(--text-primary)",
+        "Selection/caret: caret-color var(--text); selection mix with --accent-mark-bg",
+        "Expand icon mask: #4d4f53 → color-mix from --text-primary"
+      ],
+      "lp-click-folder-box": [
+        "Default: background color-mix(var(--text-primary) 5%, var(--surface-base)), border var(--border-subtle)",
+        "Hover: var(--hover-surface), text var(--text-primary) — replace #e8dcc8 / rgba(42,46,56)",
+        "Icon opacity hover without invert(1)"
+      ],
+      "lp-department-filter": [
+        "Replace rgba(35,39,47,0.56) fill with ink-based surface",
+        "Labels #7A818B → var(--text-2) or var(--dim)"
+      ],
+      "left-panel-toolbar": [
+        "pack-actions, workspace-action-btn: hover text var(--text-primary) not #fff",
+        "Replace rgba(255,255,255,0.08) hovers with var(--hover-surface)"
+      ],
+      "cal-event-canvas": [
+        "Title: var(--text-primary) (done in tokens pass)",
+        "Hint/tagline: var(--text-2)",
+        "Search pill: keep teal accent or retune for light contrast"
+      ],
+      "canvas-stage": [
+        "Grid dots: color-mix(var(--text-primary) 10%, transparent) — already tokenized",
+        "canvas-empty-card: glass uses var(--panel); text from var(--text)"
+      ],
+      "canvas-toolbar": [
+        "Insert to timeline / Auto-run pink text: ensure readable on #F1F1F1 (brand-brush darker on light)"
+      ],
+      "tl-tactical": [
+        "View toggle background var(--surface-base); active state ink mix (partial override exists)",
+        "Timeline dots: --tl-dot-* already set for light"
+      ],
+      "gina-chat": [
+        "Shell gradient → flat var(--surface-base) or subtle border on light",
+        "Viz tables #151515 → var(--surface-base) with borders",
+        "Bubble text var(--text-primary); keep dark overlay backdrop"
+      ],
+      "lazy-todos": [
+        "Dashboard surfaces var(--surface-base); replace white rgba borders"
+      ],
+      "studio": [
+        "Panel text and borders to semantic tokens"
+      ],
+      "marketing": [
+        "Align --bg, --surface, --beige to #F1F1F1 and --text to #3D3B3B",
+        "canvas-bg flat #F1F1F1"
+      ]
+    },
+    "do_not_transform": [
+      "url-table-page-overlay",
+      "export-workspace-modal",
+      "export-pack-modal",
+      "ie-pack-chooser",
+      "confirm-action-overlay",
+      "pack-wizard fullscreen shell (if dark backdrop)",
+      "steps-runner.css URL table inner rules (dark shell only)"
+    ]
+  }
+}

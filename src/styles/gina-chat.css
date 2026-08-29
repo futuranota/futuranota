@@ -1,4 +1,4 @@
-/* Gina chat — Call Asistente in-doc shell (surface #151515)
+/* Gina chat — Call Asistente in-doc shell (surface var(--surface-base))
  * Layer stack: backdrop 12000 → Assistance hero float 12001 → panel 12002
  */
 
@@ -39,7 +39,7 @@
   position: absolute;
   inset: 0;
   border-radius: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid var(--glass-border-2);
   pointer-events: none;
 }
 
@@ -50,15 +50,15 @@
   width: 100%;
   height: 100%;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   overflow: hidden;
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .gina-chat-card__bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #2a2a2a, #151515, #1c1c1c);
+  background: var(--gina-card-bg);
   background-size: 200% 200%;
   pointer-events: none;
 }
@@ -68,7 +68,7 @@
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
   pointer-events: none;
 }
 
@@ -79,7 +79,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--glass-border-2);
 }
 
 .gina-chat-card__title {
@@ -87,7 +87,7 @@
   flex: 1;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Same green active indicator as folder schedule (`.lp-folder-schedule-dot`). */
@@ -113,10 +113,10 @@
 .gina-chat-card__reset-dev {
   margin-right: 4px;
   padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.72);
+  background: var(--hover-surface);
+  color: var(--interactive-muted);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -124,8 +124,8 @@
 }
 
 .gina-chat-card__reset-dev:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: var(--hover-surface-strong);
+  color: var(--text-primary);
 }
 
 .gina-chat-card__reset-dev:disabled {
@@ -143,13 +143,13 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--interactive-muted);
   cursor: pointer;
 }
 
 .gina-chat-card__icon-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--hover-surface-strong);
+  color: var(--text-primary);
 }
 
 .gina-chat-card__icon-btn:disabled {
@@ -158,8 +158,8 @@
 }
 
 .gina-chat-card__icon-btn.is-active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  background: var(--hover-surface-strong);
 }
 
 .gina-chat-card__messages {
@@ -175,7 +175,7 @@
   font-family: "Inter", var(--sans, system-ui, sans-serif);
   font-size: 15px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) #151515;
+  scrollbar-color: var(--scroll-thumb) var(--surface-base);
 }
 
 .gina-chat-card__messages::-webkit-scrollbar {
@@ -183,17 +183,17 @@
 }
 
 .gina-chat-card__messages::-webkit-scrollbar-track {
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .gina-chat-card__messages::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--scroll-thumb);
   border-radius: 4px;
-  border: 2px solid #151515;
+  border: 2px solid var(--surface-base);
 }
 
 .gina-chat-card__messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in oklab, var(--text-primary) 32%, transparent);
 }
 
 .gina-chat-card__bubble {
@@ -298,7 +298,7 @@
 .gina-chat-card__bubble--user {
   align-self: flex-end;
   background: #2f2f2f;
-  color: #ffffff;
+  color: var(--text-primary);
   font-family: "Inter", var(--sans, system-ui, sans-serif);
   font-weight: 400;
   font-size: 12.5px;
@@ -317,7 +317,7 @@
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--interactive-subtle);
 }
 
 .gina-chat-card__typing {
@@ -328,7 +328,7 @@
   border-radius: 12px;
   max-width: 30%;
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
 }
 
 .gina-chat-card__thinking {
@@ -394,7 +394,7 @@
   align-items: flex-end;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--glass-border-2);
   flex-shrink: 0;
 }
 
@@ -406,9 +406,9 @@
   align-items: stretch;
   gap: 0;
   padding: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--glass-border-2);
   flex-shrink: 0;
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .gina-chat-card__doc-actions-menu {
@@ -442,9 +442,9 @@
   gap: 4px;
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #151515;
-  color: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--glass-border-2);
+  background: var(--surface-base);
+  color: var(--text-primary);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -453,7 +453,7 @@
 
 .gina-chat-card__doc-action-item:hover {
   border-color: rgba(214, 180, 167, 0.55);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-chat-card__doc-action-item-label {
@@ -465,7 +465,7 @@
 .gina-chat-card__doc-action-item-hint {
   font-size: 11px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.48);
+  color: var(--dim);
   font-weight: 400;
 }
 
@@ -481,9 +481,9 @@
   flex: 0 0 auto;
   width: auto;
   max-width: 42%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #151515;
-  color: rgba(255, 255, 255, 0.38);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-base);
+  color: var(--interactive-subtle);
   font-size: 11px;
   line-height: 1.2;
   padding: 8px 10px;
@@ -495,16 +495,16 @@
 }
 
 .gina-chat-card__more-actions.is-enabled:not(:disabled) {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
   border-color: rgba(214, 180, 167, 0.45);
   cursor: pointer;
 }
 
 .gina-chat-card__more-actions.is-enabled:not(:disabled):hover,
 .gina-chat-card__more-actions.is-open {
-  color: #fff;
+  color: var(--text-primary);
   border-color: rgba(214, 180, 167, 0.7);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-chat-card__more-actions:disabled {
@@ -535,9 +535,9 @@
 
 .gina-chat-card__skip-text {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: #151515;
-  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-base);
+  color: var(--interactive-muted);
   font-size: 12px;
   line-height: 1.2;
   padding: 6px 10px;
@@ -547,9 +547,9 @@
 }
 
 .gina-chat-card__skip-text:hover {
-  color: rgba(255, 255, 255, 0.92);
-  border-color: rgba(255, 255, 255, 0.32);
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--hover-surface);
 }
 
 .gina-chat-card__dictation {
@@ -559,7 +559,7 @@
   align-items: flex-end;
   gap: 10px;
   padding: 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--glass-border-2);
   background: rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
   /* Stretch with transcript; scroll only after this ceiling */
@@ -641,7 +641,7 @@
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -660,7 +660,7 @@
   padding: 6px 16px 0;
   font-size: 0.75rem;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--interactive-muted);
 }
 
 .gina-chat-card__mic-banner.is-error {
@@ -673,9 +673,9 @@
   padding: 12px 14px;
   font-size: 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--text-primary);
   outline: none;
   font-family: inherit;
   line-height: 1.45;
@@ -703,8 +703,8 @@
   padding: 0;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--hover-surface-strong);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -779,7 +779,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
   justify-content: center;
 }
 
@@ -808,7 +808,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
   justify-content: center;
 }
 
@@ -873,7 +873,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
   justify-content: center;
 }
 
@@ -967,8 +967,8 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #151515;
+  border: 1px solid var(--glass-border-2);
+  background: var(--surface-base);
   color: #e8e8e8;
   font-size: 12px;
   line-height: 1.4;
@@ -991,7 +991,7 @@
   margin: 2px 0 0;
   font-size: 13px;
   font-weight: 650;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .gina-viz__total {
@@ -1011,7 +1011,7 @@
   align-items: center;
   padding: 4px 6px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-viz__stat-label {
@@ -1094,7 +1094,7 @@
   height: 6px;
   margin: 6px 0 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover-surface-strong);
   overflow: hidden;
 }
 
@@ -1168,7 +1168,7 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   pointer-events: none;
   letter-spacing: 0.02em;
@@ -1184,9 +1184,9 @@
 
 .gina-viz__week-mode-btn {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: #1a1a1a;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
@@ -1196,7 +1196,7 @@
 }
 
 .gina-viz__week-mode-btn:hover {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: var(--border-strong);
   background: #222;
 }
 
@@ -1209,14 +1209,14 @@
   margin-top: 8px;
   padding: 12px 12px 10px;
   border-radius: 10px;
-  background: #151515;
+  background: var(--surface-base);
 }
 
 .gina-viz__folder-focus-name {
   margin: 0 0 10px;
   font-size: 14px;
   font-weight: 650;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
 }
 
 .gina-viz__folder-focus-bar {
@@ -1225,7 +1225,7 @@
   height: 14px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-surface);
 }
 
 .gina-viz__folder-focus-seg {
@@ -1241,7 +1241,7 @@
 .gina-viz__folder-focus-meta {
   margin: 8px 0 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--text-2);
 }
 
 .gina-viz__folder-focus-legend {
@@ -1276,7 +1276,7 @@
   margin: 8px 0 0;
   padding: 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--text-2);
 }
 
 .gina-viz__week-folder-list {
@@ -1292,9 +1292,9 @@
   width: 100%;
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: #151515;
+  background: var(--surface-base);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -1368,7 +1368,7 @@
 
 .gina-viz__folder-cell-name {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
 }
 
 .gina-viz__folder-cell-path {
@@ -1398,16 +1398,16 @@
   gap: 6px;
   margin: 0;
   padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   border-radius: 8px;
-  background: #151515;
+  background: var(--surface-base);
   color: inherit;
   cursor: pointer;
   font: inherit;
 }
 
 .gina-viz__folder-legend-btn:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--glass-border-2);
 }
 
 .gina-viz__folder-legend-name {
@@ -1444,7 +1444,7 @@
   color: #e8e8e8;
   font-weight: 600;
   border-radius: 3px;
-  /* Full-cell wash: #D9D9D9 @ 9% — clear readable overlay on #151515 */
+  /* Full-cell wash: #D9D9D9 @ 9% — clear readable overlay on var(--surface-base) */
   background: rgba(217, 217, 217, 0.09) !important;
   box-shadow: inset 0 0 0 1px rgba(217, 217, 217, 0.18);
   transition: background 280ms ease, box-shadow 280ms ease, color 280ms ease;
@@ -1519,7 +1519,7 @@
   width: 100%;
   padding: 10px 10px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   background: #121212;
   color: inherit;
   text-align: left;
@@ -1528,14 +1528,14 @@
 
 .gina-viz__find-open:hover,
 .gina-viz__find-clarify-btn:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--glass-border-2);
   background: #171717;
 }
 
 .gina-viz__find-title {
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .gina-viz__find-excerpt {
@@ -1608,7 +1608,7 @@
   align-self: flex-start;
   margin-top: 6px;
   border: 1px solid color-mix(in oklab, #c9b896 45%, transparent);
-  background: color-mix(in oklab, #c9b896 12%, #151515);
+  background: color-mix(in oklab, #c9b896 12%, var(--surface-base));
   color: #c9b896;
   font: inherit;
   font-size: 11px;
@@ -1619,7 +1619,7 @@
 }
 
 .gina-chat-card__learn-save:hover {
-  background: color-mix(in oklab, #c9b896 20%, #151515);
+  background: color-mix(in oklab, #c9b896 20%, var(--surface-base));
 }
 
 .gina-chat-card__chips {
@@ -1727,8 +1727,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #151515;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-base);
   color: #d8d8d8;
   font: inherit;
   font-size: 11px;
@@ -1777,20 +1777,20 @@
 }
 
 .gina-chat-card__chip:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  color: #fff;
+  border-color: var(--border-strong);
+  color: var(--text-primary);
   background: #1c1c1c;
 }
 
 .gina-chat-card__chip.is-primary {
   border-color: color-mix(in oklab, #c9b896 50%, transparent);
   color: #e8dcc4;
-  background: color-mix(in oklab, #c9b896 10%, #151515);
+  background: color-mix(in oklab, #c9b896 10%, var(--surface-base));
 }
 
 .gina-chat-card__chip.is-primary:hover {
-  background: color-mix(in oklab, #c9b896 18%, #151515);
-  color: #fff;
+  background: color-mix(in oklab, #c9b896 18%, var(--surface-base));
+  color: var(--text-primary);
 }
 
 .gina-chat-card__chip--save-day {
@@ -1824,7 +1824,7 @@
 }
 
 .gina-chat-card__start-doc-line.is-highlighted {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover-surface-strong);
   color: #e4e4e4;
 }
 
@@ -1920,7 +1920,7 @@
 }
 
 .gina-chat-card__chip--back:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--glass-border-2);
   color: #d0d0d0;
 }
 
@@ -1983,7 +1983,7 @@
 }
 
 .gina-viz--document-dept-groups {
-  background: #151515;
+  background: var(--surface-base);
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -1996,7 +1996,7 @@
 }
 
 .gina-viz__dept-group {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.02);
@@ -2010,7 +2010,7 @@
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
 }
 
 .gina-viz__dept-group-count {
@@ -2063,7 +2063,7 @@
   gap: 4px;
   padding: 10px 10px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-border-2);
   background: #121212;
   color: inherit;
   font: inherit;
@@ -2085,7 +2085,7 @@
   padding: 12px 10px 10px;
   border-radius: 5px;
   border: none;
-  background: color-mix(in oklab, #F2D2D2 4%, #151515);
+  background: color-mix(in oklab, #F2D2D2 4%, var(--surface-base));
   box-shadow:
     0 0 0 1px rgba(19, 19, 19, 0.4),
     0 2px 2px rgba(19, 19, 19, 0.4);
@@ -2096,7 +2096,7 @@
 .gina-viz__dept-card--ref:hover,
 .gina-viz__dept-card--ref.is-recommended {
   border: none;
-  background: color-mix(in oklab, #F2D2D2 9%, #151515);
+  background: color-mix(in oklab, #F2D2D2 9%, var(--surface-base));
   box-shadow:
     0 0 0 1px color-mix(in oklab, #F2D2D2 18%, transparent),
     0 2px 4px rgba(19, 19, 19, 0.5);
@@ -2125,7 +2125,7 @@
 .gina-viz__dept-name {
   font-size: 13px;
   font-weight: 650;
-  color: #fff;
+  color: var(--text-primary);
   line-height: 1.25;
 }
 
@@ -2285,14 +2285,14 @@
 .gina-viz__recovery-row {
   padding: 10px 10px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   background: #121212;
 }
 
 .gina-viz__recovery-title {
   font-size: 13px;
   font-weight: 650;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 6px;
 }
 
@@ -2336,7 +2336,7 @@
 }
 
 .gina-viz__expand-chip {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: #121212;
   color: #e8e8e8;
   font: inherit;
@@ -2350,7 +2350,7 @@
 
 .gina-viz__expand-chip:hover {
   border-color: color-mix(in oklab, #c9b896 45%, transparent);
-  color: #fff;
+  color: var(--text-primary);
   background: color-mix(in oklab, #c9b896 10%, #121212);
 }
 
@@ -2365,7 +2365,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-border-2);
   background: #121212;
   border-radius: 999px;
   padding: 6px 8px 6px 6px;
@@ -2402,7 +2402,7 @@
   margin: 0 0 6px;
   font-size: 13px;
   font-weight: 650;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .gina-viz__sheet-folder {
@@ -2486,7 +2486,7 @@
 }
 
 .gina-viz__sheet-slot--next .gina-viz__sheet-title {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -2499,8 +2499,8 @@
 /* In-doc Horario del día — readable 2-line checklist */
 .gina-viz--day-sheet-compact {
   padding: 10px 12px 12px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
 }
 
@@ -2792,8 +2792,8 @@
   margin: 0;
   padding: 12px;
   border-radius: 12px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border);
 }
 
 .gina-viz__folder-bars {
@@ -2931,8 +2931,8 @@
   margin-top: 16px;
   padding: 12px;
   border-radius: 12px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border);
 }
 
 .gina-viz__quick-sheet-head {
@@ -2966,7 +2966,7 @@
   margin: 12px 0 14px;
   padding: 12px;
   border-radius: 12px;
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid rgba(255, 180, 80, 0.28);
 }
 
@@ -3024,7 +3024,7 @@
   position: relative;
   height: 28px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
   border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
@@ -3128,7 +3128,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: #1a1a1a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-border-2);
   font-size: 11px;
 }
 
@@ -3137,7 +3137,7 @@
 }
 
 .gina-viz__hours-pie-tooltip-val {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -3205,8 +3205,8 @@
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border-2);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
@@ -3253,7 +3253,7 @@
 }
 
 .gina-knowledge-overlay__close:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .gina-knowledge-overlay__body {
@@ -3290,7 +3290,7 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: color-mix(in oklab, #fff 4%, #151515);
+  background: color-mix(in oklab, #fff 4%, var(--surface-base));
 }
 
 .gina-knowledge-overlay__item-open {
@@ -3356,7 +3356,7 @@
   width: 100%;
   box-sizing: border-box;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border-2);
   background: #121212;
   color: #eee;
   font: inherit;
@@ -3378,7 +3378,7 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: color-mix(in oklab, #c9b896 12%, #151515);
+  background: color-mix(in oklab, #c9b896 12%, var(--surface-base));
   font-size: 11px;
   color: #c9b896;
 }
@@ -3405,7 +3405,7 @@
   width: min(340px, calc(100vw - 32px));
   padding: 16px 16px 14px;
   border-radius: 16px;
-  background: linear-gradient(160deg, #2a2a2a 0%, #151515 55%, #101010 100%);
+  background: linear-gradient(160deg, #2a2a2a 0%, var(--surface-base) 55%, #101010 100%);
   border: 1px solid color-mix(in oklab, #ffffff 10%, transparent);
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
   color: #f5f5f5;
@@ -3441,7 +3441,7 @@
 }
 
 .gina-talk-request-popover__emph {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .gina-talk-request-popover__muted {
@@ -3459,8 +3459,8 @@
 @media (prefers-reduced-motion: reduce) {
   .gina-talk-request-popover__shimmer {
     background-image: none;
-    color: #ffffff;
-    -webkit-text-fill-color: #ffffff;
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
   }
 }
 
@@ -3504,7 +3504,7 @@
   width: min(340px, calc(100vw - 32px));
   padding: 14px 14px 12px;
   border-radius: 14px;
-  background: #151515;
+  background: var(--surface-base);
   border: 1px solid color-mix(in oklab, #c9b896 28%, transparent);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   color: #f0f0f0;
@@ -3526,7 +3526,7 @@
 .gina-daily-report-popover__btn {
   appearance: none;
   border: 1px solid color-mix(in oklab, #ffffff 14%, transparent);
-  background: color-mix(in oklab, #ffffff 6%, #151515);
+  background: color-mix(in oklab, #ffffff 6%, var(--surface-base));
   color: #f2f2f2;
   border-radius: 999px;
   padding: 7px 12px;
@@ -3537,7 +3537,7 @@
 
 .gina-daily-report-popover__btn.is-primary {
   border-color: color-mix(in oklab, #c9b896 55%, transparent);
-  background: color-mix(in oklab, #c9b896 18%, #151515);
+  background: color-mix(in oklab, #c9b896 18%, var(--surface-base));
   color: #f5ecd8;
 }
 
@@ -3705,7 +3705,7 @@
 .gina-viz__easy-link--star {
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-viz__easy-link--secondary {
@@ -3715,7 +3715,7 @@
 .gina-viz__easy-link--snooze {
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-viz__easy-link-head {
@@ -3777,7 +3777,7 @@
 }
 
 .gina-viz__easy-link-inline:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .gina-viz__easy-link-cta {
@@ -3860,7 +3860,7 @@
   gap: 6px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: rgba(255, 255, 255, 0.05);
   color: #e8e8e8;
   font-size: 12px;
@@ -3896,7 +3896,7 @@
 
 .gina-viz__easy-link-mark {
   background: rgba(242, 242, 242, 0.18);
-  color: #fff;
+  color: var(--text-primary);
   padding: 0 4px;
   border-radius: 4px;
   font-weight: 700;
@@ -3955,8 +3955,8 @@
   min-width: 220px;
   padding: 6px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #151515;
+  border: 1px solid var(--glass-border-2);
+  background: var(--surface-base);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
@@ -3992,7 +3992,7 @@
   min-width: 0;
   padding: 5px 6px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: #101010;
   color: #f0f0f0;
   font-size: 12px;
@@ -4027,8 +4027,8 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 12px 14px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
   overflow: visible;
 }
@@ -4079,7 +4079,7 @@
 }
 
 .gina-viz__slot-doc-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .gina-viz__slot-doc-btn--active {
@@ -4114,8 +4114,8 @@
   margin-top: 2px;
   padding: 7px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
+  background: var(--hover-surface);
   color: #f2f2f2;
   font-size: 12px;
   font-weight: 600;
@@ -4128,7 +4128,7 @@
 }
 
 .gina-viz__slot-apply:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
 }
 
 .gina-viz__slot-apply--commit {
@@ -4137,12 +4137,12 @@
   max-width: max-content;
   align-self: flex-start;
   border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-surface);
   color: #f2f2f2;
 }
 
 .gina-viz__slot-apply--commit:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-surface-strong);
 }
 
 .gina-viz__slot-apply-count {
@@ -4168,7 +4168,7 @@
 }
 
 .gina-viz__slot-apply--cancel:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-surface);
   color: #e8e8e8;
 }
 
@@ -4266,7 +4266,7 @@
 }
 
 .gina-viz__cascade-delete-confirm-no {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: transparent;
   color: #c8c8c8;
 }
@@ -4424,7 +4424,7 @@
 }
 
 .gina-viz__snooze-option--active {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-surface);
 }
 
 /* Canvas-corner shortcut — sits above .canvas-coords (bottom-left HUD). */

@@ -412,7 +412,7 @@
   box-sizing: border-box;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: #151515;
+  background: var(--surface-base);
   color: #d8d8d8;
   font-family: var(--sans);
   font-size: 12px;
@@ -442,7 +442,7 @@
 .launch-predictor__textarea:focus {
   outline: none;
   border-color: var(--glass-border-2);
-  background: color-mix(in oklab, #151515 92%, var(--panel-3));
+  background: color-mix(in oklab, var(--surface-base) 92%, var(--panel-3));
 }
 
 .launch-predictor__char-count {

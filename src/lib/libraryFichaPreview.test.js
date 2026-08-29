@@ -3,6 +3,7 @@ import {
   fichaHasVisual,
   fichaShowsMediaBadge,
   libraryFichaDetailMode,
+  libraryGridFaceOptions,
   libraryTilePrefer,
   pickDocLibraryPreviews,
   promptPreviewText,
@@ -51,6 +52,31 @@ describe("libraryFichaPreview", () => {
     };
     expect(resolveFichaPreviewKind(item, libraryTilePrefer("document"))).toBe("image");
     expect(fichaShowsMediaBadge(item, libraryTilePrefer("document"))).toBe(false);
+  });
+
+  it("Prompt tab grid shows text even when presentation is visual", () => {
+    const item = {
+      category: "image",
+      description: "character bible",
+      mediaUrl: "/marcos.webp",
+      presentation: "visual",
+    };
+    const face = libraryGridFaceOptions("prompt");
+    expect(face).toEqual({ prefer: "prompt", tabLocked: true });
+    expect(resolveFichaPreviewKind(item, face.prefer, { tabLocked: face.tabLocked })).toBe("prompt");
+    expect(fichaShowsMediaBadge(item, face.prefer, { tabLocked: face.tabLocked })).toBe(true);
+  });
+
+  it("Imágenes tab grid shows photo even when presentation is prompt", () => {
+    const item = {
+      category: "image",
+      description: "character bible",
+      mediaUrl: "/marcos.webp",
+      presentation: "prompt",
+    };
+    const face = libraryGridFaceOptions("visual");
+    expect(face).toEqual({ prefer: "image", tabLocked: true });
+    expect(resolveFichaPreviewKind(item, face.prefer, { tabLocked: face.tabLocked })).toBe("image");
   });
 
   it("opens Library detail on Image when a photo exists", () => {

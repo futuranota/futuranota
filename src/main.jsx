@@ -15,6 +15,7 @@ import './styles/ie-pack-chooser.css';
 import './styles/steps-runner.css';
 import './styles/lazy-todos.css';
 import './styles/gina-chat.css';
+import './styles/light-theme-overrides.css';
 import './styles/confirm-action.css';
 import './styles/agents.css';
 import './styles/plans.css';

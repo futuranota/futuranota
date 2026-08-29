@@ -23,10 +23,10 @@
   height: min(780px, calc(100vh - 48px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
-  background: #151515;
+  background: var(--surface-base);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-modal);
 }
 
 .studio-workspace {
@@ -60,7 +60,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--interactive-muted);
   font-size: 18px;
   font-weight: 700;
   line-height: 1;
@@ -69,7 +69,7 @@
 
 .studio-workspace__back:hover,
 .studio-workspace__close:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__title {
@@ -78,7 +78,7 @@
   min-width: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__vimeo-cta,
@@ -108,12 +108,12 @@
 }
 
 .studio-workspace__edit {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--hover-surface-strong);
+  color: var(--text-primary);
 }
 
 .studio-workspace__edit:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--hover-surface-strong);
 }
 
 .studio-workspace__lede {
@@ -121,7 +121,7 @@
   flex-shrink: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 .studio-workspace__steps {
@@ -136,7 +136,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--border-strong);
   font-size: 11px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.4);
@@ -150,7 +150,7 @@
 .studio-workspace__step.is-active {
   background: rgba(255, 255, 255, 0.14);
   border-color: transparent;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__setup {
@@ -172,7 +172,7 @@
   padding: 28px 24px;
   border: 1px dashed rgba(255, 255, 255, 0.16);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-surface);
 }
 
 .studio-workspace__plus {
@@ -207,13 +207,13 @@
   font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__upload-info-body {
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 .studio-workspace__url-row {
@@ -227,9 +227,9 @@
   height: 40px;
   padding: 0 14px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--glass-border-2);
+  background: var(--hover-surface);
+  color: var(--text-primary);
   font-size: 13px;
   outline: none;
 }
@@ -244,8 +244,8 @@
   gap: 2px;
   padding: 6px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--hover-surface);
+  border: 1px solid var(--glass-border);
   overflow: auto;
   flex: 1;
   min-height: 0;
@@ -275,7 +275,7 @@
 
 .studio-workspace__ratio-option.is-selected {
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__ratio-check {
@@ -348,8 +348,8 @@
   gap: 10px;
   padding: 14px 14px 12px;
   border-radius: 10px;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-base);
+  border: 1px solid var(--glass-border);
 }
 
 .studio-workspace__setup--wall .studio-workspace__inspector-panel {
@@ -384,7 +384,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 .studio-workspace__inspector-row {
@@ -493,9 +493,9 @@
   height: 32px;
   padding: 0 8px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--glass-border-2);
+  background: var(--hover-surface);
+  color: var(--text-primary);
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   text-align: center;
@@ -592,7 +592,7 @@
   text-align: center;
   font-size: 13px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 .studio-workspace__control-label {
@@ -628,9 +628,9 @@
   height: 36px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--glass-border-2);
+  background: var(--hover-surface);
+  color: var(--text-primary);
   font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   outline: none;
@@ -654,7 +654,7 @@
 }
 
 .studio-workspace__wall-apply:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--hover-surface-strong);
 }
 
 .studio-workspace__wall-hint {
@@ -682,7 +682,7 @@
 .studio-workspace__primary {
   border: none;
   background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__primary:hover:not(:disabled) {
@@ -697,12 +697,12 @@
 .studio-workspace__secondary {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--interactive-muted);
 }
 
 .studio-workspace__secondary:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .studio-workspace__vimeo-link {
@@ -726,7 +726,7 @@
 
 .studio-workspace__view-meta {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 @media (max-width: 640px) {
@@ -780,8 +780,8 @@
   margin: 0;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border-2);
+  background: var(--hover-surface);
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   text-align: left;
@@ -994,7 +994,7 @@
 .studio-workspace__mockup-desc {
   font-size: 11px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--interactive-subtle);
 }
 
 .studio-workspace__setup--scroll {
@@ -1053,9 +1053,9 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--glass-border-2);
+  background: var(--hover-surface);
+  color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
   resize: vertical;

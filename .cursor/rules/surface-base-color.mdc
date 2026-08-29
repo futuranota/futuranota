@@ -1,5 +1,5 @@
 ---
-description: New creation surfaces (tables, panels, cards, overlays) use the same base color as documents (#151515)
+description: New creation surfaces (tables, panels, cards, overlays) use the same base color as documents
 globs: "**/*.{css,jsx,tsx,vue}"
 alwaysApply: true
 ---
@@ -7,14 +7,21 @@ alwaysApply: true
 # Base surface color
 
 When building any new creation surface — tables, panels, cards, editors,
-overlays, etc. — use the same base background color that documents use:
+overlays, etc. — use the same base background as documents:
 
 ```
-#151515
+var(--surface-base)
 ```
+
+| Theme | `--surface-base` | `--text-primary` |
+|---|---|---|
+| Dark (default) | `#151515` | `#fff` |
+| Light (`data-theme="light"`) | `#F1F1F1` | `#3D3B3B` |
 
 ## Rules
 
-- Default base/fill for new surfaces = `#151515` (match the documents surface).
+- Default base/fill for new surfaces = `var(--surface-base)` (not a hardcoded hex).
+- Default body/UI text on those surfaces = `var(--text-primary)` or `var(--text)`.
 - Keep this consistent so new UI reads as part of the same document system.
+- Fullscreen overlays that must stay dark (URL table, export pack/workspace, i/e chooser, confirm) keep `#151515` / white text — pin `--surface-base: #151515` on the overlay root.
 - Only deviate when the user explicitly asks for a different color.

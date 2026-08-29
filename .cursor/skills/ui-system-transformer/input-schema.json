@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DesignSystemTransformInput",
+  "description": "Minimum input for ui-system-transformer. Full spec from design-system-auditor preferred.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["meta", "design_system", "transformation_proposal"],
+      "properties": {
+        "meta": { "type": "object" },
+        "design_system": { "type": "object" },
+        "audit_findings": { "type": "object" },
+        "transformation_proposal": {
+          "type": "object",
+          "required": ["target_theme", "new_palette", "changes_by_component"],
+          "properties": {
+            "target_theme": { "enum": ["light", "dark", "custom"] },
+            "new_palette": { "type": "object", "minProperties": 1 },
+            "rationale": { "type": "string" },
+            "changes_by_component": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "do_not_transform": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["transformation_proposal"],
+      "properties": {
+        "transformation_proposal": {
+          "type": "object",
+          "required": ["new_palette", "changes_by_component"],
+          "properties": {
+            "target_theme": { "enum": ["light", "dark", "custom"] },
+            "new_palette": { "type": "object" },
+            "changes_by_component": { "type": "object" },
+            "do_not_transform": { "type": "array" }
+          }
+        }
+      }
+    }
+  ]
+}

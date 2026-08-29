@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DesignSystemSpec",
+  "type": "object",
+  "required": ["meta", "design_system", "audit_findings", "transformation_proposal"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["source", "theme", "audited_at"],
+      "properties": {
+        "source": { "enum": ["browser", "codebase", "hybrid"] },
+        "url": { "type": "string" },
+        "theme": { "enum": ["dark", "light"] },
+        "audited_at": { "type": "string", "format": "date-time" },
+        "project": { "type": "string" }
+      }
+    },
+    "design_system": {
+      "type": "object",
+      "required": ["colors", "typography", "spacing", "elevation", "radius", "states"],
+      "properties": {
+        "colors": {
+          "type": "object",
+          "properties": {
+            "background": { "type": "object" },
+            "text": { "type": "object" },
+            "accent": { "type": "object" },
+            "border": { "type": "object" },
+            "overlay": { "type": "object" }
+          }
+        },
+        "typography": { "type": "object" },
+        "spacing": { "type": "object" },
+        "elevation": { "type": "object" },
+        "radius": { "type": "object" },
+        "states": { "type": "object" }
+      }
+    },
+    "audit_findings": {
+      "type": "object",
+      "required": ["hardcoded_colors", "light_theme_gaps", "contrast_issues"],
+      "properties": {
+        "hardcoded_colors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "light_theme_gaps": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "contrast_issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "transformation_proposal": {
+      "type": "object",
+      "required": ["target_theme", "new_palette", "rationale", "changes_by_component", "do_not_transform"],
+      "properties": {
+        "target_theme": { "enum": ["light", "dark", "custom"] },
+        "new_palette": { "type": "object" },
+        "rationale": { "type": "string" },
+        "changes_by_component": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "do_not_transform": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

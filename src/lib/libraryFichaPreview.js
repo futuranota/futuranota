@@ -53,18 +53,36 @@ export function fichaHasVisual(item) {
 }
 
 /**
+ * Prompt / Imágenes tab grid: tab drives the face, not ficha presentation.
+ * @param {"prompt"|"visual"|string} filterTab
+ * @param {boolean} [forceImage] — workspace rows always show the photo
+ * @returns {{ prefer: FichaPreviewPrefer, tabLocked: boolean }}
+ */
+export function libraryGridFaceOptions(filterTab, forceImage = false) {
+  if (forceImage || filterTab === "visual") {
+    return { prefer: "image", tabLocked: true };
+  }
+  if (filterTab === "prompt") {
+    return { prefer: "prompt", tabLocked: true };
+  }
+  return { prefer: libraryTilePrefer("folder"), tabLocked: false };
+}
+
+/**
  * Library / Assets prefer the photo. Docs / Prompt prefer the written prompt.
- * Visual presentation always prefers the photo (image-only chip).
+ * Visual presentation prefers the photo unless tabLocked (Prompt / Imágenes tabs).
  * If the preferred face is empty, fall back so an image-only ficha never looks blank.
  *
  * @param {{ description?: string|null, mediaUrl?: string|null, category?: string, presentation?: string }|null|undefined} item
  * @param {FichaPreviewPrefer} [prefer]
+ * @param {{ tabLocked?: boolean }} [options]
  * @returns {FichaPreviewKind}
  */
-export function resolveFichaPreviewKind(item, prefer = "prompt") {
+export function resolveFichaPreviewKind(item, prefer = "prompt", options = {}) {
+  const tabLocked = Boolean(options.tabLocked);
   const hasPrompt = Boolean(promptPreviewText(item));
   const hasVisual = fichaHasVisual(item);
-  const facePrefer = isLibraryVisualPresentation(item) ? "image" : prefer;
+  const facePrefer = !tabLocked && isLibraryVisualPresentation(item) ? "image" : prefer;
   if (facePrefer === "image") {
     if (hasVisual) return "image";
     if (hasPrompt) return "prompt";
@@ -79,9 +97,10 @@ export function resolveFichaPreviewKind(item, prefer = "prompt") {
  * Prompt-first tile that still has a photo — show img.svg, not the photo.
  * @param {{ description?: string|null, mediaUrl?: string|null, category?: string }|null|undefined} item
  * @param {FichaPreviewPrefer} [prefer]
+ * @param {{ tabLocked?: boolean }} [options]
  */
-export function fichaShowsMediaBadge(item, prefer = "prompt") {
-  return resolveFichaPreviewKind(item, prefer) === "prompt" && fichaHasVisual(item);
+export function fichaShowsMediaBadge(item, prefer = "prompt", options = {}) {
+  return resolveFichaPreviewKind(item, prefer, options) === "prompt" && fichaHasVisual(item);
 }
 
 /**

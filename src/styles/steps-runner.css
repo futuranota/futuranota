@@ -1225,6 +1225,9 @@
 /* URL table — full-page workspace */
 .url-table-page-overlay {
   --url-table-stroke: #313338;
+  --surface-base: #151515;
+  --text-primary: #fff;
+  --text: #e8e4dc;
   position: fixed;
   inset: 0;
   z-index: 1200;
