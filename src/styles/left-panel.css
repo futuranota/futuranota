@@ -23515,6 +23515,7 @@ body.doc-content-resizing * {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  position: relative;
   min-height: 200px;
   margin: 0;
   padding: 16px;
@@ -23683,6 +23684,27 @@ body.doc-content-resizing * {
   height: auto;
   min-height: 0;
   align-self: center;
+}
+
+.folder-library-element-modal__drop .doc-moodboard__tag-row {
+  pointer-events: none;
+}
+
+.folder-library-element-modal__field--moodboard-tag {
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+.folder-library-element-modal--visual .folder-library-element-modal__body--image-first
+  .folder-library-element-modal__field--moodboard-tag {
+  margin-top: 10px;
+}
+
+.folder-library-element-modal__moodboard-tag-help {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .folder-library-element-modal__field--wall .library-asset-prompt-label {

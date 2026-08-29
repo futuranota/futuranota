@@ -25,6 +25,7 @@ import {
   libraryFrameCssAspectRatio,
   normalizeLibraryFrameAspect,
 } from "../../lib/libraryFrameAspect.js";
+import { MOODBOARD_TAG_MAX } from "../../lib/docBlocks.js";
 
 const CATEGORY_LABEL_KEYS = {
   auto: "doc.library.categoryAuto",
@@ -68,6 +69,11 @@ export function FolderLibraryElementModal({
   defaultFrameAspect = null,
   /** Extra class on overlay root (e.g. stack above library picker). */
   overlayClassName = "",
+  /** Moodboard slot tag — separate from library ficha name (`tag`). */
+  showMoodboardTag = false,
+  moodboardTagLabel = "",
+  /** Hide Prompt/Visual toggle (e.g. edit visual ficha from moodboard). */
+  hidePresentationToggle = false,
   onClose,
   onSaved,
 }) {
@@ -123,6 +129,9 @@ export function FolderLibraryElementModal({
     if (mode !== "visual") return true;
     return Boolean(String(item?.description || "").trim());
   });
+  const [moodboardTag, setMoodboardTag] = useState(
+    () => String(moodboardTagLabel || "").slice(0, MOODBOARD_TAG_MAX),
+  );
   const isSkillLike = category === "skill" || category === "pdf";
   const isVideoLike = category === "video";
   const showWallColor = category === "image" || category === "video" || category === "auto";
@@ -310,7 +319,9 @@ export function FolderLibraryElementModal({
         setError(t("doc.library.nameRequired"));
         return;
       }
-      onSaved?.(saved);
+      onSaved?.(saved, showMoodboardTag
+        ? { moodboardTagLabel: String(moodboardTag || "").trim().slice(0, MOODBOARD_TAG_MAX) }
+        : undefined);
       onClose?.();
     } catch (err) {
       setError(err?.message || t("doc.library.frameBakeFailed"));
@@ -441,7 +452,30 @@ export function FolderLibraryElementModal({
               />
             </label>
 
-            {isImageLike ? (
+            {showMoodboardTag && isImageLike ? (
+              <div className="folder-library-element-modal__field folder-library-element-modal__field--moodboard-tag">
+                <label className="folder-library-element-modal__label" htmlFor="folder-lib-moodboard-tag">
+                  {t("doc.moodboard.attachTagLabel")}
+                </label>
+                <input
+                  id="folder-lib-moodboard-tag"
+                  type="text"
+                  className="folder-library-element-modal__input"
+                  maxLength={MOODBOARD_TAG_MAX}
+                  value={moodboardTag}
+                  placeholder={t("doc.moodboard.attachTagPlaceholder")}
+                  spellCheck={false}
+                  onChange={(event) => {
+                    setMoodboardTag(String(event.target.value ?? "").slice(0, MOODBOARD_TAG_MAX));
+                  }}
+                />
+                <p className="folder-library-element-modal__moodboard-tag-help">
+                  {t("doc.moodboard.attachHelp")}
+                </p>
+              </div>
+            ) : null}
+
+            {isImageLike && !hidePresentationToggle ? (
               <div
                 className="folder-library-element-modal__presentation"
                 role="group"
@@ -716,11 +750,18 @@ export function FolderLibraryElementModal({
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : mediaUrl && isImageLike ? (
-                <img
-                  className="folder-library-element-modal__preview folder-library-element-modal__preview--contain"
-                  src={mediaUrl}
-                  alt=""
-                />
+                <>
+                  <img
+                    className="folder-library-element-modal__preview folder-library-element-modal__preview--contain"
+                    src={mediaUrl}
+                    alt=""
+                  />
+                  {showMoodboardTag && String(moodboardTag || "").trim() ? (
+                    <div className="doc-moodboard__tag-row" aria-hidden>
+                      <span className="doc-moodboard__tag-label">{moodboardTag.trim()}</span>
+                    </div>
+                  ) : null}
+                </>
               ) : isSkillLike ? (
                 uploading ? (
                   <span className="folder-library-element-modal__upload-title">
