@@ -20488,6 +20488,7 @@ body.doc-content-resizing * {
 
 /* —— Integrated visuals panel (linked Prompt photos in open doc) —— */
 .integrated-visuals-overlay {
+  --integrated-panel-width: min(320px, 92vw);
   position: fixed;
   inset: 0;
   z-index: 12040;
@@ -20507,19 +20508,29 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+.integrated-visuals-overlay--preview-open .integrated-visuals-overlay__backdrop {
+  opacity: 0;
+  pointer-events: none;
+  cursor: default;
+}
+
 .integrated-visuals-panel {
   --scroll-bg: #151515;
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(320px, 92vw);
+  width: var(--integrated-panel-width);
   height: 100%;
   margin: 0;
   background: #151515;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: auto;
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+}
+
+.integrated-visuals-overlay--preview-open .integrated-visuals-panel {
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
 }
 
 .integrated-visuals-panel__head {
@@ -20620,6 +20631,15 @@ body.doc-content-resizing * {
 .integrated-visuals-panel__row:hover {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.06);
+}
+
+.integrated-visuals-panel__row.is-active {
+  background: rgba(220, 178, 166, 0.08);
+  border-color: rgba(220, 178, 166, 0.35);
+}
+
+.integrated-visuals-panel__row.is-active .integrated-visuals-panel__name {
+  color: #e8c4ba;
 }
 
 .integrated-visuals-panel__thumb-wrap {
@@ -22302,9 +22322,26 @@ body.doc-content-resizing * {
   box-sizing: border-box;
 }
 
-/* Opened from integrated visuals side panel (z-index 12040). */
-.folder-library-image-detail--above-integrated-visuals {
-  z-index: 12050;
+/* Companion preview beside integrated visuals rail — shared dim, panel stays bright. */
+.folder-library-image-detail--integrated-companion {
+  --integrated-panel-width: min(320px, 92vw);
+  z-index: 12040;
+  justify-content: center;
+  padding: 24px 16px;
+  padding-right: calc(var(--integrated-panel-width) + 16px);
+  pointer-events: none;
+}
+
+.folder-library-image-detail--integrated-companion .folder-library-image-detail__backdrop {
+  right: var(--integrated-panel-width);
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.folder-library-image-detail--integrated-companion .folder-library-image-detail__shell {
+  pointer-events: auto;
+  max-height: min(88vh, 680px);
 }
 
 .folder-library-image-detail__backdrop {

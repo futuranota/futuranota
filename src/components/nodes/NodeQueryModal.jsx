@@ -3364,7 +3364,11 @@ export function NodeQueryModal({
         blocks={writingBlocks}
         documentId={entityNodeId}
         folderId={integratedVisualsFolderId}
-        onClose={() => setIntegratedVisualsOpen(false)}
+        previewItemId={integratedVisualDetail?.itemId || ""}
+        onClose={() => {
+          setIntegratedVisualDetail(null);
+          setIntegratedVisualsOpen(false);
+        }}
         onOpenItem={(row) => {
           setIntegratedVisualDetail({
             itemId: row.itemId,
@@ -3379,7 +3383,7 @@ export function NodeQueryModal({
           ownerId={integratedVisualDetail.ownerId}
           folderId={integratedVisualDetail.ownerId}
           itemId={integratedVisualDetail.itemId}
-          overlayClassName="folder-library-image-detail--above-integrated-visuals"
+          stackMode="integrated-panel"
           onClose={() => setIntegratedVisualDetail(null)}
         />
       ) : null}

@@ -16,9 +16,12 @@ export function IntegratedVisualsPanel({
   blocks = [],
   documentId = "",
   folderId = "",
+  /** When set, a companion preview card is open — panel stays bright. */
+  previewItemId = "",
   onClose,
   onOpenItem,
 }) {
+  const previewOpen = Boolean(String(previewItemId || "").trim());
   const { t } = useI18n();
   const [query, setQuery] = useState("");
 
@@ -32,7 +35,7 @@ export function IntegratedVisualsPanel({
   );
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || previewOpen) return undefined;
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -41,7 +44,7 @@ export function IntegratedVisualsPanel({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, onClose]);
+  }, [open, onClose, previewOpen]);
 
   useEffect(() => {
     if (!open) setQuery("");
@@ -50,12 +53,19 @@ export function IntegratedVisualsPanel({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="integrated-visuals-overlay" role="presentation">
+    <div
+      className={
+        "integrated-visuals-overlay"
+        + (previewOpen ? " integrated-visuals-overlay--preview-open" : "")
+      }
+      role="presentation"
+    >
       <button
         type="button"
         className="integrated-visuals-overlay__backdrop"
         aria-label={t("doc.library.integratedVisualsClose")}
-        onClick={onClose}
+        aria-hidden={previewOpen}
+        onClick={previewOpen ? undefined : onClose}
       />
       <aside
         className="integrated-visuals-panel"
@@ -100,7 +110,10 @@ export function IntegratedVisualsPanel({
               <button
                 key={row.itemId}
                 type="button"
-                className="integrated-visuals-panel__row"
+                className={
+                  "integrated-visuals-panel__row"
+                  + (previewOpen && row.itemId === previewItemId ? " is-active" : "")
+                }
                 onClick={() => onOpenItem?.(row)}
               >
                 <span className="integrated-visuals-panel__thumb-wrap">

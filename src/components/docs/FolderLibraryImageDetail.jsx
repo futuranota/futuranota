@@ -36,7 +36,10 @@ export function FolderLibraryImageDetail({
   escapeEnabled = true,
   /** Extra class on overlay root (e.g. stack above integrated visuals panel). */
   overlayClassName = "",
+  /** `integrated-panel` = companion preview beside the visuals rail (shared dim). */
+  stackMode = "default",
 }) {
+  const isIntegratedCompanion = stackMode === "integrated-panel";
   const { t } = useI18n();
   const items = useLibraryItems(ownerKind, ownerId || folderId);
   const item = useMemo(
@@ -117,14 +120,17 @@ export function FolderLibraryImageDetail({
     }
   };
 
+  const rootClassName = [
+    "folder-library-image-detail",
+    isIntegratedCompanion ? "folder-library-image-detail--integrated-companion" : "",
+    overlayClassName,
+  ].filter(Boolean).join(" ");
+
   return createPortal(
     <div
-      className={
-        "folder-library-image-detail"
-        + (overlayClassName ? ` ${overlayClassName}` : "")
-      }
+      className={rootClassName}
       role="dialog"
-      aria-modal="true"
+      aria-modal={isIntegratedCompanion ? "false" : "true"}
       aria-label={item.tag || t("doc.library.title")}
     >
       <button
