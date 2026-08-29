@@ -140,6 +140,8 @@ export function LibraryImageCardPicker({
   onPrimaryCreateClick,
   /** @deprecated use onPrimaryCreateClick */
   onFolderCreateClick,
+  /** Extra class on overlay root (e.g. above expanded moodboard workspace). */
+  overlayClassName = "",
 }) {
   void layout;
   const { t } = useI18n();
@@ -254,7 +256,10 @@ export function LibraryImageCardPicker({
 
   return createPortal(
     <div
-      className="library-image-card-picker"
+      className={
+        "library-image-card-picker"
+        + (overlayClassName ? ` ${overlayClassName}` : "")
+      }
       role="dialog"
       aria-modal="true"
       aria-label={t(titleKey)}

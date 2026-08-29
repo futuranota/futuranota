@@ -20424,6 +20424,21 @@ body.doc-content-resizing * {
   z-index: 1245;
 }
 
+/* Moodboard expand workspace = 10070 — library UI must stack above it. */
+.library-image-card-picker--above-moodboard-workspace {
+  z-index: 10090;
+}
+
+.folder-library-element-overlay--above-moodboard-workspace {
+  z-index: 10095;
+}
+
+.doc-moodboard--expanded .doc-moodboard__media-actions {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 4;
+}
+
 .folder-library-overlay__backdrop,
 .folder-library-element-overlay__backdrop {
   position: absolute;

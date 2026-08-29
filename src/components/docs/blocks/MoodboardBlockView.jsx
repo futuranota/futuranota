@@ -1997,12 +1997,19 @@ export function MoodboardBlockView({
               </button>
               {tagOverlay ? tagRow : null}
               {isEdit ? (
-                <div className="doc-moodboard__media-actions">
+                <div
+                  className="doc-moodboard__media-actions"
+                  onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
                   {canPickLibrary ? (
                     <button
                       type="button"
                       className="doc-moodboard__media-btn"
-                      onClick={() => openLibraryPicker(colIndex, imageIndex, sizeClass)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openLibraryPicker(colIndex, imageIndex, sizeClass);
+                      }}
                       disabled={Boolean(uploadingKey)}
                     >
                       {t("doc.imageBlock.replace")}
@@ -2012,7 +2019,10 @@ export function MoodboardBlockView({
                     <button
                       type="button"
                       className="doc-moodboard__media-btn"
-                      onClick={() => openEditLibraryFromSlot(colIndex, imageIndex, sizeClass)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditLibraryFromSlot(colIndex, imageIndex, sizeClass);
+                      }}
                       disabled={Boolean(uploadingKey)}
                     >
                       {t("doc.library.edit")}
@@ -2021,7 +2031,10 @@ export function MoodboardBlockView({
                   <button
                     type="button"
                     className="doc-moodboard__media-btn"
-                    onClick={() => clearImage(colIndex, imageIndex)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      clearImage(colIndex, imageIndex);
+                    }}
                     disabled={Boolean(uploadingKey)}
                   >
                     {t("doc.imageBlock.remove")}
@@ -2807,6 +2820,9 @@ export function MoodboardBlockView({
           requireVisual
           titleKey="doc.moodboard.libraryPickerTitle"
           emptyKey="doc.moodboard.libraryPickerEmpty"
+          overlayClassName={
+            boardExpanded ? "library-image-card-picker--above-moodboard-workspace" : ""
+          }
           onPick={handlePickLibraryItem}
           allowPrimaryCreate={Boolean(pickerPrimaryId)}
           onPrimaryCreateClick={openCreateLibraryFromPicker}
@@ -2835,7 +2851,10 @@ export function MoodboardBlockView({
           defaultPresentation="visual"
           initialMediaUrl={createLibraryMediaUrl}
           defaultFrameAspect={createLibraryFrameAspect}
-          overlayClassName="folder-library-element-overlay--above-picker"
+          overlayClassName={
+            (boardExpanded ? "folder-library-element-overlay--above-moodboard-workspace " : "")
+            + "folder-library-element-overlay--above-picker"
+          }
           onClose={closeCreateLibraryModal}
           onSaved={handleCreateLibrarySaved}
         />
@@ -2859,6 +2878,9 @@ export function MoodboardBlockView({
             defaultPresentation={isVisualItem ? "visual" : ""}
             showMoodboardTag
             moodboardTagLabel={String(slotImage?.tagLabel || "")}
+            overlayClassName={
+              boardExpanded ? "folder-library-element-overlay--above-moodboard-workspace" : ""
+            }
             onClose={() => setEditLibrarySlot(null)}
             onSaved={handleEditLibrarySaved}
           />
