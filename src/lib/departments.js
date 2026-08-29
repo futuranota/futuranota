@@ -154,6 +154,83 @@ export function folderMatchesDepartmentFilter(folder, filterDepartmentId) {
 }
 
 /**
+ * @typedef {'department'|'uncategorized'} FolderDeptGroupKind
+ * @typedef {{ id: string, label: string, kind: FolderDeptGroupKind, folders: object[] }} FolderDeptGroup
+ */
+
+/**
+ * Group workspace folders under department headers (uncategorized last).
+ *
+ * @param {object[]} folders
+ * @param {DepartmentEntity[]|Record<string, DepartmentEntity>} departments
+ * @param {{ objectId?: string|null, uncategorizedLabel?: string, formatDeptLabel?: (dept: DepartmentEntity) => string }} [options]
+ * @returns {FolderDeptGroup[]}
+ */
+export function groupFoldersByDepartment(folders = [], departments = [], options = {}) {
+  const uncategorizedLabel = String(options.uncategorizedLabel || "Uncategorized").trim()
+    || "Uncategorized";
+  const formatDeptLabel = options.formatDeptLabel
+    || ((dept) => String(dept?.category || "").trim() || "Department");
+  const deptList = listDepartmentsForObject(
+    Array.isArray(departments) ? departments : Object.values(departments || {}),
+    options.objectId ?? null,
+  );
+
+  /** @type {Map<string, object[]>} */
+  const buckets = new Map();
+  /** @type {object[]} */
+  const uncategorized = [];
+
+  for (const folder of folders) {
+    if (!folder?.id) continue;
+    const deptId = String(folder.departmentId || "").trim();
+    if (!deptId) {
+      uncategorized.push(folder);
+      continue;
+    }
+    if (!buckets.has(deptId)) buckets.set(deptId, []);
+    buckets.get(deptId).push(folder);
+  }
+
+  /** @type {FolderDeptGroup[]} */
+  const groups = [];
+
+  for (const dept of deptList) {
+    const deptFolders = buckets.get(dept.id);
+    if (!deptFolders?.length) continue;
+    groups.push({
+      id: dept.id,
+      label: formatDeptLabel(dept),
+      kind: "department",
+      folders: deptFolders,
+    });
+    buckets.delete(dept.id);
+  }
+
+  for (const [deptId, deptFolders] of buckets) {
+    if (!deptFolders?.length) continue;
+    const dept = findDepartmentById(deptList, deptId);
+    groups.push({
+      id: deptId,
+      label: dept ? formatDeptLabel(dept) : deptId,
+      kind: "department",
+      folders: deptFolders,
+    });
+  }
+
+  if (uncategorized.length) {
+    groups.push({
+      id: UNASSIGNED_DEPARTMENT_FILTER_ID,
+      label: uncategorizedLabel,
+      kind: "uncategorized",
+      folders: uncategorized,
+    });
+  }
+
+  return groups;
+}
+
+/**
  * Keep the newer list as authority. Fill empty descriptions from the older
  * side for the same label — never re-add tags the newer list already dropped.
  * @param {unknown} primary newer subcategory list

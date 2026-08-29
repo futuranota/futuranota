@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
@@ -58,11 +58,11 @@ import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
 import { ForecastNodeView } from "../intel/ForecastNodeView.jsx";
 import {
   listMoveTargetFolders,
-  partitionMoveTargetFolders,
   resolveAdoptableDocLabel,
   resolveMoveTargetFolderList,
   resolveNodeParentDocId,
 } from "../../lib/nodeParentAdoption.js";
+import { groupFoldersByDepartment } from "../../lib/departments.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
@@ -308,10 +308,6 @@ export function NodeQueryModal({
     parentSelectable,
     docs,
   ]);
-  const moveTargetPartition = useMemo(
-    () => (sectionMoveTargets ? partitionMoveTargetFolders(moveTargetFolders) : null),
-    [sectionMoveTargets, moveTargetFolders],
-  );
   const adoptableDocsById = useMemo(
     () => Object.fromEntries(moveTargetFolders.map((d) => [d.id, d])),
     [moveTargetFolders],
@@ -368,6 +364,14 @@ export function NodeQueryModal({
   const docsMap = useDocsStore((s) => s.docs);
   const nodesMap = useNodesStore((s) => s.nodes);
   const departments = useDepartmentsStore((s) => s.departments);
+  const moveTargetGroups = useMemo(
+    () => groupFoldersByDepartment(moveTargetFolders, departments, {
+      objectId: parentObjectId || companyObjectId,
+      uncategorizedLabel: t("sidebar.departmentFilterUnassigned"),
+      formatDeptLabel: (dept) => String(dept?.category || "").trim() || t("sidebar.departmentsTitle"),
+    }),
+    [moveTargetFolders, departments, parentObjectId, companyObjectId, t],
+  );
   const objectsMap = useObjectsStore((s) => s.objects);
   const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
   const showSubcategoryField = typeof onSubcategoryChange === "function";
@@ -2185,74 +2189,37 @@ export function NodeQueryModal({
                   >
                     {moveTargetFolders.length === 0 ? (
                       <p className="node-query-modal__folder-empty">{t("canvas.assignParentEmpty")}</p>
-                    ) : moveTargetPartition?.showUncategorizedSection ? (
-                      <>
-                        {moveTargetPartition.sameDepartment.map((d) => (
-                          <button
-                            key={d.id}
-                            type="button"
-                            role="option"
-                            aria-selected={d.id === resolvedParentDocId}
-                            className={
-                              "node-query-modal__folder-option"
-                              + (d.id === resolvedParentDocId ? " is-active" : "")
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onParentDocIdChange(d.id);
-                              setParentFolderPickerOpen(false);
-                            }}
-                          >
-                            {resolveAdoptableDocLabel(d)}
-                          </button>
-                        ))}
-                        <div
-                          className="node-query-modal__folder-section-divider"
-                          role="presentation"
-                        >
-                          <span className="node-query-modal__folder-section-label">
-                            {t("sidebar.departmentFilterUnassigned")}
-                          </span>
-                        </div>
-                        {moveTargetPartition.uncategorized.map((d) => (
-                          <button
-                            key={d.id}
-                            type="button"
-                            role="option"
-                            aria-selected={d.id === resolvedParentDocId}
-                            className={
-                              "node-query-modal__folder-option"
-                              + (d.id === resolvedParentDocId ? " is-active" : "")
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onParentDocIdChange(d.id);
-                              setParentFolderPickerOpen(false);
-                            }}
-                          >
-                            {resolveAdoptableDocLabel(d)}
-                          </button>
-                        ))}
-                      </>
                     ) : (
-                      moveTargetFolders.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          role="option"
-                          aria-selected={d.id === resolvedParentDocId}
-                          className={
-                            "node-query-modal__folder-option"
-                            + (d.id === resolvedParentDocId ? " is-active" : "")
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onParentDocIdChange(d.id);
-                            setParentFolderPickerOpen(false);
-                          }}
-                        >
-                          {resolveAdoptableDocLabel(d)}
-                        </button>
+                      moveTargetGroups.map((group) => (
+                        <Fragment key={group.id || group.kind}>
+                          <div
+                            className="node-query-modal__folder-section-divider"
+                            role="presentation"
+                          >
+                            <span className="node-query-modal__folder-section-label">
+                              {group.label}
+                            </span>
+                          </div>
+                          {group.folders.map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              role="option"
+                              aria-selected={d.id === resolvedParentDocId}
+                              className={
+                                "node-query-modal__folder-option"
+                                + (d.id === resolvedParentDocId ? " is-active" : "")
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onParentDocIdChange(d.id);
+                                setParentFolderPickerOpen(false);
+                              }}
+                            >
+                              {resolveAdoptableDocLabel(d)}
+                            </button>
+                          ))}
+                        </Fragment>
                       ))
                     )}
                     {!requireParentFolder ? (
