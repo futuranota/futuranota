@@ -225,6 +225,54 @@ export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
 
   const box = contentScroll.getBoundingClientRect();
   const caretBottom = caretRect.top + lineHeight;
+  const caretTop = caretRect.top;
+  const isPaged = contentScroll.classList.contains("node-query-modal__content-scroll--paged");
+
+  if (isPaged) {
+    const viewportH = contentScroll.clientHeight;
+    const pageHeight = viewportH * 2;
+    if (viewportH > 0 && pageHeight > 0) {
+      const needsDown = caretBottom > box.bottom - clipPadding;
+      const needsUp = caretTop < box.top + clipPadding;
+      if (needsDown || needsUp) {
+        const caretContentY = caretTop - box.top + contentScroll.scrollTop
+          + (needsDown ? lineHeight : 0);
+        const targetPage = Math.max(0, Math.floor(caretContentY / pageHeight));
+        const pageStart = targetPage * pageHeight;
+        const pageScrollMax = pageStart + viewportH;
+        const currentPage = Math.max(
+          0,
+          Math.floor(contentScroll.scrollTop / pageHeight),
+        );
+
+        let nextTop = contentScroll.scrollTop;
+        if (targetPage !== currentPage) {
+          // Caret crossed a page boundary — land on that page (start or 2nd block).
+          nextTop = needsDown ? pageStart : pageScrollMax;
+        } else if (needsDown) {
+          nextTop = contentScroll.scrollTop
+            + (caretBottom - (box.bottom - clipPadding));
+          nextTop = Math.max(pageStart, Math.min(nextTop, pageScrollMax));
+        } else {
+          nextTop = contentScroll.scrollTop
+            - ((box.top + clipPadding) - caretTop);
+          nextTop = Math.max(pageStart, Math.min(nextTop, pageScrollMax));
+        }
+
+        if (contentScroll.scrollTop !== nextTop) {
+          contentScroll.scrollTop = nextTop;
+        }
+        contentScroll.dispatchEvent(
+          new CustomEvent("docpagedchange", {
+            detail: { pageIndex: targetPage },
+            bubbles: true,
+          }),
+        );
+      }
+    }
+    return;
+  }
+
   if (caretBottom > box.bottom - clipPadding) {
     const delta = caretBottom - (box.bottom - clipPadding);
     contentScroll.scrollBy({ top: delta, behavior: "instant" });

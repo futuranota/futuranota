@@ -2051,6 +2051,9 @@ export function SlashAwareTextarea({
             nextSpeakRefs,
           );
           requestAnimationFrame(() => syncMentionQuery());
+          if (e.target.closest(".node-query-modal__content-scroll--paged")) {
+            scheduleCaretCameraScroll();
+          }
         }}
         onKeyDown={(e) => {
           if (handleMentionKeyDown(e)) return;

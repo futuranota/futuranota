@@ -70,8 +70,20 @@ import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
 import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
+import { FolderLibraryImageDetail } from "../docs/FolderLibraryImageDetail.jsx";
+import { IntegratedVisualsPanel } from "../docs/IntegratedVisualsPanel.jsx";
 import { LibraryNeedSaveNotice } from "../docs/LibraryNeedSaveNotice.jsx";
 import { LibrarySetInputModal } from "../docs/LibrarySetInputModal.jsx";
+import { DocPagePager } from "../docs/DocPagePager.jsx";
+import {
+  applyPagedScrollTop,
+  clampPageIndex,
+  clampScrollTopToPage,
+  computePageCount,
+  DOC_PAGED_CHANGE_EVENT,
+  isSecondBlockOfPage,
+  pageHeightFromViewport,
+} from "../../lib/docPagedWriting.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -80,6 +92,7 @@ import {
   resolveDocWorkStatus,
   syncDocWorkStatusFields,
 } from "../../lib/docWorkStatus.js";
+import { listIntegratedVisualsFromBlocks } from "../../lib/listIntegratedVisuals.js";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { ProductCategoryField } from "../docs/ProductCategoryField.jsx";
 import { listSiblingNodeSubcategories } from "../../lib/campaignDocSource.js";
@@ -152,6 +165,7 @@ import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
 const LIBRARY_ICON_SRC = "/uploads/Library.svg";
+const INTEGRATED_VISUALS_ICON_SRC = "/uploads/img.svg";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
@@ -246,10 +260,18 @@ export function NodeQueryModal({
   const focusCategoryRef = useRef(null);
   const contentScrollRef = useRef(null);
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
+  /** @type {["scroll"|"paged", Function]} */
+  const [writingLayout, setWritingLayout] = useState("scroll");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [showPagePager, setShowPagePager] = useState(false);
+  const pageIndexRef = useRef(0);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [integratedVisualsOpen, setIntegratedVisualsOpen] = useState(false);
+  const [integratedVisualDetail, setIntegratedVisualDetail] = useState(null);
   const [librarySlashAction, setLibrarySlashAction] = useState(null);
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
   const [libraryAutoPdfImport, setLibraryAutoPdfImport] = useState(false);
@@ -320,6 +342,11 @@ export function NodeQueryModal({
       { parentObjectId },
     )
     || "";
+  const integratedVisualsFolderId = entityNodeId
+    ? (resolvedParentDocId
+      || String(nodesMap?.[entityNodeId]?.parentDocId || "").trim()
+      || "")
+    : "";
   const selectedParentLabel = (
     (resolvedParentDocId && adoptableDocsById[resolvedParentDocId]
       ? resolveAdoptableDocLabel(adoptableDocsById[resolvedParentDocId])
@@ -434,12 +461,51 @@ export function NodeQueryModal({
 
   const exitContentFocusMode = useCallback(() => {
     setContentFocusMode(false);
+    setWritingLayout("scroll");
+    setPageIndex(0);
+    setPageCount(1);
+    setShowPagePager(false);
+    pageIndexRef.current = 0;
     requestAnimationFrame(() => {
       syncQueryInputHeight();
       // Zoom-out / collapsed: always show the start of the writing (not empty tail cells).
       scrollContentToTop();
     });
   }, [syncQueryInputHeight, scrollContentToTop]);
+
+  const goToPage = useCallback((nextIndex) => {
+    const scroll = contentScrollRef.current;
+    const viewportH = scroll?.clientHeight ?? 0;
+    const count = Math.max(1, pageCount);
+    const idx = clampPageIndex(nextIndex, count);
+    pageIndexRef.current = idx;
+    setPageIndex(idx);
+    setShowPagePager(idx > 0);
+    if (scroll && viewportH > 0) {
+      applyPagedScrollTop(scroll, idx, viewportH, count);
+    }
+  }, [pageCount]);
+
+  const toggleWritingLayout = useCallback(() => {
+    setWritingLayout((prev) => {
+      const next = prev === "paged" ? "scroll" : "paged";
+      if (next === "scroll") {
+        setPageIndex(0);
+        setPageCount(1);
+        setShowPagePager(false);
+        pageIndexRef.current = 0;
+      } else {
+        setPageIndex(0);
+        setShowPagePager(false);
+        pageIndexRef.current = 0;
+        requestAnimationFrame(() => {
+          const scroll = contentScrollRef.current;
+          if (scroll) scroll.scrollTop = 0;
+        });
+      }
+      return next;
+    });
+  }, []);
 
   const toggleContentFocus = useCallback(() => {
     if (contentFocusMode) {
@@ -542,6 +608,7 @@ export function NodeQueryModal({
         : "");
 
   const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload && !forecastPayload;
+  const showPagedLayoutChrome = contentFocusMode && isTextWritingMode && writingLayout === "paged";
 
   // Local source of truth for the writing stack so empty/blank cells survive
   // while editing (serialized content drops them). Re-seed only when the node
@@ -556,6 +623,17 @@ export function NodeQueryModal({
     writingSeedRef.current = seedKey;
     setWritingBlocks(parseNodeWritingBody(content).blocks);
   }, [entityNodeId, dataType, content]);
+
+  const integratedVisualCount = useMemo(
+    () => (entityNodeId
+      ? listIntegratedVisualsFromBlocks(
+        writingBlocks,
+        entityNodeId,
+        integratedVisualsFolderId,
+      ).length
+      : 0),
+    [entityNodeId, integratedVisualsFolderId, writingBlocks],
+  );
 
   const handleGinaInDocSend = useCallback(async (text, meta = {}) => {
     const corpusName = companyObjectId
@@ -1989,6 +2067,121 @@ export function NodeQueryModal({
   ]);
 
   useEffect(() => {
+    setWritingLayout("scroll");
+    setPageIndex(0);
+    setPageCount(1);
+    setShowPagePager(false);
+    pageIndexRef.current = 0;
+  }, [entityNodeId]);
+
+  // Paged layout: page = 2× viewport; free scroll within page; pager on 2nd block.
+  useLayoutEffect(() => {
+    if (!showPagedLayoutChrome) return undefined;
+    const scroll = contentScrollRef.current;
+    if (!scroll) return undefined;
+
+    const syncPagerVisibility = (idx, top, viewportH) => {
+      setShowPagePager(idx > 0 || isSecondBlockOfPage(top, idx, viewportH));
+    };
+
+    const measure = () => {
+      const viewportH = scroll.clientHeight;
+      const pageHeight = pageHeightFromViewport(viewportH);
+      const contentHeight = scroll.scrollHeight;
+      const nextCount = computePageCount(contentHeight, pageHeight);
+      setPageCount(nextCount);
+      const prev = pageIndexRef.current;
+      const idx = clampPageIndex(prev, nextCount);
+      pageIndexRef.current = idx;
+      setPageIndex(idx);
+      const clamped = clampScrollTopToPage(
+        scroll.scrollTop,
+        idx,
+        viewportH,
+        contentHeight,
+      );
+      if (scroll.scrollTop !== clamped) scroll.scrollTop = clamped;
+      syncPagerVisibility(idx, clamped, viewportH);
+    };
+
+    measure();
+    const settle = requestAnimationFrame(() => {
+      requestAnimationFrame(measure);
+    });
+    const ro = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => measure())
+      : null;
+    ro?.observe(scroll);
+    const stack = scroll.querySelector(".node-query-modal__writing-stack")
+      || scroll.firstElementChild;
+    if (stack) ro?.observe(stack);
+
+    const onScroll = () => {
+      const viewportH = scroll.clientHeight;
+      const contentHeight = scroll.scrollHeight;
+      const idx = pageIndexRef.current;
+      const clamped = clampScrollTopToPage(
+        scroll.scrollTop,
+        idx,
+        viewportH,
+        contentHeight,
+      );
+      if (scroll.scrollTop !== clamped) {
+        scroll.scrollTop = clamped;
+      }
+      syncPagerVisibility(idx, clamped, viewportH);
+    };
+
+    const onPagedChange = (e) => {
+      const next = e?.detail?.pageIndex;
+      if (typeof next !== "number" || !Number.isFinite(next)) return;
+      const viewportH = scroll.clientHeight;
+      const pageHeight = pageHeightFromViewport(viewportH);
+      const contentHeight = scroll.scrollHeight;
+      const count = computePageCount(contentHeight, pageHeight);
+      setPageCount(count);
+      const idx = clampPageIndex(next, count);
+      const prev = pageIndexRef.current;
+      pageIndexRef.current = idx;
+      if (idx !== prev) {
+        setPageIndex(idx);
+        applyPagedScrollTop(scroll, idx, viewportH, count);
+      } else {
+        const clamped = clampScrollTopToPage(
+          scroll.scrollTop,
+          idx,
+          viewportH,
+          contentHeight,
+        );
+        if (scroll.scrollTop !== clamped) scroll.scrollTop = clamped;
+      }
+      syncPagerVisibility(idx, scroll.scrollTop, viewportH);
+    };
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+    scroll.addEventListener(DOC_PAGED_CHANGE_EVENT, onPagedChange);
+
+    return () => {
+      cancelAnimationFrame(settle);
+      ro?.disconnect();
+      scroll.removeEventListener("scroll", onScroll);
+      scroll.removeEventListener(DOC_PAGED_CHANGE_EVENT, onPagedChange);
+    };
+  }, [showPagedLayoutChrome]);
+
+  useEffect(() => {
+    if (!showPagedLayoutChrome) return undefined;
+    const onKeyDown = (e) => {
+      if (!e.altKey) return;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      if (e.key === "ArrowLeft") goToPage(pageIndex - 1);
+      else goToPage(pageIndex + 1);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [showPagedLayoutChrome, goToPage, pageIndex]);
+
+  useEffect(() => {
     if (dataType === "checkbox") return;
     bodyRef.current?.focus();
   }, [dataType]);
@@ -2083,6 +2276,23 @@ export function NodeQueryModal({
                 </p>
               )}
               <div className="doc-focus-top__meta">
+                {isTextWritingMode ? (
+                  <button
+                    type="button"
+                    className={
+                      "doc-focus-top__layout-toggle"
+                      + (writingLayout === "paged" ? " is-paged" : "")
+                    }
+                    onClick={toggleWritingLayout}
+                    aria-pressed={writingLayout === "paged"}
+                    aria-label={t("canvas.writingLayoutToggleAria")}
+                    title={t("canvas.writingLayoutToggleTitle")}
+                  >
+                    {writingLayout === "paged"
+                      ? t("canvas.writingLayoutPages")
+                      : t("canvas.writingLayoutScroll")}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__call-asistente"
@@ -2107,6 +2317,32 @@ export function NodeQueryModal({
                       aria-hidden
                       draggable={false}
                     />
+                  </button>
+                ) : null}
+                {entityNodeId && isTextWritingMode ? (
+                  <button
+                    type="button"
+                    className={
+                      "node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__integrated-visuals"
+                      + (integratedVisualsOpen ? " is-active" : "")
+                    }
+                    onClick={() => setIntegratedVisualsOpen(true)}
+                    title={t("doc.library.integratedVisualsOpen")}
+                    aria-label={t("doc.library.integratedVisualsOpen")}
+                    aria-pressed={integratedVisualsOpen}
+                  >
+                    <img
+                      className="node-query-modal__doc-action-icon"
+                      src={INTEGRATED_VISUALS_ICON_SRC}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                    {integratedVisualCount > 0 ? (
+                      <span className="node-query-modal__integrated-visuals-count">
+                        {integratedVisualCount > 99 ? "99+" : integratedVisualCount}
+                      </span>
+                    ) : null}
                   </button>
                 ) : null}
                 <button
@@ -2297,6 +2533,32 @@ export function NodeQueryModal({
                     aria-hidden
                     draggable={false}
                   />
+                </button>
+              ) : null}
+              {entityNodeId && isTextWritingMode ? (
+                <button
+                  type="button"
+                  className={
+                    "node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__integrated-visuals"
+                    + (integratedVisualsOpen ? " is-active" : "")
+                  }
+                  onClick={() => setIntegratedVisualsOpen(true)}
+                  title={t("doc.library.integratedVisualsOpen")}
+                  aria-label={t("doc.library.integratedVisualsOpen")}
+                  aria-pressed={integratedVisualsOpen}
+                >
+                  <img
+                    className="node-query-modal__doc-action-icon"
+                    src={INTEGRATED_VISUALS_ICON_SRC}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                  {integratedVisualCount > 0 ? (
+                    <span className="node-query-modal__integrated-visuals-count">
+                      {integratedVisualCount > 99 ? "99+" : integratedVisualCount}
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
               <button
@@ -2699,6 +2961,7 @@ export function NodeQueryModal({
             + (slashCommandsEnabled ? " node-query-modal__content-box--slash" : "")
             + (dataType === "checkbox" ? " node-query-modal__content-box--todo" : "")
             + (contentFocusMode ? " node-query-modal__content-box--focus" : "")
+            + (showPagedLayoutChrome ? " node-query-modal__content-box--paged" : "")
             + (showTextSizeControls ? " node-query-modal__content-box--text-size" : "")
           }
           style={showTextSizeControls ? typographyStyle : undefined}
@@ -2722,6 +2985,7 @@ export function NodeQueryModal({
             className={
               "node-query-modal__content-scroll"
               + (contentFocusMode ? " node-query-modal__content-scroll--focus" : "")
+              + (showPagedLayoutChrome ? " node-query-modal__content-scroll--paged" : "")
             }
           >
           {dataType === NODE_DATA_TYPES.VIDEO ? (
@@ -2842,6 +3106,14 @@ export function NodeQueryModal({
             />
           )}
           </div>
+          {showPagedLayoutChrome && showPagePager ? (
+            <DocPagePager
+              pageIndex={pageIndex}
+              pageCount={pageCount}
+              onPrev={() => goToPage(pageIndex - 1)}
+              onNext={() => goToPage(pageIndex + 1)}
+            />
+          ) : null}
           {slashCommandsEnabled ? (
             <DocSlashCommandPicker
               variant="floating"
@@ -3034,6 +3306,34 @@ export function NodeQueryModal({
     />
   ) : null;
 
+  const integratedVisualsUi = entityNodeId && isTextWritingMode ? (
+    <>
+      <IntegratedVisualsPanel
+        open={integratedVisualsOpen}
+        blocks={writingBlocks}
+        documentId={entityNodeId}
+        folderId={integratedVisualsFolderId}
+        onClose={() => setIntegratedVisualsOpen(false)}
+        onOpenItem={(row) => {
+          setIntegratedVisualDetail({
+            itemId: row.itemId,
+            ownerKind: row.ownerKind,
+            ownerId: row.ownerId,
+          });
+        }}
+      />
+      {integratedVisualDetail ? (
+        <FolderLibraryImageDetail
+          ownerKind={integratedVisualDetail.ownerKind}
+          ownerId={integratedVisualDetail.ownerId}
+          folderId={integratedVisualDetail.ownerId}
+          itemId={integratedVisualDetail.itemId}
+          onClose={() => setIntegratedVisualDetail(null)}
+        />
+      ) : null}
+    </>
+  ) : null;
+
   const libraryIoUi = librarySlashAction && !entityNodeId ? (
     <LibraryNeedSaveNotice onClose={() => setLibrarySlashAction(null)} />
   ) : librarySlashAction === LIBRARY_SLASH_ACTIONS.INPUT && entityNodeId ? (
@@ -3056,6 +3356,7 @@ export function NodeQueryModal({
         {ginaChat}
         {ginaPdfUploadInput}
         {libraryOverlay}
+        {integratedVisualsUi}
         {libraryIoUi}
       </>
     );
@@ -3080,6 +3381,7 @@ export function NodeQueryModal({
       {ginaChat}
       {ginaPdfUploadInput}
       {libraryOverlay}
+      {integratedVisualsUi}
       {libraryIoUi}
     </>
   );
