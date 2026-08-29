@@ -23473,6 +23473,16 @@ body.doc-content-resizing * {
   font-size: 13px;
 }
 
+.folder-library-element-modal__input--aliases {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.folder-library-element-modal__input--aliases::placeholder {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.28);
+}
+
 .folder-library-element-modal__textarea {
   resize: vertical;
   min-height: 100px;

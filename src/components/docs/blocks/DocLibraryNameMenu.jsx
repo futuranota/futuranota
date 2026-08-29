@@ -52,10 +52,13 @@ export function DocLibraryNameMenu({
         const name = item.kind === "speak"
           ? String(item.name || "Speak").trim()
           : String(item.tag || item.name || "").trim();
+        const canonical = String(item.canonicalTag || "").trim();
         const prompt = String(item.description || "").trim();
         const preview = prompt
           ? (prompt.length > 72 ? `${prompt.slice(0, 72)}…` : prompt)
-          : "";
+          : (canonical && canonical.toLowerCase() !== name.toLowerCase()
+            ? `→ ${canonical}`
+            : "");
         return (
           <button
             key={item.id || `${name}-${index}`}

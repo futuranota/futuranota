@@ -291,6 +291,8 @@ export function SlashAwareTextarea({
   libraryAssignFiles = null,
   libraryAssignAssets = null,
   onLibraryAssignSelect = null,
+  canInsertLibraryNameRef = null,
+  onAfterPaste = null,
   qloopCandidates = null,
   docBlocksForQLoop = null,
   onInsertQLoopQuery = null,
@@ -1667,6 +1669,9 @@ export function SlashAwareTextarea({
 
   const insertLibraryNameCandidate = useCallback((candidate) => {
     if (!candidate || !activeLibraryNameQuery) return;
+    if (typeof canInsertLibraryNameRef === "function" && !canInsertLibraryNameRef(candidate)) {
+      return;
+    }
     const result = insertLibraryNameRefAtQuery(
       value,
       normalizedLibraryNameRefs,
@@ -1705,6 +1710,7 @@ export function SlashAwareTextarea({
   }, [
     activeLibraryNameQuery,
     boldEnabled,
+    canInsertLibraryNameRef,
     emitChange,
     libraryNameRefsEnabled,
     markersEnabled,
@@ -2073,7 +2079,14 @@ export function SlashAwareTextarea({
         onScroll={() => {
           if (hasOverlay) syncMirrorTypography();
         }}
-        onPaste={onPaste}
+        onPaste={(e) => {
+          onPaste?.(e);
+          if (!e.defaultPrevented && onAfterPaste) {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => onAfterPaste());
+            });
+          }
+        }}
         onBlur={(e) => {
           const next = e.relatedTarget;
           if (

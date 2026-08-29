@@ -29,6 +29,19 @@ describe("library name invoke", () => {
     expect(filterLibraryNameCandidates([andes], "des")).toEqual([]);
   });
 
+  it("filters aliases by phrase prefix", () => {
+    const gina = {
+      id: "g1",
+      tag: "Gina",
+      aliases: ["mi hermana"],
+      description: "portrait",
+    };
+    const hits = filterLibraryNameCandidates([gina], "mi");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].tag).toBe("mi hermana");
+    expect(hits[0].canonicalTag).toBe("Gina");
+  });
+
   it("inserts the canonical name and keeps a ref span", () => {
     const query = getLibraryNameQueryAtCaret("and", 3);
     const result = insertLibraryNameRefAtQuery("and", [], query, andes);

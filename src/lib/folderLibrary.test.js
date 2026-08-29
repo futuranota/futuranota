@@ -70,6 +70,16 @@ describe("folderLibrary normalize", () => {
     expect(item?.promptClass).toBe("characters");
   });
 
+  it("normalizes aliases and drops the canonical tag duplicate", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "x",
+      tag: "Gina",
+      category: "image",
+      aliases: ["mi hermana", "Gina", "  mi   hermana  ", "ella"],
+    });
+    expect(item?.aliases).toEqual(["mi hermana", "ella"]);
+  });
+
   it("defaults presentation to prompt and infers visual for legacy image-only", () => {
     const withPrompt = normalizeFolderLibraryItem({
       id: "a",

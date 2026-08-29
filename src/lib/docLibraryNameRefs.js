@@ -32,7 +32,7 @@ function asText(value) {
 }
 
 export function normalizeLibraryNameKey(value) {
-  return asText(value).trim().toLowerCase();
+  return asText(value).trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 /**
@@ -84,6 +84,8 @@ export function normalizeLibraryNameRefs(text, refs) {
 /**
  * Word-prefix query before the caret (no trigger char).
  * Skips `#` / `/` / `@` tokens and committed refs.
+ * Multi-word aliases are matched by prefix of the whole phrase
+ * (type "mi" → "mi hermana") and by retroactive scan once written.
  *
  * @param {string} text
  * @param {number} caret
@@ -120,19 +122,42 @@ export function getLibraryNameQueryAtCaret(text, caret, refs = null) {
 }
 
 /**
- * @param {Array<{ tag?: string, name?: string }>} candidates
+ * @param {Array<{ tag?: string, name?: string, aliases?: string[], canonicalTag?: string }>} candidates
  * @param {string} query
  * @param {number} [limit]
  */
 export function filterLibraryNameCandidates(candidates, query, limit = 8) {
   const q = normalizeLibraryNameKey(query);
   if (!q || !Array.isArray(candidates)) return [];
+  /** @type {typeof candidates} */
   const matched = [];
+  const seen = new Set();
   for (const item of candidates) {
-    const tag = normalizeLibraryNameKey(item?.tag || item?.name);
-    if (!tag) continue;
-    if (tag.startsWith(q)) matched.push(item);
-    if (matched.length >= limit) break;
+    if (!item) continue;
+    const canonical = asText(item.canonicalTag || item.tag || item.name).trim();
+    const phrases = [
+      asText(item.tag || item.name).trim(),
+      ...(Array.isArray(item.aliases) ? item.aliases : []),
+    ].filter(Boolean);
+    for (const phrase of phrases) {
+      const key = normalizeLibraryNameKey(phrase);
+      if (!key || !key.startsWith(q)) continue;
+      const dedupe = `${String(item.id || "")}:${key}`;
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      matched.push({
+        ...item,
+        tag: phrase,
+        name: phrase,
+        canonicalTag: canonical || phrase,
+        description: item.description || (
+          canonical && normalizeLibraryNameKey(canonical) !== key
+            ? canonical
+            : ""
+        ),
+      });
+      if (matched.length >= limit) return matched;
+    }
   }
   return matched;
 }

@@ -24,9 +24,47 @@ import { normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
  * @property {boolean} loop Document Prompts: copy into assets instead of moving. Folder fichas always loop.
  * @property {string|null} promptClass User classification (`ambiente`, or legacy custom names)
  * @property {LibraryPresentation} presentation Prompt text-first vs image-only (same Prompt tab)
+ * @property {string[]} aliases Alternate phrases that also link to this Prompt (e.g. "mi hermana")
  * @property {string} createdAt
  * @property {string} updatedAt
  */
+
+export const LIBRARY_ALIAS_MAX = 8;
+export const LIBRARY_ALIAS_MAX_LEN = 48;
+export const LIBRARY_ALIAS_MAX_WORDS = 4;
+
+/**
+ * Normalize user-defined alias phrases for a Prompt ficha.
+ * Collapses whitespace, drops empties / duplicates / the canonical tag.
+ * @param {unknown} value
+ * @param {string} [canonicalTag]
+ * @returns {string[]}
+ */
+export function normalizeLibraryAliases(value, canonicalTag = "") {
+  if (!Array.isArray(value) && typeof value !== "string") return [];
+  const rawList = Array.isArray(value)
+    ? value
+    : String(value).split(/[,;\n]+/);
+  const tagKey = String(canonicalTag || "").trim().toLowerCase();
+  /** @type {string[]} */
+  const out = [];
+  const seen = new Set();
+  for (const raw of rawList) {
+    if (out.length >= LIBRARY_ALIAS_MAX) break;
+    const phrase = String(raw ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, LIBRARY_ALIAS_MAX_LEN);
+    if (phrase.length < 2) continue;
+    const words = phrase.split(" ");
+    if (words.length > LIBRARY_ALIAS_MAX_WORDS) continue;
+    const key = phrase.toLowerCase();
+    if (seen.has(key) || (tagKey && key === tagKey)) continue;
+    seen.add(key);
+    out.push(phrase);
+  }
+  return out;
+}
 
 /**
  * @typedef {Object} LibrarySet
@@ -317,6 +355,7 @@ export function normalizeFolderLibraryItem(raw) {
     description,
     mediaUrl,
   });
+  const aliases = normalizeLibraryAliases(raw.aliases, tag);
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -340,6 +379,7 @@ export function normalizeFolderLibraryItem(raw) {
     loop,
     promptClass,
     presentation,
+    aliases,
     createdAt,
     updatedAt,
   };
@@ -379,6 +419,7 @@ export function normalizeFolderLibraryItems(value) {
  *   loop?: boolean,
  *   promptClass?: string|null,
  *   presentation?: string|null,
+ *   aliases?: string[]|string|null,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -412,6 +453,7 @@ export function buildFolderLibraryItem(input = {}) {
     description,
     mediaUrl,
   });
+  const aliases = normalizeLibraryAliases(input.aliases, tag);
   return {
     id: generateId("LIB"),
     tag,
@@ -429,6 +471,7 @@ export function buildFolderLibraryItem(input = {}) {
     loop: Boolean(input.loop),
     promptClass: normalizePromptClass(input.promptClass),
     presentation,
+    aliases,
     createdAt: now,
     updatedAt: now,
   };

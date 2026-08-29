@@ -548,6 +548,7 @@ export function NodeQueryModal({
   // identity or data type changes.
   const [writingBlocks, setWritingBlocks] = useState(() => parseNodeWritingBody(content).blocks);
   const writingSeedRef = useRef(`${entityNodeId ?? "new"}:${dataType}`);
+  const retroactiveApplyRef = useRef(null);
 
   useEffect(() => {
     const seedKey = `${entityNodeId ?? "new"}:${dataType}`;
@@ -1490,6 +1491,21 @@ export function NodeQueryModal({
     setWritingBlocks(blocks);
     onContentChange(serializeNodeWritingBody({ blocks }));
   }, [onContentChange]);
+
+  const handlePromptItemSaved = useCallback((saved, ownerKind, updatedNodeIds = []) => {
+    if (ownerKind === "document") {
+      retroactiveApplyRef.current?.(saved, ownerKind);
+      return;
+    }
+    if (!entityNodeId || !Array.isArray(updatedNodeIds) || !updatedNodeIds.includes(entityNodeId)) {
+      return;
+    }
+    const node = useNodesStore.getState().getNode?.(entityNodeId)
+      ?? useNodesStore.getState().nodes?.[entityNodeId]
+      ?? null;
+    if (!node) return;
+    setWritingBlocks(parseNodeWritingBody(node.content).blocks);
+  }, [entityNodeId]);
 
   const handleOrganizeWritingText = useCallback(async () => {
     if (organizingWriting) return;
@@ -2797,6 +2813,9 @@ export function NodeQueryModal({
                 folderLibraryId={entityNodeId ? (resolvedParentDocId || "") : ""}
                 documentTitle={displayQuery}
                 onLibrarySlashAction={setLibrarySlashAction}
+                onLibraryPromptSaved={(register) => {
+                  retroactiveApplyRef.current = register;
+                }}
               />
             </div>
           ) : calendarPayload ? (
@@ -3006,6 +3025,7 @@ export function NodeQueryModal({
       autoStartPdfImport={libraryAutoPdfImport}
       onAutoStartPdfImportConsumed={() => setLibraryAutoPdfImport(false)}
       onImportPdfToWriting={handleImportPdfFromLibrary}
+      onPromptItemSaved={handlePromptItemSaved}
       onClose={() => {
         setLibraryOpen(false);
         setLibraryInitialTab(null);

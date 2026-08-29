@@ -11,6 +11,7 @@ import {
   normalizeLibraryPresentation,
   normalizePromptClass,
   normalizePromptClasses,
+  normalizeLibraryAliases,
   normalizeLibrarySetId,
   normalizeLibrarySets,
   normalizeWallColor,
@@ -22,6 +23,9 @@ export {
   FOLDER_LIBRARY_CATEGORIES,
   FOLDER_LIBRARY_DEFAULT_WALL,
   FOLDER_LIBRARY_FILTER_TABS,
+  LIBRARY_ALIAS_MAX,
+  LIBRARY_ALIAS_MAX_LEN,
+  LIBRARY_ALIAS_MAX_WORDS,
   PROMPT_CLASS_AMBIENTE,
   buildFolderLibraryItem,
   buildLibrarySet,
@@ -39,6 +43,7 @@ export {
   normalizeLibraryPresentation,
   normalizePromptClass,
   normalizePromptClasses,
+  normalizeLibraryAliases,
   normalizeLibrarySet,
   normalizeLibrarySetId,
   normalizeLibrarySets,
@@ -403,6 +408,10 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? String(patch.description).trim()
     : current.description;
 
+  const aliases = patch.aliases !== undefined
+    ? normalizeLibraryAliases(patch.aliases, nextTag)
+    : normalizeLibraryAliases(current.aliases, nextTag);
+
   const presentation = resolveLibraryPresentation({
     presentation: patch.presentation !== undefined
       ? (normalizeLibraryPresentation(patch.presentation) || patch.presentation)
@@ -430,6 +439,7 @@ function applyLibraryItemPatch(current, patch = {}) {
     loop,
     promptClass,
     presentation,
+    aliases,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -735,5 +745,6 @@ export function cloneLibraryItemIntoSet(ownerId, source, setId) {
     loop: false,
     promptClass: source.promptClass,
     presentation: source.presentation,
+    aliases: source.aliases,
   });
 }

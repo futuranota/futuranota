@@ -12,6 +12,7 @@ import {
   FOLDER_LIBRARY_DEFAULT_WALL,
   createLibraryItem,
   normalizeFolderLibraryCategory,
+  normalizeLibraryAliases,
   normalizeLibraryOwnerKind,
   normalizeLibraryPresentation,
   normalizeWallColor,
@@ -93,6 +94,9 @@ export function FolderLibraryElementModal({
 
   const [tag, setTag] = useState(item?.tag || "");
   const [description, setDescription] = useState(item?.description || "");
+  const [aliasesDraft, setAliasesDraft] = useState(() => (
+    Array.isArray(item?.aliases) ? item.aliases.join(", ") : ""
+  ));
   const [category, setCategory] = useState(initialCategory);
   const [mediaUrl, setMediaUrl] = useState(item?.mediaUrl || String(initialMediaUrl || "").trim() || null);
   const [attachmentUrl, setAttachmentUrl] = useState(item?.attachmentUrl || null);
@@ -305,6 +309,9 @@ export function FolderLibraryElementModal({
         loop: Boolean(loop),
         promptClass: isSkillLike ? null : (promptClass || null),
         presentation: isSkillLike || isVideoLike ? "prompt" : presentation,
+        aliases: isSkillLike || isVideoLike
+          ? []
+          : normalizeLibraryAliases(aliasesDraft, trimmed),
       };
       if (isSkillLike) {
         payload.mediaUrl = null;
@@ -451,6 +458,19 @@ export function FolderLibraryElementModal({
                 autoFocus
               />
             </label>
+
+            {isImageLike ? (
+              <label className="folder-library-element-modal__field">
+                <span className="folder-library-element-modal__label">{t("doc.library.aliasesLabel")}</span>
+                <input
+                  className="folder-library-element-modal__input folder-library-element-modal__input--aliases"
+                  type="text"
+                  value={aliasesDraft}
+                  placeholder={t("doc.library.aliasesPlaceholder")}
+                  onChange={(e) => setAliasesDraft(e.target.value)}
+                />
+              </label>
+            ) : null}
 
             {showMoodboardTag && isImageLike ? (
               <div className="folder-library-element-modal__field folder-library-element-modal__field--moodboard-tag">

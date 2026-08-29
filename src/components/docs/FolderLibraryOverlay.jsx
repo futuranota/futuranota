@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
@@ -17,6 +17,8 @@ import {
   fetchPdfBytesFromUrl,
   isPdfLibraryAttachment,
 } from "../../lib/importPdfText.js";
+import { applyRetroactiveRefsToFolderDocuments } from "../../lib/applyRetroactiveRefsToFolderDocuments.js";
+import { isRetroactivePromptItem } from "../../lib/retroactiveLibraryNameRefs.js";
 import {
   addPromptClass,
   assignLibraryItemToSet,
@@ -187,6 +189,11 @@ export function FolderLibraryOverlay({
   /** Gina: open PDF file picker once, upload attachment, then run PDF → text. */
   autoStartPdfImport = false,
   onAutoStartPdfImportConsumed = null,
+  /**
+   * Fired after a Prompt ficha is saved (retroactive linking handled by parent when needed).
+   * @type {null|((saved: object, ownerKind: "folder"|"document", updatedNodeIds?: string[]) => void)}
+   */
+  onPromptItemSaved = null,
   onClose,
 }) {
   const { t } = useI18n();
@@ -241,6 +248,18 @@ export function FolderLibraryOverlay({
     (item) => item.category === "skill" || item.category === "pdf",
   ).length;
   const hasFolderAttachments = folderAttachmentCount > 0;
+
+  const notifyPromptItemSaved = useCallback((saved) => {
+    if (!saved?.id || !isRetroactivePromptItem(saved)) return;
+    if (activeKind === "folder") {
+      const folderTarget = String(attachmentOwnerId || rootId || "").trim();
+      if (!folderTarget) return;
+      const { updatedNodeIds } = applyRetroactiveRefsToFolderDocuments(folderTarget, saved);
+      onPromptItemSaved?.(saved, "folder", updatedNodeIds);
+      return;
+    }
+    onPromptItemSaved?.(saved, "document", []);
+  }, [activeKind, attachmentOwnerId, onPromptItemSaved, rootId]);
 
   const filterKey = `${activeKind}:${activeId}`;
   const defaultTab = showingDocumentGrid ? "documents" : "prompt";
@@ -1471,6 +1490,7 @@ export function FolderLibraryOverlay({
             if (focusedAssetId && saved?.id && !showingAttachments) {
               assignLibraryItemToSet(activeKind, activeId, saved.id, focusedAssetId);
             }
+            notifyPromptItemSaved(saved);
             setModalOpen(false);
             setEditingItem(null);
             setCreateMediaUrl("");

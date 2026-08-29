@@ -20,6 +20,13 @@ import {
 import { applyTextEditToTagRefs, snapCaretOutOfTagRefBoxInterior } from "../../lib/docTagRefs.js";
 import { useLibraryItems, useLibrarySets } from "../../hooks/useLibraryItems.js";
 import { isLibraryAssignPromptFile, mergeAssignFiles, shouldCloneLibraryAssign } from "../../lib/libraryAssignPath.js";
+import { libraryItemLoops } from "../../lib/folderLibrary.js";
+import {
+  applySavedItemRetroactiveRefs,
+  collectLibraryNameRefsFromBlocks,
+  documentHasLibraryNameRefForItem,
+  reconcileDocumentRetroactiveRefs,
+} from "../../lib/retroactiveLibraryNameRefs.js";
 import { imageSplitHasFill } from "../../lib/libraryImageCardPick.js";
 import { assignLibraryItemToSet, cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
@@ -314,6 +321,7 @@ export function NodeWritingBlockStack({
   folderLibraryId = "",
   documentTitle = "",
   onLibrarySlashAction = null,
+  onLibraryPromptSaved = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -333,6 +341,7 @@ export function NodeWritingBlockStack({
   const [savedPromptItemId, setSavedPromptItemId] = useState(null);
   const [savedPromptAssetId, setSavedPromptAssetId] = useState(null);
   const [pendingAssignClone, setPendingAssignClone] = useState(null);
+  const reconcileGuardRef = useRef("");
 
   const snapshotWritingCaret = useCallback((blockIndex, el) => {
     if (!writingCaretRef) return;
@@ -366,7 +375,7 @@ export function NodeWritingBlockStack({
       ...folderLibraryItems,
     ];
     for (const item of sources) {
-      if (item?.category !== "image") continue;
+      if (item?.category !== "image" && item?.category !== "auto") continue;
       const tag = String(item.tag || "").trim();
       if (!tag) continue;
       const key = tag.toLowerCase();
@@ -376,6 +385,8 @@ export function NodeWritingBlockStack({
         id: item.id,
         tag,
         name: tag,
+        canonicalTag: tag,
+        aliases: Array.isArray(item.aliases) ? item.aliases : [],
         description: String(item.description || ""),
         setId: item.setId ?? null,
       });
@@ -429,6 +440,82 @@ export function NodeWritingBlockStack({
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
   }, [onBlocksChange]);
+
+  const applyRetroactiveLibraryItemSaved = useCallback((saved, saveOwnerKind) => {
+    if (!saved?.id || libraryOwnerKind !== "document" || !libraryOwnerId) return false;
+    const ownerKind = String(saveOwnerKind || "document").trim() === "folder"
+      ? "folder"
+      : "document";
+    const result = applySavedItemRetroactiveRefs(blocksRef.current, saved, ownerKind);
+    if (result.changed) {
+      updateBlocks(result.blocks);
+    }
+    return result.changed;
+  }, [libraryOwnerId, libraryOwnerKind, updateBlocks]);
+
+  useEffect(() => {
+    if (typeof onLibraryPromptSaved !== "function") return undefined;
+    onLibraryPromptSaved(applyRetroactiveLibraryItemSaved);
+    return () => onLibraryPromptSaved(null);
+  }, [applyRetroactiveLibraryItemSaved, onLibraryPromptSaved]);
+
+  const libraryCatalogKey = useMemo(() => {
+    const looseDoc = libraryItems.filter((item) => !item?.setId && (item?.category === "image" || item?.category === "auto"));
+    const folderPrompts = folderLibraryItems.filter((item) => item?.category === "image" || item?.category === "auto");
+    return [...looseDoc, ...folderPrompts]
+      .map((item) => {
+        const aliasKey = Array.isArray(item.aliases) ? item.aliases.join(",") : "";
+        return `${item.id}:${item.tag}:${item.loop ? 1 : 0}:${aliasKey}`;
+      })
+      .join("|");
+  }, [folderLibraryItems, libraryItems]);
+
+  useEffect(() => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId || !folderLibraryId) return;
+    const guardKey = `${libraryOwnerId}:${folderLibraryId}:${libraryCatalogKey}`;
+    if (reconcileGuardRef.current === guardKey) return;
+    reconcileGuardRef.current = guardKey;
+    const result = reconcileDocumentRetroactiveRefs(
+      blocksRef.current,
+      libraryOwnerId,
+      folderLibraryId,
+    );
+    if (result.changed) {
+      updateBlocks(result.blocks);
+    }
+  }, [
+    folderLibraryId,
+    libraryCatalogKey,
+    libraryOwnerId,
+    libraryOwnerKind,
+    updateBlocks,
+  ]);
+
+  const reconcileAfterPaste = useCallback(() => {
+    if (libraryOwnerKind !== "document" || !libraryOwnerId || !folderLibraryId) return;
+    requestAnimationFrame(() => {
+      const result = reconcileDocumentRetroactiveRefs(
+        blocksRef.current,
+        libraryOwnerId,
+        folderLibraryId,
+      );
+      if (result.changed) {
+        updateBlocks(result.blocks);
+      }
+    });
+  }, [folderLibraryId, libraryOwnerId, libraryOwnerKind, updateBlocks]);
+
+  const canInsertLibraryNameRef = useCallback((candidate) => {
+    if (!candidate?.id) return true;
+    const docItem = libraryItems.find((item) => item.id === candidate.id);
+    const folderItem = folderLibraryItems.find((item) => item.id === candidate.id);
+    const item = docItem || folderItem;
+    if (!item) return true;
+    const ownerKind = docItem ? "document" : "folder";
+    if (libraryItemLoops(ownerKind, item)) return true;
+    const allRefs = collectLibraryNameRefsFromBlocks(blocksRef.current);
+    return !documentHasLibraryNameRefForItem(allRefs, candidate.id);
+  }, [folderLibraryItems, libraryItems]);
 
   const { selectionBubble } = useNodeTextSelectionToolbar({
     stackRef,
@@ -1670,6 +1757,8 @@ export function NodeWritingBlockStack({
                 libraryAssignFiles={libraryAssignFiles}
                 libraryAssignAssets={libraryAssignAssets}
                 onLibraryAssignSelect={handleLibraryAssignSelect}
+                canInsertLibraryNameRef={canInsertLibraryNameRef}
+                onAfterPaste={reconcileAfterPaste}
                 mentionCandidates={mentionCandidates}
                 companyObjectId={companyObjectId}
                 markerRanges={block.markerRanges || []}
@@ -1731,6 +1820,8 @@ export function NodeWritingBlockStack({
                   libraryAssignFiles={libraryAssignFiles}
                   libraryAssignAssets={libraryAssignAssets}
                   onLibraryAssignSelect={handleLibraryAssignSelect}
+                  canInsertLibraryNameRef={canInsertLibraryNameRef}
+                  onAfterPaste={reconcileAfterPaste}
                   mentionCandidates={mentionCandidates}
                   companyObjectId={companyObjectId}
                   markerRanges={block.markerRanges || []}
@@ -1802,6 +1893,7 @@ export function NodeWritingBlockStack({
         onSaved={(item) => {
           clearPromptCapture();
           if (!item?.id) return;
+          applyRetroactiveLibraryItemSaved(item, libraryOwnerKind);
           if (item.setId) setSavedPromptAssetId(item.setId);
           else setSavedPromptItemId(item.id);
         }}
