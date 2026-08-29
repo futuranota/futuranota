@@ -773,15 +773,32 @@
   box-sizing: border-box;
 }
 
-.node-query-modal__library {
-  max-width: min(240px, 42vw);
-  overflow: hidden;
+.node-query-modal__library.node-query-modal__doc-action--icon-only {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  justify-content: center;
 }
 
-.node-query-modal__library > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.node-query-modal__library.node-query-modal__doc-action--icon-only:hover:not(:disabled) {
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+}
+
+.node-query-modal__library .node-query-modal__doc-action-icon {
+  width: 12px;
+  height: 12px;
+  filter: brightness(0) invert(0.72);
+  opacity: 0.65;
+}
+
+.node-query-modal__library:hover:not(:disabled) .node-query-modal__doc-action-icon {
+  opacity: 0.9;
+  filter: brightness(0) invert(0.82);
 }
 
 .node-query-modal__doc-action-icon {
@@ -848,6 +865,7 @@
 }
 
 .doc-focus-top__meta .node-query-modal__call-asistente,
+.doc-focus-top__meta .node-query-modal__library,
 .doc-focus-top__meta .node-query-modal__new-todo {
   margin-right: 4px;
 }

@@ -31,11 +31,15 @@ export function isMoodboardLibraryPick(item) {
 /**
  * Flatten visual fichas from catalogs, optionally excluding one folder owner.
  * @param {Array<{ ownerKind?: string, ownerId?: string, items?: unknown[] }>} catalogs
- * @param {{ excludeFolderId?: string }} [opts]
+ * @param {{ excludeFolderId?: string, excludeDocumentId?: string }} [opts]
  * @returns {Array<{ ownerKind: "folder"|"document", ownerId: string, item: object }>}
  */
-export function flattenVisualPicksFromCatalogs(catalogs, { excludeFolderId = "" } = {}) {
-  const exclude = String(excludeFolderId || "").trim();
+export function flattenVisualPicksFromCatalogs(catalogs, {
+  excludeFolderId = "",
+  excludeDocumentId = "",
+} = {}) {
+  const excludeFolder = String(excludeFolderId || "").trim();
+  const excludeDocument = String(excludeDocumentId || "").trim();
   const out = [];
   const seen = new Set();
   for (const catalog of Array.isArray(catalogs) ? catalogs : []) {
@@ -44,7 +48,8 @@ export function flattenVisualPicksFromCatalogs(catalogs, { excludeFolderId = "" 
       : "folder";
     const ownerId = String(catalog?.ownerId || catalog?.ownerId || "").trim();
     if (!ownerId) continue;
-    if (exclude && ownerKind === "folder" && ownerId === exclude) continue;
+    if (excludeFolder && ownerKind === "folder" && ownerId === excludeFolder) continue;
+    if (excludeDocument && ownerKind === "document" && ownerId === excludeDocument) continue;
     const items = Array.isArray(catalog?.items) ? catalog.items : [];
     for (const item of items) {
       if (!isMoodboardLibraryPick(item)) continue;

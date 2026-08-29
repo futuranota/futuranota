@@ -151,8 +151,7 @@ import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
-/** Max chars of the doc title shown in the Biblioteca button label (UI only). */
-const LIBRARY_BUTTON_TITLE_MAX = 28;
+const LIBRARY_ICON_SRC = "/uploads/Library.svg";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
@@ -287,10 +286,6 @@ export function NodeQueryModal({
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const displayQuery = (query || "").trim() || "Untitled";
-  const libraryButtonTitle = displayQuery.length > LIBRARY_BUTTON_TITLE_MAX
-    ? `${displayQuery.slice(0, LIBRARY_BUTTON_TITLE_MAX).trimEnd()}…`
-    : displayQuery;
-  const libraryButtonLabel = t("doc.library.openWithName", { title: libraryButtonTitle });
   const libraryButtonFullLabel = t("doc.library.openWithName", { title: displayQuery });
   const libraryButtonAria = t("doc.library.openDocLibraryAria", { title: displayQuery });
   const queryEditable = Boolean(onQueryChange);
@@ -2068,17 +2063,6 @@ export function NodeQueryModal({
                 </p>
               )}
               <div className="doc-focus-top__meta">
-                {entityNodeId ? (
-                  <button
-                    type="button"
-                    className="node-query-modal__doc-action node-query-modal__library"
-                    onClick={() => setLibraryOpen(true)}
-                    title={libraryButtonFullLabel}
-                    aria-label={libraryButtonAria}
-                  >
-                    <span>{libraryButtonLabel}</span>
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__call-asistente"
@@ -2088,6 +2072,23 @@ export function NodeQueryModal({
                 >
                   <span>{t("gina.callAsistente")}</span>
                 </button>
+                {entityNodeId ? (
+                  <button
+                    type="button"
+                    className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__library"
+                    onClick={() => setLibraryOpen(true)}
+                    title={libraryButtonFullLabel}
+                    aria-label={libraryButtonAria}
+                  >
+                    <img
+                      className="node-query-modal__doc-action-icon"
+                      src={LIBRARY_ICON_SRC}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                    />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__new-todo"
@@ -2289,17 +2290,6 @@ export function NodeQueryModal({
               </>
             )}
             <div className="node-query-modal__head-actions">
-              {entityNodeId ? (
-                <button
-                  type="button"
-                  className="node-query-modal__doc-action node-query-modal__library"
-                  onClick={() => setLibraryOpen(true)}
-                  title={libraryButtonFullLabel}
-                  aria-label={libraryButtonAria}
-                >
-                  <span>{libraryButtonLabel}</span>
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="node-query-modal__doc-action node-query-modal__call-asistente"
@@ -2309,6 +2299,23 @@ export function NodeQueryModal({
               >
                 <span>{t("gina.callAsistente")}</span>
               </button>
+              {entityNodeId ? (
+                <button
+                  type="button"
+                  className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__library"
+                  onClick={() => setLibraryOpen(true)}
+                  title={libraryButtonFullLabel}
+                  aria-label={libraryButtonAria}
+                >
+                  <img
+                    className="node-query-modal__doc-action-icon"
+                    src={LIBRARY_ICON_SRC}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__new-todo"

@@ -45,9 +45,11 @@ import {
 } from "../../../lib/docBlocks.js";
 import { ForecastNodeView } from "../../intel/ForecastNodeView.jsx";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import { listHintedLibraryCatalogs, resolveWallColor } from "../../../lib/folderLibrary.js";
 import {
   findLibraryItemBySlot,
+  isMoodboardLibraryPick,
   libraryItemToMoodboardSlotPatch,
   moodboardSlotPersistedSrcForLibrary,
   resolveMoodboardSlotPresentation,
@@ -61,6 +63,7 @@ import {
   normalizeLibraryFrameAspect,
 } from "../../../lib/libraryFrameAspect.js";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
+import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
 import {
   contentRectToBoardPct,
@@ -86,8 +89,7 @@ const EXPAND_MIN_DELTA_PX = 24;
 /** Overlay shell max height (mirrors .doc-moodboard-workspace__body max-height). */
 const EXPAND_OVERLAY_MAX_PX = 840;
 const EXPAND_OVERLAY_MAX_VH = 0.88;
-/** Temporary: hide green tag chips on board (tag still editable in attach). */
-const SHOW_MOODBOARD_SLOT_TAGS = false;
+const SHOW_MOODBOARD_SLOT_TAGS = true;
 const BOARD_GAP = 10;
 /** Gap between stacked recipe cells (mirrors .doc-moodboard__recipe gap). */
 const RECIPE_GAP = 8;
@@ -608,9 +610,15 @@ export function MoodboardBlockView({
   const [libraryPickerSlot, setLibraryPickerSlot] = useState(null);
   /** Staged library pick — applied to board only on attach Accept. */
   const [pendingLibraryPick, setPendingLibraryPick] = useState(null);
+  const [createLibraryModalOpen, setCreateLibraryModalOpen] = useState(false);
+  const [createLibraryMediaUrl, setCreateLibraryMediaUrl] = useState("");
+  const [createLibraryFrameAspect, setCreateLibraryFrameAspect] = useState(null);
+  const [editLibrarySlot, setEditLibrarySlot] = useState(null);
+  const createFileInputRef = useRef(null);
   const [boardExpanded, setBoardExpanded] = useState(false);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
   const [pendingOverlayKind, setPendingOverlayKind] = useState(null);
+  const [focusWriteMode, setFocusWriteMode] = useState(false);
   const overlayDragRef = useRef(null);
   const overlaysRef = useRef([]);
 
@@ -618,6 +626,10 @@ export function MoodboardBlockView({
   const pickerDocumentId = libraryOwnerKind === "document"
     ? String(libraryOwnerId || "").trim()
     : "";
+  const pickerPrimaryKind = libraryOwnerKind === "document" ? "document" : "folder";
+  const pickerPrimaryId = pickerPrimaryKind === "document"
+    ? pickerDocumentId
+    : pickerFolderId;
   const canPickLibrary = Boolean(pickerFolderId || pickerDocumentId);
   const libraryCatalogs = useMemo(
     () => listHintedLibraryCatalogs({ folderId: pickerFolderId, documentId: pickerDocumentId }),
@@ -1341,6 +1353,165 @@ export function MoodboardBlockView({
     setLibraryPickerSlot({ colIndex, imageIndex, sizeClass });
   };
 
+  const closeCreateLibraryModal = () => {
+    setCreateLibraryModalOpen(false);
+    setCreateLibraryMediaUrl("");
+    setCreateLibraryFrameAspect(null);
+  };
+
+  const applyLibraryItemToMoodboardSlot = (
+    colIndex,
+    imageIndex,
+    sizeClass,
+    item,
+    ownerKind,
+    ownerId,
+    options = {},
+  ) => {
+    if (!isEdit || !isMoodboardLibraryPick(item)) return false;
+    const resolvedOwnerId = String(ownerId || "").trim()
+      || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
+    const patch = libraryItemToMoodboardSlotPatch(item, ownerKind, resolvedOwnerId);
+    if (!patch) return false;
+    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    const targetFrame = moodboardSlotFrameAspect(
+      boardLayout,
+      sizeClass || "large",
+      colIndex,
+    );
+    const wall = item.wallColor || "#FFFFFF";
+    const persistedSrc = moodboardSlotPersistedSrcForLibrary(targetFrame, item);
+    const dims = libraryFramePixelSize(targetFrame, 1080);
+    const src = persistedSrc || patch.src || "";
+    const hasImage = Boolean(src || patch.libraryItemId);
+
+    patchColumns((col, index) => {
+      if (index !== colIndex) return col;
+      const images = Array.isArray(col.images) ? [...col.images] : [];
+      while (images.length <= imageIndex) images.push(emptySlot());
+      images[imageIndex] = {
+        slotId: prev.slotId,
+        src,
+        name: patch.name || "",
+        alt: patch.alt || "",
+        width: dims?.width || patch.width || 0,
+        height: dims?.height || patch.height || 0,
+        imageSaved: hasImage,
+        kind: "image",
+        externalUrl: normalizeMoodboardExternalUrl(prev.externalUrl || ""),
+        tagLabel: options.preserveTagLabel ? String(prev.tagLabel || "").trim() : "",
+        libraryItemId: patch.libraryItemId || "",
+        libraryOwnerKind: patch.libraryOwnerKind || "",
+        libraryOwnerId: patch.libraryOwnerId || "",
+        frameAspect: hasImage
+          ? (normalizeLibraryFrameAspect(targetFrame) || null)
+          : null,
+        sourceMediaUrl: "",
+        wallColor: hasImage ? (wall || null) : null,
+        contentMode: MOODBOARD_SLOT_CONTENT_MODES.IMAGE,
+        weatherPayload: null,
+        noteHeadline: prev.noteHeadline || "",
+        noteBody: prev.noteBody || "",
+      };
+      return createMoodboardColumn(col.recipe, {
+        images,
+        ...columnTextPatch(col),
+      });
+    });
+    setError(null);
+    return true;
+  };
+
+  const openCreateLibraryFromPicker = () => {
+    if (!isEdit || !libraryPickerSlot || !pickerPrimaryId) return;
+    const { colIndex, sizeClass } = libraryPickerSlot;
+    setCreateLibraryFrameAspect(moodboardSlotFrameAspect(
+      boardLayout,
+      sizeClass || "large",
+      colIndex,
+    ));
+    createFileInputRef.current?.click();
+  };
+
+  const handleCreateLibraryFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !pickerPrimaryId || !libraryPickerSlot || !isEdit) return;
+    if (!file.type.startsWith("image/")) {
+      setError(t("doc.library.invalidImage"));
+      event.target.value = "";
+      return;
+    }
+    setError(null);
+    try {
+      const converted = await convertAndUploadDocImage(file, {
+        idPrefix: "LIBIMG",
+        scopeId: pickerPrimaryId,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.88,
+      });
+      if (converted?.src) {
+        setCreateLibraryMediaUrl(converted.src);
+        setCreateLibraryModalOpen(true);
+      }
+    } catch (err) {
+      setError(err?.message || t("doc.library.uploadFailed"));
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleCreateLibrarySaved = (saved) => {
+    if (!libraryPickerSlot || !saved) {
+      closeCreateLibraryModal();
+      return;
+    }
+    const { colIndex, imageIndex, sizeClass } = libraryPickerSlot;
+    const applied = applyLibraryItemToMoodboardSlot(
+      colIndex,
+      imageIndex,
+      sizeClass,
+      saved,
+      pickerPrimaryKind,
+      pickerPrimaryId,
+    );
+    closeCreateLibraryModal();
+    if (applied) {
+      setLibraryPickerSlot(null);
+      setPendingLibraryPick(null);
+    }
+  };
+
+  const openEditLibraryFromSlot = (colIndex, imageIndex, sizeClass) => {
+    if (!isEdit || !canPickLibrary) return;
+    const image = columns[colIndex]?.images?.[imageIndex];
+    const libraryItem = findLibraryItemBySlot(image, libraryCatalogs);
+    if (!libraryItem) return;
+    setEditLibrarySlot({ colIndex, imageIndex, sizeClass: sizeClass || "large" });
+  };
+
+  const handleEditLibrarySaved = (saved) => {
+    if (!editLibrarySlot || !saved) {
+      setEditLibrarySlot(null);
+      return;
+    }
+    const { colIndex, imageIndex, sizeClass } = editLibrarySlot;
+    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    const ownerKind = String(prev.libraryOwnerKind || "").trim() || pickerPrimaryKind;
+    const ownerId = String(prev.libraryOwnerId || "").trim()
+      || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
+    applyLibraryItemToMoodboardSlot(
+      colIndex,
+      imageIndex,
+      sizeClass,
+      saved,
+      ownerKind,
+      ownerId,
+      { preserveTagLabel: true },
+    );
+    setEditLibrarySlot(null);
+  };
+
   const handlePickLibraryItem = (item, ownerKind, ownerId) => {
     if (!isEdit || !libraryPickerSlot) return;
     const { colIndex, imageIndex, sizeClass } = libraryPickerSlot;
@@ -1802,6 +1973,7 @@ export function MoodboardBlockView({
     const isFileIcon = saved && !hasImage && Boolean(externalUrl);
     const tagLabel = String(image.tagLabel || "").trim();
     const showTag = SHOW_MOODBOARD_SLOT_TAGS && Boolean(tagLabel && saved);
+    const canEditLibrary = canPickLibrary && Boolean(findLibraryItemBySlot(image, libraryCatalogs));
     // Medium stack has vertical room above each frame — keep the tag outside.
     const tagOutside = showTag && sizeClass === "medium";
     const tagOverlay = showTag && !tagOutside;
@@ -1935,6 +2107,16 @@ export function MoodboardBlockView({
                       {t("doc.imageBlock.replace")}
                     </button>
                   )}
+                  {canEditLibrary ? (
+                    <button
+                      type="button"
+                      className="doc-moodboard__media-btn"
+                      onClick={() => openEditLibraryFromSlot(colIndex, imageIndex, sizeClass)}
+                      disabled={Boolean(uploadingKey)}
+                    >
+                      {t("doc.library.edit")}
+                    </button>
+                  ) : null}
                   {externalUrl ? (
                     <button
                       type="button"
@@ -2253,6 +2435,7 @@ export function MoodboardBlockView({
         "doc-moodboard"
         + (moodboardSaved ? " doc-moodboard--saved" : "")
         + (boardExpanded ? " doc-moodboard--expanded" : "")
+        + (focusWriteMode ? " doc-moodboard--focus-write" : "")
       }
     >
       {isEdit ? (
@@ -2313,6 +2496,36 @@ export function MoodboardBlockView({
                 onClick={() => setBoardSurface(MOODBOARD_BOARD_SURFACES.TRANSPARENT)}
               >
                 {t("doc.moodboard.surfaceTransparent")}
+              </button>
+            </div>
+          </div>
+          <div className="doc-moodboard__toolbar-group">
+            <span className="doc-moodboard__toolbar-hint">{t("doc.moodboard.focusWriteMode")}</span>
+            <div
+              className="doc-moodboard__toolbar-actions"
+              role="group"
+              aria-label={t("doc.moodboard.focusWriteMode")}
+            >
+              <button
+                type="button"
+                className={
+                  "doc-moodboard__toolbar-btn"
+                  + (focusWriteMode ? " doc-moodboard__toolbar-btn--active" : "")
+                }
+                aria-pressed={focusWriteMode}
+                title={t("doc.moodboard.focusWriteModeHint")}
+                onClick={() => {
+                  setFocusWriteMode((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setPendingOverlayKind(null);
+                      setSelectedOverlayId(null);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {t("doc.moodboard.focusWriteMode")}
               </button>
             </div>
           </div>
@@ -2712,6 +2925,7 @@ export function MoodboardBlockView({
         open={Boolean(attachmentSlot)}
         image={attachmentImage}
         readOnly={!isEdit}
+        tagOnly={Boolean(pendingLibraryPick)}
         frameAspect={attachmentFrameAspect}
         canPickLibrary={canPickLibrary}
         libraryCatalogs={libraryCatalogs}
@@ -2740,12 +2954,58 @@ export function MoodboardBlockView({
           onNext={goAttachFromLibrary}
           nextLabelKey="doc.moodboard.libraryNext"
           nextEnabled={librarySlotHasImage || Boolean(pendingLibraryPick)}
+          allowPrimaryCreate={Boolean(pickerPrimaryId)}
+          onPrimaryCreateClick={openCreateLibraryFromPicker}
           onClose={() => {
             setLibraryPickerSlot(null);
             setPendingLibraryPick(null);
+            closeCreateLibraryModal();
           }}
         />
       ) : null}
+
+      <input
+        ref={createFileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleCreateLibraryFile}
+      />
+
+      {createLibraryModalOpen && pickerPrimaryId ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || pickerPrimaryId}
+          ownerKind={pickerPrimaryKind}
+          ownerId={pickerPrimaryId}
+          defaultCategory="image"
+          lockCategory
+          defaultPresentation="visual"
+          initialMediaUrl={createLibraryMediaUrl}
+          defaultFrameAspect={createLibraryFrameAspect}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={closeCreateLibraryModal}
+          onSaved={handleCreateLibrarySaved}
+        />
+      ) : null}
+
+      {editLibrarySlot ? (() => {
+        const slotImage = columns[editLibrarySlot.colIndex]?.images?.[editLibrarySlot.imageIndex];
+        const editingItem = findLibraryItemBySlot(slotImage, libraryCatalogs);
+        if (!editingItem) return null;
+        const ownerKind = String(slotImage?.libraryOwnerKind || "").trim() || pickerPrimaryKind;
+        const ownerId = String(slotImage?.libraryOwnerId || "").trim()
+          || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
+        return (
+          <FolderLibraryElementModal
+            folderId={pickerFolderId || ownerId}
+            ownerKind={ownerKind}
+            ownerId={ownerId}
+            item={editingItem}
+            onClose={() => setEditLibrarySlot(null)}
+            onSaved={handleEditLibrarySaved}
+          />
+        );
+      })() : null}
 
       {error ? <p className="doc-moodboard__error" role="alert">{error}</p> : null}
     </div>

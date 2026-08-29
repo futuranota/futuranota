@@ -12622,6 +12622,39 @@ body.doc-content-resizing * {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.library-image-card-picker__workspace-lazy {
+  padding: 0 18px 8px;
+}
+
+.library-image-card-picker__workspace-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.library-image-card-picker__workspace-load {
+  margin: 0 0 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.library-image-card-picker__workspace-load:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.library-image-card-picker__workspace-load:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .folder-library-overlay__workspace {
   overflow: auto;
   min-height: 0;
@@ -13261,6 +13294,28 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.18);
   outline: 1px solid rgba(255, 255, 255, 0.35);
   outline-offset: 0;
+}
+
+.doc-moodboard--focus-write .doc-moodboard__overlay-rail,
+.doc-moodboard--focus-write .doc-moodboard__board-wrap:hover .doc-moodboard__overlay-rail,
+.doc-moodboard--focus-write .doc-moodboard__board-wrap:focus-within .doc-moodboard__overlay-rail,
+.doc-moodboard--focus-write .doc-moodboard__overlays,
+.doc-moodboard--focus-write .doc-moodboard__slot-mode-row,
+.doc-moodboard--focus-write .doc-moodboard__slot-mode-btn,
+.doc-moodboard--focus-write .doc-moodboard__media-actions,
+.doc-moodboard--focus-write .doc-moodboard__cell:hover .doc-moodboard__media-actions,
+.doc-moodboard--focus-write .doc-moodboard__cell:focus-within .doc-moodboard__media-actions,
+.doc-moodboard--focus-write .doc-moodboard__col-clear,
+.doc-moodboard--focus-write .doc-moodboard__col:hover .doc-moodboard__col-clear,
+.doc-moodboard--focus-write .doc-moodboard__col:focus-within .doc-moodboard__col-clear,
+.doc-moodboard--focus-write .doc-moodboard__notes-wire-toggle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: none;
+}
+
+.doc-moodboard--focus-write .doc-moodboard__board--place-overlay {
+  cursor: default;
 }
 
 .doc-moodboard__overlay-rail-btn img {
@@ -15088,6 +15143,7 @@ body.doc-content-resizing * {
 }
 
 .doc-moodboard-attach__ratio-frame {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15103,6 +15159,10 @@ body.doc-content-resizing * {
 
 .doc-moodboard-attach__ratio-frame.has-image {
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+.doc-moodboard-attach__ratio-frame .doc-moodboard__tag-row {
+  pointer-events: none;
 }
 
 .doc-moodboard-attach__ratio-label {
@@ -20358,6 +20418,10 @@ body.doc-content-resizing * {
 
 .folder-library-element-overlay {
   z-index: 1220;
+}
+
+.folder-library-element-overlay--above-picker {
+  z-index: 1245;
 }
 
 .folder-library-overlay__backdrop,

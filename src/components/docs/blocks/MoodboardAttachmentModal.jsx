@@ -43,6 +43,7 @@ export function MoodboardAttachmentModal({
   open,
   image = null,
   readOnly = false,
+  tagOnly = false,
   onClose,
   onAccept,
   /** Target frame for this slot (`9:16`, …). */
@@ -128,6 +129,9 @@ export function MoodboardAttachmentModal({
   const frameLabel = normalizeLibraryFrameAspect(draft.frameAspect || resolvedFrame) || resolvedFrame;
   const previewSrc = presentation.displaySrc || draft.src;
   const containPreview = hasImage && presentation.mode === "contain";
+  const tagPreview = String(draft.tagLabel || "").trim();
+  const showTagOnImage = hasImage && Boolean(tagPreview);
+  const imageTagOnly = tagOnly && mode === "image";
 
   const openExternal = () => {
     if (!normalizedLink) return;
@@ -215,7 +219,9 @@ export function MoodboardAttachmentModal({
           <div className="doc-moodboard-attach__head-copy">
             <h3 className="doc-moodboard-attach__title">{t("doc.moodboard.attachTitle")}</h3>
             <p className="doc-moodboard-attach__desc">
-              {t("doc.moodboard.attachDescriptionLibrary")}
+              {imageTagOnly
+                ? t("doc.moodboard.attachTagOnlyDescription")
+                : t("doc.moodboard.attachDescriptionLibrary")}
             </p>
           </div>
           <button
@@ -228,7 +234,7 @@ export function MoodboardAttachmentModal({
           </button>
         </div>
 
-        {!readOnly ? (
+        {!readOnly && !imageTagOnly ? (
           <div className="doc-moodboard-attach__modes" role="tablist" aria-label={t("doc.moodboard.attachTitle")}>
             <button
               type="button"
@@ -282,9 +288,14 @@ export function MoodboardAttachmentModal({
               ) : (
                 <span className="doc-moodboard-attach__ratio-label">{frameLabel}</span>
               )}
+              {showTagOnImage ? (
+                <div className="doc-moodboard__tag-row" aria-hidden>
+                  <span className="doc-moodboard__tag-label">{tagPreview}</span>
+                </div>
+              ) : null}
             </div>
 
-            {!readOnly ? (
+            {!readOnly && !imageTagOnly ? (
               <div className="doc-moodboard-attach__library-actions">
                 <button
                   type="button"
@@ -335,6 +346,17 @@ export function MoodboardAttachmentModal({
                     </button>
                   </>
                 ) : null}
+              </div>
+            ) : !readOnly && imageTagOnly ? (
+              <div className="doc-moodboard-attach__library-actions">
+                <button
+                  type="button"
+                  className="doc-moodboard-attach__library-btn"
+                  disabled={!canPickLibrary}
+                  onClick={() => onRequestLibrary?.()}
+                >
+                  {t("doc.imageBlock.replace")}
+                </button>
               </div>
             ) : hasImage ? (
               <div className="doc-moodboard-attach__library-actions">
@@ -411,11 +433,6 @@ export function MoodboardAttachmentModal({
               }));
             }}
           />
-          {draft.tagLabel.trim() ? (
-            <p className="doc-moodboard-attach__tag-preview" aria-hidden>
-              {draft.tagLabel.trim()}
-            </p>
-          ) : null}
         </div>
 
         <div className="doc-moodboard-attach__help">

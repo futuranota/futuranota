@@ -64,6 +64,10 @@ export function FolderLibraryElementModal({
   initialMediaUrl = "",
   /** `prompt` (default) | `visual` — image-only chip on the same Prompt tab. */
   defaultPresentation = "",
+  /** Prefill frame aspect when creating from moodboard slot. */
+  defaultFrameAspect = null,
+  /** Extra class on overlay root (e.g. stack above library picker). */
+  overlayClassName = "",
   onClose,
   onSaved,
 }) {
@@ -91,7 +95,7 @@ export function FolderLibraryElementModal({
   const [wallHexDraft, setWallHexDraft] = useState(item?.wallColor || "");
   const [wallColor, setWallColor] = useState(item?.wallColor || null);
   const [frameAspect, setFrameAspect] = useState(
-    () => normalizeLibraryFrameAspect(item?.frameAspect),
+    () => normalizeLibraryFrameAspect(item?.frameAspect ?? defaultFrameAspect),
   );
   const [sourceMediaUrl, setSourceMediaUrl] = useState(
     () => (typeof item?.sourceMediaUrl === "string" && item.sourceMediaUrl.trim()
@@ -371,7 +375,10 @@ export function FolderLibraryElementModal({
 
   return createPortal(
     <div
-      className="folder-library-element-overlay"
+      className={
+        "folder-library-element-overlay"
+        + (overlayClassName ? ` ${overlayClassName}` : "")
+      }
       role="dialog"
       aria-modal="true"
       aria-label={editing ? t("doc.library.editTitle") : t("doc.library.newTitle")}

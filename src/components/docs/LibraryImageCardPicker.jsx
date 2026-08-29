@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useMemo, useState } from "react";
+import { startTransition, useMemo, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { listAllLibraryCatalogs } from "../../lib/folderLibrary.js";
@@ -7,6 +7,22 @@ import { fichaHasVisual } from "../../lib/libraryFichaPreview.js";
 import { flattenVisualPicksFromCatalogs } from "../../lib/libraryImageCardPick.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
+
+/** Session cache — workspace scan is expensive; reuse per exclude key. */
+const workspaceStripCache = new Map();
+
+function getWorkspaceVisualStrip({ excludeFolderId = "", excludeDocumentId = "" } = {}) {
+  const cacheKey = `${excludeFolderId}\0${excludeDocumentId}`;
+  if (workspaceStripCache.has(cacheKey)) {
+    return workspaceStripCache.get(cacheKey);
+  }
+  const strip = flattenVisualPicksFromCatalogs(listAllLibraryCatalogs(), {
+    excludeFolderId,
+    excludeDocumentId,
+  });
+  workspaceStripCache.set(cacheKey, strip);
+  return strip;
+}
 
 function pickRowKey(ownerKind, ownerId, itemId) {
   return `${ownerKind}:${ownerId}:${itemId}`;
@@ -29,13 +45,23 @@ function renderPickFace(item) {
   );
 }
 
-function PickGrid({ title, items, emptyMessage, onPick, selectedKey }) {
+function PickGrid({
+  title,
+  items,
+  emptyMessage,
+  onPick,
+  selectedKey,
+  allowCreate = false,
+  createLabel = "Add image",
+  onCreateClick,
+}) {
+  const showGrid = items.length > 0 || allowCreate;
   return (
     <section className="library-image-card-picker__section">
       {title ? (
         <h3 className="library-image-card-picker__section-title">{title}</h3>
       ) : null}
-      {items.length === 0 ? (
+      {!showGrid ? (
         <p className="library-image-card-picker__grid-empty">{emptyMessage}</p>
       ) : (
         <ul className="folder-library-overlay__grid library-image-card-picker__grid">
@@ -70,6 +96,19 @@ function PickGrid({ title, items, emptyMessage, onPick, selectedKey }) {
               </li>
             );
           })}
+          {allowCreate ? (
+            <li className="folder-library-overlay__cell folder-library-overlay__cell--add">
+              <button
+                type="button"
+                className="folder-library-overlay__cell-add"
+                onClick={onCreateClick}
+                aria-label={createLabel}
+                title={createLabel}
+              >
+                +
+              </button>
+            </li>
+          ) : null}
         </ul>
       )}
     </section>
@@ -78,7 +117,8 @@ function PickGrid({ title, items, emptyMessage, onPick, selectedKey }) {
 
 /**
  * Pick a visual library ficha into an Image card or Moodboard frame.
- * Vertical grid: parent-folder assets, then remaining workspace images (no duplicates).
+ * Instant: document (or folder) assets + optional parent folder strip.
+ * Lazy: full workspace scan on demand ("Todas las imágenes").
  *
  * When `onNext` is provided (moodboard), clicks stage a selection and Next continues.
  * Without `onNext` (ImageSplit), click commits immediately via `onPick`.
@@ -94,45 +134,112 @@ export function LibraryImageCardPicker({
   nextLabelKey = "doc.moodboard.libraryNext",
   /** Allow Next without a fresh pick (slot already has an image). */
   nextEnabled = false,
+  allowPrimaryCreate = false,
+  /** @deprecated use allowPrimaryCreate */
+  allowFolderCreate = false,
+  onPrimaryCreateClick,
+  /** @deprecated use onPrimaryCreateClick */
+  onFolderCreateClick,
 }) {
   void layout;
   const { t } = useI18n();
-  const docs = useDocsStore((s) => s.docs);
-  const nodes = useNodesStore((s) => s.nodes);
   const stageMode = typeof onNext === "function";
   const [selectedKey, setSelectedKey] = useState(null);
+  const [workspaceStrip, setWorkspaceStrip] = useState(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
   const resolvedDocumentId = String(documentId || "").trim();
+  const parentFolderId = useNodesStore((s) => {
+    if (!resolvedDocumentId) return "";
+    return String(s.nodes?.[resolvedDocumentId]?.parentDocId || "").trim();
+  });
   const resolvedFolderId = useMemo(() => {
     const fromProp = String(folderId || "").trim();
     if (fromProp) return fromProp;
-    if (!resolvedDocumentId) return "";
-    const node = nodes?.[resolvedDocumentId];
-    return String(node?.parentDocId || "").trim();
-  }, [folderId, resolvedDocumentId, nodes]);
+    return parentFolderId;
+  }, [folderId, parentFolderId]);
 
-  const folderItems = useLibraryItems("folder", resolvedFolderId);
+  const primaryOwnerKind = resolvedDocumentId ? "document" : "folder";
+  const primaryOwnerId = resolvedDocumentId || resolvedFolderId;
+  const allowCreate = allowPrimaryCreate || allowFolderCreate;
+  const onCreateClick = onPrimaryCreateClick || onFolderCreateClick;
+
+  const primaryDocTitle = useNodesStore((s) => {
+    if (primaryOwnerKind !== "document" || !primaryOwnerId) return "";
+    const node = s.nodes?.[primaryOwnerId];
+    return String(node?.title || node?.query || "").trim();
+  });
+  const folderTitle = useDocsStore((s) => {
+    const folderKey = primaryOwnerKind === "folder" ? primaryOwnerId : resolvedFolderId;
+    if (!folderKey) return "";
+    return String(s.docs?.[folderKey]?.title || "").trim();
+  });
+
+  const primaryItems = useLibraryItems(primaryOwnerKind, primaryOwnerId);
+  const folderItems = useLibraryItems(
+    "folder",
+    resolvedDocumentId && resolvedFolderId ? resolvedFolderId : "",
+  );
+
+  const primaryStrip = useMemo(() => {
+    const items = Array.isArray(primaryItems) ? primaryItems : [];
+    if (!primaryOwnerId) return [];
+    return flattenVisualPicksFromCatalogs([
+      { ownerKind: primaryOwnerKind, ownerId: primaryOwnerId, items },
+    ]);
+  }, [primaryItems, primaryOwnerId, primaryOwnerKind]);
 
   const folderStrip = useMemo(() => {
+    if (!resolvedDocumentId || !resolvedFolderId) return [];
     const items = Array.isArray(folderItems) ? folderItems : [];
     return flattenVisualPicksFromCatalogs([
       { ownerKind: "folder", ownerId: resolvedFolderId, items },
     ]);
-  }, [folderItems, resolvedFolderId]);
+  }, [resolvedDocumentId, resolvedFolderId, folderItems]);
 
-  const allStrip = useMemo(() => {
-    return flattenVisualPicksFromCatalogs(listAllLibraryCatalogs(), {
-      excludeFolderId: resolvedFolderId,
+  const workspaceExclude = useMemo(() => ({
+    excludeFolderId: resolvedFolderId
+      || (primaryOwnerKind === "folder" ? primaryOwnerId : ""),
+    excludeDocumentId: resolvedDocumentId || "",
+  }), [resolvedDocumentId, resolvedFolderId, primaryOwnerKind, primaryOwnerId]);
+
+  const primaryTitle = primaryOwnerKind === "document"
+    ? (primaryDocTitle || t("doc.imageSplit.libraryPickerScopeDocument"))
+    : (folderTitle || t("doc.imageSplit.libraryPickerScopeFolder"));
+
+  const primarySectionTitle = primaryOwnerKind === "document"
+    ? t("doc.imageSplit.libraryPickerDocumentAssets", { title: primaryTitle })
+    : t("doc.imageSplit.libraryPickerFolderAssets", { title: primaryTitle });
+
+  const folderSectionTitle = t("doc.imageSplit.libraryPickerFolderAssets", {
+    title: folderTitle || t("doc.imageSplit.libraryPickerScopeFolder"),
+  });
+
+  const primaryEmptyMessage = primaryOwnerKind === "document"
+    ? t("doc.imageSplit.libraryPickerEmptyDocumentAssets")
+    : t("doc.imageSplit.libraryPickerEmptyFolderAssets");
+
+  const showFolderStrip = Boolean(resolvedDocumentId && resolvedFolderId);
+  const workspaceLoaded = workspaceStrip !== null;
+
+  const segmentedEmpty = !primaryOwnerId
+    && !showFolderStrip
+    && !workspaceLoaded
+    && !(allowCreate && primaryOwnerId);
+
+  const loadWorkspace = () => {
+    if (workspaceLoading || workspaceLoaded) return;
+    setWorkspaceLoading(true);
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        startTransition(() => {
+          const strip = getWorkspaceVisualStrip(workspaceExclude);
+          setWorkspaceStrip(strip);
+          setWorkspaceLoading(false);
+        });
+      }, 0);
     });
-  }, [docs, nodes, resolvedFolderId, folderItems]);
-
-  const folderTitle = useMemo(() => {
-    if (!resolvedFolderId) return t("doc.imageSplit.libraryPickerScopeFolder");
-    const folder = docs?.[resolvedFolderId];
-    return String(folder?.title || "").trim() || t("doc.imageSplit.libraryPickerScopeFolder");
-  }, [resolvedFolderId, docs, t]);
-
-  const segmentedEmpty = folderStrip.length === 0 && allStrip.length === 0;
+  };
 
   const handlePick = (item, ownerKind, ownerId) => {
     if (stageMode) {
@@ -179,25 +286,61 @@ export function LibraryImageCardPicker({
           </p>
         ) : (
           <div className="library-image-card-picker__body">
-            {resolvedFolderId ? (
+            {primaryOwnerId ? (
               <>
                 <PickGrid
-                  title={t("doc.imageSplit.libraryPickerFolderAssets", { title: folderTitle })}
-                  items={folderStrip}
-                  emptyMessage={t("doc.imageSplit.libraryPickerEmptyFolderAssets")}
+                  title={primarySectionTitle}
+                  items={primaryStrip}
+                  emptyMessage={primaryEmptyMessage}
                   onPick={handlePick}
                   selectedKey={stageMode ? selectedKey : null}
+                  allowCreate={allowCreate}
+                  createLabel={t("doc.moodboard.libraryPickerAddImage")}
+                  onCreateClick={onCreateClick}
                 />
+                {showFolderStrip ? (
+                  <>
+                    <hr className="library-image-card-picker__divider" />
+                    <PickGrid
+                      title={folderSectionTitle}
+                      items={folderStrip}
+                      emptyMessage={t("doc.imageSplit.libraryPickerEmptyFolderAssets")}
+                      onPick={handlePick}
+                      selectedKey={stageMode ? selectedKey : null}
+                    />
+                  </>
+                ) : null}
                 <hr className="library-image-card-picker__divider" />
               </>
             ) : null}
-            <PickGrid
-              title={t("doc.imageSplit.libraryPickerAllImages")}
-              items={allStrip}
-              emptyMessage={t("doc.imageSplit.libraryPickerEmptyAll")}
-              onPick={handlePick}
-              selectedKey={stageMode ? selectedKey : null}
-            />
+            {workspaceLoaded ? (
+              <PickGrid
+                title={t("doc.imageSplit.libraryPickerAllImages")}
+                items={workspaceStrip}
+                emptyMessage={t("doc.imageSplit.libraryPickerEmptyAll")}
+                onPick={handlePick}
+                selectedKey={stageMode ? selectedKey : null}
+              />
+            ) : (
+              <section className="library-image-card-picker__workspace-lazy">
+                <h3 className="library-image-card-picker__section-title">
+                  {t("doc.imageSplit.libraryPickerAllImages")}
+                </h3>
+                <p className="library-image-card-picker__workspace-hint">
+                  {t("doc.imageSplit.libraryPickerWorkspaceHint")}
+                </p>
+                <button
+                  type="button"
+                  className="library-image-card-picker__workspace-load"
+                  disabled={workspaceLoading}
+                  onClick={loadWorkspace}
+                >
+                  {workspaceLoading
+                    ? t("doc.imageSplit.libraryPickerLoadingWorkspace")
+                    : t("doc.imageSplit.libraryPickerLoadWorkspace")}
+                </button>
+              </section>
+            )}
           </div>
         )}
 
