@@ -412,6 +412,10 @@ function applyLibraryItemPatch(current, patch = {}) {
     ? normalizeLibraryAliases(patch.aliases, nextTag)
     : normalizeLibraryAliases(current.aliases, nextTag);
 
+  const sponsored = patch.sponsored !== undefined
+    ? Boolean(patch.sponsored)
+    : Boolean(current.sponsored);
+
   const presentation = resolveLibraryPresentation({
     presentation: patch.presentation !== undefined
       ? (normalizeLibraryPresentation(patch.presentation) || patch.presentation)
@@ -440,6 +444,7 @@ function applyLibraryItemPatch(current, patch = {}) {
     promptClass,
     presentation,
     aliases,
+    sponsored,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -746,5 +751,6 @@ export function cloneLibraryItemIntoSet(ownerId, source, setId) {
     promptClass: source.promptClass,
     presentation: source.presentation,
     aliases: source.aliases,
+    sponsored: Boolean(source.sponsored),
   });
 }

@@ -83,6 +83,7 @@ export function FolderLibraryElementModal({
   const promptInfoId = useId();
   const wallInfoId = useId();
   const loopTipId = useId();
+  const sponsoredTipId = useId();
   const [promptInfoOpen, setPromptInfoOpen] = useState(false);
   const [wallInfoOpen, setWallInfoOpen] = useState(false);
   const kind = normalizeLibraryOwnerKind(ownerKind);
@@ -119,6 +120,7 @@ export function FolderLibraryElementModal({
   const [loop, setLoop] = useState(() => (
     item ? Boolean(item.loop) : kind === "folder"
   ));
+  const [sponsored, setSponsored] = useState(() => Boolean(item?.sponsored));
   const [promptClass, setPromptClass] = useState(
     () => initialPromptClass(item, defaultPromptClass),
   );
@@ -312,6 +314,7 @@ export function FolderLibraryElementModal({
         aliases: isSkillLike || isVideoLike
           ? []
           : normalizeLibraryAliases(aliasesDraft, trimmed),
+        sponsored: isSkillLike || isVideoLike ? false : Boolean(sponsored),
       };
       if (isSkillLike) {
         payload.mediaUrl = null;
@@ -609,6 +612,30 @@ export function FolderLibraryElementModal({
                       className="library-asset-prompt-label__tip folder-library-element-modal__flag-tip"
                     >
                       {t("doc.library.imageLoopInfo")}
+                    </span>
+                  </span>
+                  <span className="folder-library-element-modal__flag-tip-wrap">
+                    <button
+                      type="button"
+                      className={
+                        "folder-library-element-modal__flag folder-library-element-modal__flag--sponsored"
+                        + (sponsored ? " is-active" : "")
+                      }
+                      aria-pressed={sponsored}
+                      aria-label={t("doc.library.sponsoredToggleAria")}
+                      aria-describedby={sponsoredTipId}
+                      onClick={() => setSponsored((value) => !value)}
+                    >
+                      <span className="folder-library-element-modal__flag-name">
+                        {t("doc.library.sponsoredTag")}
+                      </span>
+                    </button>
+                    <span
+                      id={sponsoredTipId}
+                      role="tooltip"
+                      className="library-asset-prompt-label__tip folder-library-element-modal__flag-tip"
+                    >
+                      {t("doc.library.sponsoredInfo")}
                     </span>
                   </span>
                   <button

@@ -47,6 +47,7 @@ describe("listIntegratedVisualsFromBlocks", () => {
       mediaUrl: "https://example.com/gina.webp",
       loop: true,
       aliases: ["mi hermana"],
+      sponsored: true,
     });
     createLibraryItem("document", "node1", {
       tag: "solo_texto",
@@ -82,6 +83,7 @@ describe("listIntegratedVisualsFromBlocks", () => {
     expect(rows[0].tag).toBe("Gina");
     expect(rows[0].mentionCount).toBe(2);
     expect(rows[0].mediaUrl).toContain("gina.webp");
+    expect(rows[0].sponsored).toBe(true);
   });
 
   it("filters by name or alias", () => {

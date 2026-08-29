@@ -46,6 +46,7 @@ import {
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
+import { LibrarySponsoredTag } from "./LibrarySponsoredTag.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
 import { FolderLibraryImageDetail } from "./FolderLibraryImageDetail.jsx";
 import { FolderLibrarySkillDetail } from "./FolderLibrarySkillDetail.jsx";
@@ -110,7 +111,7 @@ function MediaBadge({ item, prefer }) {
   );
 }
 
-function renderFichaFace(item, prefer) {
+function renderFichaFace(item, prefer, sponsoredLabel = "") {
   const isAttachment = item?.category === "skill" || item?.category === "pdf";
   const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer);
   if (kind === "prompt") {
@@ -120,16 +121,30 @@ function renderFichaFace(item, prefer) {
           {promptPreviewText(item)}
         </span>
         <MediaBadge item={item} prefer={prefer} />
+        {item?.sponsored && item?.mediaUrl ? (
+          <LibrarySponsoredTag
+            label={sponsoredLabel}
+            className="library-sponsored-tag--overlay folder-library-overlay__cell-sponsored-tag"
+          />
+        ) : null}
       </>
     );
   }
   if (kind === "image") {
     return (
-      <img
-        className="folder-library-overlay__cell-img"
-        src={item.mediaUrl}
-        alt=""
-      />
+      <>
+        <img
+          className="folder-library-overlay__cell-img"
+          src={item.mediaUrl}
+          alt=""
+        />
+        {item?.sponsored ? (
+          <LibrarySponsoredTag
+            label={sponsoredLabel}
+            className="library-sponsored-tag--overlay folder-library-overlay__cell-sponsored-tag"
+          />
+        ) : null}
+      </>
     );
   }
   return (
@@ -827,9 +842,18 @@ export function FolderLibraryOverlay({
               }}
               title={item.tag}
             >
-              {renderFichaFace(item, (pickRows || filterTab === "visual") ? "image" : filterTab === "prompt" ? "prompt" : libraryTilePrefer("folder"))}
+              {renderFichaFace(
+                item,
+                (pickRows || filterTab === "visual") ? "image" : filterTab === "prompt" ? "prompt" : libraryTilePrefer("folder"),
+                t("doc.library.sponsoredTag"),
+              )}
               <span className="folder-library-overlay__cell-meta">
-                <span className="folder-library-overlay__cell-tag">{item.tag}</span>
+                <span className="folder-library-overlay__cell-tag-row">
+                  <span className="folder-library-overlay__cell-tag">{item.tag}</span>
+                  {item.sponsored ? (
+                    <LibrarySponsoredTag label={t("doc.library.sponsoredTag")} />
+                  ) : null}
+                </span>
                 {item.frameAspect ? (
                   <span className="folder-library-overlay__cell-frame">{item.frameAspect}</span>
                 ) : null}

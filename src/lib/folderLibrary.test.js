@@ -68,6 +68,18 @@ describe("folderLibrary normalize", () => {
     });
     expect(item?.loop).toBe(true);
     expect(item?.promptClass).toBe("characters");
+    expect(item?.sponsored).toBe(false);
+  });
+
+  it("normalizes sponsored flag", () => {
+    const item = normalizeFolderLibraryItem({
+      id: "x",
+      tag: "lata",
+      category: "image",
+      mediaUrl: "/ad.webp",
+      sponsored: true,
+    });
+    expect(item?.sponsored).toBe(true);
   });
 
   it("normalizes aliases and drops the canonical tag duplicate", () => {

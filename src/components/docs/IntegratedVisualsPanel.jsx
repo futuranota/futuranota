@@ -5,6 +5,7 @@ import {
   filterIntegratedVisuals,
   listIntegratedVisualsFromBlocks,
 } from "../../lib/listIntegratedVisuals.js";
+import { LibrarySponsoredTag } from "./LibrarySponsoredTag.jsx";
 
 /**
  * Side panel: visual Prompts already linked in the open document body.
@@ -110,9 +111,20 @@ export function IntegratedVisualsPanel({
                     loading="lazy"
                     draggable={false}
                   />
+                  {row.sponsored ? (
+                    <LibrarySponsoredTag
+                      label={t("doc.library.sponsoredTag")}
+                      className="library-sponsored-tag--overlay"
+                    />
+                  ) : null}
                 </span>
                 <span className="integrated-visuals-panel__meta">
-                  <span className="integrated-visuals-panel__name">{row.tag}</span>
+                  <span className="integrated-visuals-panel__name-row">
+                    <span className="integrated-visuals-panel__name">{row.tag}</span>
+                    {row.sponsored ? (
+                      <LibrarySponsoredTag label={t("doc.library.sponsoredTag")} />
+                    ) : null}
+                  </span>
                   {row.aliases?.length ? (
                     <span className="integrated-visuals-panel__aliases">
                       {row.aliases.join(" · ")}

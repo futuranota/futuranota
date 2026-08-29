@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { LibrarySponsoredTag } from "./LibrarySponsoredTag.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useLibraryItems } from "../../hooks/useLibraryItems.js";
 import { copyToClipboard } from "../../lib/copyToClipboard.js";
@@ -33,6 +34,8 @@ export function FolderLibraryImageDetail({
   onEdit,
   /** When false, Escape is ignored (e.g. edit modal is on top). */
   escapeEnabled = true,
+  /** Extra class on overlay root (e.g. stack above integrated visuals panel). */
+  overlayClassName = "",
 }) {
   const { t } = useI18n();
   const items = useLibraryItems(ownerKind, ownerId || folderId);
@@ -116,7 +119,10 @@ export function FolderLibraryImageDetail({
 
   return createPortal(
     <div
-      className="folder-library-image-detail"
+      className={
+        "folder-library-image-detail"
+        + (overlayClassName ? ` ${overlayClassName}` : "")
+      }
       role="dialog"
       aria-modal="true"
       aria-label={item.tag || t("doc.library.title")}
@@ -129,7 +135,12 @@ export function FolderLibraryImageDetail({
       />
       <div className="folder-library-image-detail__shell">
         <header className="folder-library-image-detail__header">
-          <h2 className="folder-library-image-detail__tag">{item.tag || "—"}</h2>
+          <h2 className="folder-library-image-detail__tag">
+            {item.tag || "—"}
+            {item.sponsored ? (
+              <LibrarySponsoredTag label={t("doc.library.sponsoredTag")} />
+            ) : null}
+          </h2>
           <div className="folder-library-image-detail__header-actions">
             <button
               type="button"

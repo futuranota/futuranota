@@ -1,3 +1,13 @@
+import {
+  maxScrollTopForPage,
+  pageHeightFromViewport,
+  pageIndexFromBreaks,
+  pageIndexFromScrollTop,
+  scrollTopForPage,
+  scrollTopForPageBreak,
+  getPagedScrollLayout,
+} from "./docPagedWriting.js";
+
 export function copyTextareaTypography(textarea, mirror) {
   const style = window.getComputedStyle(textarea);
   mirror.style.boxSizing = style.boxSizing;
@@ -230,25 +240,42 @@ export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
 
   if (isPaged) {
     const viewportH = contentScroll.clientHeight;
-    const pageHeight = viewportH * 2;
-    if (viewportH > 0 && pageHeight > 0) {
+    if (viewportH > 0) {
+      const layout = getPagedScrollLayout(contentScroll);
+      const pageBreaks = layout?.pageBreaks;
+      const contentHeight = layout?.contentHeight || contentScroll.scrollHeight;
+      const pageHeight = pageHeightFromViewport(viewportH);
       const needsDown = caretBottom > box.bottom - clipPadding;
       const needsUp = caretTop < box.top + clipPadding;
       if (needsDown || needsUp) {
         const caretContentY = caretTop - box.top + contentScroll.scrollTop
           + (needsDown ? lineHeight : 0);
-        const targetPage = Math.max(0, Math.floor(caretContentY / pageHeight));
-        const pageStart = targetPage * pageHeight;
-        const pageScrollMax = pageStart + viewportH;
-        const currentPage = Math.max(
-          0,
-          Math.floor(contentScroll.scrollTop / pageHeight),
+        const targetPage = pageBreaks?.length
+          ? pageIndexFromBreaks(caretContentY, pageBreaks)
+          : pageIndexFromScrollTop(caretContentY, pageHeight);
+        const pageStart = pageBreaks?.length
+          ? scrollTopForPageBreak(targetPage, pageBreaks)
+          : scrollTopForPage(targetPage, pageHeight);
+        const pageScrollMax = maxScrollTopForPage(
+          targetPage,
+          viewportH,
+          pageBreaks,
+          contentHeight,
         );
+        const currentPage = pageBreaks?.length
+          ? pageIndexFromBreaks(contentScroll.scrollTop, pageBreaks)
+          : pageIndexFromScrollTop(contentScroll.scrollTop, pageHeight);
 
         let nextTop = contentScroll.scrollTop;
         if (targetPage !== currentPage) {
-          // Caret crossed a page boundary — land on that page (start or 2nd block).
-          nextTop = needsDown ? pageStart : pageScrollMax;
+          nextTop = needsDown
+            ? pageStart
+            : maxScrollTopForPage(
+              targetPage,
+              viewportH,
+              pageBreaks,
+              contentHeight,
+            );
         } else if (needsDown) {
           nextTop = contentScroll.scrollTop
             + (caretBottom - (box.bottom - clipPadding));

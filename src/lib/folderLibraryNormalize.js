@@ -25,6 +25,7 @@ import { normalizeLibraryFrameAspect } from "./libraryFrameAspect.js";
  * @property {string|null} promptClass User classification (`ambiente`, or legacy custom names)
  * @property {LibraryPresentation} presentation Prompt text-first vs image-only (same Prompt tab)
  * @property {string[]} aliases Alternate phrases that also link to this Prompt (e.g. "mi hermana")
+ * @property {boolean} sponsored User-marked paid placement / ad (default false)
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -356,6 +357,7 @@ export function normalizeFolderLibraryItem(raw) {
     mediaUrl,
   });
   const aliases = normalizeLibraryAliases(raw.aliases, tag);
+  const sponsored = Boolean(raw.sponsored);
   const createdAt = typeof raw.createdAt === "string" && raw.createdAt
     ? raw.createdAt
     : new Date().toISOString();
@@ -380,6 +382,7 @@ export function normalizeFolderLibraryItem(raw) {
     promptClass,
     presentation,
     aliases,
+    sponsored,
     createdAt,
     updatedAt,
   };
@@ -420,6 +423,7 @@ export function normalizeFolderLibraryItems(value) {
  *   promptClass?: string|null,
  *   presentation?: string|null,
  *   aliases?: string[]|string|null,
+ *   sponsored?: boolean,
  * }} input
  * @returns {FolderLibraryItem|null}
  */
@@ -454,6 +458,7 @@ export function buildFolderLibraryItem(input = {}) {
     mediaUrl,
   });
   const aliases = normalizeLibraryAliases(input.aliases, tag);
+  const sponsored = Boolean(input.sponsored);
   return {
     id: generateId("LIB"),
     tag,
@@ -472,6 +477,7 @@ export function buildFolderLibraryItem(input = {}) {
     promptClass: normalizePromptClass(input.promptClass),
     presentation,
     aliases,
+    sponsored,
     createdAt: now,
     updatedAt: now,
   };

@@ -10,6 +10,7 @@ import { normalizeLibraryNameKey } from "./docLibraryNameRefs.js";
  * @property {"folder"|"document"} ownerKind
  * @property {string} ownerId
  * @property {string[]} aliases
+ * @property {boolean} sponsored User-marked paid placement
  * @property {number} mentionCount How many refs in the open document body
  */
 
@@ -81,6 +82,7 @@ export function listIntegratedVisualsFromBlocks(blocks, documentId, folderId) {
       ownerKind: entry.ownerKind,
       ownerId: entry.ownerId,
       aliases: Array.isArray(entry.item.aliases) ? entry.item.aliases : [],
+      sponsored: Boolean(entry.item.sponsored),
       mentionCount,
     });
   }

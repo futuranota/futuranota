@@ -75,14 +75,17 @@ import { IntegratedVisualsPanel } from "../docs/IntegratedVisualsPanel.jsx";
 import { LibraryNeedSaveNotice } from "../docs/LibraryNeedSaveNotice.jsx";
 import { LibrarySetInputModal } from "../docs/LibrarySetInputModal.jsx";
 import { DocPagePager } from "../docs/DocPagePager.jsx";
+import { buildPagedLayoutFromScrollRoot } from "../../lib/docPagedBlockLayout.js";
 import {
   applyPagedScrollTop,
   clampPageIndex,
   clampScrollTopToPage,
-  computePageCount,
   DOC_PAGED_CHANGE_EVENT,
-  isSecondBlockOfPage,
-  pageHeightFromViewport,
+  DOC_PAGED_PAGER_SCROLL_CLASS,
+  isLastBlockOfPage,
+  pageCountFromBreaks,
+  pageIndexFromBreaks,
+  setPagedScrollLayout,
 } from "../../lib/docPagedWriting.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
@@ -266,6 +269,7 @@ export function NodeQueryModal({
   const [pageCount, setPageCount] = useState(1);
   const [showPagePager, setShowPagePager] = useState(false);
   const pageIndexRef = useRef(0);
+  const pageBreaksRef = useRef([0]);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
@@ -466,6 +470,7 @@ export function NodeQueryModal({
     setPageCount(1);
     setShowPagePager(false);
     pageIndexRef.current = 0;
+    pageBreaksRef.current = [0];
     requestAnimationFrame(() => {
       syncQueryInputHeight();
       // Zoom-out / collapsed: always show the start of the writing (not empty tail cells).
@@ -476,15 +481,19 @@ export function NodeQueryModal({
   const goToPage = useCallback((nextIndex) => {
     const scroll = contentScrollRef.current;
     const viewportH = scroll?.clientHeight ?? 0;
-    const count = Math.max(1, pageCount);
+    const breaks = pageBreaksRef.current;
+    const count = Math.max(1, pageCountFromBreaks(breaks));
     const idx = clampPageIndex(nextIndex, count);
     pageIndexRef.current = idx;
     setPageIndex(idx);
-    setShowPagePager(idx > 0);
+    const contentHeight = scroll?.scrollHeight ?? 0;
+    setShowPagePager(
+      idx > 0 || isLastBlockOfPage(scroll?.scrollTop ?? 0, idx, viewportH, breaks, contentHeight),
+    );
     if (scroll && viewportH > 0) {
-      applyPagedScrollTop(scroll, idx, viewportH, count);
+      applyPagedScrollTop(scroll, idx, viewportH, count, breaks);
     }
-  }, [pageCount]);
+  }, []);
 
   const toggleWritingLayout = useCallback(() => {
     setWritingLayout((prev) => {
@@ -494,10 +503,12 @@ export function NodeQueryModal({
         setPageCount(1);
         setShowPagePager(false);
         pageIndexRef.current = 0;
+        pageBreaksRef.current = [0];
       } else {
         setPageIndex(0);
         setShowPagePager(false);
         pageIndexRef.current = 0;
+        pageBreaksRef.current = [0];
         requestAnimationFrame(() => {
           const scroll = contentScrollRef.current;
           if (scroll) scroll.scrollTop = 0;
@@ -2072,26 +2083,31 @@ export function NodeQueryModal({
     setPageCount(1);
     setShowPagePager(false);
     pageIndexRef.current = 0;
+    pageBreaksRef.current = [0];
   }, [entityNodeId]);
 
-  // Paged layout: page = 2× viewport; free scroll within page; pager on 2nd block.
+  // Paged layout: block-aware page breaks; free scroll within page; pager on last block.
   useLayoutEffect(() => {
     if (!showPagedLayoutChrome) return undefined;
     const scroll = contentScrollRef.current;
     if (!scroll) return undefined;
 
-    const syncPagerVisibility = (idx, top, viewportH) => {
-      setShowPagePager(idx > 0 || isSecondBlockOfPage(top, idx, viewportH));
+    const syncPagerVisibility = (idx, top, viewportH, contentHeight, breaks) => {
+      setShowPagePager(idx > 0 || isLastBlockOfPage(top, idx, viewportH, breaks, contentHeight));
     };
 
     const measure = () => {
       const viewportH = scroll.clientHeight;
-      const pageHeight = pageHeightFromViewport(viewportH);
       const contentHeight = scroll.scrollHeight;
-      const nextCount = computePageCount(contentHeight, pageHeight);
+      const { pageBreaks } = buildPagedLayoutFromScrollRoot(scroll, viewportH);
+      pageBreaksRef.current = pageBreaks;
+      setPagedScrollLayout(scroll, { pageBreaks, contentHeight });
+      const nextCount = pageCountFromBreaks(pageBreaks);
       setPageCount(nextCount);
-      const prev = pageIndexRef.current;
-      const idx = clampPageIndex(prev, nextCount);
+      const idx = clampPageIndex(
+        pageIndexFromBreaks(scroll.scrollTop, pageBreaks),
+        nextCount,
+      );
       pageIndexRef.current = idx;
       setPageIndex(idx);
       const clamped = clampScrollTopToPage(
@@ -2099,9 +2115,10 @@ export function NodeQueryModal({
         idx,
         viewportH,
         contentHeight,
+        pageBreaks,
       );
       if (scroll.scrollTop !== clamped) scroll.scrollTop = clamped;
-      syncPagerVisibility(idx, clamped, viewportH);
+      syncPagerVisibility(idx, clamped, viewportH, contentHeight, pageBreaks);
     };
 
     measure();
@@ -2119,43 +2136,46 @@ export function NodeQueryModal({
     const onScroll = () => {
       const viewportH = scroll.clientHeight;
       const contentHeight = scroll.scrollHeight;
+      const breaks = pageBreaksRef.current;
       const idx = pageIndexRef.current;
       const clamped = clampScrollTopToPage(
         scroll.scrollTop,
         idx,
         viewportH,
         contentHeight,
+        breaks,
       );
       if (scroll.scrollTop !== clamped) {
         scroll.scrollTop = clamped;
       }
-      syncPagerVisibility(idx, clamped, viewportH);
+      syncPagerVisibility(idx, clamped, viewportH, contentHeight, breaks);
     };
 
     const onPagedChange = (e) => {
       const next = e?.detail?.pageIndex;
       if (typeof next !== "number" || !Number.isFinite(next)) return;
       const viewportH = scroll.clientHeight;
-      const pageHeight = pageHeightFromViewport(viewportH);
       const contentHeight = scroll.scrollHeight;
-      const count = computePageCount(contentHeight, pageHeight);
+      const breaks = pageBreaksRef.current;
+      const count = pageCountFromBreaks(breaks);
       setPageCount(count);
       const idx = clampPageIndex(next, count);
       const prev = pageIndexRef.current;
       pageIndexRef.current = idx;
       if (idx !== prev) {
         setPageIndex(idx);
-        applyPagedScrollTop(scroll, idx, viewportH, count);
+        applyPagedScrollTop(scroll, idx, viewportH, count, breaks);
       } else {
         const clamped = clampScrollTopToPage(
           scroll.scrollTop,
           idx,
           viewportH,
           contentHeight,
+          breaks,
         );
         if (scroll.scrollTop !== clamped) scroll.scrollTop = clamped;
       }
-      syncPagerVisibility(idx, scroll.scrollTop, viewportH);
+      syncPagerVisibility(idx, scroll.scrollTop, viewportH, contentHeight, breaks);
     };
     scroll.addEventListener("scroll", onScroll, { passive: true });
     scroll.addEventListener(DOC_PAGED_CHANGE_EVENT, onPagedChange);
@@ -2167,6 +2187,34 @@ export function NodeQueryModal({
       scroll.removeEventListener(DOC_PAGED_CHANGE_EVENT, onPagedChange);
     };
   }, [showPagedLayoutChrome]);
+
+  useEffect(() => {
+    if (showPagedLayoutChrome) return undefined;
+    setPagedScrollLayout(contentScrollRef.current, null);
+    pageBreaksRef.current = [0];
+    return undefined;
+  }, [showPagedLayoutChrome]);
+
+  // When pager mounts, viewport shrinks — reclaim scroll without jumping to page start.
+  useLayoutEffect(() => {
+    if (!showPagedLayoutChrome) return undefined;
+    const scroll = contentScrollRef.current;
+    if (!scroll) return undefined;
+    const prevTop = scroll.scrollTop;
+    const viewportH = scroll.clientHeight;
+    const contentHeight = scroll.scrollHeight;
+    const breaks = pageBreaksRef.current;
+    const clamped = clampScrollTopToPage(
+      prevTop,
+      pageIndexRef.current,
+      viewportH,
+      contentHeight,
+      breaks,
+    );
+    if (scroll.scrollTop !== clamped) {
+      scroll.scrollTop = clamped;
+    }
+  }, [showPagedLayoutChrome, showPagePager]);
 
   useEffect(() => {
     if (!showPagedLayoutChrome) return undefined;
@@ -2986,6 +3034,9 @@ export function NodeQueryModal({
               "node-query-modal__content-scroll"
               + (contentFocusMode ? " node-query-modal__content-scroll--focus" : "")
               + (showPagedLayoutChrome ? " node-query-modal__content-scroll--paged" : "")
+              + (showPagedLayoutChrome && showPagePager
+                ? ` ${DOC_PAGED_PAGER_SCROLL_CLASS}`
+                : "")
             }
           >
           {dataType === NODE_DATA_TYPES.VIDEO ? (
@@ -3328,6 +3379,7 @@ export function NodeQueryModal({
           ownerId={integratedVisualDetail.ownerId}
           folderId={integratedVisualDetail.ownerId}
           itemId={integratedVisualDetail.itemId}
+          overlayClassName="folder-library-image-detail--above-integrated-visuals"
           onClose={() => setIntegratedVisualDetail(null)}
         />
       ) : null}
