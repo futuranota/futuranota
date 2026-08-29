@@ -203,7 +203,6 @@ import {
   groupProductDocsFromList,
 } from "../../lib/docListGrouping.js";
 import { DocGroupBlockCard } from "./DocGroupBlockCard.jsx";
-import { DocumentsNewDocMenu } from "./DocumentsNewDocMenu.jsx";
 import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
@@ -3321,11 +3320,6 @@ export function LeftPanel({
   const docCreateMode = clickFolderView === "groups"
     ? "product"
     : "content";
-  /** Documents content: selector + opens folder → New doc (not folder create). */
-  const useDocumentsNewDocMenu = panelType === "Documents"
-    && docCreateMode === "content"
-    && clickFolderView !== "departments"
-    && Boolean(objectWorkspaceActive && activeObjectId);
 
   const openGinaDocumentByNodeId = useCallback((rawId) => {
     const plan = buildGinaDocumentOpenPlan(rawId, {
@@ -5357,25 +5351,16 @@ export function LeftPanel({
         </Dropdown>
 
         <div className="lp-selector-actions">
-          {useDocumentsNewDocMenu ? (
-            <DocumentsNewDocMenu
-              docsById={docs}
-              parentObjectId={activeObjectId}
-              disabled={newDisabled}
-              onCreateInFolder={(folderDoc) => openCreateDocument(folderDoc)}
-            />
-          ) : (
-            <button
-              type="button"
-              className="lp-new-btn"
-              onClick={handleNewByFolder}
-              disabled={newDisabled}
-              title={newDisabled ? t("sidebar.openFolderFirst") : undefined}
-              aria-label={t("sidebar.createNew", { type: panelTypeLabel(panelType).toLowerCase() })}
-            >
-              <span className="lp-new-label">{t("sidebar.newButton")}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="lp-new-btn"
+            onClick={handleNewByFolder}
+            disabled={newDisabled}
+            title={newDisabled ? t("sidebar.openFolderFirst") : undefined}
+            aria-label={t("sidebar.createNew", { type: panelTypeLabel(panelType).toLowerCase() })}
+          >
+            <span className="lp-new-label">{t("sidebar.newButton")}</span>
+          </button>
         </div>
       </div>
 
