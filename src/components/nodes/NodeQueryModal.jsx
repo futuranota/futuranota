@@ -87,6 +87,7 @@ import {
   pageIndexFromBreaks,
   setPagedScrollLayout,
 } from "../../lib/docPagedWriting.js";
+import { isFolderPagedWriting, normalizeFolderWritingLayout } from "../../lib/folderWritingLayout.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -263,8 +264,6 @@ export function NodeQueryModal({
   const focusCategoryRef = useRef(null);
   const contentScrollRef = useRef(null);
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
-  /** @type {["scroll"|"paged", Function]} */
-  const [writingLayout, setWritingLayout] = useState("scroll");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [showPagePager, setShowPagePager] = useState(false);
@@ -394,6 +393,16 @@ export function NodeQueryModal({
   const gatedScheduleOverlapHint = occupiedStrikethroughActive ? scheduleOverlapHint : "";
   const docsMap = useDocsStore((s) => s.docs);
   const nodesMap = useNodesStore((s) => s.nodes);
+  const folderWritingLayout = useMemo(() => {
+    const folderId = String(
+      resolvedParentDocId
+      || (entityNodeId ? nodesMap?.[entityNodeId]?.parentDocId : "")
+      || "",
+    ).trim();
+    if (!folderId) return normalizeFolderWritingLayout(null);
+    const folderDoc = liveDocsById?.[folderId] ?? docsMap?.[folderId] ?? null;
+    return normalizeFolderWritingLayout(folderDoc?.writingLayout);
+  }, [resolvedParentDocId, entityNodeId, nodesMap, liveDocsById, docsMap]);
   const departments = useDepartmentsStore((s) => s.departments);
   const moveTargetGroups = useMemo(
     () => groupFoldersByDepartment(moveTargetFolders, departments, {
@@ -463,20 +472,23 @@ export function NodeQueryModal({
     if (el) el.scrollTop = 0;
   }, []);
 
-  const exitContentFocusMode = useCallback(() => {
-    setContentFocusMode(false);
-    setWritingLayout("scroll");
+  const resetWritingPager = useCallback(() => {
     setPageIndex(0);
     setPageCount(1);
     setShowPagePager(false);
     pageIndexRef.current = 0;
     pageBreaksRef.current = [0];
+  }, []);
+
+  const exitContentFocusMode = useCallback(() => {
+    setContentFocusMode(false);
+    resetWritingPager();
     requestAnimationFrame(() => {
       syncQueryInputHeight();
       // Zoom-out / collapsed: always show the start of the writing (not empty tail cells).
       scrollContentToTop();
     });
-  }, [syncQueryInputHeight, scrollContentToTop]);
+  }, [syncQueryInputHeight, scrollContentToTop, resetWritingPager]);
 
   const goToPage = useCallback((nextIndex) => {
     const scroll = contentScrollRef.current;
@@ -493,29 +505,6 @@ export function NodeQueryModal({
     if (scroll && viewportH > 0) {
       applyPagedScrollTop(scroll, idx, viewportH, count, breaks);
     }
-  }, []);
-
-  const toggleWritingLayout = useCallback(() => {
-    setWritingLayout((prev) => {
-      const next = prev === "paged" ? "scroll" : "paged";
-      if (next === "scroll") {
-        setPageIndex(0);
-        setPageCount(1);
-        setShowPagePager(false);
-        pageIndexRef.current = 0;
-        pageBreaksRef.current = [0];
-      } else {
-        setPageIndex(0);
-        setShowPagePager(false);
-        pageIndexRef.current = 0;
-        pageBreaksRef.current = [0];
-        requestAnimationFrame(() => {
-          const scroll = contentScrollRef.current;
-          if (scroll) scroll.scrollTop = 0;
-        });
-      }
-      return next;
-    });
   }, []);
 
   const toggleContentFocus = useCallback(() => {
@@ -619,7 +608,7 @@ export function NodeQueryModal({
         : "");
 
   const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload && !forecastPayload;
-  const showPagedLayoutChrome = contentFocusMode && isTextWritingMode && writingLayout === "paged";
+  const showPagedLayoutChrome = contentFocusMode && isTextWritingMode && isFolderPagedWriting(folderWritingLayout);
 
   // Local source of truth for the writing stack so empty/blank cells survive
   // while editing (serialized content drops them). Re-seed only when the node
@@ -2078,13 +2067,8 @@ export function NodeQueryModal({
   ]);
 
   useEffect(() => {
-    setWritingLayout("scroll");
-    setPageIndex(0);
-    setPageCount(1);
-    setShowPagePager(false);
-    pageIndexRef.current = 0;
-    pageBreaksRef.current = [0];
-  }, [entityNodeId]);
+    resetWritingPager();
+  }, [entityNodeId, folderWritingLayout, resetWritingPager]);
 
   // Paged layout: block-aware page breaks; free scroll within page; pager on last block.
   useLayoutEffect(() => {
@@ -2324,23 +2308,6 @@ export function NodeQueryModal({
                 </p>
               )}
               <div className="doc-focus-top__meta">
-                {isTextWritingMode ? (
-                  <button
-                    type="button"
-                    className={
-                      "doc-focus-top__layout-toggle"
-                      + (writingLayout === "paged" ? " is-paged" : "")
-                    }
-                    onClick={toggleWritingLayout}
-                    aria-pressed={writingLayout === "paged"}
-                    aria-label={t("canvas.writingLayoutToggleAria")}
-                    title={t("canvas.writingLayoutToggleTitle")}
-                  >
-                    {writingLayout === "paged"
-                      ? t("canvas.writingLayoutPages")
-                      : t("canvas.writingLayoutScroll")}
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="node-query-modal__doc-action node-query-modal__call-asistente"

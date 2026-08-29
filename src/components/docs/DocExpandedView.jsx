@@ -2732,6 +2732,10 @@ export function DocExpandedView({
           onFolderViewModeChange={isContentMode ? (nextMode) => {
             updateDoc(doc.id, { viewMode: nextMode });
           } : undefined}
+          writingLayout={doc?.writingLayout}
+          onWritingLayoutChange={isContentMode ? (nextLayout) => {
+            updateDoc(doc.id, { writingLayout: nextLayout });
+          } : undefined}
           onCreateDocumentInFolder={
             isContentMode ? handleCreateDocumentInFolder : undefined
           }

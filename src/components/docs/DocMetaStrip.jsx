@@ -335,6 +335,8 @@ export function DocMetaStrip({
   hasKnowledgeImport = false,
   folderViewMode = null,
   onFolderViewModeChange = null,
+  writingLayout = null,
+  onWritingLayoutChange = null,
   /** When folder campaign mode is ON: filter child docs by campaignStatus. */
   campaignChildFilter = "all",
   onCampaignChildFilterChange = null,
@@ -627,6 +629,8 @@ export function DocMetaStrip({
                         onViewModeChange={onFolderViewModeChange}
                         campaignActive={campaignActive}
                         onCampaignActiveChange={onCampaignActiveChange}
+                        writingLayout={writingLayout}
+                        onWritingLayoutChange={onWritingLayoutChange}
                       />
                     </div>
                   </div>
@@ -638,6 +642,8 @@ export function DocMetaStrip({
                     onViewModeChange={onFolderViewModeChange}
                     campaignActive={campaignActive}
                     onCampaignActiveChange={onCampaignActiveChange}
+                    writingLayout={writingLayout}
+                    onWritingLayoutChange={onWritingLayoutChange}
                   />
                 </div>
               )}

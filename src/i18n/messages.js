@@ -635,6 +635,10 @@ export const messages = {
       campaignMode: "Campaign mode",
       campaignModeBody:
         "When on, documents in this folder use Launch date, active/inactive, and campaign fields. Turning off hides that UI but keeps saved data.",
+      writingLayoutTitle: "Writing layout",
+      writingLayoutBody:
+        "When on, documents open in paged sheets (Hojas). When off, writing scrolls continuously.",
+      writingLayoutAria: "Switch between scroll and paged writing layout",
       campaignDocsFilter: "Documents",
       campaignDocsFilterAll: "all",
     },
@@ -2671,6 +2675,10 @@ export const messages = {
       campaignMode: "Modo campaign",
       campaignModeBody:
         "Con esto activo, los documentos del folder usan Launch, active/inactive y campos de campaign. Al apagar se oculta la UI pero se conservan los datos.",
+      writingLayoutTitle: "Layout de escritura",
+      writingLayoutBody:
+        "Activado: los documentos abren en hojas. Desactivado: escritura en scroll continuo.",
+      writingLayoutAria: "Cambiar entre scroll y layout por hojas",
       campaignDocsFilter: "Documentos",
       campaignDocsFilterAll: "todos",
     },

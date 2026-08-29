@@ -5,11 +5,18 @@ import {
   FOLDER_VIEW_MODE_STORY,
   normalizeFolderViewMode,
 } from "../../lib/folderViewMode.js";
+import {
+  FOLDER_WRITING_LAYOUT_PAGED,
+  FOLDER_WRITING_LAYOUT_SCROLL,
+  isFolderPagedWriting,
+  normalizeFolderWritingLayout,
+} from "../../lib/folderWritingLayout.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { PremiumToggle } from "../shared/PremiumToggle.jsx";
 
 const SETTINGS_ICON = "/uploads/settings.svg";
 const CAMPAIGN_ICON = "/uploads/ad-frame.svg";
+const WRITING_LAYOUT_ICON = "/uploads/scroll-pages-options.svg";
 
 const VIEW_OPTIONS = [
   {
@@ -34,9 +41,13 @@ function FolderViewModeOverlay({
   onClose,
   campaignActive = false,
   onCampaignActiveChange,
+  writingLayout = FOLDER_WRITING_LAYOUT_SCROLL,
+  onWritingLayoutChange,
 }) {
   const { t } = useI18n();
   const showCampaignToggle = typeof onCampaignActiveChange === "function";
+  const showWritingLayoutToggle = typeof onWritingLayoutChange === "function";
+  const normalizedWritingLayout = normalizeFolderWritingLayout(writingLayout);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -107,6 +118,39 @@ function FolderViewModeOverlay({
           </div>
         ) : null}
 
+        {showWritingLayoutToggle ? (
+          <div
+            className="folder-view-overlay__campaign folder-view-overlay__writing-layout"
+            role="group"
+            aria-label={t("meta.writingLayoutAria")}
+          >
+            <div className="folder-view-overlay__campaign-copy">
+              <img
+                src={WRITING_LAYOUT_ICON}
+                alt=""
+                aria-hidden
+                className="folder-view-overlay__row-icon"
+                draggable={false}
+              />
+              <span className="folder-view-overlay__row-copy">
+                <span className="folder-view-overlay__row-title">
+                  {t("meta.writingLayoutTitle")}
+                </span>
+                <span className="folder-view-overlay__row-body">
+                  {t("meta.writingLayoutBody")}
+                </span>
+              </span>
+            </div>
+            <PremiumToggle
+              checked={isFolderPagedWriting(normalizedWritingLayout)}
+              onChange={(on) => onWritingLayoutChange?.(
+                on ? FOLDER_WRITING_LAYOUT_PAGED : FOLDER_WRITING_LAYOUT_SCROLL,
+              )}
+              aria-label={t("meta.writingLayoutAria")}
+            />
+          </div>
+        ) : null}
+
         <div
           className="folder-view-overlay__table"
           role="listbox"
@@ -165,11 +209,15 @@ export function FolderViewModeSettings({
   onViewModeChange,
   campaignActive = false,
   onCampaignActiveChange,
+  writingLayout = FOLDER_WRITING_LAYOUT_SCROLL,
+  onWritingLayoutChange,
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const current = normalizeFolderViewMode(viewMode);
-  const showTrigger = Boolean(onViewModeChange) || typeof onCampaignActiveChange === "function";
+  const showTrigger = Boolean(onViewModeChange)
+    || typeof onCampaignActiveChange === "function"
+    || typeof onWritingLayoutChange === "function";
 
   if (!showTrigger) return null;
 
@@ -210,6 +258,8 @@ export function FolderViewModeSettings({
           onClose={() => setOpen(false)}
           campaignActive={campaignActive}
           onCampaignActiveChange={onCampaignActiveChange}
+          writingLayout={writingLayout}
+          onWritingLayoutChange={onWritingLayoutChange}
         />
       ) : null}
     </>

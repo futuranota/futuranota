@@ -65,3 +65,20 @@ describe("normalizeDoc campaign vs schedule", () => {
     expect(doc.campaignActivateAt).toBe("2026-07-18T08:00:00.000Z");
   });
 });
+
+describe("normalizeDoc writingLayout", () => {
+  it("defaults to scroll when unset", () => {
+    const doc = normalizeDoc({ id: "f1", title: "Folder" });
+    expect(doc.writingLayout).toBe("scroll");
+  });
+
+  it("preserves paged when set", () => {
+    const doc = normalizeDoc({ id: "f1", title: "Folder", writingLayout: "paged" });
+    expect(doc.writingLayout).toBe("paged");
+  });
+
+  it("coerces invalid values to scroll", () => {
+    const doc = normalizeDoc({ id: "f1", title: "Folder", writingLayout: "invalid" });
+    expect(doc.writingLayout).toBe("scroll");
+  });
+});

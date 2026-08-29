@@ -142,6 +142,8 @@ export function DocDocumentBox({
   onReportAnimationComplete = null,
   folderViewMode = null,
   onFolderViewModeChange = null,
+  writingLayout = null,
+  onWritingLayoutChange = null,
   onCreateDocumentInFolder = null,
   onShredFolderNode = null,
 }) {
@@ -871,6 +873,8 @@ export function DocDocumentBox({
           hasKnowledgeImport={knowledgeImportActive}
           folderViewMode={isContentMode ? folderViewMode : null}
           onFolderViewModeChange={isContentMode ? onFolderViewModeChange : null}
+          writingLayout={isContentMode ? writingLayout : null}
+          onWritingLayoutChange={isContentMode ? onWritingLayoutChange : null}
           campaignChildFilter={campaignChildFilter}
           onCampaignChildFilterChange={
             campaignActive && isContentMode ? setCampaignChildFilter : null

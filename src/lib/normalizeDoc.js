@@ -6,6 +6,10 @@ import {
   FOLDER_VIEW_MODE_QUICK,
   normalizeFolderViewMode,
 } from "./folderViewMode.js";
+import {
+  FOLDER_WRITING_LAYOUT_SCROLL,
+  normalizeFolderWritingLayout,
+} from "./folderWritingLayout.js";
 import { readLaunchRadarFromDoc } from "./launchRadarSnapshot.js";
 import {
   DOC_KIND_CONTENT,
@@ -36,6 +40,8 @@ export function emptyDocCampaignFields() {
     nodeLinkColor: "white",
     /** Story (descriptive) or Quick (title + direct link) presentation for linked docs. */
     viewMode: FOLDER_VIEW_MODE_QUICK,
+    /** Scroll vs paged writing for documents in this folder. */
+    writingLayout: FOLDER_WRITING_LAYOUT_SCROLL,
     knowledgeImport: null,
     launchRadarSnapshot: null,
     reportPresentation: null,
@@ -97,6 +103,7 @@ export function normalizeDoc(doc) {
     sidebarOrder: normalizeSidebarOrder(doc.sidebarOrder ?? base.sidebarOrder),
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
     viewMode: normalizeFolderViewMode(doc.viewMode ?? base.viewMode),
+    writingLayout: normalizeFolderWritingLayout(doc.writingLayout ?? base.writingLayout),
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
     reportPresentation: doc.reportPresentation ?? base.reportPresentation,
     launchRadarSnapshot: doc.launchRadarSnapshot ?? readLaunchRadarFromDoc(doc) ?? base.launchRadarSnapshot,
