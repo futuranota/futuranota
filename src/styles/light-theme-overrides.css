@@ -1,8 +1,8 @@
-/* Light theme — residual overrides (ui-system-transformer pass 2)
- * Most surfaces use semantic tokens in base CSS; keep only cascade edge-cases here.
+/* Light theme — Frame 35 raised surfaces + doc modal parity
+ * Ref: public/uploads/Frame 35.svg (#FFF8D3 @ 20%, shadow 0 3px 8px)
  */
 
-/* Icon masks: drop invert(1) on light */
+/* ── Icons (drop dark invert on light) ───────────────────────── */
 :root[data-theme="light"] .pack-actions .btn.pack-actions__btn--toolbar:hover .pack-actions__btn-icon,
 :root[data-theme="light"] .pack-actions .btn.pack-actions__btn--toolbar:active:not(:disabled) .pack-actions__btn-icon {
   filter: brightness(0);
@@ -19,22 +19,88 @@
   opacity: 0.72;
 }
 
-/* Canvas / toolbar pink → accent-mark on light */
+:root[data-theme="light"] .doc-folder-view-settings-trigger__icon {
+  filter: brightness(0);
+  opacity: 0.72;
+}
+
+:root[data-theme="light"] .doc-folder-view-settings-trigger:hover .doc-folder-view-settings-trigger__icon,
+:root[data-theme="light"] .doc-folder-view-settings-trigger[aria-expanded="true"] .doc-folder-view-settings-trigger__icon {
+  opacity: 0.92;
+}
+
+/* ── Canvas / toolbar accents ──────────────────────────────── */
 :root[data-theme="light"] .canvas-toolbar .btn.primary,
 :root[data-theme="light"] .canvas-wrap .pill.ok,
 :root[data-theme="light"] .canvas-tool.active,
 :root[data-theme="light"] .canvas-empty-card .btn.primary {
   color: var(--accent-mark);
   border-color: var(--accent-mark-border);
-  background: color-mix(in oklab, var(--accent-mark) 12%, transparent);
+  background: color-mix(in oklab, var(--accent-mark) 14%, var(--raised-fill));
+  box-shadow: var(--shadow-raised);
 }
 
 :root[data-theme="light"] .canvas-tool.active {
   background: var(--accent-mark-bg);
-  box-shadow: 0 0 0 1px var(--accent-mark-border) inset;
+  box-shadow: var(--shadow-raised), 0 0 0 1px var(--accent-mark-border) inset;
 }
 
-/* Doc marks — stronger on light body */
+:root[data-theme="light"] .canvas-empty-card {
+  background: var(--raised-fill);
+  border-color: var(--raised-border);
+  box-shadow: var(--shadow-raised-lg);
+}
+
+/* ── Doc modal — meta + actions ─────────────────────────────── */
+:root[data-theme="light"] .doc-meta-strip__fields .doc-new-meta-input::placeholder {
+  color: var(--dim);
+}
+
+:root[data-theme="light"] .doc-meta-strip__fields .doc-new-select.is-placeholder-option {
+  color: var(--dim);
+}
+
+:root[data-theme="light"] .doc-meta-strip__fields .doc-new-date {
+  color-scheme: light;
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] .doc-meta-strip__fields .doc-new-date::-webkit-calendar-picker-indicator {
+  filter: brightness(0);
+  opacity: 0.65;
+}
+
+:root[data-theme="light"] .doc-new-action--save .search-spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.95);
+}
+
+:root[data-theme="light"] .doc-content-text-size-controls__btn {
+  opacity: 0.88;
+  filter: none;
+}
+
+:root[data-theme="light"] .doc-content-text-size-controls__btn:hover,
+:root[data-theme="light"] .doc-content-text-size-controls__btn:focus-visible {
+  opacity: 1;
+}
+
+/* Text markers — stronger on light body */
+:root[data-theme="light"] .doc-text-marker--rose {
+  --marker-ink: rgba(196, 134, 120, 0.48);
+  --marker-ink-soft: rgba(196, 134, 120, 0.26);
+}
+
+:root[data-theme="light"] .doc-text-marker--mint {
+  --marker-ink: rgba(42, 138, 74, 0.38);
+  --marker-ink-soft: rgba(42, 138, 74, 0.2);
+}
+
+:root[data-theme="light"] .doc-text-marker--yellow {
+  --marker-ink: rgba(168, 106, 0, 0.38);
+  --marker-ink-soft: rgba(168, 106, 0, 0.2);
+}
+
 :root[data-theme="light"] .doc-inplace-select-all__input::selection {
   background: var(--accent-mark-bg);
   color: var(--text-primary);
@@ -45,14 +111,20 @@
   color: var(--text-primary);
   border-color: var(--accent-mark-border);
   background: var(--accent-mark-bg);
+  box-shadow: var(--shadow-raised);
 }
 
-/* Calendar search pill text */
+/* Calendar pill */
 :root[data-theme="light"] .cal-event-canvas__search-pill .cal-event-canvas__date {
   color: var(--text-primary);
 }
 
 :root[data-theme="light"] .cal-event-canvas__search-pill:hover:not(:disabled) {
-  background: var(--hover-surface-strong);
-  border-color: var(--border-strong);
+  background: var(--raised-fill-hover);
+  box-shadow: var(--shadow-raised-lg);
+}
+
+/* Gina card — raised shell */
+:root[data-theme="light"] .gina-chat-card__inner {
+  box-shadow: var(--shadow-raised-lg);
 }

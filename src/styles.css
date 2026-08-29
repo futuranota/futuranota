@@ -101,6 +101,23 @@
   --interactive-muted: rgba(255, 255, 255, 0.72);
   --interactive-subtle: rgba(255, 255, 255, 0.45);
   --gina-card-bg: linear-gradient(135deg, #2a2a2a, var(--surface-base), #1c1c1c);
+  --raised-fill: transparent;
+  --raised-fill-hover: var(--hover-surface-strong);
+  --raised-fill-active: var(--active-surface);
+  --raised-border: transparent;
+  --raised-radius: 6px;
+  --shadow-raised: none;
+  --shadow-raised-lg: none;
+  --meta-drawer-bg: rgba(0, 0, 0, 0.15);
+  --meta-drawer-border: var(--hairline);
+  --meta-field-value: #d8d8d8;
+  --meta-field-label: #7e7a76;
+  --btn-primary-bg: #fff;
+  --btn-primary-text: #000;
+  --btn-primary-border: transparent;
+  --btn-primary-shadow: none;
+  --marker-ink-default: rgba(255, 214, 10, 0.32);
+  --marker-ink-soft-default: rgba(255, 214, 10, 0.16);
 }
 
 :root[data-theme="light"] {
@@ -152,24 +169,49 @@
   --accent-mark-bg: rgba(196, 134, 120, 0.22);
   --accent-mark-border: rgba(196, 134, 120, 0.45);
   --brand-brush: #c48678;
-  --elevated-surface: color-mix(in oklab, var(--text-primary) 6%, var(--surface-base));
-  --elevated-surface-hover: var(--hover-surface-strong);
-  --elevated-surface-border: var(--border-strong);
-  --folder-box-border: var(--border-strong);
-  --control-border: var(--border-strong);
-  --segment-track: color-mix(in oklab, var(--text-primary) 8%, var(--surface-base));
-  --segment-track-border: var(--border-subtle);
-  --segment-thumb: var(--surface-base);
-  --segment-thumb-border: var(--border-strong);
-  --segment-label: var(--text-2);
-  --segment-label-active: var(--text-primary);
-  --segment-label-hover: var(--text);
-  --segment-shadow: 0 1px 3px rgba(61, 59, 59, 0.10);
-  --cal-search-pill-bg: color-mix(in oklab, var(--text-primary) 10%, var(--surface-base));
-  --shadow-card: var(--shadow-modal);
+  --shadow-elevated: 0 24px 48px rgba(61, 59, 59, 0.12);
   --interactive-muted: var(--text-2);
   --interactive-subtle: var(--dim);
   --gina-card-bg: var(--surface-base);
+
+  /* Frame 35 — warm raised surfaces (ref: public/uploads/Frame 35.svg) */
+  --raised-fill: rgba(255, 248, 211, 0.2);
+  --raised-fill-hover: rgba(255, 248, 211, 0.34);
+  --raised-fill-active: rgba(255, 248, 211, 0.48);
+  --raised-border: rgba(0, 0, 0, 0.06);
+  --raised-radius: 4px;
+  --shadow-raised: 0 3px 8px rgba(218, 218, 218, 0.92);
+  --shadow-raised-lg: 0 6px 18px rgba(200, 200, 200, 0.55);
+
+  --elevated-surface: var(--raised-fill);
+  --elevated-surface-hover: var(--raised-fill-hover);
+  --elevated-surface-border: var(--raised-border);
+  --folder-box-border: var(--raised-border);
+  --control-border: var(--raised-border);
+  --segment-track: rgba(255, 248, 211, 0.14);
+  --segment-track-border: var(--raised-border);
+  --segment-thumb: #ffffff;
+  --segment-thumb-border: rgba(0, 0, 0, 0.08);
+  --segment-label: var(--text-2);
+  --segment-label-active: var(--text-primary);
+  --segment-label-hover: var(--text);
+  --segment-shadow: var(--shadow-raised);
+  --cal-search-pill-bg: var(--raised-fill);
+  --shadow-card: var(--shadow-raised);
+  --shadow-modal: var(--shadow-raised-lg);
+  --panel-2: rgba(255, 248, 211, 0.16);
+  --panel-3: rgba(255, 248, 211, 0.28);
+
+  --meta-drawer-bg: var(--raised-fill);
+  --meta-drawer-border: var(--raised-border);
+  --meta-field-value: var(--text-primary);
+  --meta-field-label: var(--dim);
+  --btn-primary-bg: linear-gradient(180deg, #f4c7ba 0%, #c48678 100%);
+  --btn-primary-text: #ffffff;
+  --btn-primary-border: rgba(196, 134, 120, 0.55);
+  --btn-primary-shadow: var(--shadow-raised);
+  --marker-ink-default: rgba(196, 134, 120, 0.42);
+  --marker-ink-soft-default: rgba(196, 134, 120, 0.22);
 }
 
 * { box-sizing: border-box; }
@@ -1635,7 +1677,8 @@ textarea.field {
   padding: 2px;
   background: var(--segment-track);
   border: 1px solid var(--segment-track-border);
-  border-radius: 4px;
+  border-radius: var(--raised-radius, 4px);
+  box-shadow: var(--shadow-raised, none);
   position: relative;
 }
 .intel-folder-tabs-thumb {
@@ -3803,7 +3846,8 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   margin-bottom: 8px;
   background: var(--segment-track);
   border: 1px solid var(--segment-track-border);
-  border-radius: 4px;
+  border-radius: var(--raised-radius, 4px);
+  box-shadow: var(--shadow-raised, none);
 }
 .forecast-period-switch-thumb {
   position: absolute;
@@ -4049,8 +4093,9 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   height: 28px;
   padding: 0 5px 0 16px;
   border: 1px solid var(--segment-track-border);
-  border-radius: 3px;
+  border-radius: var(--raised-radius, 3px);
   background: var(--cal-search-pill-bg);
+  box-shadow: var(--shadow-raised, none);
   cursor: pointer;
   line-height: 0;
   transition: opacity 120ms ease, transform 120ms ease, background 120ms ease, border-color 120ms ease;

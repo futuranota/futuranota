@@ -100,6 +100,23 @@ export function listWorkspaceAttachmentPicks() {
 }
 
 /**
+ * Filter workspace library picks by tag or description.
+ * @param {Array<{ ownerKind?: string, ownerId?: string, item?: { tag?: string, description?: string|null } }>} picks
+ * @param {string} query
+ * @returns {typeof picks}
+ */
+export function filterWorkspaceLibraryPicks(picks, query) {
+  const normalized = String(query ?? "").trim().toLowerCase();
+  if (!normalized) return Array.isArray(picks) ? picks : [];
+  return (Array.isArray(picks) ? picks : []).filter((row) => {
+    const item = row?.item || {};
+    const tag = String(item.tag || "").toLowerCase();
+    const description = String(item.description || "").toLowerCase();
+    return tag.includes(normalized) || description.includes(normalized);
+  });
+}
+
+/**
  * Visual fichas for a folder library (Image card / moodboard asset strip).
  * @param {string} folderId
  */

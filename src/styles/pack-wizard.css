@@ -100,12 +100,14 @@
   text-transform: uppercase;
   color: var(--text-2);
   border: 1px solid var(--border-subtle, var(--glass-border));
+  border-radius: var(--raised-radius, 4px);
   background: var(--elevated-surface);
-  box-shadow: none;
+  box-shadow: var(--shadow-raised, none);
   transition:
     color 0.15s ease,
     border-color 0.15s ease,
-    background 0.15s ease;
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pack-actions .btn.pack-actions__btn--toolbar:hover:not(:disabled),
@@ -113,7 +115,7 @@
   color: var(--text-primary);
   border-color: var(--border-strong);
   background: var(--elevated-surface-hover);
-  box-shadow: none;
+  box-shadow: var(--shadow-raised-lg, none);
   transform: none;
 }
 

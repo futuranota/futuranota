@@ -12,6 +12,7 @@ const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const QLOOPS_ICON_SRC = "/uploads/RepeatOnce.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
+const LIBRARY_ICON_SRC = "/uploads/Library.svg";
 const CAMPAIGN_ICON_SRC = "/uploads/web-advertising.svg";
 
 /** @param {{ src: string, className?: string }} props */
@@ -34,6 +35,8 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} [props.onOpenQLoopsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
+ * @param {() => void} [props.onOpenFolderLibrary]
+ * @param {boolean} [props.folderLibraryActive]
  * @param {() => void} [props.onToggleCampaignFilter]
  * @param {boolean} [props.campaignFilterActive]
  * @param {boolean} [props.companySelected]
@@ -50,6 +53,8 @@ export function PackActionsBar({
   onOpenQLoopsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
+  onOpenFolderLibrary,
+  folderLibraryActive = false,
   onToggleCampaignFilter,
   campaignFilterActive = false,
   companySelected = false,
@@ -136,6 +141,21 @@ export function PackActionsBar({
           >
             <PackActionsToolbarIcon src={URL_TABLE_ICON_SRC} />
             <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
+          </button>
+        ) : null}
+        {companySelected && onOpenFolderLibrary ? (
+          <button
+            type="button"
+            className={
+              "btn xs pack-actions__btn pack-actions__btn--toolbar"
+              + (folderLibraryActive ? " is-active" : "")
+            }
+            onClick={onOpenFolderLibrary}
+            title={t("pack.libraryTitle")}
+            aria-pressed={folderLibraryActive}
+          >
+            <PackActionsToolbarIcon src={LIBRARY_ICON_SRC} />
+            <span className="pack-actions__btn-label">{t("pack.library")}</span>
           </button>
         ) : null}
         {companySelected && onToggleCampaignFilter ? (

@@ -5,6 +5,7 @@ import {
   isMoodboardLibraryPick,
   flattenVisualPicksFromCatalogs,
   flattenAttachmentPicksFromCatalogs,
+  filterWorkspaceLibraryPicks,
   findLibraryItemBySlot,
   libraryItemToImageSplitPatch,
   libraryItemToMoodboardSlotPatch,
@@ -56,6 +57,16 @@ describe("libraryImageCardPick", () => {
       "document:doc1:d1",
       "folder:folderB:b1",
     ]);
+  });
+
+  it("filterWorkspaceLibraryPicks matches tag or description", () => {
+    const picks = [
+      { ownerKind: "folder", ownerId: "f1", item: { id: "1", tag: "Marcos", description: "hero" } },
+      { ownerKind: "folder", ownerId: "f2", item: { id: "2", tag: "Scene", description: "josua close-up" } },
+    ];
+    expect(filterWorkspaceLibraryPicks(picks, "marcos").map((row) => row.item.id)).toEqual(["1"]);
+    expect(filterWorkspaceLibraryPicks(picks, "josua").map((row) => row.item.id)).toEqual(["2"]);
+    expect(filterWorkspaceLibraryPicks(picks, "")).toHaveLength(2);
   });
 
   it("maps a visual ficha onto a moodboard slot without re-upload fields", () => {

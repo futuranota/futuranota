@@ -210,6 +210,7 @@ import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
 import { QLoopsLibraryPanel } from "../qloops/QLoopsLibraryPanel.jsx";
 import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
 import { UrlTableLibraryPanel } from "../urltable/UrlTableLibraryPanel.jsx";
+import { FolderLibraryOverlay } from "../docs/FolderLibraryOverlay.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
@@ -2052,6 +2053,7 @@ export function LeftPanel({
   const sidebarReorderListRef = useRef(/** @type {string[] | null} */ (null));
   const sidebarReorderDragIdRef = useRef(/** @type {string | null} */ (null));
   const [urlTableLibraryActive, setUrlTableLibraryActive] = useState(false);
+  const [folderLibraryActive, setFolderLibraryActive] = useState(false);
   const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
   const [folderBulkDeleteMode, setFolderBulkDeleteMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
@@ -2448,6 +2450,7 @@ export function LeftPanel({
     setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
+    setFolderLibraryActive(false);
     setProductCategoryFilter(null);
     setContentProductFilter(null);
   }, [panelType, filterObjectId, setProductCategoryFilter, setContentProductFilter]);
@@ -2458,6 +2461,7 @@ export function LeftPanel({
     setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
+    setFolderLibraryActive(false);
     setPackImportActive(true);
   };
 
@@ -2471,6 +2475,7 @@ export function LeftPanel({
     setQloopsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
+    setFolderLibraryActive(false);
     setStepsLibraryActive(true);
   };
 
@@ -2484,6 +2489,7 @@ export function LeftPanel({
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
     setUrlTableLibraryActive(false);
+    setFolderLibraryActive(false);
     setQloopsLibraryActive(true);
   };
 
@@ -2497,6 +2503,7 @@ export function LeftPanel({
     setStepsLibraryActive(false);
     setQloopsLibraryActive(false);
     setUrlTableLibraryActive(false);
+    setFolderLibraryActive(false);
     setLazyTodosActive(true);
   };
 
@@ -2510,11 +2517,16 @@ export function LeftPanel({
     setStepsLibraryActive(false);
     setQloopsLibraryActive(false);
     setLazyTodosActive(false);
+    setFolderLibraryActive(false);
     setUrlTableLibraryActive(true);
   };
 
   const closeUrlTableLibraryView = () => {
     setUrlTableLibraryActive(false);
+  };
+
+  const closeFolderLibraryView = () => {
+    setFolderLibraryActive(false);
   };
 
   useEffect(() => {
@@ -2732,7 +2744,7 @@ export function LeftPanel({
 
   useEffect(() => {
     if (!guestWorkspace) return;
-    if (packImportActive || stepsLibraryActive || qloopsLibraryActive || lazyTodosActive || urlTableLibraryActive) return;
+    if (packImportActive || stepsLibraryActive || qloopsLibraryActive || lazyTodosActive || urlTableLibraryActive || folderLibraryActive) return;
     if (clickFolderView !== "subgroups") setClickFolderView("subgroups");
   }, [
     guestWorkspace,
@@ -2741,6 +2753,7 @@ export function LeftPanel({
     qloopsLibraryActive,
     lazyTodosActive,
     urlTableLibraryActive,
+    folderLibraryActive,
     clickFolderView,
   ]);
   useEffect(() => {
@@ -2780,6 +2793,14 @@ export function LeftPanel({
       setPanelType("Documents");
     }
     openUrlTableLibraryView();
+  };
+
+  const openFolderLibraryFromToolbar = () => {
+    if (folderLibraryActive) {
+      closeFolderLibraryView();
+      return;
+    }
+    setFolderLibraryActive(true);
   };
 
   const toggleCampaignFoldersFilter = () => {
@@ -5538,6 +5559,8 @@ export function LeftPanel({
                     onOpenQLoopsLibrary={openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenFolderLibrary={openFolderLibraryFromToolbar}
+                    folderLibraryActive={folderLibraryActive}
                     onToggleCampaignFilter={toggleCampaignFoldersFilter}
                     campaignFilterActive={campaignFoldersOnly}
                   />
@@ -5580,6 +5603,8 @@ export function LeftPanel({
                     onOpenQLoopsLibrary={openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenFolderLibrary={openFolderLibraryFromToolbar}
+                    folderLibraryActive={folderLibraryActive}
                     onToggleCampaignFilter={toggleCampaignFoldersFilter}
                     campaignFilterActive={campaignFoldersOnly}
                     filterMode="category"
@@ -5734,6 +5759,8 @@ export function LeftPanel({
                     onOpenQLoopsLibrary={guestWorkspace ? undefined : openQLoopsLibraryFromToolbar}
                     onOpenLazyTodos={guestWorkspace ? undefined : openLazyTodosFromToolbar}
                     onOpenUrlTable={guestWorkspace ? undefined : openUrlTableFromToolbar}
+                    onOpenFolderLibrary={guestWorkspace ? undefined : openFolderLibraryFromToolbar}
+                    folderLibraryActive={folderLibraryActive}
                     onToggleCampaignFilter={guestWorkspace ? undefined : toggleCampaignFoldersFilter}
                     campaignFilterActive={campaignFoldersOnly}
                   />
@@ -6184,6 +6211,15 @@ export function LeftPanel({
             if (doc) handleDeleteDoc(doc);
           }}
           onClose={() => setGinaKnowledgeOpen(false)}
+        />
+      ) : null}
+
+      {folderLibraryActive ? (
+        <FolderLibraryOverlay
+          workspaceOnly
+          ownerKind="folder"
+          ownerId=""
+          onClose={closeFolderLibraryView}
         />
       ) : null}
     </div>

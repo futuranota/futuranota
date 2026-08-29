@@ -46,6 +46,11 @@ import {
   libraryGridFaceOptions,
   libraryTilePrefer,
 } from "../../lib/libraryFichaPreview.js";
+import {
+  renderLibraryFichaFace,
+} from "./library/libraryFichaFace.jsx";
+import { LibraryWorkspaceView } from "./library/LibraryWorkspaceView.jsx";
+import { LibraryScopeBar, LIBRARY_SCOPE_OPTIONS } from "./library/LibraryScopeBar.jsx";
 import { FolderLibraryElementModal } from "./FolderLibraryElementModal.jsx";
 import { LibrarySponsoredTag } from "./LibrarySponsoredTag.jsx";
 import { FolderLibraryAssetDetail } from "./FolderLibraryAssetDetail.jsx";
@@ -54,11 +59,7 @@ import { FolderLibrarySkillDetail } from "./FolderLibrarySkillDetail.jsx";
 import { FolderLibraryVideoDetail } from "./FolderLibraryVideoDetail.jsx";
 import { LibrarySetInputModal } from "./LibrarySetInputModal.jsx";
 
-const SCOPE_OPTIONS = [
-  { id: "workspace", labelKey: "doc.library.scopeWorkspace", iconSrc: "/uploads/docs-main.svg" },
-  { id: "folder", labelKey: "doc.library.scopeFolder", iconSrc: "/uploads/folder-main.svg" },
-  { id: "docs", labelKey: "doc.library.scopeDocs", iconSrc: "/uploads/folder-view.svg" },
-];
+const SCOPE_OPTIONS = LIBRARY_SCOPE_OPTIONS;
 
 const FILTER_STORAGE_PREFIX = "fn-folder-library-filter:";
 
@@ -90,15 +91,6 @@ function writeStoredFilter(ownerKey, tab) {
   }
 }
 
-function formatBadge(item) {
-  if (item.attachmentKind) return String(item.attachmentKind).toUpperCase().slice(0, 6);
-  if (item.category === "pdf") return "PDF";
-  if (item.category === "skill") return "FILE";
-  if (item.category === "image") return "TXT";
-  if (item.category === "video") return "VIDEO";
-  return "FILE";
-}
-
 function MediaBadge({ item, prefer, faceOptions = {} }) {
   if (!fichaShowsMediaBadge(item, prefer, faceOptions)) return null;
   return (
@@ -109,58 +101,6 @@ function MediaBadge({ item, prefer, faceOptions = {} }) {
       aria-hidden
       draggable={false}
     />
-  );
-}
-
-function renderFichaFace(item, prefer, sponsoredLabel = "", faceOptions = {}) {
-  const isAttachment = item?.category === "skill" || item?.category === "pdf";
-  const kind = isAttachment ? "badge" : resolveFichaPreviewKind(item, prefer, faceOptions);
-  if (kind === "prompt") {
-    return (
-      <>
-        <span className="folder-library-overlay__cell-prompt">
-          {promptPreviewText(item)}
-        </span>
-        <MediaBadge item={item} prefer={prefer} faceOptions={faceOptions} />
-        {item?.sponsored && item?.mediaUrl ? (
-          <LibrarySponsoredTag
-            label={sponsoredLabel}
-            className="library-sponsored-tag--overlay folder-library-overlay__cell-sponsored-tag"
-          />
-        ) : null}
-      </>
-    );
-  }
-  if (kind === "image") {
-    return (
-      <>
-        <img
-          className="folder-library-overlay__cell-img"
-          src={item.mediaUrl}
-          alt=""
-        />
-        {item?.sponsored ? (
-          <LibrarySponsoredTag
-            label={sponsoredLabel}
-            className="library-sponsored-tag--overlay folder-library-overlay__cell-sponsored-tag"
-          />
-        ) : null}
-      </>
-    );
-  }
-  return (
-    <span
-      className={
-        "folder-library-overlay__cell-badge"
-        + ` folder-library-overlay__cell-badge--${item.category}`
-      }
-      aria-hidden
-    >
-      <span className="folder-library-overlay__cell-badge-lines" />
-      <span className="folder-library-overlay__cell-badge-fmt">
-        {formatBadge(item)}
-      </span>
-    </span>
   );
 }
 
@@ -194,6 +134,8 @@ export function FolderLibraryOverlay({
   folderLibraryId = "",
   ownerKind = "folder",
   ownerId,
+  /** Toolbar: full overlay instance, workspace corpus only (Imágenes + Adjuntos). */
+  workspaceOnly = false,
   initialTab = null,
   /** When true, PDF → text is enabled (document writing surface is empty). */
   writingEmpty = false,
@@ -218,7 +160,7 @@ export function FolderLibraryOverlay({
   const rootId = String(ownerId || folderId || "").trim();
   const isDocumentRoot = rootKind === "document";
 
-  const [scope, setScope] = useState("folder");
+  const [scope, setScope] = useState(workspaceOnly ? "workspace" : "folder");
   const [focusedDocumentId, setFocusedDocumentId] = useState(null);
   const [focusedAssetId, setFocusedAssetId] = useState(null);
   const [workspaceInspect, setWorkspaceInspect] = useState(null);
@@ -232,8 +174,9 @@ export function FolderLibraryOverlay({
   const assets = useLibrarySets(activeKind, activeId);
   const promptClasses = usePromptClasses(activeKind, activeId);
   const docGroups = useDocumentLibraryGroups(isDocumentRoot ? "" : rootId);
-  const showingWorkspace = !isDocumentRoot && scope === "workspace" && !focusedDocumentId;
-  const showScopeBar = !isDocumentRoot;
+  const showingWorkspace = workspaceOnly
+    || (!isDocumentRoot && scope === "workspace" && !focusedDocumentId);
+  const showScopeBar = !workspaceOnly && !isDocumentRoot;
   const scopeBarOptions = SCOPE_OPTIONS.filter((option) => {
     if (option.id === "docs") return docGroups.length > 0;
     return true;
@@ -757,7 +700,9 @@ export function FolderLibraryOverlay({
   const inspectId = workspaceInspect?.ownerId
     || (showingAttachments ? attachmentMutateId : activeId);
 
-  const overlayTitle = showingWorkspace
+  const overlayTitle = workspaceOnly
+    ? t("doc.library.title")
+    : showingWorkspace
     ? t("doc.library.workspaceTitle")
     : showingDocsIndex
     ? t("doc.library.docsTitle")
@@ -769,7 +714,7 @@ export function FolderLibraryOverlay({
         })
         : t("doc.library.title");
 
-  const showCreate = !showingDocsIndex && !showingWorkspace;
+  const showCreate = !workspaceOnly && !showingDocsIndex && !showingWorkspace;
   const createOpensAsset = showingDocumentsTab && !focusedAssetId;
   const showingPromptRow = !showingDocsIndex && !showingWorkspace;
   const gridItems = filteredItems;
@@ -845,7 +790,7 @@ export function FolderLibraryOverlay({
             >
               {(() => {
                 const face = libraryGridFaceOptions(filterTab, Boolean(pickRows));
-                return renderFichaFace(
+                return renderLibraryFichaFace(
                   item,
                   face.prefer,
                   t("doc.library.sponsoredTag"),
@@ -974,82 +919,29 @@ export function FolderLibraryOverlay({
           </header>
 
           {showScopeBar ? (
-            <div
-              className={
-                "folder-library-overlay__scope"
-                + ` folder-library-overlay__scope--${scopeBarOptions.length}`
-              }
-              role="tablist"
-              aria-label={t("doc.library.scopeAria")}
-            >
-              {scopeBarOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={scope === option.id}
-                  className={
-                    "folder-library-overlay__scope-btn"
-                    + (scope === option.id ? " is-active" : "")
-                  }
-                  onClick={() => handleScope(option.id)}
-                >
-                  <img
-                    className="folder-library-overlay__scope-icon"
-                    src={option.iconSrc}
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                  />
-                  <span>{t(option.labelKey)}</span>
-                </button>
-              ))}
-            </div>
+            <LibraryScopeBar
+              scope={scope}
+              options={scopeBarOptions}
+              onScope={handleScope}
+            />
           ) : null}
 
                     {showingWorkspace ? (
-            workspaceImagePicks.length === 0 && workspaceAttachmentPicks.length === 0 ? (
-              <div className="folder-library-overlay__empty">
-                <p>{t("doc.library.emptyWorkspace")}</p>
-              </div>
-            ) : (
-              <div className="folder-library-overlay__workspace">
-                <section className="folder-library-overlay__workspace-section">
-                  <h3 className="folder-library-overlay__section-title">
-                    {t("doc.library.workspaceAllImages")}
-                  </h3>
-                  {workspaceImagePicks.length === 0 ? (
-                    <p className="folder-library-overlay__section-empty">
-                      {t("doc.library.emptyWorkspaceImages")}
-                    </p>
-                  ) : (
-                    renderItemGrid(
-                      workspaceImagePicks.map((row) => row.item),
-                      "doc.library.emptyWorkspaceImages",
-                      null,
-                      workspaceImagePicks,
-                    )
-                  )}
-                </section>
-                <section className="folder-library-overlay__workspace-section">
-                  <h3 className="folder-library-overlay__section-title">
-                    {t("doc.library.workspaceAllAttachments")}
-                  </h3>
-                  {workspaceAttachmentPicks.length === 0 ? (
-                    <p className="folder-library-overlay__section-empty">
-                      {t("doc.library.emptyWorkspaceAttachments")}
-                    </p>
-                  ) : (
-                    renderItemGrid(
-                      workspaceAttachmentPicks.map((row) => row.item),
-                      "doc.library.emptyWorkspaceAttachments",
-                      null,
-                      workspaceAttachmentPicks,
-                    )
-                  )}
-                </section>
-              </div>
-            )
+            <LibraryWorkspaceView
+              tabBar={workspaceOnly ? "scope" : "prompt-row"}
+              imagePicks={workspaceImagePicks}
+              attachmentPicks={workspaceAttachmentPicks}
+              showEditDelete
+              onOpenPick={(row) => {
+                setWorkspaceInspect({ ownerKind: row.ownerKind, ownerId: row.ownerId });
+                openItem(row.item);
+              }}
+              onEditPick={(row) => {
+                setWorkspaceInspect({ ownerKind: row.ownerKind, ownerId: row.ownerId });
+                openEdit(row.item);
+              }}
+              onDeletePick={(row) => handleDelete(row.item, row)}
+            />
           ) : showingDocsIndex ? (
             <ul className="folder-library-overlay__grid">
               {docGroups.map((group) => {
