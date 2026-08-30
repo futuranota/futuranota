@@ -845,8 +845,8 @@
   padding-left: 0;
 }
 
-.lp-click-folders-stack--has-back > .pack-actions,
-.lp-click-folder-detail > .pack-actions {
+.lp-click-folders-stack--has-back > .pack-actions-scroll,
+.lp-click-folder-detail > .pack-actions-scroll {
   margin-top: 0;
 }
 
@@ -959,9 +959,14 @@
   height: auto;
 }
 
-.lp-workspace-head .pack-actions {
+.lp-workspace-head .pack-actions-scroll {
   flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.lp-workspace-head .pack-actions-scroll .pack-actions {
   margin: 0;
   padding: 0;
 }
@@ -2979,7 +2984,7 @@
   content: "✓";
 }
 
-.lp-workspace-head .lp-folder-density + .pack-actions {
+.lp-workspace-head .lp-folder-density + .pack-actions-scroll {
   flex: 1 1 auto;
   margin-left: 0;
 }

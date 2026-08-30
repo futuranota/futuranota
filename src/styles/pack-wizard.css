@@ -1,3 +1,152 @@
+.pack-actions-scroll {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.pack-actions-scroll__controls {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pack-actions-scroll__fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.pack-actions-scroll__fade--start {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--surface-base) 94%, transparent) 0%,
+    transparent 100%
+  );
+}
+
+.pack-actions-scroll__fade--end {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    color-mix(in oklab, var(--surface-base) 94%, transparent) 0%,
+    transparent 100%
+  );
+}
+
+.pack-actions-scroll__arrow {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--surface-base) 88%, transparent);
+  color: rgba(232, 220, 200, 0.42);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease,
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.pack-actions-scroll__arrow--prev {
+  left: 0;
+}
+
+.pack-actions-scroll__arrow--next {
+  right: 0;
+}
+
+.pack-actions-scroll__arrow:hover:not(:disabled) {
+  color: var(--hud);
+  background: color-mix(in oklab, var(--surface-base) 96%, var(--hud) 8%);
+}
+
+.pack-actions-scroll__arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .pack-actions-scroll--overflow:hover .pack-actions-scroll__fade,
+  .pack-actions-scroll--overflow:focus-within .pack-actions-scroll__fade {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .pack-actions-scroll--overflow:hover .pack-actions-scroll__arrow,
+  .pack-actions-scroll--overflow:focus-within .pack-actions-scroll__arrow {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .pack-actions-scroll--overflow:hover .pack-actions-scroll__arrow:disabled,
+  .pack-actions-scroll--overflow:focus-within .pack-actions-scroll__arrow:disabled {
+    opacity: 0.28;
+    pointer-events: none;
+  }
+}
+
+@media (hover: none) {
+  .pack-actions-scroll--overflow {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .pack-actions-scroll--overflow .pack-actions-scroll__fade {
+    display: none;
+  }
+
+  .pack-actions-scroll--overflow .pack-actions-scroll__controls {
+    position: static;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    pointer-events: auto;
+  }
+
+  .pack-actions-scroll--overflow .pack-actions-scroll__arrow {
+    position: static;
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    background: transparent;
+  }
+}
+
+.pack-actions-scroll .pack-actions {
+  width: 100%;
+  min-width: 0;
+}
+
 .pack-actions {
   display: flex;
   flex-wrap: nowrap;

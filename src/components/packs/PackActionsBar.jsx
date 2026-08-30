@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { exportWorkspaceTreeZip } from "../../lib/exportWorkspaceTreeZip.js";
 import { ExportWorkspaceModal } from "./ExportWorkspaceModal.jsx";
@@ -64,13 +64,66 @@ export function PackActionsBar({
   onFilterChange,
 }) {
   const { t } = useI18n();
+  const scrollRef = useRef(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportPackOpen, setExportPackOpen] = useState(false);
   const [ieChooserOpen, setIeChooserOpen] = useState(false);
+  const [scrollState, setScrollState] = useState({
+    overflow: false,
+    canBack: false,
+    canForward: false,
+  });
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const overflow = scrollWidth > clientWidth + 1;
+    setScrollState({
+      overflow,
+      canBack: overflow && scrollLeft > 1,
+      canForward: overflow && scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    updateScrollState();
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    const mo = new MutationObserver(updateScrollState);
+    mo.observe(el, { childList: true, subtree: true, attributes: true });
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      el.removeEventListener("scroll", updateScrollState);
+    };
+  }, [updateScrollState]);
+
+  const scrollToolbar = (direction) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const step = Math.max(120, Math.round(el.clientWidth * 0.65));
+    el.scrollBy({ left: direction * step, behavior: "smooth" });
+  };
 
   const filterEnabled = filterMode === "category"
     && placement === "documents"
     && typeof onFilterChange === "function";
+
+  useEffect(() => {
+    updateScrollState();
+  }, [
+    companySelected,
+    filterEnabled,
+    campaignFilterActive,
+    folderLibraryActive,
+    isAdmin,
+    filterOptions.length,
+    updateScrollState,
+  ]);
 
   const handleSelectChange = (e) => {
     const value = e.target.value;
@@ -98,7 +151,18 @@ export function PackActionsBar({
 
   return (
     <>
-      <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
+      <div
+        className={
+          "pack-actions-scroll"
+          + (scrollState.overflow ? " pack-actions-scroll--overflow" : "")
+        }
+      >
+        <div
+          ref={scrollRef}
+          className={"pack-actions pack-actions--" + placement}
+          role="toolbar"
+          aria-label={t("pack.toolbar")}
+        >
         {companySelected && onOpenStepsLibrary ? (
           <button
             type="button"
@@ -221,6 +285,35 @@ export function PackActionsBar({
             </button>
           </>
         )}
+        </div>
+        {scrollState.overflow ? (
+          <>
+            <div className="pack-actions-scroll__fade pack-actions-scroll__fade--start" aria-hidden />
+            <div className="pack-actions-scroll__fade pack-actions-scroll__fade--end" aria-hidden />
+            <div className="pack-actions-scroll__controls">
+              <button
+                type="button"
+                className="pack-actions-scroll__arrow pack-actions-scroll__arrow--prev"
+                onClick={() => scrollToolbar(-1)}
+                disabled={!scrollState.canBack}
+                aria-label={t("pack.scrollLeft")}
+                title={t("pack.scrollLeft")}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="pack-actions-scroll__arrow pack-actions-scroll__arrow--next"
+                onClick={() => scrollToolbar(1)}
+                disabled={!scrollState.canForward}
+                aria-label={t("pack.scrollRight")}
+                title={t("pack.scrollRight")}
+              >
+                →
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {isAdmin && ieChooserOpen ? (

@@ -8,6 +8,22 @@
   filter: brightness(0);
 }
 
+:root[data-theme="light"] .pack-actions-scroll__arrow {
+  color: rgba(61, 59, 59, 0.42);
+  background: color-mix(in oklab, var(--surface-base) 88%, transparent);
+}
+
+:root[data-theme="light"] .pack-actions-scroll__arrow:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--surface-base) 92%, var(--hud) 10%);
+}
+
+@media (hover: none) {
+  :root[data-theme="light"] .pack-actions-scroll--overflow .pack-actions-scroll__arrow {
+    background: transparent;
+  }
+}
+
 :root[data-theme="light"] .tl-tactical-view-toggle__btn.is-active img {
   filter: brightness(0);
 }

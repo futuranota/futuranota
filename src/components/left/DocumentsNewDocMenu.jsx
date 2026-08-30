@@ -6,7 +6,7 @@ import {
 } from "../../lib/nodeParentAdoption.js";
 
 const BOX_CLOSED = "/uploads/box-closed.svg";
-const FILE_ICON = "/uploads/File.svg";
+const FILE_ICON = "/uploads/futuranota-file.svg";
 
 /**
  * Selector-area menu: list folders, create a new document in one.

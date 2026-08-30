@@ -692,7 +692,7 @@ function NodeCompactRow({
   const rowRef = useRef(null);
   const displayTitle = getNodeDisplayTitle(node);
   const source = resolveDocSource(node?.sourceId);
-  const iconSrc = source?.src || "/uploads/File.svg";
+  const iconSrc = source?.src || "/uploads/futuranota-file.svg";
   const isCampaignActive = campaignMode && node?.campaignStatus === "active";
   const campaignStatusLabel = campaignMode
     ? (isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive"))

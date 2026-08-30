@@ -1366,6 +1366,8 @@ export const messages = {
       filterContent: "Filter Content by linked product subcategory",
       filterProductsAria: "Filter products by category",
       filterContentAria: "Filter content by subcategory",
+      scrollLeft: "Scroll toolbar left",
+      scrollRight: "Scroll toolbar right",
     },
     stepsLibrary: {
       searchPlaceholder: "Search step playbooks…",
@@ -1905,6 +1907,8 @@ export const messages = {
       libraryTitle: "Biblioteca (workspace)",
       qloops: "QLoops",
       qloopsTitle: "QLoops",
+      scrollLeft: "Desplazar barra a la izquierda",
+      scrollRight: "Desplazar barra a la derecha",
     },
     stepsLibrary: {
       discardDraftTitle: "Cerrar step by step",
