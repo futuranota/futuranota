@@ -36,12 +36,12 @@ export function LibraryWorkspaceView({
 
   if (!hasContent) {
     return (
-      <>
+      <div className="folder-library-overlay__workspace folder-library-overlay__workspace--tabs">
         <Tabs filterTab={filterTab} onFilterTab={setFilterTab} />
         <div className="folder-library-overlay__empty">
           <p>{t("doc.library.emptyWorkspace")}</p>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -51,7 +51,7 @@ export function LibraryWorkspaceView({
     : t("doc.library.emptyWorkspaceAttachments");
 
   return (
-    <>
+    <div className="folder-library-overlay__workspace folder-library-overlay__workspace--tabs">
       <Tabs filterTab={filterTab} onFilterTab={setFilterTab} />
       <LibraryFichaGrid
         picks={activePicks}
@@ -62,6 +62,6 @@ export function LibraryWorkspaceView({
         showEditDelete={showEditDelete}
         emptyMessage={emptyMessage}
       />
-    </>
+    </div>
   );
 }

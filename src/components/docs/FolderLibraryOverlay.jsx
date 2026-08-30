@@ -1375,9 +1375,9 @@ export function FolderLibraryOverlay({
 
       {detailItemId && detailKind === "skill" && !modalOpen ? (
         <FolderLibrarySkillDetail
-          ownerKind={attachmentMutateKind}
-          ownerId={attachmentMutateId}
-          folderId={attachmentMutateId}
+          ownerKind={inspectKind}
+          ownerId={inspectId}
+          folderId={inspectId}
           itemId={detailItemId}
           escapeEnabled={!modalOpen && !assetModalOpen}
           onClose={() => {
