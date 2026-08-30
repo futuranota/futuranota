@@ -62,7 +62,7 @@ import {
   resolveFloatingMenuAnchor,
   resolveSlashGhostOverlayPosition,
   scrollTextareaCaretIntoCameraView,
-  withPreservedWritingScroll,
+  withPreservedTextareaLayout,
 } from "../../../lib/textareaSelectionRect.js";
 import { DocMentionHoverCard } from "./DocMentionHoverCard.jsx";
 import { DocMentionMenu } from "./DocMentionMenu.jsx";
@@ -985,13 +985,18 @@ export function SlashAwareTextarea({
     const el = textareaRef.current;
     if (!el || !("selectionStart" in el)) return;
     if (el.selectionStart !== el.selectionEnd) return;
+    const before = el.selectionStart;
+    // Live DOM value — on keyup, React `value` can lag one frame behind the
+    // caret after `@` / printable input, which mis-snaps out of box footprints.
+    const liveValue = el.value ?? "";
+    const liveTagRefs = normalizeTagRefs(liveValue, normalizedTagRefs);
     const next = snapCaretOutOfTagRefBoxFootprint(
-      value,
-      normalizedTagRefs,
-      el.selectionStart,
+      liveValue,
+      liveTagRefs,
+      before,
       tagRefCandidates,
     );
-    if (next !== el.selectionStart) {
+    if (next !== before) {
       el.setSelectionRange(next, next);
     }
   }, [normalizedTagRefs, tagRefCandidates, textareaRef, value]);
@@ -1165,9 +1170,9 @@ export function SlashAwareTextarea({
     const el = textareaRef.current;
     if (!el) return;
     if (!force && !isFieldVisible(el)) return;
-    // Collapsing to "auto" briefly shrinks the doc scrollHeight; preserve scrollTop
-    // so bold/overlay toggles (and normal typing) don't jump the viewport.
-    withPreservedWritingScroll(el, () => {
+    // Collapsing to "auto" briefly shrinks scrollHeight — preserve outer scroll,
+    // inner scrollTop, and caret so `@` / QLoop don't jump to the last blank line.
+    withPreservedTextareaLayout(el, () => {
       el.style.height = "auto";
       const measured = el.scrollHeight;
       const next = Math.min(Math.max(measured, minHeightPx), heightCap);
@@ -2052,7 +2057,10 @@ export function SlashAwareTextarea({
           );
           requestAnimationFrame(() => syncMentionQuery());
           if (e.target.closest(".node-query-modal__content-scroll--paged")) {
-            scheduleCaretCameraScroll();
+            // Run after syncHeight layout so caret isn't remeasured mid-jump.
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => scheduleCaretCameraScroll());
+            });
           }
         }}
         onKeyDown={(e) => {
@@ -2070,7 +2078,6 @@ export function SlashAwareTextarea({
           syncMentionQuery();
         }}
         onKeyUp={() => {
-          snapCaretPastBoxFootprints();
           syncGhostPosition();
           syncMentionQuery();
         }}

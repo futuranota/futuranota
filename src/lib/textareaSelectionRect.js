@@ -342,11 +342,39 @@ export function withPreservedWritingScroll(el, mutate) {
   scrollParent.scrollTop = parentScrollTop;
 }
 
+/**
+ * Like withPreservedWritingScroll, but also restores textarea caret + inner scroll.
+ * Required when height:auto remeasures large bodies (many blank lines) — otherwise
+ * `@` / QLoop can park the caret on the last line while glyphs stay above.
+ * @param {HTMLElement|null|undefined} el
+ * @param {() => void} mutate
+ */
+export function withPreservedTextareaLayout(el, mutate) {
+  const isTextarea = el?.tagName === "TEXTAREA";
+  const selStart = isTextarea && "selectionStart" in el ? el.selectionStart : null;
+  const selEnd = isTextarea && "selectionEnd" in el ? el.selectionEnd : null;
+  const innerScrollTop = isTextarea ? el.scrollTop : null;
+
+  withPreservedWritingScroll(el, mutate);
+
+  if (!isTextarea || !("setSelectionRange" in el)) return;
+
+  const len = String(el.value ?? "").length;
+  if (selStart != null && selEnd != null) {
+    const start = Math.max(0, Math.min(selStart, len));
+    const end = Math.max(start, Math.min(selEnd, len));
+    el.setSelectionRange(start, end);
+  }
+  if (innerScrollTop != null) {
+    el.scrollTop = innerScrollTop;
+  }
+}
+
 /** Auto-grow textarea height without jumping the outer scroll container. */
 export function syncAutoGrowTextareaHeight(textarea) {
   if (!textarea) return;
 
-  withPreservedWritingScroll(textarea, () => {
+  withPreservedTextareaLayout(textarea, () => {
     textarea.style.height = "auto";
     textarea.style.height = `${textarea.scrollHeight}px`;
   });

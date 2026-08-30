@@ -80,7 +80,11 @@ import {
   isEmbeddableWidgetBlock,
   WIDGET_SNAPSHOT_KIND,
 } from "../../../lib/captureWidgetSnapshot.js";
-import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../../lib/textareaSelectionRect.js";
+import {
+  scrollTextareaCaretIntoCameraView,
+  withPreservedTextareaLayout,
+  withPreservedWritingScroll,
+} from "../../../lib/textareaSelectionRect.js";
 import { imageSplitHasFill } from "../../../lib/libraryImageCardPick.js";
 import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
 import {
@@ -160,10 +164,11 @@ function focusTextInputWithCamera(input, caretPos) {
       input.setSelectionRange(caretPos, caretPos);
       return;
     }
-    if (!isAlreadyFocused) {
-      const pos = input.value.length;
-      input.setSelectionRange(pos, pos);
-    }
+    // Already focused: keep the user's caret (focusBlockId effect must not
+    // park at end mid-typing when opening `@` / QLoop).
+    if (isAlreadyFocused) return;
+    const pos = input.value.length;
+    input.setSelectionRange(pos, pos);
   });
 }
 
@@ -313,13 +318,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const root = stackRef.current;
     if (!root) return;
     root.querySelectorAll("textarea").forEach((textarea) => {
-      textarea.style.height = "auto";
       const minH = textarea.classList.contains("doc-h1-block__input--multiline") ? 22 : 28;
-      const next = Math.max(textarea.scrollHeight, minH);
-      if (Math.abs(textarea.offsetHeight - next) > 1) {
-        textarea.style.height = `${next}px`;
-      }
-      textarea.style.overflowY = textarea.scrollHeight > next + 1 ? "auto" : "hidden";
+      withPreservedTextareaLayout(textarea, () => {
+        textarea.style.height = "auto";
+        const next = Math.max(textarea.scrollHeight, minH);
+        if (Math.abs(textarea.offsetHeight - next) > 1) {
+          textarea.style.height = `${next}px`;
+        }
+        textarea.style.overflowY = textarea.scrollHeight > next + 1 ? "auto" : "hidden";
+      });
     });
   }, []);
 
@@ -694,9 +701,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             `[data-block-id="${blockId}"] textarea`,
           );
           if (!textarea) return;
-          textarea.style.height = "auto";
-          textarea.style.height = `${Math.max(textarea.scrollHeight, 28)}px`;
-          textarea.style.overflowY = "hidden";
+          withPreservedTextareaLayout(textarea, () => {
+            textarea.style.height = "auto";
+            textarea.style.height = `${Math.max(textarea.scrollHeight, 28)}px`;
+            textarea.style.overflowY = "hidden";
+          });
         });
       });
     });
