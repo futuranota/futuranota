@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
-  formatSpecsCardDimensions,
   formatSpecsCardWeight,
   IMAGE_SPLIT_BODY_MAX_LINES,
   normalizeSpecsCard,
 } from "../../../lib/docBlocks.js";
 import { DIMENSION_UNIT_OPTIONS, WEIGHT_UNIT_OPTIONS } from "../../../lib/metricUnits.js";
+import { normalizeWallColor } from "../../../lib/folderLibraryNormalize.js";
 import { libraryItemToBannerPatch } from "../../../lib/libraryImageCardPick.js";
+import { useLibraryItems } from "../../../hooks/useLibraryItems.js";
 import { useLibraryImagePickerCreate } from "../../../hooks/useLibraryImagePickerCreate.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
@@ -18,6 +19,105 @@ const SPECS_CAP_LINE_HEIGHT_PX = 20.3;
 
 function safeSpecsData(block) {
   return normalizeSpecsCard(block);
+}
+
+function SpecsDimensionsDisplay({ specs }) {
+  const dims = specs?.dimensions && typeof specs.dimensions === "object" ? specs.dimensions : {};
+  const parts = [dims.x, dims.y, dims.z]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  const unit = String(dims.unit ?? "").trim();
+
+  if (!parts.length && !unit) return null;
+
+  return (
+    <span className="doc-specs-card__dims-display">
+      {parts.map((part, index) => (
+        <Fragment key={`${part}-${index}`}>
+          {index > 0 ? (
+            <span className="doc-specs-card__dim-sep doc-specs-card__dim-sep--display" aria-hidden>
+              ×
+            </span>
+          ) : null}
+          <span className="doc-specs-card__dim-val">{part}</span>
+        </Fragment>
+      ))}
+      {unit ? (
+        <span className="doc-specs-card__dim-unit">{unit}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function SpecsPanelActions({ isEdit, canSave, onEditAction, t }) {
+  return (
+    <div
+      className="doc-specs-card__panel-actions"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="doc-specs-card__panel-btn"
+        disabled={isEdit && !canSave}
+        onClick={(event) => {
+          event.stopPropagation();
+          onEditAction();
+        }}
+      >
+        {isEdit ? t("doc.specsCard.save") : t("doc.specsCard.edit")}
+      </button>
+    </div>
+  );
+}
+
+function SpecsMediaActions({
+  isEdit,
+  canSave,
+  onChangeImage,
+  onEditAction,
+  onRemove,
+  t,
+}) {
+  return (
+    <div
+      className="doc-specs-card__media-actions"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="doc-specs-card__media-btn"
+        onClick={(event) => {
+          event.stopPropagation();
+          onChangeImage();
+        }}
+      >
+        {t("doc.specsCard.change")}
+      </button>
+      <button
+        type="button"
+        className="doc-specs-card__media-btn"
+        disabled={isEdit && !canSave}
+        onClick={(event) => {
+          event.stopPropagation();
+          onEditAction();
+        }}
+      >
+        {isEdit ? t("doc.specsCard.save") : t("doc.specsCard.edit")}
+      </button>
+      <button
+        type="button"
+        className="doc-specs-card__media-btn"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+      >
+        {t("doc.specsCard.remove")}
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -42,12 +142,25 @@ export function SpecsCardBlockView({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [libraryEditOpen, setLibraryEditOpen] = useState(false);
 
   const data = safeSpecsData(block);
   const specs = data.specs;
+  const wallColor = normalizeWallColor(block?.wallColor ?? block?.panelColor);
   const imageSaved = Boolean(data.imageSaved && data.src);
   const specsSaved = Boolean(data.specsSaved && imageSaved);
   const isEdit = !specsSaved;
+
+  const resolvedLibraryOwnerKind = data.libraryOwnerKind || libraryOwnerKind;
+  const resolvedLibraryOwnerId = data.libraryOwnerId || libraryOwnerId;
+  const libraryItems = useLibraryItems(resolvedLibraryOwnerKind, resolvedLibraryOwnerId);
+  const editingLibraryItem = useMemo(() => {
+    const itemId = String(data.libraryItemId || "").trim();
+    if (!itemId) return null;
+    return libraryItems.find((item) => item.id === itemId) || null;
+  }, [data.libraryItemId, libraryItems]);
+
+  const mediaWallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
 
   const {
     pickerFolderId,
@@ -70,7 +183,11 @@ export function SpecsCardBlockView({
     onItemCreated: (item, ownerKind, ownerId) => {
       const patch = libraryItemToBannerPatch(item, ownerKind, ownerId);
       if (!patch) return;
-      onChange?.({ ...patch, specsSaved: false });
+      onChange?.({
+        ...patch,
+        wallColor: normalizeWallColor(item.wallColor),
+        specsSaved: false,
+      });
       setError(null);
     },
     onAfterCreate: () => setLibraryPickerOpen(false),
@@ -204,8 +321,7 @@ export function SpecsCardBlockView({
   };
 
   const handleClearImage = () => {
-    if (!isEdit) return;
-    handleFieldChange({
+    onChange?.({
       src: "",
       name: "",
       alt: "",
@@ -215,18 +331,23 @@ export function SpecsCardBlockView({
       libraryItemId: "",
       libraryOwnerKind: "",
       libraryOwnerId: "",
+      wallColor: null,
       openFilePicker: false,
+      specsSaved: false,
     });
     setError(null);
   };
 
   const handlePickLibraryItem = useCallback((item, ownerKind, ownerId) => {
-    if (!isEdit) return;
     const patch = libraryItemToBannerPatch(item, ownerKind, ownerId);
     if (!patch) return;
-    onChange?.({ ...patch, specsSaved: false });
+    onChange?.({
+      ...patch,
+      wallColor: normalizeWallColor(item.wallColor),
+      specsSaved: isEdit ? false : Boolean(block?.specsSaved),
+    });
     setLibraryPickerOpen(false);
-  }, [isEdit, onChange]);
+  }, [block?.specsSaved, isEdit, onChange]);
 
   const handleRemoveBlock = () => {
     if (onDelete) {
@@ -237,6 +358,62 @@ export function SpecsCardBlockView({
   };
 
   const canSave = imageSaved && !uploading;
+
+  const openLibraryEdit = useCallback(() => {
+    if (editingLibraryItem) {
+      setLibraryEditOpen(true);
+      return;
+    }
+    if (imageSaved) {
+      setLibraryPickerOpen(true);
+    }
+  }, [editingLibraryItem, imageSaved]);
+
+  const handleLibraryEditSaved = useCallback((saved) => {
+    if (!saved) {
+      setLibraryEditOpen(false);
+      return;
+    }
+    const ownerKind = data.libraryOwnerKind || pickerPrimaryKind;
+    const ownerId = data.libraryOwnerId || pickerPrimaryId;
+    const patch = libraryItemToBannerPatch(saved, ownerKind, ownerId);
+    if (patch) {
+      onChange?.({
+        ...patch,
+        wallColor: normalizeWallColor(saved.wallColor),
+      });
+    }
+    setLibraryEditOpen(false);
+  }, [
+    data.libraryOwnerId,
+    data.libraryOwnerKind,
+    onChange,
+    pickerPrimaryId,
+    pickerPrimaryKind,
+  ]);
+
+  const handlePanelEdit = useCallback(() => {
+    if (isEdit) {
+      if (!canSave) return;
+      onSave?.();
+      return;
+    }
+    onEdit?.();
+  }, [canSave, isEdit, onSave, onEdit]);
+
+  const handleMediaBarEdit = useCallback(() => {
+    if (isEdit) {
+      if (!canSave) return;
+      onSave?.();
+      return;
+    }
+    openLibraryEdit();
+  }, [canSave, isEdit, onSave, openLibraryEdit]);
+
+  const handleImageClick = useCallback(() => {
+    if (!specsSaved || isEdit) return;
+    openLibraryEdit();
+  }, [isEdit, openLibraryEdit, specsSaved]);
 
   const renderSpecRow = (labelKey, children, { rowClass = "", hideLabel = false } = {}) => (
     <div className={`doc-specs-card__row${rowClass ? ` ${rowClass}` : ""}`}>
@@ -268,17 +445,26 @@ export function SpecsCardBlockView({
 
       <div className="doc-specs-card__card" ref={cardRef}>
         <div className="doc-specs-card__inner" ref={innerRef}>
-          <div
-            ref={mediaRef}
-            className={"doc-specs-card__media" + (imageSaved ? "" : " doc-specs-card__media--empty")}
-          >
-            {imageSaved ? (
-              isEdit ? (
+          <div className="doc-specs-card__media-col">
+            <div
+              ref={mediaRef}
+              className={"doc-specs-card__media" + (imageSaved ? "" : " doc-specs-card__media--empty")}
+              style={mediaWallStyle}
+            >
+              {imageSaved ? (
                 <button
                   type="button"
-                  className="doc-specs-card__img-btn"
-                  onClick={() => setLibraryPickerOpen(true)}
-                  aria-label={t("doc.imageSplit.pickLibrary")}
+                  className={
+                    "doc-specs-card__img-btn"
+                    + (specsSaved && !isEdit ? " doc-specs-card__img-btn--library-edit" : "")
+                  }
+                  disabled={isEdit}
+                  onClick={handleImageClick}
+                  aria-label={
+                    specsSaved && !isEdit
+                      ? t("doc.specsCard.editLibrary")
+                      : t("doc.imageBlock.previewAlt")
+                  }
                 >
                   <img
                     className="doc-specs-card__img"
@@ -290,16 +476,6 @@ export function SpecsCardBlockView({
                   />
                 </button>
               ) : (
-                <img
-                  className="doc-specs-card__img"
-                  src={data.src}
-                  alt={data.alt || data.name || t("doc.imageBlock.previewAlt")}
-                  width={data.width || undefined}
-                  height={data.height || undefined}
-                  draggable={false}
-                />
-              )
-            ) : (
               <button
                 type="button"
                 className={
@@ -340,53 +516,26 @@ export function SpecsCardBlockView({
                 </span>
               </button>
             )}
-            <div className="doc-card-float-actions">
-              {isEdit ? (
-                <button
-                  type="button"
-                  className="doc-card-float-btn"
-                  disabled={!canSave}
-                  onClick={() => {
-                    if (!canSave) return;
-                    onSave?.();
-                  }}
-                >
-                  {t("doc.specsCard.save")}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="doc-card-float-btn"
-                  onClick={() => onEdit?.()}
-                >
-                  {t("doc.specsCard.edit")}
-                </button>
-              )}
-              <div className="doc-card-float-actions__group">
-                {isEdit ? (
-                  <button
-                    type="button"
-                    className="doc-card-float-btn"
-                    onClick={() => setLibraryPickerOpen(true)}
-                  >
-                    {t("doc.imageSplit.pickLibrary")}
-                  </button>
-                ) : null}
-                {isEdit && onDelete ? (
-                  <button
-                    type="button"
-                    className="doc-card-float-btn"
-                    onClick={handleRemoveBlock}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageBlock.remove")}
-                  </button>
-                ) : null}
-              </div>
+              {imageSaved ? (
+                <SpecsMediaActions
+                  isEdit={isEdit}
+                  canSave={canSave}
+                  onChangeImage={() => setLibraryPickerOpen(true)}
+                  onEditAction={handleMediaBarEdit}
+                  onRemove={handleRemoveBlock}
+                  t={t}
+                />
+              ) : null}
             </div>
           </div>
 
           <div className="doc-specs-card__panel scroll-match-bg">
+            <SpecsPanelActions
+              isEdit={isEdit}
+              canSave={canSave}
+              onEditAction={handlePanelEdit}
+              t={t}
+            />
             {showName ? renderSpecRow(
               "doc.specsCard.name",
               isEdit ? (
@@ -398,6 +547,8 @@ export function SpecsCardBlockView({
                   aria-label={t("doc.specsCard.name")}
                   spellCheck={false}
                   onChange={(event) => updateSpecs({ name: event.target.value })}
+                  onClick={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
                 />
               ) : (
                 <span className="doc-specs-card__static doc-specs-card__static--name">
@@ -411,9 +562,9 @@ export function SpecsCardBlockView({
               isEdit ? (
                 <div className="doc-specs-card__dims">
                   {(["x", "y", "z"]).map((axis, index) => (
-                    <span key={axis} className="doc-specs-card__dim-group">
+                    <Fragment key={axis}>
                       {index > 0 ? (
-                        <span className="doc-specs-card__dim-sep" aria-hidden>×</span>
+                        <span className="doc-specs-card__dim-sep doc-specs-card__dim-sep--edit" aria-hidden>×</span>
                       ) : null}
                       <input
                         type="text"
@@ -423,8 +574,10 @@ export function SpecsCardBlockView({
                         aria-label={`${t("doc.specsCard.dimensions")} ${axis.toUpperCase()}`}
                         spellCheck={false}
                         onChange={(event) => updateDimension(axis, event.target.value)}
+                        onClick={(event) => event.stopPropagation()}
+                        onMouseDown={(event) => event.stopPropagation()}
                       />
-                    </span>
+                    </Fragment>
                   ))}
                   <select
                     className="doc-specs-card__unit-picker"
@@ -445,9 +598,7 @@ export function SpecsCardBlockView({
                   </select>
                 </div>
               ) : (
-                <span className="doc-specs-card__static doc-specs-card__static--detail">
-                  {formatSpecsCardDimensions(specs)}
-                </span>
+                <SpecsDimensionsDisplay specs={specs} />
               ),
             ) : null}
 
@@ -514,14 +665,14 @@ export function SpecsCardBlockView({
             ) : null}
 
             {showPartNumber ? renderSpecRow(
-              isEdit ? "doc.specsCard.partNumberOptional" : "doc.specsCard.partNumber",
+              isEdit ? "doc.specsCard.aliasOptional" : "doc.specsCard.alias",
               isEdit ? (
                 <input
                   type="text"
                   className="doc-specs-card__field doc-specs-card__field--part"
                   value={specs.partNumber}
-                  placeholder={t("doc.specsCard.partNumberPlaceholder")}
-                  aria-label={t("doc.specsCard.partNumberOptional")}
+                  placeholder={t("doc.specsCard.aliasPlaceholder")}
+                  aria-label={t("doc.specsCard.aliasOptional")}
                   spellCheck={false}
                   onChange={(event) => updateSpecs({ partNumber: event.target.value })}
                 />
@@ -572,6 +723,21 @@ export function SpecsCardBlockView({
           overlayClassName="folder-library-element-overlay--above-picker"
           onClose={closeCreateModal}
           onSaved={handleCreateSaved}
+        />
+      ) : null}
+
+      {libraryEditOpen && editingLibraryItem ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || data.libraryOwnerId || pickerPrimaryId}
+          ownerKind={data.libraryOwnerKind || pickerPrimaryKind}
+          ownerId={data.libraryOwnerId || pickerPrimaryId}
+          item={editingLibraryItem}
+          lockCategory
+          hidePresentationToggle={editingLibraryItem.presentation === "visual"}
+          defaultPresentation={editingLibraryItem.presentation === "visual" ? "visual" : ""}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={() => setLibraryEditOpen(false)}
+          onSaved={handleLibraryEditSaved}
         />
       ) : null}
 

@@ -15774,10 +15774,17 @@ body.doc-content-resizing * {
   --specs-card-stroke: #313338;
   --specs-card-surface: #16181f;
   --specs-card-shell: #0a0d11;
+  --specs-card-text: #636363;
+  --specs-card-label: #42454c;
   padding: 2px 21px 8px 15px;
   box-sizing: border-box;
   position: relative;
   width: 100%;
+}
+
+.doc-specs-card--saved {
+  --specs-card-text: #C2C3C5;
+  --specs-card-label: #686a70;
 }
 
 .doc-specs-card__input {
@@ -15810,13 +15817,20 @@ body.doc-content-resizing * {
   min-height: 0;
 }
 
-.doc-specs-card__media {
-  position: relative;
+.doc-specs-card__media-col {
   flex: 0 0 calc(50% - 8px);
   width: calc(50% - 8px);
   min-width: 0;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
   align-self: flex-start;
+}
+
+.doc-specs-card__media {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   border-radius: 2px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.02);
@@ -15824,6 +15838,83 @@ body.doc-content-resizing * {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+}
+
+.doc-specs-card__media-actions {
+  position: absolute;
+  inset: auto 4px 4px auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 3;
+}
+
+.doc-specs-card__media:hover .doc-specs-card__media-actions,
+.doc-specs-card__media:focus-within .doc-specs-card__media-actions {
+  opacity: 1;
+}
+
+.doc-specs-card__media-btn {
+  margin: 0;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(22, 26, 29, 0.78);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.doc-specs-card__media-btn:hover:not(:disabled) {
+  background: rgba(22, 26, 29, 0.92);
+}
+
+.doc-specs-card__media-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.doc-specs-card__panel-actions {
+  position: absolute;
+  inset: 6px 6px auto auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 2;
+}
+
+.doc-specs-card:not(.doc-specs-card--saved) .doc-specs-card__panel-actions,
+.doc-specs-card__panel:hover .doc-specs-card__panel-actions,
+.doc-specs-card__panel:focus-within .doc-specs-card__panel-actions {
+  opacity: 1;
+}
+
+.doc-specs-card__panel-btn {
+  margin: 0;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(22, 26, 29, 0.78);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.doc-specs-card__panel-btn:hover:not(:disabled) {
+  background: rgba(22, 26, 29, 0.92);
+}
+
+.doc-specs-card__panel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .doc-specs-card__media--empty {
@@ -15872,7 +15963,7 @@ body.doc-content-resizing * {
   border: 1px dashed rgba(255, 255, 255, 0.14);
   border-radius: 2px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--specs-card-text);
   cursor: pointer;
   box-sizing: border-box;
 }
@@ -15881,7 +15972,7 @@ body.doc-content-resizing * {
 .doc-specs-card__dropzone:focus-visible,
 .doc-specs-card__dropzone--active {
   border-color: rgba(255, 255, 255, 0.28);
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__dropzone--busy {
@@ -15897,19 +15988,20 @@ body.doc-content-resizing * {
 
 .doc-specs-card__dropzone-hint {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--specs-card-text);
   text-align: center;
 }
 
 .doc-specs-card__panel {
   --scroll-bg: #16181f;
   --scroll-thumb: rgba(255, 255, 255, 0.14);
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 10px;
   border-radius: 6px;
   border: 1px solid var(--specs-card-stroke);
@@ -15932,11 +16024,12 @@ body.doc-content-resizing * {
   font-weight: 600;
   letter-spacing: 0.35px;
   text-transform: uppercase;
-  color: #636363;
+  color: var(--specs-card-label);
 }
 
 .doc-specs-card__value {
   min-width: 0;
+  padding-left: 0;
 }
 
 .doc-specs-card__field,
@@ -15948,40 +16041,41 @@ body.doc-content-resizing * {
   border: none;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--specs-card-text);
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.25;
   outline: none;
   box-sizing: border-box;
+  caret-color: var(--specs-card-text);
 }
 
 .doc-specs-card__field--name,
 .doc-specs-card__static--name {
   background: transparent;
-  padding: 2px 0;
-  font-size: 24px;
+  padding: 0;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.01em;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__field--name::placeholder {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__field--detail,
 .doc-specs-card__static--detail {
   background: transparent;
-  padding: 2px 0;
-  font-size: 16px;
+  padding: 0;
+  font-size: 26px;
   font-weight: 600;
-  line-height: 1.25;
-  color: #636363;
+  line-height: 1.2;
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__field--part,
@@ -15991,7 +16085,7 @@ body.doc-content-resizing * {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.3;
-  color: #636363;
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__row--optional {
@@ -16005,7 +16099,7 @@ body.doc-content-resizing * {
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0.01em;
-  color: #636363;
+  color: var(--specs-card-label);
 }
 
 .doc-specs-card__field:focus {
@@ -16013,33 +16107,33 @@ body.doc-content-resizing * {
 }
 
 .doc-specs-card__field::placeholder {
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--specs-card-text);
 }
 
 .doc-specs-card__static {
   background: transparent;
-  padding: 2px 0;
+  padding: 0;
 }
 
 .doc-specs-card__dims,
 .doc-specs-card__weight {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-}
-
-.doc-specs-card__dim-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  gap: 0;
 }
 
 .doc-specs-card__field--dim {
-  width: 52px;
-  flex: 0 0 52px;
-  padding: 6px 6px;
-  text-align: center;
+  width: 4ch;
+  min-width: 4ch;
+  flex: 0 0 4ch;
+  padding: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .doc-specs-card__field--weight {
@@ -16048,21 +16142,67 @@ body.doc-content-resizing * {
 }
 
 .doc-specs-card__dim-sep {
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 12px;
-  font-weight: 600;
+  flex: 0 0 1.35em;
+  width: 1.35em;
+  text-align: center;
+  color: var(--specs-card-text);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
   user-select: none;
+}
+
+.doc-specs-card__dim-sep--edit {
+  align-self: center;
+}
+
+.doc-specs-card__dims-display {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0;
+  padding-left: 0;
+}
+
+.doc-specs-card__dim-val,
+.doc-specs-card__dim-unit {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--specs-card-text);
+}
+
+.doc-specs-card__dim-val {
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-specs-card__dim-sep--display {
+  flex: 0 0 1.35em;
+  width: 1.35em;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--specs-card-text);
+  margin: 0;
+  user-select: none;
+}
+
+.doc-specs-card__dim-unit {
+  margin-left: 0.45em;
 }
 
 .doc-specs-card__unit-picker {
   flex: 0 1 72px;
   min-width: 56px;
-  margin: 0;
+  margin: 0 0 0 0.45em;
   padding: 6px 8px;
   border: none;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--specs-card-text);
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 500;
@@ -16071,10 +16211,9 @@ body.doc-content-resizing * {
   box-sizing: border-box;
 }
 
-.doc-specs-card__media:hover .doc-card-float-actions,
-.doc-specs-card__media:focus-within .doc-card-float-actions {
-  opacity: 1;
-  pointer-events: auto;
+.doc-specs-card__unit-picker option {
+  color: var(--specs-card-text);
+  background: var(--specs-card-surface);
 }
 
 .doc-specs-card__error {

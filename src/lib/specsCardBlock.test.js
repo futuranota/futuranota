@@ -33,8 +33,18 @@ describe("normalizeSpecsCard", () => {
     expect(normalized.specs.weight.unit).toBe("kg");
   });
 
-  it("normalizes name field", () => {
+  it("preserves name whitespace while editing", () => {
     const normalized = normalizeSpecsCard({
+      specs: { name: "  Widget Pro  " },
+    });
+    expect(normalized.specs.name).toBe("  Widget Pro  ");
+  });
+
+  it("trims name when saved", () => {
+    const normalized = normalizeSpecsCard({
+      imageSaved: true,
+      src: "/img.webp",
+      specsSaved: true,
       specs: { name: "  Widget Pro  " },
     });
     expect(normalized.specs.name).toBe("Widget Pro");

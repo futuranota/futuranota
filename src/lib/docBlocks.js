@@ -1525,6 +1525,8 @@ export function normalizeSpecsCard(block) {
   const specs = block?.specs && typeof block.specs === "object" ? block.specs : {};
   const dims = specs.dimensions && typeof specs.dimensions === "object" ? specs.dimensions : {};
   const imageSaved = media.imageSaved;
+  const specsSaved = Boolean(block?.specsSaved) && imageSaved;
+  const preserveLiveText = !specsSaved;
   return {
     src: media.src,
     name: media.name,
@@ -1536,9 +1538,10 @@ export function normalizeSpecsCard(block) {
     libraryOwnerKind: media.libraryOwnerKind,
     libraryOwnerId: media.libraryOwnerId,
     openFilePicker: media.openFilePicker,
-    specsSaved: Boolean(block?.specsSaved) && imageSaved,
+    specsSaved,
+    wallColor: normalizeWallColor(block?.wallColor ?? block?.panelColor),
     specs: {
-      name: String(specs.name ?? "").trim(),
+      name: preserveLiveText ? String(specs.name ?? "") : String(specs.name ?? "").trim(),
       partNumber: String(specs.partNumber ?? "").trim(),
       dimensions: {
         x: String(dims.x ?? "").trim(),
@@ -2834,6 +2837,7 @@ export function docBlocksToBody(blocks) {
           libraryOwnerKind: normalized.libraryOwnerKind,
           libraryOwnerId: normalized.libraryOwnerId,
           specsSaved: normalized.specsSaved,
+          wallColor: normalized.wallColor,
           specs: normalized.specs,
         })}`;
       }
