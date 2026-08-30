@@ -195,6 +195,7 @@ export const messages = {
         libraryPickerEmptyDocumentAssets: "No photos in this document library yet.",
         libraryPickerEmptyAll: "No other photos in the workspace yet.",
         libraryPickerEmptyStrips: "No library photos yet. Add an Image ficha in a folder Library.",
+        libraryPickerAddImage: "Add image",
         promptPlaceholder: "Describe the prompt",
       },
       moodboard: {
@@ -2238,6 +2239,7 @@ export const messages = {
         libraryPickerEmptyDocumentAssets: "Todavía no hay fotos en la biblioteca de este documento.",
         libraryPickerEmptyAll: "No hay más fotos en el workspace.",
         libraryPickerEmptyStrips: "Todavía no hay fotos en Biblioteca. Agregá una ficha Image en un folder.",
+        libraryPickerAddImage: "Agregar imagen",
         promptPlaceholder: "Describe el prompt",
       },
       moodboard: {

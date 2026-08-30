@@ -1656,6 +1656,9 @@ export function NodeWritingBlockStack({
             >
               <BannerBlockView
                 block={block}
+                libraryOwnerKind={libraryOwnerKind}
+                libraryOwnerId={libraryOwnerId}
+                folderLibraryId={folderLibraryId}
                 onChange={(patch) => {
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (

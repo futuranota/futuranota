@@ -116,7 +116,7 @@ function PickGrid({
 }
 
 /**
- * Pick a visual library ficha into an Image card or Moodboard frame.
+ * Pick a visual library ficha into an Image card, Banner, or Moodboard frame.
  * Instant: document (or folder) assets + optional parent folder strip.
  * Lazy: full workspace scan on demand ("Todas las imágenes").
  *
@@ -300,7 +300,7 @@ export function LibraryImageCardPicker({
                   onPick={handlePick}
                   selectedKey={stageMode ? selectedKey : null}
                   allowCreate={allowCreate}
-                  createLabel={t("doc.moodboard.libraryPickerAddImage")}
+                  createLabel={t("doc.imageSplit.libraryPickerAddImage")}
                   onCreateClick={onCreateClick}
                 />
                 {showFolderStrip ? (

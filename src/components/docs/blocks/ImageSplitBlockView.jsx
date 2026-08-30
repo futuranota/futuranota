@@ -7,6 +7,8 @@ import {
   IMAGE_SPLIT_TITLE_MAX,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { useLibraryImagePickerCreate } from "../../../hooks/useLibraryImagePickerCreate.js";
+import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { imageSplitHasFill, libraryItemToImageSplitPatch } from "../../../lib/libraryImageCardPick.js";
 import { writeImageSplitPromptToLibrary } from "../../../lib/libraryImageCardSync.js";
@@ -240,10 +242,38 @@ export function ImageSplitBlockView({
   const isEdit = !splitSaved;
   const wallColor = String(block?.wallColor || "").trim();
   const wallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
-  const pickerFolderId = libraryOwnerKind === "folder"
-    ? (libraryOwnerId || folderLibraryId)
-    : folderLibraryId;
-  const pickerDocumentId = libraryOwnerKind === "document" ? libraryOwnerId : "";
+
+  const {
+    pickerFolderId,
+    pickerDocumentId,
+    pickerPrimaryKind,
+    pickerPrimaryId,
+    canCreateFromPicker,
+    createModalOpen,
+    createMediaUrl,
+    createFileInputRef,
+    openCreateFromPicker,
+    handleCreateFile,
+    handleCreateSaved,
+    closeCreateModal,
+  } = useLibraryImagePickerCreate({
+    isEdit,
+    libraryOwnerKind,
+    libraryOwnerId,
+    folderLibraryId,
+    onItemCreated: (item, ownerKind, ownerId) => {
+      const resolvedOwnerId = String(ownerId || "").trim();
+      if (!resolvedOwnerId) return;
+      const patch = libraryItemToImageSplitPatch(item, ownerKind, resolvedOwnerId);
+      if (!patch) return;
+      libraryPromptRef.current = patch.libraryPrompt || "";
+      onChange?.(patch);
+      setError("");
+    },
+    onAfterCreate: () => setLibraryPickerOpen(false),
+    onError: setError,
+  });
+
   const libraryHints = {
     ownerKind: block?.libraryOwnerKind || libraryOwnerKind,
     ownerId: block?.libraryOwnerId || (block?.libraryOwnerKind === "folder" ? pickerFolderId : pickerDocumentId),
@@ -1264,8 +1294,37 @@ export function ImageSplitBlockView({
           layout="segmentedStrip"
           folderId={pickerFolderId}
           documentId={pickerDocumentId}
+          titleKey="doc.imageSplit.libraryPickerTitle"
+          allowPrimaryCreate={canCreateFromPicker}
+          onPrimaryCreateClick={openCreateFromPicker}
           onPick={handlePickLibraryItem}
-          onClose={() => setLibraryPickerOpen(false)}
+          onClose={() => {
+            setLibraryPickerOpen(false);
+            closeCreateModal();
+          }}
+        />
+      ) : null}
+
+      <input
+        ref={createFileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleCreateFile}
+      />
+
+      {createModalOpen && pickerPrimaryId ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || pickerPrimaryId}
+          ownerKind={pickerPrimaryKind}
+          ownerId={pickerPrimaryId}
+          defaultCategory="image"
+          lockCategory
+          defaultPresentation="visual"
+          initialMediaUrl={createMediaUrl}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={closeCreateModal}
+          onSaved={handleCreateSaved}
         />
       ) : null}
     </div>

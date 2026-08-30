@@ -6,7 +6,9 @@ import {
   IMAGE_SPLIT_BODY_MAX_LINES,
 } from "../../../lib/docBlocks.js";
 import { libraryItemToBannerPatch } from "../../../lib/libraryImageCardPick.js";
+import { useLibraryImagePickerCreate } from "../../../hooks/useLibraryImagePickerCreate.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 
 /** Empty / loading media aspect (height / width), aligned with image-card. */
@@ -114,14 +116,43 @@ export function BannerBlockView({
   const [headlineAtLimit, setHeadlineAtLimit] = useState(false);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
 
-  const pickerFolderId = libraryOwnerKind === "folder"
-    ? (libraryOwnerId || folderLibraryId)
-    : folderLibraryId;
-  const pickerDocumentId = libraryOwnerKind === "document" ? libraryOwnerId : "";
-
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const bannerSaved = Boolean(block?.bannerSaved && imageSaved);
   const isEdit = !bannerSaved;
+
+  const {
+    pickerFolderId,
+    pickerDocumentId,
+    pickerPrimaryKind,
+    pickerPrimaryId,
+    canCreateFromPicker,
+    createModalOpen,
+    createMediaUrl,
+    createFileInputRef,
+    openCreateFromPicker,
+    handleCreateFile,
+    handleCreateSaved,
+    closeCreateModal,
+  } = useLibraryImagePickerCreate({
+    isEdit,
+    libraryOwnerKind,
+    libraryOwnerId,
+    folderLibraryId,
+    onItemCreated: (item, ownerKind, ownerId) => {
+      const patch = libraryItemToBannerPatch(item, ownerKind, ownerId);
+      if (!patch) return;
+      onChange?.({ ...patch, bannerSaved: false });
+      setError(null);
+    },
+    onAfterCreate: () => setLibraryPickerOpen(false),
+    onError: setError,
+  });
+
+  useEffect(() => {
+    if (!isEdit || !block?.openFilePicker || imageSaved) return;
+    setLibraryPickerOpen(true);
+    onChange?.({ openFilePicker: false });
+  }, [block?.openFilePicker, block?.id, imageSaved, onChange, isEdit]);
 
   const pulseHeadlineLimit = useCallback(() => {
     setHeadlineAtLimit(true);
@@ -526,13 +557,40 @@ export function BannerBlockView({
 
       {libraryPickerOpen ? (
         <LibraryImageCardPicker
+          layout="segmentedStrip"
           folderId={pickerFolderId}
           documentId={pickerDocumentId}
-          requireVisual
-          titleKey="doc.moodboard.libraryPickerTitle"
-          emptyKey="doc.moodboard.libraryPickerEmpty"
+          titleKey="doc.imageSplit.libraryPickerTitle"
+          allowPrimaryCreate={canCreateFromPicker}
+          onPrimaryCreateClick={openCreateFromPicker}
           onPick={handlePickLibraryItem}
-          onClose={() => setLibraryPickerOpen(false)}
+          onClose={() => {
+            setLibraryPickerOpen(false);
+            closeCreateModal();
+          }}
+        />
+      ) : null}
+
+      <input
+        ref={createFileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleCreateFile}
+      />
+
+      {createModalOpen && pickerPrimaryId ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || pickerPrimaryId}
+          ownerKind={pickerPrimaryKind}
+          ownerId={pickerPrimaryId}
+          defaultCategory="image"
+          lockCategory
+          defaultPresentation="visual"
+          initialMediaUrl={createMediaUrl}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={closeCreateModal}
+          onSaved={handleCreateSaved}
         />
       ) : null}
 
