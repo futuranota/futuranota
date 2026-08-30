@@ -19,6 +19,8 @@ export function TextBlockView({
   onFocus,
   onPaste,
   onAfterInput,
+  onCaretMove = null,
+  onContinuationCaretMove = null,
   placeholder,
   autoFocus = false,
   showPlaceholder = true,
@@ -220,6 +222,7 @@ export function TextBlockView({
         onKeyDown={handleAnswerKeyDown}
         onPaste={onPaste}
         onFocus={onFocus}
+        onCaretMove={onCaretMove}
         onAfterInput={onAfterInput}
         placeholder={placeholder}
         showPlaceholder={showPlaceholder}
@@ -257,6 +260,7 @@ export function TextBlockView({
           onChange={onContinuationChange}
           onKeyDown={onContinuationKeyDown}
           onFocus={onContinuationFocus}
+          onCaretMove={onContinuationCaretMove}
           placeholder={continuationPlaceholder}
           showPlaceholder
           autoFocus={continuationAutoFocus}

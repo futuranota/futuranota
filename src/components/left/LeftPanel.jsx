@@ -3282,10 +3282,17 @@ export function LeftPanel({
           const flush = await flushPersistenceSync();
           if (!flush?.ok) {
             console.warn("[folder sync] flush failed", newDocId, flush?.reason || flush);
-            onNotify?.(
-              "No se pudo guardar en la nube. El folder quedó local; no cierres sesión hasta que sync OK.",
-              "warm",
-            );
+            if (flush?.campaignsOk && !flush?.companiesOk) {
+              onNotify?.(
+                "Folder guardado en la nube. Sync de empresa pendiente — reintentá en un momento (no cierres sesión).",
+                "warm",
+              );
+            } else {
+              onNotify?.(
+                "No se pudo guardar en la nube. El folder quedó local; no cierres sesión hasta que sync OK.",
+                "warm",
+              );
+            }
           } else {
             console.log("[folder sync] flush ok", newDocId);
           }

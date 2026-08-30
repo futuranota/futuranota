@@ -293,6 +293,8 @@ export function SlashAwareTextarea({
   onLibraryAssignSelect = null,
   canInsertLibraryNameRef = null,
   onAfterPaste = null,
+  /** Ref-only caret tracking (click/select) — no setState. */
+  onCaretMove = null,
   qloopCandidates = null,
   docBlocksForQLoop = null,
   onInsertQLoopQuery = null,
@@ -2074,6 +2076,7 @@ export function SlashAwareTextarea({
         }}
         onSelect={() => {
           snapCaretPastBoxFootprints();
+          onCaretMove?.(textareaRef.current);
           syncGhostPosition();
           syncMentionQuery();
         }}
@@ -2083,6 +2086,7 @@ export function SlashAwareTextarea({
         }}
         onClick={() => {
           snapCaretPastBoxFootprints();
+          onCaretMove?.(textareaRef.current);
           syncGhostPosition();
           syncMentionQuery();
         }}

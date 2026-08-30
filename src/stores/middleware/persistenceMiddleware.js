@@ -1,6 +1,13 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { resolveSyncUserId } from "../../lib/resolveSyncUserId.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
+import { docBlocksFromBody, docPersistedContentCharCount } from "../../lib/docBlocks.js";
+import {
+  clearDocDirty,
+  getDirtyDocIds,
+  markDocDirty,
+  markDocsDirtyIfNewerThan,
+} from "../../lib/docSyncDirty.js";
 import { normalizeFolderLibraryItems, normalizeLibrarySets, normalizePromptClasses } from "../../lib/folderLibraryNormalize.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
@@ -22,6 +29,11 @@ import {
   writeLastSyncedAt,
 } from "../../lib/workspaceVersionGate.js";
 import { scheduleDocImageDataUrlBackfill } from "../../lib/migrateDocImageDataUrls.js";
+import {
+  sanitizeAllObjectCadences,
+  sanitizeForPostgresJson,
+  stripLoneSurrogates,
+} from "../../lib/sanitizeJsonForPostgres.js";
 import {
   filterTimelineFileQueueToExistingNodes,
   mergeTimelineExcludedFileIds,
@@ -1241,14 +1253,11 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
   const docs = mergeMapsWithTombstones(
     remoteState.docs,
     localState.docs,
-    (doc) => {
-      let n = String(doc?.body || doc?.content || "").length + String(doc?.title || "").length;
-      for (const block of Array.isArray(doc?.blocks) ? doc.blocks : []) {
-        n += String(block?.text || "").length + String(block?.title || "").length;
-      }
-      return n;
+    docPersistedContentCharCount,
+    {
+      ...mergeOpts,
+      preferRicherContent: true,
     },
-    mergeOpts,
   );
   const nodes = mergeMapsWithTombstones(
     remoteState.nodes,
@@ -1473,11 +1482,29 @@ export function initPersistenceMiddleware(stores) {
     lastSyncedAt: readLastSyncedAt(),
   });
 
+  const repairLocalObjectCadencesInStores = () => {
+    const prev = useObjectsStore.getState().objects || {};
+    const { objects, changed } = sanitizeAllObjectCadences(prev);
+    if (!changed) return false;
+    useObjectsStore.setState({ objects });
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
+    } catch {
+      // quota / private mode
+    }
+    console.warn(
+      "[futura-nota] Repaired invalid Unicode in company cadence snapshots (local).",
+    );
+    return true;
+  };
+
   const applyStateToStores = (data) => {
     if (!data) return;
     restorePendingDeletesFromSnapshot(data);
     const stripped = stripPendingDeletesFromState(data);
-    const objects = pruneStrayDefaultYo(stripped.objects || {});
+    const { objects } = sanitizeAllObjectCadences(
+      pruneStrayDefaultYo(stripped.objects || {}),
+    );
     useObjectsStore.setState({ objects });
     const normalizedDocs = {};
     if (stripped.docs) {
@@ -1584,7 +1611,12 @@ export function initPersistenceMiddleware(stores) {
         const data = sanitizePersistedSnapshot(parsed);
         if (data) {
           applyStateToStores(data);
+          markDocsDirtyIfNewerThan(
+            useDocsStore.getState().docs || {},
+            parseVersionMs(readLastSyncedAt()),
+          );
           stripPendingDeletesFromLiveStores();
+          repairLocalObjectCadencesInStores();
           useUIStateStore.getState().setWorkspaceHydrated(true);
           return true;
         }
@@ -1721,7 +1753,9 @@ export function initPersistenceMiddleware(stores) {
           color: co.color || "mint",
           role: co.role || "satellite",
           children: [],
-          cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
+          cadence: sanitizeForPostgresJson(
+            co.cadence && typeof co.cadence === "object" ? co.cadence : {},
+          ),
           createdAt: co.created_at,
           updatedAt: co.updated_at || co.created_at,
         };
@@ -1730,13 +1764,17 @@ export function initPersistenceMiddleware(stores) {
       // Reconstruct docs (campaigns)
       const docs = {};
       dbCampaigns.forEach((camp) => {
+        let blocks = Array.isArray(camp.blocks) && camp.blocks.length
+          ? camp.blocks
+          : docBlocksFromBody(camp.body || camp.content || "");
+        if (!Array.isArray(blocks)) blocks = [];
         docs[camp.id] = {
           id: camp.id,
           title: camp.name,
           parentObjectId: camp.company_id,
           content: camp.content || "",
           body: camp.body || "",
-          blocks: camp.blocks || [],
+          blocks,
           dataProperties: camp.data_properties || [],
           tags: camp.tags || [],
           nodeIds: [],
@@ -2090,6 +2128,9 @@ export function initPersistenceMiddleware(stores) {
         console.warn(
           "[futura-nota] Pushing local workspace because remote looked empty/wiped.",
         );
+        for (const id of Object.keys(finalState.docs || {})) {
+          markDocDirty(id);
+        }
         syncToSupabase(finalState).catch((err) => {
           console.warn("Failed to push preferred-local workspace to Supabase:", err);
         });
@@ -2112,7 +2153,7 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const syncToSupabase = async (_stateArg) => {
-    if (!isSyncedWithRemote) return true;
+    if (!isSyncedWithRemote) return { ok: true };
 
     if (syncInFlight) {
       syncNeedsRerun = true;
@@ -2129,6 +2170,9 @@ export function initPersistenceMiddleware(stores) {
 
     const runSync = async () => {
       let criticalOk = true;
+      let campaignsUpsertOk = true;
+      let nodesUpsertOk = true;
+      let companiesUpsertOk = true;
       do {
         syncNeedsRerun = false;
 
@@ -2138,7 +2182,7 @@ export function initPersistenceMiddleware(stores) {
             "No authenticated user — skipping Supabase sync. "
             + "Iniciá sesión de nuevo en /login (el token no está disponible para writes).",
           );
-          return false;
+          return { ok: false, reason: "no_user" };
         }
 
         // Re-arm tombstones from disk before every write (cross-tab / mid-await races).
@@ -2159,9 +2203,12 @@ export function initPersistenceMiddleware(stores) {
       // sync that started before a delete cannot re-upsert a tombstoned corpus
       // at the top of the loop, then lose the race to orphan cleanup.
 
-      // 1. Campaigns (folders = doc_kind content)
+      // 1. Campaigns (folders = doc_kind content) — only upsert locally edited docs
+      // so a stale tab cannot overwrite cloud rows it never touched.
+      const dirtyDocIdSet = getDirtyDocIds();
       const campaignsRows = Object.values(state.docs || {})
         .filter((doc) => doc?.id && !frozenDeletedDocIds.has(doc.id))
+        .filter((doc) => dirtyDocIdSet.has(doc.id))
         .map((doc) => ({
         id: doc.id,
         user_id: userId,
@@ -2171,7 +2218,7 @@ export function initPersistenceMiddleware(stores) {
         verification_score: docVersionToDbInt(doc.version) ?? 0,
         content: doc.content || "",
         body: doc.body || "",
-        blocks: doc.blocks || [],
+        blocks: sanitizeForPostgresJson(doc.blocks || []),
         data_properties: doc.dataProperties || [],
         tags: doc.tags || [],
         doc_kind: doc.docKind || "standard",
@@ -2219,7 +2266,7 @@ export function initPersistenceMiddleware(stores) {
       }
       // #endregion
       // Empty local = intentional wipe (last folder deleted) → orphan-delete still runs.
-      let campaignsUpsertOk = true;
+      campaignsUpsertOk = true;
       if (campaignsRows.length > 0) {
         campaignsUpsertOk = await runUpsert(
           "Upsert campaigns",
@@ -2231,6 +2278,10 @@ export function initPersistenceMiddleware(stores) {
             "Upsert campaigns failed — skipping orphan delete to avoid wiping remote folders",
             { attemptedCount: campaignsRows.length },
           );
+        } else {
+          for (const row of campaignsRows) {
+            if (row?.id) clearDocDirty(row.id);
+          }
         }
       }
       const campaignsOrphansOk = campaignsUpsertOk
@@ -2270,7 +2321,7 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       const nodeLocalIds = nodesRows.map((r) => r.id);
-      let nodesUpsertOk = true;
+      nodesUpsertOk = true;
       if (nodesRows.length > 0) {
         // #region agent log
         fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H2-H3',location:'src/stores/middleware/persistenceMiddleware.js:beforeNodesUpsert',message:'Cloud node upsert starting',data:{tabId:DEBUG_TAB_ID,nodes:debugNodeSummaries(state.nodes),count:nodesRows.length,visibility:document.visibilityState},timestamp:Date.now()})}).catch(()=>{});
@@ -2309,34 +2360,67 @@ export function initPersistenceMiddleware(stores) {
       // Companies last: re-arm tombstones + live strip so mid-flight deletes win.
       refreshTombstonesFromDisk();
       for (const id of pendingDeletedCompanyIds) frozenDeletedCompanyIds.add(id);
+      repairLocalObjectCadencesInStores();
       const liveCompaniesState = stripPendingDeletesFromState(getLocalState());
       const companiesRows = Object.values(liveCompaniesState.objects || {})
         .filter((co) => co?.id && !frozenDeletedCompanyIds.has(co.id))
         .map((co) => ({
         id: co.id,
         user_id: userId,
-        name: co.name,
-        sector: co.description || "",
-        description: co.description || "",
-        brand: co.brand || co.name,
+        name: stripLoneSurrogates(String(co.name || "")),
+        sector: stripLoneSurrogates(String(co.description || "")),
+        description: stripLoneSurrogates(String(co.description || "")),
+        brand: stripLoneSurrogates(String(co.brand || co.name || "")),
         color: co.color || "mint",
         role: co.role || "satellite",
-        cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
+        cadence: sanitizeForPostgresJson(
+          co.cadence && typeof co.cadence === "object" ? co.cadence : {},
+        ),
         created_at: co.createdAt || now,
         updated_at: now,
       }));
 
-      let companiesUpsertOk = true;
+      companiesUpsertOk = true;
+      let usedCadenceFallback = false;
       if (companiesRows.length > 0) {
         companiesUpsertOk = await runUpsert(
           "Upsert companies",
           supabase.from("companies").upsert(companiesRows, upsertOpts),
         );
         if (!companiesUpsertOk) {
+          console.warn(
+            "[futura-nota] Companies upsert failed after cadence sanitize — retrying with empty cadence.",
+          );
+          const fallbackRows = companiesRows.map((row) => ({ ...row, cadence: {} }));
+          companiesUpsertOk = await runUpsert(
+            "Upsert companies (cadence fallback)",
+            supabase.from("companies").upsert(fallbackRows, upsertOpts),
+          );
+          if (companiesUpsertOk) {
+            usedCadenceFallback = true;
+          }
+        }
+        if (!companiesUpsertOk) {
           criticalOk = false;
           console.error(
             "Upsert companies failed — skipping orphan delete to avoid wiping remote corpora",
             { attemptedCount: companiesRows.length },
+          );
+        } else if (usedCadenceFallback) {
+          const objects = { ...(useObjectsStore.getState().objects || {}) };
+          for (const row of companiesRows) {
+            if (objects[row.id]) {
+              objects[row.id] = { ...objects[row.id], cadence: {} };
+            }
+          }
+          useObjectsStore.setState({ objects });
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
+          } catch {
+            // quota / private mode
+          }
+          console.warn(
+            "[futura-nota] Cleared local company cadence after cloud fallback upsert.",
           );
         }
       }
@@ -2494,7 +2578,12 @@ export function initPersistenceMiddleware(stores) {
       console.error("Supabase write failed:", err.message || err);
     }
       } while (syncNeedsRerun);
-      return criticalOk;
+      return {
+        ok: criticalOk,
+        campaignsOk: campaignsUpsertOk,
+        nodesOk: nodesUpsertOk,
+        companiesOk: companiesUpsertOk,
+      };
     };
 
     syncInFlight = runSync().finally(() => {
@@ -2520,15 +2609,22 @@ export function initPersistenceMiddleware(stores) {
     }
     isSyncedWithRemote = true;
     try {
-      const syncOk = await syncToSupabase(currentState);
-      const ok = syncOk !== false;
+      const syncResult = await syncToSupabase(currentState);
+      const ok = syncResult === true || syncResult?.ok === true;
       lastCloudFlushOk = ok;
       if (!ok) {
         console.error(
           "Cloud flush failed: required upsert (companies/campaigns/nodes) did not succeed",
+          syncResult,
         );
       }
-      return { ok };
+      return {
+        ok,
+        campaignsOk: syncResult?.campaignsOk !== false,
+        nodesOk: syncResult?.nodesOk !== false,
+        companiesOk: syncResult?.companiesOk !== false,
+        reason: syncResult?.reason,
+      };
     } catch (err) {
       lastCloudFlushOk = false;
       console.error("Cloud flush failed:", err?.message || err);

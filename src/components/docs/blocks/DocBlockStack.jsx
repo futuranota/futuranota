@@ -49,6 +49,7 @@ import {
   findH1MarkdownShortcutCaret,
   resolveH1MarkdownShortcutFromKey,
 } from "../../../lib/docMarkdownHeadingShortcut.js";
+import { resolveH1KeydownCaret } from "../../../lib/writingCaretReconcile.js";
 import {
   applyTextEditToMentions,
   mergeMentionBlocks,
@@ -255,6 +256,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const stackRef = useRef(null);
   const slashCommandsRef = useRef(slashCommands);
   const focusBlockIdRef = useRef(focusBlockId);
+  const textCaretRef = useRef(null);
+
+  const snapshotTextCaret = useCallback((blockIndex, el) => {
+    const caret = el?.selectionStart;
+    if (typeof caret !== "number") return;
+    textCaretRef.current = { blockIndex, caret };
+  }, []);
 
   useLayoutEffect(() => {
     blocksRef.current = blocks;
@@ -1377,9 +1385,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const { slash } = splitBodyForSlash(textValue);
 
     if (!e.metaKey && !e.nativeEvent?.isComposing) {
-      const caret = e.currentTarget?.selectionStart ?? textValue.length;
-      const caretEnd = e.currentTarget?.selectionEnd ?? caret;
-      if (caret === caretEnd) {
+      const rawCaret = e.currentTarget?.selectionStart ?? textValue.length;
+      const caretEnd = e.currentTarget?.selectionEnd ?? rawCaret;
+      if (rawCaret === caretEnd) {
+        const caret = resolveH1KeydownCaret(
+          rawCaret,
+          textCaretRef.current,
+          blockIndex,
+          textValue.length,
+        );
         const resolvedH1 = resolveH1MarkdownShortcutFromKey(
           textValue,
           caret,
@@ -2459,7 +2473,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     placeholder={bodyPlaceholder}
                     showPlaceholder={false}
                     autoFocus={focusBlockId === block.id && !itemHidden}
-                    onFocus={() => onFocusBlock?.(block.id)}
+                    onFocus={(e) => {
+                      snapshotTextCaret(index, e?.target);
+                      onFocusBlock?.(block.id);
+                    }}
+                    onCaretMove={(el) => snapshotTextCaret(index, el)}
                     onChange={(text, meta) => updateAt(index, {
                       text,
                       ...(meta && "mentions" in meta
@@ -2540,9 +2558,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   ? (e) => handleTextKeyDown(continuationIndex, e)
                   : null
               }
+              onContinuationCaretMove={
+                continuationIndex >= 0
+                  ? (el) => snapshotTextCaret(continuationIndex, el)
+                  : null
+              }
               onContinuationFocus={
                 continuationIndex >= 0
-                  ? () => onFocusBlock?.(continuationBlock.id)
+                  ? (e) => {
+                    snapshotTextCaret(continuationIndex, e?.target);
+                    onFocusBlock?.(continuationBlock.id);
+                  }
                   : null
               }
               continuationPlaceholder={continuationPlaceholder}
@@ -2584,9 +2610,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               placeholder={bodyPlaceholder}
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id && !itemHidden}
-              onFocus={() => {
+              onFocus={(e) => {
+                snapshotTextCaret(index, e?.target);
                 onFocusBlock?.(block.id);
               }}
+              onCaretMove={(el) => snapshotTextCaret(index, el)}
               onKeyDown={(e) => handleTextKeyDown(index, e)}
               onPaste={(e) => handleTextPaste(index, e)}
               {...qloopTextProps(index, block.id)}
@@ -2635,7 +2663,19 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 placeholder=""
                 showPlaceholder={false}
                 autoFocus
-                onFocus={() => onFocusBlock?.(collapsedActiveWriteId)}
+                onFocus={(e) => {
+                  const writeIndex = blocksRef.current.findIndex(
+                    (b) => b.id === collapsedActiveWriteId,
+                  );
+                  if (writeIndex >= 0) snapshotTextCaret(writeIndex, e?.target);
+                  onFocusBlock?.(collapsedActiveWriteId);
+                }}
+                onCaretMove={(el) => {
+                  const writeIndex = blocksRef.current.findIndex(
+                    (b) => b.id === collapsedActiveWriteId,
+                  );
+                  if (writeIndex >= 0) snapshotTextCaret(writeIndex, el);
+                }}
                 onKeyDown={(e) => {
                   const writeIndex = blocksRef.current.findIndex(
                     (b) => b.id === collapsedActiveWriteId,

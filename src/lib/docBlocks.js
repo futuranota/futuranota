@@ -2006,6 +2006,43 @@ export function normalizeDocBlocks(blocks) {
   return mergeAdjacentTextBlocks(blocks.map(normalizeDocBlock));
 }
 
+/**
+ * Prefer persisted blocks JSON; fall back to body markers when blocks[] is empty.
+ * @param {{ blocks?: unknown[], body?: string, content?: string }|null|undefined} doc
+ * @returns {import("./docBlocks.js").DocBlock[]}
+ */
+export function resolveDocBlocks(doc) {
+  if (Array.isArray(doc?.blocks) && doc.blocks.length) {
+    return normalizeDocBlocks(doc.blocks);
+  }
+  return normalizeDocBlocks(docBlocksFromBody(doc?.body || doc?.content || ""));
+}
+
+/** Score persisted doc payload for merge/sync conflict resolution. */
+export function docPersistedContentCharCount(doc) {
+  if (!doc || typeof doc !== "object") return 0;
+  let n = String(doc.body || doc.content || "").length + String(doc.title || "").length;
+  const blocks = resolveDocBlocks(doc);
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    n += String(block.text || "").length + String(block.title || "").length;
+    if (block.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
+      for (const entry of block.queries || []) {
+        n += String(entry?.title ?? "").length + String(entry?.description ?? "").length;
+      }
+    }
+    if (block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+      for (const step of block.steps || []) {
+        n += String(step?.title ?? "").length;
+        for (const stepBlock of step?.blocks || []) {
+          n += String(stepBlock?.text ?? "").length + String(stepBlock?.title ?? "").length;
+        }
+      }
+    }
+  }
+  return n;
+}
+
 export function isEmptyTextBlock(block) {
   if (block?.type !== DOC_BLOCK_TYPES.TEXT) return false;
   if (block.embedded?.kind) return false;
@@ -2696,6 +2733,7 @@ export function docBlocksToBody(blocks) {
       if (block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
         const normalized = normalizeStepSequenceBlock(block);
         return `::stepsequence\n${JSON.stringify({
+          id: block.id,
           title: normalized.title,
           steps: normalized.steps,
           saved: normalized.saved,
@@ -2704,6 +2742,7 @@ export function docBlocksToBody(blocks) {
       if (block.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE) {
         const normalized = normalizeQLoopSequenceBlock(block);
         return `::qloopsequence\n${JSON.stringify({
+          id: block.id,
           title: normalized.title,
           queries: normalized.queries,
           saved: normalized.saved,

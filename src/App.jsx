@@ -1607,9 +1607,14 @@ useEffect(() => {
         console.warn('[qloops] Save did not write a document', result);
         return false;
       }
-      await flushPersistenceSync().catch((err) => {
+      const flush = await flushPersistenceSync().catch((err) => {
         console.warn('[qloops] flush after save failed', err);
+        return { ok: false, error: err };
       });
+      if (!flush?.ok) {
+        console.error('[qloops] Saved locally but cloud sync failed — reload may revert until sync succeeds', flush);
+        return false;
+      }
       setActiveQLoopSession(null);
       return true;
     } finally {

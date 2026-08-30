@@ -3,8 +3,8 @@ import {
   createQLoopEntry,
   DOC_BLOCK_TYPES,
   docBlocksToBody,
-  normalizeDocBlocks,
   qloopEntryHasContent,
+  resolveDocBlocks,
 } from "./docBlocks.js";
 import { generateId } from "./ids.js";
 
@@ -57,6 +57,30 @@ export function qloopSessionHasContent(session) {
   return (session.queries || []).some(qloopEntryHasContent);
 }
 
+/** @param {import("./docBlocks.js").DocBlock[]} existingBlocks @param {QLoopSession} session */
+function findQLoopBlockIndex(existingBlocks, session) {
+  const directIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
+  if (directIndex >= 0) return directIndex;
+
+  const qloopIndexes = existingBlocks
+    .map((block, index) => (block.type === DOC_BLOCK_TYPES.QLOOP_SEQUENCE ? index : -1))
+    .filter((index) => index >= 0);
+
+  // Dedicated library doc or body round-trip with regenerated block id — update the sole slot.
+  if (qloopIndexes.length === 1) return qloopIndexes[0];
+  return -1;
+}
+
+/** @param {QLoopSession} session @param {import("./docBlocks.js").DocBlock|null} [existingBlock] */
+function buildQLoopBlock(session, existingBlock = null) {
+  return createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE, {
+    id: existingBlock?.id || session.blockId,
+    title: String(session.title ?? "").trim(),
+    queries: session.queries,
+    saved: true,
+  });
+}
+
 /**
  * @param {QLoopSession} session
  * @param {Object} deps
@@ -74,12 +98,7 @@ export function persistQLoopSession(session, {
   objects,
   defaultTitle,
 }) {
-  const buildBlock = () => createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE, {
-    id: session.blockId,
-    title: String(session.title ?? "").trim(),
-    queries: session.queries,
-    saved: true,
-  });
+  const buildBlock = (existingBlock = null) => buildQLoopBlock(session, existingBlock);
 
   if (!session.docId) {
     if (!session.objectId) {
@@ -89,11 +108,12 @@ export function persistQLoopSession(session, {
 
     for (const doc of Object.values(docs || {})) {
       if (doc.parentObjectId !== session.objectId) continue;
-      const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-      const existingIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
+      const existingBlocks = resolveDocBlocks(doc);
+      const existingIndex = findQLoopBlockIndex(existingBlocks, session);
       if (existingIndex < 0) continue;
 
-      const block = buildBlock();
+      const existingBlock = existingBlocks[existingIndex];
+      const block = buildBlock(existingBlock);
       const docTitle = block.title || defaultTitle;
       const nextBlocks = existingBlocks.map((entry, index) => (
         index === existingIndex ? block : entry
@@ -134,9 +154,10 @@ export function persistQLoopSession(session, {
     return { docId: session.docId, blockId: block.id };
   }
 
-  const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-  const blockIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
-  const block = buildBlock();
+  const existingBlocks = resolveDocBlocks(doc);
+  const blockIndex = findQLoopBlockIndex(existingBlocks, session);
+  const existingBlock = blockIndex >= 0 ? existingBlocks[blockIndex] : null;
+  const block = buildBlock(existingBlock);
   const docTitle = block.title || defaultTitle;
   const nextBlocks = blockIndex >= 0
     ? existingBlocks.map((entry, index) => (index === blockIndex ? block : entry))

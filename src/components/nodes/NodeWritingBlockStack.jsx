@@ -52,6 +52,7 @@ import {
   findH1MarkdownShortcutCaret,
   resolveH1MarkdownShortcutFromKey,
 } from "../../lib/docMarkdownHeadingShortcut.js";
+import { resolveH1KeydownCaret } from "../../lib/writingCaretReconcile.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
 import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../lib/textareaSelectionRect.js";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
@@ -886,9 +887,15 @@ export function NodeWritingBlockStack({
 
     const textValue = e.currentTarget?.value ?? block.text ?? "";
     if (!e.metaKey && !e.nativeEvent?.isComposing) {
-      const caret = e.currentTarget?.selectionStart ?? textValue.length;
-      const caretEnd = e.currentTarget?.selectionEnd ?? caret;
-      if (caret === caretEnd) {
+      const rawCaret = e.currentTarget?.selectionStart ?? textValue.length;
+      const caretEnd = e.currentTarget?.selectionEnd ?? rawCaret;
+      if (rawCaret === caretEnd) {
+        const caret = resolveH1KeydownCaret(
+          rawCaret,
+          writingCaretRef?.current,
+          blockIndex,
+          textValue.length,
+        );
         const resolvedH1 = resolveH1MarkdownShortcutFromKey(
           textValue,
           caret,
@@ -1186,7 +1193,7 @@ export function NodeWritingBlockStack({
         focusBlockById(prev.id, "end");
       }
     }
-  }, [contentFocusMode, focusBlockById, onFocusTargetChange, onLibrarySlashAction, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
+  }, [contentFocusMode, focusBlockById, onFocusTargetChange, onLibrarySlashAction, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks, writingCaretRef]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];
@@ -1767,6 +1774,7 @@ export function NodeWritingBlockStack({
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
                 onChange={(text, meta) => {
+                  snapshotWritingCaret(blockIndex, inputRefs.current[block.id]);
                   const h1Caret = findH1MarkdownShortcutCaret(text);
                   if (h1Caret >= 0) {
                     const applied = applyH1MarkdownShortcutToNodeBlocks(
@@ -1785,6 +1793,7 @@ export function NodeWritingBlockStack({
                   applyTextBlockChange(blockIndex, text, meta);
                 }}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+                onCaretMove={(el) => snapshotWritingCaret(blockIndex, el)}
                 onFocus={(e) => {
                   setFocusedBlockId(block.id);
                   snapshotWritingCaret(blockIndex, e?.target);
@@ -1830,6 +1839,7 @@ export function NodeWritingBlockStack({
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
                   onChange={(text, meta) => {
+                    snapshotWritingCaret(blockIndex, inputRefs.current[block.id]);
                     const h1Caret = findH1MarkdownShortcutCaret(text);
                     if (h1Caret >= 0) {
                       const applied = applyH1MarkdownShortcutToNodeBlocks(
@@ -1848,6 +1858,7 @@ export function NodeWritingBlockStack({
                     applyTextBlockChange(blockIndex, text, meta);
                   }}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+                  onCaretMove={(el) => snapshotWritingCaret(blockIndex, el)}
                   onFocus={(e) => {
                     setFocusedBlockId(block.id);
                     snapshotWritingCaret(blockIndex, e?.target);

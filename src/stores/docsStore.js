@@ -26,6 +26,7 @@ import {
 import { emitWorkspaceFolderDeleteSyncFailed } from "../lib/workspaceDeleteRepair.js";
 import { resolveProductDocDisplayTitle } from "../lib/templateDoc.js";
 import { archiveFolderDelete } from "../lib/workspaceTrashArchive.js";
+import { markDocDirty } from "../lib/docSyncDirty.js";
 
 export const useDocsStore = create(
   devtools(
@@ -116,6 +117,7 @@ export const useDocsStore = create(
         if (parentObjectId) {
           useObjectsStore.getState().addChildDoc(parentObjectId, id);
         }
+        markDocDirty(id);
         return id;
       },
 
@@ -146,6 +148,7 @@ export const useDocsStore = create(
             fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'A',location:'docsStore.js:updateDoc',message:'updateDoc schedule fields after normalize',data:{docId:id,title:doc?.title,patchStart:nextPatch.scheduleStartAt??null,patchFinish:nextPatch.scheduleFinishAt??null,patchLaunch:nextPatch.launchAt??null,mergedStart:merged.scheduleStartAt??null,mergedLaunch:merged.launchAt??null,outStart:normalized?.scheduleStartAt??null,outFinish:normalized?.scheduleFinishAt??null,outLaunch:normalized?.launchAt??null,synthesizedFromLaunch:Boolean(!merged.scheduleStartAt&&merged.launchAt&&normalized?.scheduleStartAt)},timestamp:Date.now()})}).catch(()=>{});
           }
           // #endregion
+          markDocDirty(id);
           return {
             docs: {
               ...state.docs,

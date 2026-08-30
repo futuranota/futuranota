@@ -92,6 +92,52 @@ describe("qloopSession", () => {
     expect(patch.blocks[0].saved).toBe(true);
   });
 
+  it("updates the sole qloop block when block id drifted (body-only round-trip)", () => {
+    const loopDoc = {
+      id: "loop1",
+      title: "Testing",
+      parentObjectId: "co1",
+      blocks: [],
+      body: "",
+      content: "",
+    };
+    const docs = { loop1: loopDoc };
+    const session = createBlankQLoopSession("co1");
+    session.docId = "loop1";
+    session.blockId = "BLK-new-from-body-parse";
+    session.title = "How to Prompt?";
+    session.queries = [
+      createQLoopEntry({ index: 1, title: "Bad prompt example" }),
+    ];
+
+    loopDoc.blocks = [
+      createDocBlock(DOC_BLOCK_TYPES.QLOOP_SEQUENCE, {
+        id: "BLK-original",
+        saved: true,
+        title: "Testing",
+        queries: [createQLoopEntry({ index: 1, title: "Old testing" })],
+      }),
+    ];
+
+    const updateDoc = vi.fn();
+    const result = persistQLoopSession(session, {
+      addDoc: vi.fn(),
+      updateDoc,
+      docs,
+      objects: {},
+      defaultTitle: "QLoops",
+    });
+
+    expect(result.docId).toBe("loop1");
+    expect(result.blockId).toBe("BLK-original");
+    expect(updateDoc).toHaveBeenCalledTimes(1);
+    const patch = updateDoc.mock.calls[0][1];
+    expect(patch.blocks).toHaveLength(1);
+    expect(patch.blocks[0].id).toBe("BLK-original");
+    expect(patch.blocks[0].title).toBe("How to Prompt?");
+    expect(patch.blocks[0].queries[0].title).toBe("Bad prompt example");
+  });
+
   it("swapQLoopEntryTextAt moves text between fixed slots", () => {
     const a = createQLoopEntry({ id: "q1", index: 1, title: "First", description: "A" });
     const b = createQLoopEntry({ id: "q2", index: 2, title: "Second", description: "B" });
