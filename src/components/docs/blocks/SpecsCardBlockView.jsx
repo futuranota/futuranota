@@ -665,14 +665,14 @@ export function SpecsCardBlockView({
             ) : null}
 
             {showPartNumber ? renderSpecRow(
-              isEdit ? "doc.specsCard.aliasOptional" : "doc.specsCard.alias",
+              isEdit ? "doc.specsCard.partNumberOptional" : "doc.specsCard.partNumber",
               isEdit ? (
                 <input
                   type="text"
                   className="doc-specs-card__field doc-specs-card__field--part"
                   value={specs.partNumber}
-                  placeholder={t("doc.specsCard.aliasPlaceholder")}
-                  aria-label={t("doc.specsCard.aliasOptional")}
+                  placeholder={t("doc.specsCard.partNumberPlaceholder")}
+                  aria-label={t("doc.specsCard.partNumberOptional")}
                   spellCheck={false}
                   onChange={(event) => updateSpecs({ partNumber: event.target.value })}
                 />
