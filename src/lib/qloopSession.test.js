@@ -3,6 +3,7 @@ import {
   createDocBlock,
   createQLoopEntry,
   DOC_BLOCK_TYPES,
+  swapQLoopEntryTextAt,
 } from "./docBlocks.js";
 import { collectSavedQLoops } from "./qloopsLibrary.js";
 import {
@@ -89,5 +90,20 @@ describe("qloopSession", () => {
     const patch = updateDoc.mock.calls[0][1];
     expect(patch.blocks[0].queries[0].title).toBe("New");
     expect(patch.blocks[0].saved).toBe(true);
+  });
+
+  it("swapQLoopEntryTextAt moves text between fixed slots", () => {
+    const a = createQLoopEntry({ id: "q1", index: 1, title: "First", description: "A" });
+    const b = createQLoopEntry({ id: "q2", index: 2, title: "Second", description: "B" });
+    const swapped = swapQLoopEntryTextAt([a, b], 0, 1);
+
+    expect(swapped[0].id).toBe("q1");
+    expect(swapped[0].index).toBe(1);
+    expect(swapped[0].title).toBe("Second");
+    expect(swapped[0].description).toBe("B");
+    expect(swapped[1].id).toBe("q2");
+    expect(swapped[1].index).toBe(2);
+    expect(swapped[1].title).toBe("First");
+    expect(swapped[1].description).toBe("A");
   });
 });

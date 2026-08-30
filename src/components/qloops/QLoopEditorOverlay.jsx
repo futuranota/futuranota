@@ -34,14 +34,11 @@ export function QLoopEditorOverlay({
     if (saving || !onSaved) return;
     setSaving(true);
     try {
-      const ok = await onSaved(finalizedQueries);
-      if (ok) {
-        onCloseTab?.();
-      }
+      await onSaved(finalizedQueries);
     } finally {
       setSaving(false);
     }
-  }, [onCloseTab, onSaved, saving]);
+  }, [onSaved, saving]);
 
   if (!session) return null;
 

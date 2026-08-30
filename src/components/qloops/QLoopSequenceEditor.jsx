@@ -1,12 +1,19 @@
-import { useCallback } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import {
   createQLoopEntry,
   finalizeQLoopSequence,
   normalizeQLoopQueries,
   qloopEntryHasContent,
+  swapQLoopEntryTextAt,
 } from "../../lib/docBlocks.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
+
+function resizeTextarea(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 /**
  * @param {Object} props
@@ -28,11 +35,24 @@ export function QLoopSequenceEditor({
   onSaved,
 }) {
   const { t } = useI18n();
+  const editorRef = useRef(null);
   const normalized = normalizeQLoopQueries(queries || []);
 
   const updateQueries = useCallback((next) => {
     onQueriesChange?.(normalizeQLoopQueries(next));
   }, [onQueriesChange]);
+
+  useLayoutEffect(() => {
+    if (!editorRef.current) return;
+    editorRef.current
+      .querySelectorAll(".qloop-sequence-editor__loop-title, .qloop-sequence-editor__query-title")
+      .forEach((el) => resizeTextarea(el));
+  }, [title, normalized]);
+
+  const handleTitleInput = (event) => {
+    resizeTextarea(event.currentTarget);
+    onTitleChange?.(event.target.value);
+  };
 
   const handleTitleChange = (entryId, value) => {
     updateQueries(normalized.map((entry) => (
@@ -58,15 +78,8 @@ export function QLoopSequenceEditor({
     updateQueries(normalized.filter((entry) => entry.id !== entryId));
   };
 
-  const handleMoveQuery = (entryId, direction) => {
-    const index = normalized.findIndex((entry) => entry.id === entryId);
-    if (index < 0) return;
-    const target = index + direction;
-    if (target < 0 || target >= normalized.length) return;
-    const next = [...normalized];
-    const [moved] = next.splice(index, 1);
-    next.splice(target, 0, moved);
-    updateQueries(next);
+  const handleMoveQuery = (slotIndex, direction) => {
+    updateQueries(swapQLoopEntryTextAt(normalized, slotIndex, direction));
   };
 
   const handleSave = () => {
@@ -81,19 +94,25 @@ export function QLoopSequenceEditor({
     event.stopPropagation();
   };
 
+  const handleQueryTitleInput = (entryId, event) => {
+    resizeTextarea(event.currentTarget);
+    handleTitleChange(entryId, event.target.value);
+  };
+
   return (
-    <div className="qloop-sequence-editor" data-block-id={blockId}>
+    <div className="qloop-sequence-editor" data-block-id={blockId} ref={editorRef}>
       <div className="qloop-sequence-editor__head">
         <label className="qloop-sequence-editor__loop-label" htmlFor={`qloop-loop-title-${blockId}`}>
           {t("qloopEditor.loopTitleLabel")}
         </label>
-        <input
+        <textarea
           id={`qloop-loop-title-${blockId}`}
-          type="text"
-          className="qloop-sequence-editor__loop-title"
+          className="qloop-sequence-editor__loop-title scroll-match-bg"
           value={title}
           placeholder={t("qloopEditor.loopTitlePlaceholder")}
-          onChange={(e) => onTitleChange?.(e.target.value)}
+          rows={1}
+          onChange={handleTitleInput}
+          onInput={handleTitleInput}
           onKeyDown={stopBubble}
           onKeyUp={stopBubble}
           onMouseDown={stopBubble}
@@ -102,18 +121,18 @@ export function QLoopSequenceEditor({
       </div>
 
       <div className="qloop-sequence-editor__slots">
-        {normalized.map((entry) => (
+        {normalized.map((entry, slotIndex) => (
           <div key={entry.id} className="qloop-sequence-editor__slot">
             <div className="qloop-sequence-editor__slot-head">
               <span className="qloop-sequence-editor__index" aria-hidden>
-                {entry.index}
+                {slotIndex + 1}
               </span>
               <div className="qloop-sequence-editor__slot-actions">
                 <button
                   type="button"
                   className="btn xs ghost qloop-sequence-editor__move"
-                  onClick={() => handleMoveQuery(entry.id, -1)}
-                  disabled={saving || entry.index <= 1}
+                  onClick={() => handleMoveQuery(slotIndex, -1)}
+                  disabled={saving || slotIndex <= 0}
                   aria-label={t("qloopEditor.moveUp")}
                 >
                   ↑
@@ -121,8 +140,8 @@ export function QLoopSequenceEditor({
                 <button
                   type="button"
                   className="btn xs ghost qloop-sequence-editor__move"
-                  onClick={() => handleMoveQuery(entry.id, 1)}
-                  disabled={saving || entry.index >= normalized.length}
+                  onClick={() => handleMoveQuery(slotIndex, 1)}
+                  disabled={saving || slotIndex >= normalized.length - 1}
                   aria-label={t("qloopEditor.moveDown")}
                 >
                   ↓
@@ -138,12 +157,13 @@ export function QLoopSequenceEditor({
                 </button>
               </div>
             </div>
-            <input
-              type="text"
-              className="qloop-sequence-editor__query-title"
+            <textarea
+              className="qloop-sequence-editor__query-title scroll-match-bg"
               value={entry.title}
               placeholder={t("qloopEditor.queryTitlePlaceholder")}
-              onChange={(e) => handleTitleChange(entry.id, e.target.value)}
+              rows={1}
+              onChange={(e) => handleQueryTitleInput(entry.id, e)}
+              onInput={(e) => handleQueryTitleInput(entry.id, e)}
               onKeyDown={stopBubble}
               onKeyUp={stopBubble}
               onMouseDown={stopBubble}

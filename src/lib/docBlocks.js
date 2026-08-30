@@ -399,6 +399,31 @@ export function finalizeQLoopSequence(queries) {
 }
 
 /**
+ * Swap title + description between adjacent queue slots; slot ids and positions stay fixed.
+ * @param {import("./docBlocks.js").QLoopEntry[]|null|undefined} queries
+ * @param {number} slotIndex
+ * @param {number} direction -1 up, +1 down
+ * @returns {import("./docBlocks.js").QLoopEntry[]}
+ */
+export function swapQLoopEntryTextAt(queries, slotIndex, direction) {
+  const normalized = normalizeQLoopQueries(queries);
+  const from = Number(slotIndex);
+  const to = from + Number(direction);
+  if (!Number.isFinite(from) || from < 0 || to < 0 || to >= normalized.length) {
+    return normalized;
+  }
+  const next = normalized.map((entry) => ({ ...entry }));
+  const a = next[from];
+  const b = next[to];
+  next[from] = { ...a, title: b.title, description: b.description };
+  next[to] = { ...b, title: a.title, description: a.description };
+  return next.map((entry, queryIndex) => ({
+    ...entry,
+    index: queryIndex + 1,
+  }));
+}
+
+/**
  * @param {unknown} raw
  * @returns {{ loopId: string, loopDocId: string, loopBlockId: string, queryId: string, index: number }|undefined}
  */

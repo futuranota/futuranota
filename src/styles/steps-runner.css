@@ -4173,6 +4173,14 @@
   font-weight: 600;
   padding: 4px 0 8px;
   outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+  min-height: 28px;
+  field-sizing: content;
+  --scroll-bg: #151515;
 }
 
 .qloop-sequence-editor__slots {
@@ -4229,6 +4237,14 @@
   font-weight: 500;
   padding: 4px 0 6px;
   outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  min-height: 24px;
+  field-sizing: content;
+  --scroll-bg: #151515;
 }
 
 .qloop-sequence-editor__query-description {

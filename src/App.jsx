@@ -1610,6 +1610,7 @@ useEffect(() => {
       await flushPersistenceSync().catch((err) => {
         console.warn('[qloops] flush after save failed', err);
       });
+      setActiveQLoopSession(null);
       return true;
     } finally {
       qloopSaveLockRef.current = false;
