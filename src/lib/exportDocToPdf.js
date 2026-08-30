@@ -158,6 +158,31 @@ export function collectPdfExportSegments(blocks) {
       pushImageSegments(segments, block, caption);
       continue;
     }
+    if (block.type === NODE_BLOCK_TYPES.SPECS_CARD) {
+      const specs = block.specs && typeof block.specs === "object" ? block.specs : {};
+      const lines = [];
+      const displayName = String(specs.name || specs.partNumber || "").trim();
+      if (displayName) lines.push(displayName);
+      if (specs.name && specs.partNumber) lines.push(`Part: ${specs.partNumber}`);
+      const dimLine = [
+        specs.dimensions?.x,
+        specs.dimensions?.y,
+        specs.dimensions?.z,
+      ].filter(Boolean).join(" x ");
+      if (dimLine) {
+        lines.push(
+          `Dimensions: ${dimLine}${specs.dimensions?.unit ? ` ${specs.dimensions.unit}` : ""}`,
+        );
+      }
+      if (specs.material) lines.push(`Material: ${specs.material}`);
+      if (specs.weight?.value) {
+        lines.push(
+          `Weight: ${specs.weight.value}${specs.weight.unit ? ` ${specs.weight.unit}` : ""}`,
+        );
+      }
+      pushImageSegments(segments, block, lines.join("\n"));
+      continue;
+    }
     if (block.type === NODE_BLOCK_TYPES.MOODBOARD) {
       const caption = [
         String(block.caption || "").trim(),

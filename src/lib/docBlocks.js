@@ -31,6 +31,7 @@ const DOC_BLOCK_TYPES = {
   IMAGE_SPLIT: "image_split",
   MOODBOARD: "moodboard",
   BANNER: "banner",
+  SPECS_CARD: "specs_card",
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
@@ -1510,6 +1511,65 @@ function normalizeBannerBlock(block) {
   };
 }
 
+function normalizeSpecsWeight(raw) {
+  const weight = raw && typeof raw === "object" ? raw : {};
+  const unit = String(weight.unit ?? "").trim();
+  return {
+    value: String(weight.value ?? "").trim(),
+    unit: unit === "kg" || unit === "lb" ? unit : "",
+  };
+}
+
+export function normalizeSpecsCard(block) {
+  const media = normalizeBannerBlock(block);
+  const specs = block?.specs && typeof block.specs === "object" ? block.specs : {};
+  const dims = specs.dimensions && typeof specs.dimensions === "object" ? specs.dimensions : {};
+  const imageSaved = media.imageSaved;
+  return {
+    src: media.src,
+    name: media.name,
+    alt: media.alt,
+    width: media.width,
+    height: media.height,
+    imageSaved,
+    libraryItemId: media.libraryItemId,
+    libraryOwnerKind: media.libraryOwnerKind,
+    libraryOwnerId: media.libraryOwnerId,
+    openFilePicker: media.openFilePicker,
+    specsSaved: Boolean(block?.specsSaved) && imageSaved,
+    specs: {
+      name: String(specs.name ?? "").trim(),
+      partNumber: String(specs.partNumber ?? "").trim(),
+      dimensions: {
+        x: String(dims.x ?? "").trim(),
+        y: String(dims.y ?? "").trim(),
+        z: String(dims.z ?? "").trim(),
+        unit: String(dims.unit ?? dims.xUnit ?? dims.yUnit ?? dims.zUnit ?? "").trim(),
+      },
+      material: String(specs.material ?? "").trim(),
+      weight: normalizeSpecsWeight(specs.weight),
+    },
+  };
+}
+
+export function formatSpecsCardDimensions(specs) {
+  const dims = specs?.dimensions && typeof specs.dimensions === "object" ? specs.dimensions : {};
+  const parts = [dims.x, dims.y, dims.z]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  if (!parts.length) return "";
+  const unit = String(dims.unit ?? "").trim();
+  const joined = parts.join(" × ");
+  return unit ? `${joined} ${unit}` : joined;
+}
+
+export function formatSpecsCardWeight(weight) {
+  const normalized = normalizeSpecsWeight(weight);
+  const value = normalized.value.trim();
+  if (!value) return "";
+  return normalized.unit ? `${value} ${normalized.unit}` : value;
+}
+
 function normalizeCodeBlock(block) {
   const code = block?.code || "";
   const hasCode = Boolean(code.trim());
@@ -1668,6 +1728,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.BANNER,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.SPECS_CARD) {
+    const normalized = normalizeSpecsCard(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.SPECS_CARD,
       ...normalized,
     };
   }
@@ -1876,6 +1945,13 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.BANNER, {
       id: block.id,
       ...normalizeBannerBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.SPECS_CARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD, {
+      id: block.id,
+      ...normalizeSpecsCard(block),
     });
   }
 
@@ -2127,6 +2203,20 @@ export function docBlockHasContent(block) {
       || Boolean(block.bannerSaved)
       || Boolean((block.headline || "").trim());
   }
+  if (type === DOC_BLOCK_TYPES.SPECS_CARD) {
+    const normalized = normalizeSpecsCard(block);
+    const specs = normalized.specs || {};
+    return Boolean(normalized.specsSaved)
+      || Boolean((normalized.src || "").trim())
+      || Boolean(normalized.imageSaved)
+      || Boolean((specs.name || "").trim())
+      || Boolean((specs.partNumber || "").trim())
+      || Boolean((specs.material || "").trim())
+      || Boolean((specs.weight?.value || "").trim())
+      || [specs.dimensions?.x, specs.dimensions?.y, specs.dimensions?.z].some(
+        (value) => Boolean(String(value ?? "").trim()),
+      );
+  }
   if (type === DOC_BLOCK_TYPES.CODE) {
     return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
   }
@@ -2347,6 +2437,20 @@ function parseBannerSection(section) {
   }
 }
 
+function parseSpecsCardSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::specscard")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD);
+  }
+}
+
 function parseCodeSection(section) {
   const lines = section.split("\n");
   const first = lines[0]?.trim() || "";
@@ -2531,6 +2635,12 @@ export function docBlocksFromBody(body) {
       continue;
     }
 
+    const specsCardBlock = parseSpecsCardSection(section);
+    if (specsCardBlock) {
+      blocks.push(specsCardBlock);
+      continue;
+    }
+
     const imageBlock = parseImageSection(section);
     if (imageBlock) {
       blocks.push(imageBlock);
@@ -2709,6 +2819,22 @@ export function docBlocksToBody(blocks) {
           height: normalized.height,
           imageSaved: normalized.imageSaved,
           bannerSaved: normalized.bannerSaved,
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.SPECS_CARD) {
+        const normalized = normalizeSpecsCard(block);
+        return `::specscard\n${JSON.stringify({
+          src: normalized.src,
+          name: normalized.name,
+          alt: normalized.alt,
+          width: normalized.width,
+          height: normalized.height,
+          imageSaved: normalized.imageSaved,
+          libraryItemId: normalized.libraryItemId,
+          libraryOwnerKind: normalized.libraryOwnerKind,
+          libraryOwnerId: normalized.libraryOwnerId,
+          specsSaved: normalized.specsSaved,
+          specs: normalized.specs,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
@@ -2956,6 +3082,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
     || block.type === DOC_BLOCK_TYPES.MOODBOARD
     || block.type === DOC_BLOCK_TYPES.BANNER
+    || block.type === DOC_BLOCK_TYPES.SPECS_CARD
     || block.type === DOC_BLOCK_TYPES.CODE
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT

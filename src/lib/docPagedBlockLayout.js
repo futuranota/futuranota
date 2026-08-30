@@ -14,6 +14,7 @@ export function isAtomicWritingBlockType(_type) {
 const WRITING_BLOCK_CLASS_TO_TYPE = [
   ["node-writing-block-stack__moodboard", "moodboard"],
   ["node-writing-block-stack__banner", "banner"],
+  ["node-writing-block-stack__specs-card", "specs_card"],
   ["node-writing-block-stack__image-split", "image_split"],
   ["node-writing-block-stack__image", "image"],
   ["node-writing-block-stack__product", "product_card"],

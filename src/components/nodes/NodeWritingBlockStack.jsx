@@ -69,6 +69,7 @@ import { ImageBlockView } from "../docs/blocks/ImageBlockView.jsx";
 import { ImageSplitBlockView } from "../docs/blocks/ImageSplitBlockView.jsx";
 import { MoodboardBlockView } from "../docs/blocks/MoodboardBlockView.jsx";
 import { BannerBlockView } from "../docs/blocks/BannerBlockView.jsx";
+import { SpecsCardBlockView } from "../docs/blocks/SpecsCardBlockView.jsx";
 import { ProductCardBlockView } from "../docs/blocks/ProductCardBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import {
@@ -1706,6 +1707,54 @@ export function NodeWritingBlockStack({
                   updateBlocks(normalizeWritingBlocks(next));
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.banner")}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.SPECS_CARD) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__specs-card"
+            >
+              <SpecsCardBlockView
+                block={block}
+                libraryOwnerKind={libraryOwnerKind}
+                libraryOwnerId={libraryOwnerId}
+                folderLibraryId={folderLibraryId}
+                onChange={(patch) => {
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.SPECS_CARD }
+                      : entry
+                  ));
+                  if (patch.imageSaved && patch.src) {
+                    next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  }
+                  updateBlocks(next);
+                }}
+                onSave={() => {
+                  if (!(block.imageSaved && block.src)) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, specsSaved: true, type: NODE_BLOCK_TYPES.SPECS_CARD }
+                      : entry
+                  ));
+                  next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  updateBlocks(next);
+                  const after = next[blockIndex + 1];
+                  if (after?.type === NODE_BLOCK_TYPES.TEXT) {
+                    onFocusTargetChange?.({ blockIndex: blockIndex + 1, focusText: true });
+                  }
+                }}
+                onEdit={() => {
+                  updateBlockAt(blockIndex, { specsSaved: false });
+                }}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.specsCard")}
               />
             </div>
           );

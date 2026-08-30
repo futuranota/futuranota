@@ -1,4 +1,4 @@
-import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit, normalizeQLoopSource, normalizeStepImage } from "./docBlocks.js";
+import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit, normalizeQLoopSource, normalizeSpecsCard, normalizeStepImage } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { applyTextEditToMentions, normalizeMentions } from "./docMentions.js";
@@ -39,6 +39,7 @@ export const NODE_BLOCK_TYPES = {
   IMAGE_SPLIT: "image_split",
   MOODBOARD: "moodboard",
   BANNER: "banner",
+  SPECS_CARD: "specs_card",
   PRODUCT_CARD: "product_card",
 };
 
@@ -380,6 +381,14 @@ export function normalizeWritingBlocks(blocks) {
         type: NODE_BLOCK_TYPES.BANNER,
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.SPECS_CARD || block?.type === DOC_BLOCK_TYPES.SPECS_CARD) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NSC"),
+        type: NODE_BLOCK_TYPES.SPECS_CARD,
+      };
+    }
     if (block?.type === NODE_BLOCK_TYPES.PRODUCT_CARD || block?.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
       const docShape = createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, block);
       return {
@@ -490,6 +499,20 @@ export function nodeWritingBlocksHaveContent(blocks) {
         || Boolean(block.imageSaved)
         || Boolean(block.bannerSaved)
         || Boolean((block.headline || "").trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.SPECS_CARD) {
+      const normalized = normalizeSpecsCard(block);
+      const specs = normalized.specs || {};
+      return Boolean(normalized.specsSaved)
+        || Boolean((normalized.src || "").trim())
+        || Boolean(normalized.imageSaved)
+        || Boolean((specs.name || "").trim())
+        || Boolean((specs.partNumber || "").trim())
+        || Boolean((specs.material || "").trim())
+        || Boolean((specs.weight?.value || "").trim())
+        || [specs.dimensions?.x, specs.dimensions?.y, specs.dimensions?.z].some(
+          (value) => Boolean(String(value ?? "").trim()),
+        );
     }
     if (block.type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
       return Boolean(block.specsSaved)
@@ -836,6 +859,14 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
       ...docShape,
       id: generateId("NBN"),
       type: NODE_BLOCK_TYPES.BANNER,
+    };
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.SPECS_CARD) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD, { openFilePicker: false });
+    return {
+      ...docShape,
+      id: generateId("NSC"),
+      type: NODE_BLOCK_TYPES.SPECS_CARD,
     };
   }
   if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {

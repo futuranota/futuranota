@@ -135,6 +135,7 @@ import { ImageBlockView } from "./ImageBlockView.jsx";
 import { ImageSplitBlockView } from "./ImageSplitBlockView.jsx";
 import { MoodboardBlockView } from "./MoodboardBlockView.jsx";
 import { BannerBlockView } from "./BannerBlockView.jsx";
+import { SpecsCardBlockView } from "./SpecsCardBlockView.jsx";
 import { CodeBlockView } from "./CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
@@ -593,6 +594,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
           || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
           || parsed.type === DOC_BLOCK_TYPES.BANNER
+          || parsed.type === DOC_BLOCK_TYPES.SPECS_CARD
           || parsed.type === DOC_BLOCK_TYPES.CODE
           || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
           || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -964,6 +966,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.BANNER
+      || parsed.type === DOC_BLOCK_TYPES.SPECS_CARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -1220,6 +1223,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.BANNER
+      || parsed.type === DOC_BLOCK_TYPES.SPECS_CARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -1256,6 +1260,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.BANNER
+      || parsed.type === DOC_BLOCK_TYPES.SPECS_CARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -2190,6 +2195,46 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.banner");
+                if (!ok) return;
+                removeCommandBlockAt(index);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.SPECS_CARD ? (
+            <SpecsCardBlockView
+              block={block}
+              libraryOwnerKind={libraryOwnerKind}
+              libraryOwnerId={libraryOwnerId}
+              folderLibraryId={folderLibraryId}
+              onChange={(patch) => {
+                let next = updateBlockAt(blocksRef.current, index, patch);
+                if (patch.imageSaved && patch.src) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                if (patch.imageSaved && patch.src) {
+                  requestContentGrow();
+                }
+              }}
+              onSave={() => {
+                if (!(block.imageSaved && block.src)) return;
+                let next = updateBlockAt(blocksRef.current, index, { specsSaved: true });
+                next = ensureEmptyTextBlockAfter(next, index);
+                setBlocks(next);
+                const textBlock = next[index + 1];
+                if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                  onFocusBlock?.(textBlock.id);
+                  focusBlockCaret(textBlock.id, 0);
+                }
+                requestContentGrow();
+              }}
+              onEdit={() => {
+                updateAt(index, { specsSaved: false });
+                onFocusBlock?.(block.id);
+              }}
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.specsCard");
                 if (!ok) return;
                 removeCommandBlockAt(index);
               }}

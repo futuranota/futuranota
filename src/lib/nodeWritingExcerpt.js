@@ -61,6 +61,12 @@ export function getNodeWritingPlainText(content) {
         if (headline) parts.push(headline);
         continue;
       }
+      if (block.type === NODE_BLOCK_TYPES.SPECS_CARD) {
+        const specs = block.specs && typeof block.specs === "object" ? block.specs : {};
+        const title = String(specs.name || specs.partNumber || "").trim();
+        if (title) parts.push(title);
+        continue;
+      }
       if (block.type === NODE_BLOCK_TYPES.MOODBOARD) {
         const caption = String(block.caption || "").trim();
         const body = String(block.body || "").replace(/\s+/g, " ").trim();

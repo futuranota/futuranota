@@ -105,6 +105,17 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Specs card",
+    menuLabel: "Specs Card",
+    menuGroup: "cards",
+    menuGroupLabel: "CARDS",
+    ghostHint: "specs card",
+    aliases: ["specscard", "specs-card", "specs card"],
+    blockType: DOC_BLOCK_TYPES.SPECS_CARD,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+    pickerOnly: true,
+  },
+  {
     label: "Code",
     menuGroup: "extra",
     menuGroupLabel: "EXTRA",
@@ -317,16 +328,18 @@ export function getDocumentSlashCommandsForUser(isAdmin) {
 
 /** @param {boolean} isAdmin */
 export function getDocumentSlashGhostHintsForUser(isAdmin) {
-  return getDocumentSlashCommandsForUser(isAdmin).map((c) => c.ghostHint ?? c.label);
+  return getDocumentSlashCommandsForUser(isAdmin)
+    .filter((cmd) => !cmd.pickerOnly)
+    .map((c) => c.ghostHint ?? c.label);
 }
 
 export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 
-export const DOCUMENT_SLASH_GHOST_HINTS = BASE_DOCUMENT_SLASH_COMMANDS.map(
-  (c) => c.ghostHint ?? c.label,
-);
+export const DOCUMENT_SLASH_GHOST_HINTS = BASE_DOCUMENT_SLASH_COMMANDS
+  .filter((cmd) => !cmd.pickerOnly)
+  .map((c) => c.ghostHint ?? c.label);
 
 /** Slash commands available in node editors (macronodes / docs). */
 export const NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
@@ -355,7 +368,10 @@ export function parseFolderSlashQuery(query) {
 }
 
 export function parseDocumentSlashQuery(query) {
-  return parseSlashQueryFromCommands(query, DOCUMENT_SLASH_COMMANDS);
+  return parseSlashQueryFromCommands(
+    query,
+    DOCUMENT_SLASH_COMMANDS.filter((cmd) => !cmd.pickerOnly),
+  );
 }
 
 export function parseDocLinkedNodeSlashQuery(query) {
@@ -456,6 +472,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.BANNER) {
     return createDocBlock(DOC_BLOCK_TYPES.BANNER, { openFilePicker: false });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.SPECS_CARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.SPECS_CARD, { openFilePicker: false });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {

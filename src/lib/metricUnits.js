@@ -19,10 +19,18 @@ export const METRIC_UNIT_OPTIONS = [
   { id: "lb", label: "lb" },
 ];
 
+/** Weight units for specs card. */
+export const WEIGHT_UNIT_OPTIONS = [
+  { id: "", label: "—" },
+  { id: "kg", label: "kg" },
+  { id: "lb", label: "lb" },
+];
+
 /** Length units for product card dimension pickers. */
 export const DIMENSION_UNIT_OPTIONS = [
   { id: "", label: "—" },
   { id: "mm", label: "mm" },
+  { id: "px", label: "px" },
   { id: "cm", label: "cm" },
   { id: "m", label: "m" },
   { id: "in", label: "in" },

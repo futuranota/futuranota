@@ -102,6 +102,7 @@ function walkImageSrcSlots(blocks, visit) {
       type === DOC_BLOCK_TYPES.IMAGE
       || type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || type === DOC_BLOCK_TYPES.BANNER
+      || type === DOC_BLOCK_TYPES.SPECS_CARD
     ) {
       visitSrc(block.src, { blockId, scopeHint: blockId });
     }
@@ -229,6 +230,7 @@ async function mapBlocksImageSrcs(blocks, migrateSrc) {
       type === DOC_BLOCK_TYPES.IMAGE
       || type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || type === DOC_BLOCK_TYPES.BANNER
+      || type === DOC_BLOCK_TYPES.SPECS_CARD
     ) {
       if (isDocImageDataUrl(block.src)) {
         const src = await migrateSrc(block.src, { blockId, scopeHint: blockId });

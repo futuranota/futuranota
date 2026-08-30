@@ -33,6 +33,7 @@ describe("getDocumentSlashCommandsForUser", () => {
       "Image Card",
       "Banner Card",
       "Moodboard",
+      "Specs Card",
     ]);
     expect(groups[1].commands.map((cmd) => cmd.label)).toEqual(["Code", "Agent"]);
   });
@@ -69,6 +70,11 @@ describe("slash query parsing", () => {
     expect(parseDocumentSlashQuery("moodboard")?.label).toBe("Moodboard");
     expect(parseDocumentSlashQuery("code")?.label).toBe("Code");
     expect(parseDocumentSlashQuery("agent")?.label).toBe("Agent");
+  });
+
+  it("does not insert picker-only commands through document slash parsing", () => {
+    expect(parseDocumentSlashQuery("specs card")).toBeNull();
+    expect(parseDocumentSlashQuery("specscard")).toBeNull();
   });
 });
 
