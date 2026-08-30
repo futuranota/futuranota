@@ -13,6 +13,7 @@ import './styles/export-workspace-modal.css';
 import './styles/export-pack-modal.css';
 import './styles/ie-pack-chooser.css';
 import './styles/steps-runner.css';
+import './styles/workspace-trash.css';
 import './styles/lazy-todos.css';
 import './styles/gina-chat.css';
 import './styles/light-theme-overrides.css';

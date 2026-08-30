@@ -25,6 +25,7 @@ import {
 } from "./middleware/persistenceMiddleware.js";
 import { emitWorkspaceFolderDeleteSyncFailed } from "../lib/workspaceDeleteRepair.js";
 import { resolveProductDocDisplayTitle } from "../lib/templateDoc.js";
+import { archiveFolderDelete } from "../lib/workspaceTrashArchive.js";
 
 export const useDocsStore = create(
   devtools(
@@ -326,17 +327,20 @@ export const useDocsStore = create(
         }
       },
 
-      deleteDoc: (id) => {
+      deleteDoc: (id, options = {}) => {
         const existing = get().docs[id];
         const linkedNodes = useNodesStore.getState().getNodesByDoc(id);
         const linkedNodeIds = linkedNodes.map((node) => node.id).filter(Boolean);
         const deleteLabel = existing
           ? (resolveProductDocDisplayTitle(existing) || existing.title?.trim() || "Untitled")
           : "Untitled";
+        if (!options.skipTrashArchive) {
+          archiveFolderDelete(existing, linkedNodes, { source: "user_confirm" });
+        }
         // Tombstone before local remove so an in-flight hydrate cannot resurrect.
         markDocsDeletedForSync(id, linkedNodeIds);
         for (const node of linkedNodes) {
-          useNodesStore.getState().deleteNode(node.id);
+          useNodesStore.getState().deleteNode(node.id, options);
         }
         set((state) => {
           const doc = state.docs[id];

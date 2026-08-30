@@ -534,6 +534,12 @@ export function isNodeMarkedDeletedForSync(nodeId) {
   return Boolean(id && pendingDeletedNodeIds.has(id));
 }
 
+/** True when a company/corpus id is tombstoned and must not merge back from remote. */
+export function isCompanyMarkedDeletedForSync(companyId) {
+  const id = String(companyId || "").trim();
+  return Boolean(id && pendingDeletedCompanyIds.has(id));
+}
+
 /**
  * Remove a node from the delete ledger so a recovered entity can sync again.
  * @param {string} nodeId
@@ -548,6 +554,43 @@ export function unmarkNodeDeletedForSync(nodeId) {
   removeIdsFromTombstoneLedger("nodes", [id]);
   writeTombstoneLedger();
   return true;
+}
+
+/**
+ * Remove a folder/doc from the delete ledger so trash restore can sync again.
+ * @param {string} docId
+ * @returns {boolean}
+ */
+export function unmarkDocDeletedForSync(docId) {
+  const id = String(docId || "").trim();
+  if (!id || !pendingDeletedDocIds.has(id)) return false;
+  pendingDeletedDocIds.delete(id);
+  deletedDocMarkedAt.delete(id);
+  deleteTombstoneRevision += 1;
+  removeIdsFromTombstoneLedger("docs", [id]);
+  writeTombstoneLedger();
+  return true;
+}
+
+/**
+ * Remove a company from the delete ledger so trash restore can sync again.
+ * @param {string} companyId
+ * @returns {boolean}
+ */
+export function unmarkCompanyDeletedForSync(companyId) {
+  const id = String(companyId || "").trim();
+  if (!id || !pendingDeletedCompanyIds.has(id)) return false;
+  pendingDeletedCompanyIds.delete(id);
+  deletedCompanyMarkedAt.delete(id);
+  deleteTombstoneRevision += 1;
+  removeIdsFromTombstoneLedger("companies", [id]);
+  writeTombstoneLedger();
+  return true;
+}
+
+/** Re-read tombstone ledger from disk (call before listing trash). */
+export function refreshDeleteTombstonesFromDisk() {
+  refreshTombstonesFromDisk();
 }
 
 /**

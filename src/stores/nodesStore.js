@@ -44,6 +44,7 @@ import {
   isNodeMarkedDeletedForSync,
   markDocsDeletedForSync,
 } from "./middleware/persistenceMiddleware.js";
+import { archiveDocumentDelete } from "../lib/workspaceTrashArchive.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -740,7 +741,7 @@ export const useNodesStore = create(
       },
 
       /** Remove node entity and purge its title/Description blocks from parent folder. */
-      deleteNodeAndDocBlocks: (nodeId) => {
+      deleteNodeAndDocBlocks: (nodeId, options = {}) => {
         const node = get().nodes[nodeId];
         if (!node) return;
         const docsStore = useDocsStore.getState();
@@ -757,6 +758,9 @@ export const useNodesStore = create(
         }
         if (!parentIds.size) {
           purgeNodeFromTimelineAndCanvas(nodeId, null);
+        }
+        if (!options.skipTrashArchive) {
+          archiveDocumentDelete(node, { source: "user_confirm" });
         }
         // Block hydrate from resurrecting the hard-deleted entity.
         markDocsDeletedForSync([], [nodeId]);
@@ -954,8 +958,8 @@ export const useNodesStore = create(
           };
         }),
 
-      deleteNode: (id) => {
-        get().deleteNodeAndDocBlocks(id);
+      deleteNode: (id, options = {}) => {
+        get().deleteNodeAndDocBlocks(id, options);
       },
     }),
     { name: "NodesStore" },

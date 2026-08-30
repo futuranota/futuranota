@@ -6,6 +6,8 @@ import { getCreditsDisplay } from "../../lib/planConfig.js";
 import { isAppSoundMuted, setAppSoundMuted } from "../../lib/appSoundPrefs.js";
 import { getGinaPrefs, setGinaPrefs } from "../../lib/gina/ginaPrefs.js";
 import { exportWorkspaceDataZip } from "../../lib/exportWorkspaceDataZip.js";
+import { getTrashItemCount, TRASH_CHANGED_EVENT } from "../../lib/workspaceTrashArchive.js";
+import { WorkspaceTrashOverlay } from "../workspace/WorkspaceTrashOverlay.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 
 function IconUser({ className = "" }) {
@@ -35,6 +37,8 @@ export function UserMenu() {
   const [ginaPrefs, setGinaPrefsState] = useState(() => getGinaPrefs());
   const [exportingData, setExportingData] = useState(false);
   const [exportDataError, setExportDataError] = useState("");
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashCount, setTrashCount] = useState(() => getTrashItemCount());
   const rootRef = useRef(null);
   const profile = usePlanStore((s) => s.profile);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
@@ -55,6 +59,13 @@ export function UserMenu() {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  useEffect(() => {
+    const syncTrashCount = () => setTrashCount(getTrashItemCount());
+    syncTrashCount();
+    window.addEventListener(TRASH_CHANGED_EVENT, syncTrashCount);
+    return () => window.removeEventListener(TRASH_CHANGED_EVENT, syncTrashCount);
+  }, []);
 
   if (!user) return null;
 
@@ -235,6 +246,28 @@ export function UserMenu() {
                 <div className="user-menu__setting user-menu__setting--stack">
                   <div className="user-menu__setting-copy">
                     <span className="user-menu__setting-title">
+                      {t("account.trash")}
+                    </span>
+                    <span className="user-menu__setting-hint">
+                      {t("account.trashHint")}
+                      {trashCount > 0 ? ` · ${trashCount}` : ""}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="user-menu__plan-credits user-menu__export-btn"
+                    onClick={() => {
+                      setOpen(false);
+                      setTrashOpen(true);
+                    }}
+                  >
+                    {t("trash.title")}
+                  </button>
+                </div>
+
+                <div className="user-menu__setting user-menu__setting--stack">
+                  <div className="user-menu__setting-copy">
+                    <span className="user-menu__setting-title">
                       {t("account.exportMyData")}
                     </span>
                     <span className="user-menu__setting-hint">
@@ -305,6 +338,10 @@ export function UserMenu() {
           </div>
         </div>
       ) : null}
+      <WorkspaceTrashOverlay
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+      />
     </div>
   );
 }

@@ -8,10 +8,12 @@ import {
   resolveDefaultObjectColor,
 } from "../lib/objectColors.js";
 import { useDocsStore } from "./docsStore.js";
+import { useNodesStore } from "./nodesStore.js";
 import {
   flushPersistenceSync,
   markCompaniesDeletedForSync,
 } from "./middleware/persistenceMiddleware.js";
+import { archiveCompanyBundleDelete } from "../lib/workspaceTrashArchive.js";
 
 export const useObjectsStore = create(
   devtools(
@@ -134,9 +136,26 @@ export const useObjectsStore = create(
       removeDocFromObject: (objectId, docId) => get().removeChildDoc(objectId, docId),
 
       deleteObjectWithCascade: (id) => {
+        const company = get().objects[id];
         const docs = useDocsStore.getState().getDocsByObject(id);
+        const nodeMap = useNodesStore.getState().nodes || {};
+        const nodes = [];
         for (const doc of docs) {
-          useDocsStore.getState().deleteDoc(doc.id);
+          for (const node of useNodesStore.getState().getNodesByDoc(doc.id)) {
+            if (node?.id) nodes.push(node);
+          }
+        }
+        for (const node of Object.values(nodeMap)) {
+          if (node?.id && !nodes.some((entry) => entry.id === node.id)) {
+            if (docs.some((doc) => (doc.nodeIds || []).includes(node.id))) {
+              nodes.push(node);
+            }
+          }
+        }
+        archiveCompanyBundleDelete(company, docs, nodes, { source: "user_confirm" });
+        const skipTrashArchive = { skipTrashArchive: true };
+        for (const doc of docs) {
+          useDocsStore.getState().deleteDoc(doc.id, skipTrashArchive);
         }
         get().deleteObject(id);
       },
