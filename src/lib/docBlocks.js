@@ -1066,9 +1066,11 @@ function normalizeImageSplitLibraryOwnerKind(value) {
 
 function normalizeImageSplitMediaFace(block, hasSrc, hasPrompt) {
   const raw = String(block?.mediaFace || "").trim();
-  if (raw === "prompt" && (hasPrompt || hasSrc)) return "prompt";
+  if (raw === "prompt") return "prompt";
   if (raw === "image" && hasSrc) return "image";
   if (!hasSrc && hasPrompt) return "prompt";
+  if (raw === "image") return "image";
+  if (!hasSrc && !hasPrompt) return "prompt";
   return "image";
 }
 

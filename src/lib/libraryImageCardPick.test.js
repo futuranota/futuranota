@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
 import {
   imageSplitHasFill,
   isImageCardLibraryPick,
@@ -171,6 +172,13 @@ describe("libraryImageCardPick", () => {
 
   it("empty card is not filled", () => {
     expect(imageSplitHasFill({ src: "", libraryPrompt: "  " })).toBe(false);
+  });
+
+  it("new image cards default to the Prompt face", () => {
+    const block = createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { mediaFace: "prompt" });
+    expect(block.mediaFace).toBe("prompt");
+    expect(block.imageSaved).toBe(false);
+    expect(block.libraryPrompt).toBe("");
   });
 
   it("does not rewrite a library ficha without a matching catalog", () => {

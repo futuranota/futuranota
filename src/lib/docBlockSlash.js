@@ -463,7 +463,10 @@ export function createDocBlockFromSlash(parsed) {
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
-    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: false });
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, {
+      openFilePicker: false,
+      mediaFace: "prompt",
+    });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.MOODBOARD) {

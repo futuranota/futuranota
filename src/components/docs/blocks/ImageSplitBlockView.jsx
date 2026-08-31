@@ -231,15 +231,14 @@ export function ImageSplitBlockView({
   const libraryPrompt = String(block?.libraryPrompt || "");
   libraryPromptRef.current = libraryPrompt;
   const hasLibraryPrompt = Boolean(libraryPrompt.trim());
-  const mediaFace = block?.mediaFace === "prompt" && (hasLibraryPrompt || imageSaved)
-    ? "prompt"
-    : (imageSaved ? "image" : (hasLibraryPrompt ? "prompt" : "image"));
-  const showFaceSwitch = imageSaved;
-  const showingImage = mediaFace === "image" && imageSaved;
-  const showingPrompt = mediaFace === "prompt" && (hasLibraryPrompt || imageSaved);
   const cardFilled = imageSplitHasFill(block);
   const splitSaved = Boolean(block?.splitSaved && cardFilled);
   const isEdit = !splitSaved;
+  const mediaFace = block?.mediaFace === "prompt" ? "prompt" : "image";
+  const showFaceSwitch = isEdit || imageSaved;
+  const showingImage = mediaFace === "image" && imageSaved;
+  const showingImageDropzone = mediaFace === "image" && !imageSaved && isEdit;
+  const showingPrompt = mediaFace === "prompt" && (isEdit || hasLibraryPrompt || imageSaved);
   const wallColor = String(block?.wallColor || "").trim();
   const wallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
 
@@ -570,7 +569,7 @@ export function ImageSplitBlockView({
       libraryPrompt: "",
       libraryTag: "",
       wallColor: null,
-      mediaFace: "image",
+      mediaFace: "prompt",
       openFilePicker: false,
       splitSaved: false,
     });
@@ -1128,8 +1127,34 @@ export function ImageSplitBlockView({
               )}
               {renderMediaBar()}
             </div>
-          ) : (
+          ) : showingImageDropzone ? (
             <div className="doc-image-split__media doc-image-split__media--empty">
+              {showFaceSwitch ? (
+                <div
+                  className="doc-image-split__face-switch doc-image-split__face-switch--ghost"
+                  role="tablist"
+                  aria-label={t("doc.library.viewSwitchAria")}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={false}
+                    className="doc-image-split__face-switch-btn"
+                    onClick={() => handleFaceChange("prompt")}
+                  >
+                    {t("doc.library.viewRef")}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected
+                    className="doc-image-split__face-switch-btn is-active"
+                    onClick={() => handleFaceChange("image")}
+                  >
+                    {t("doc.library.viewImage")}
+                  </button>
+                </div>
+              ) : null}
               <button
                 type="button"
                 className="doc-image-split__dropzone"
@@ -1145,7 +1170,7 @@ export function ImageSplitBlockView({
               </button>
               {renderMediaBar({ showSources: false })}
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="doc-image-split__side" style={columnStyle}>
