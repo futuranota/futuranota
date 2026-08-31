@@ -3,6 +3,7 @@ import { normalizeTagRefs } from "./docTagRefs.js";
 import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
+import { listPromptPrefixRanges } from "./docPromptPrefix.js";
 
 /**
  * @typedef {Object} MirrorSegment
@@ -12,6 +13,7 @@ import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
  * @property {import('./docLibraryNameRefs.js').DocLibraryNameRef} [libraryNameRef]
  * @property {import('./docTextMarkerRanges.js').MarkerRange} [marker] full range (seed source)
  * @property {boolean} [bold]
+ * @property {boolean} [promptPrefix]
  */
 
 /**
@@ -29,6 +31,7 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
   const libraryNameList = normalizeLibraryNameRefs(value, libraryNameRefs);
   const markerList = normalizeMarkerRanges(value, markerRanges);
   const boldList = normalizeBoldRanges(value, boldRanges);
+  const promptPrefixList = listPromptPrefixRanges(value);
 
   const boundaries = new Set([0, value.length]);
   for (const mention of mentionList) {
@@ -48,6 +51,10 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
     boundaries.add(marker.end);
   }
   for (const range of boldList) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  }
+  for (const range of promptPrefixList) {
     boundaries.add(range.start);
     boundaries.add(range.end);
   }
@@ -75,6 +82,9 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
     const bold = boldList.some(
       (item) => item.start <= start && item.end >= end,
     );
+    const promptPrefix = promptPrefixList.some(
+      (item) => item.start <= start && item.end >= end,
+    );
 
     segments.push({
       text: value.slice(start, end),
@@ -83,6 +93,7 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
       ...(libraryNameRef ? { libraryNameRef } : {}),
       ...(marker ? { marker } : {}),
       ...(bold ? { bold: true } : {}),
+      ...(promptPrefix ? { promptPrefix: true } : {}),
     });
   }
 

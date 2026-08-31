@@ -9090,7 +9090,8 @@ body.doc-content-resizing * {
 .doc-slash-field--tagrefs .doc-slash-field__mirror,
 .doc-slash-field--markers .doc-slash-field__mirror,
 .doc-slash-field--bolds .doc-slash-field__mirror,
-.doc-slash-field--library-names .doc-slash-field__mirror {
+.doc-slash-field--library-names .doc-slash-field__mirror,
+.doc-slash-field--prompt-prefix .doc-slash-field__mirror {
   position: absolute;
   z-index: 0;
   margin: 0;

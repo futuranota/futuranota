@@ -32,6 +32,7 @@ import {
 } from "../../../lib/docTextBoldRanges.js";
 import { markerStrokeSeed } from "../../../lib/docTextMarkerColors.js";
 import { buildMirrorSegments } from "../../../lib/docTextMirrorSegments.js";
+import { listPromptPrefixRanges } from "../../../lib/docPromptPrefix.js";
 import {
   applyTextEditToLibraryNameRefs,
   filterLibraryNameCandidates,
@@ -219,6 +220,12 @@ function MirrorContent({
           {segment.text}
         </span>
       );
+    } else if (segment.promptPrefix) {
+      inner = (
+        <span className="doc-slash-field__library-name doc-slash-field__prompt-prefix">
+          {segment.text}
+        </span>
+      );
     }
 
     // Faux-bold: paint weight via shadow only — never font-weight (metrics).
@@ -242,7 +249,7 @@ function MirrorContent({
       );
     }
 
-    if (segment.tagRef || segment.mention || segment.bold) {
+    if (segment.tagRef || segment.mention || segment.bold || segment.promptPrefix) {
       return <span key={segment.tagRef?.id || segment.mention?.id || index}>{inner}</span>;
     }
     return <span key={index}>{inner}</span>;
@@ -411,6 +418,8 @@ export function SlashAwareTextarea({
     [libraryNameRefs, libraryNameRefsEnabled, value],
   );
   const hasLibraryNameRefs = normalizedLibraryNameRefs.length > 0;
+  const promptPrefixRanges = useMemo(() => listPromptPrefixRanges(value), [value]);
+  const hasPromptPrefix = promptPrefixRanges.length > 0;
   const librarySpeakRefsEnabled = Array.isArray(librarySpeakRefs)
     || (libraryAssignEnabled && libraryNameInvokeEnabled);
   const normalizedLibrarySpeakRefs = useMemo(
@@ -418,7 +427,7 @@ export function SlashAwareTextarea({
     [librarySpeakRefs, librarySpeakRefsEnabled, value],
   );
   // Mirror overlay for chips, ink, and/or faux-bold glyphs.
-  const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold || hasLibraryNameRefs;
+  const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold || hasLibraryNameRefs || hasPromptPrefix;
   // Glyph overlays require transparent textarea text (same as mentions).
   const hideTextareaGlyphs = hasMentions || hasTagRefs || hasBold || hasLibraryNameRefs;
 
@@ -2045,6 +2054,7 @@ export function SlashAwareTextarea({
         hasMarkers ? "doc-slash-field--markers" : "",
         hasBold ? "doc-slash-field--bolds" : "",
         hasLibraryNameRefs ? "doc-slash-field--library-names" : "",
+        hasPromptPrefix ? "doc-slash-field--prompt-prefix" : "",
         hoveredMentionId || hoveredTagRefId ? "doc-slash-field--chip-hover" : "",
         wrapClassName,
       ].filter(Boolean).join(" ")}
