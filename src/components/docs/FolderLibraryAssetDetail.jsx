@@ -38,6 +38,22 @@ export function FolderLibraryAssetDetail({
     () => items.filter((item) => item.setId === assetId && item.category === "image"),
     [items, assetId],
   );
+  const gridItems = useMemo(() => {
+    if (!pendingClone) return imageItems;
+    const pendingId = String(pendingClone.id || "").trim();
+    if (pendingId && imageItems.some((item) => item.id === pendingId)) {
+      return imageItems;
+    }
+    const pendingTag = String(pendingClone.tag || "").trim();
+    return [
+      ...imageItems,
+      {
+        ...pendingClone,
+        id: pendingId || `pending-${pendingTag || "assign"}`,
+        __pendingAssign: true,
+      },
+    ];
+  }, [imageItems, pendingClone]);
   const pendingTag = String(pendingClone?.tag || "").trim();
   const hasPendingClone = Boolean(pendingTag);
   const canDownload = libraryAssetHasPack(asset, imageItems);
@@ -129,7 +145,7 @@ export function FolderLibraryAssetDetail({
 
           <div className="folder-library-element-modal__media">
             <LibraryAssetMetadataGrid
-              items={imageItems}
+              items={gridItems}
               onOpenItem={onOpenItem}
               interactive
             />

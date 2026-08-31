@@ -2932,7 +2932,10 @@ export function GinaChatCard({
                             ]);
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
-                            void Promise.resolve(onDocumentAction?.("organize")).catch(() => {});
+                            const organizeAction = chip.id === "doc_organize_style_story"
+                              ? "organize_script"
+                              : "organize";
+                            void Promise.resolve(onDocumentAction?.(organizeAction)).catch(() => {});
                             return;
                           }
                           if (chip.kind === "doc_export_dest") {

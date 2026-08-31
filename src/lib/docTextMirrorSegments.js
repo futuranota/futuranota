@@ -3,6 +3,7 @@ import { normalizeTagRefs } from "./docTagRefs.js";
 import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeLibraryNameRefs } from "./docLibraryNameRefs.js";
+import { listGuideArrowRanges } from "./docGuideArrow.js";
 import { listPromptPrefixRanges } from "./docPromptPrefix.js";
 
 /**
@@ -14,6 +15,7 @@ import { listPromptPrefixRanges } from "./docPromptPrefix.js";
  * @property {import('./docTextMarkerRanges.js').MarkerRange} [marker] full range (seed source)
  * @property {boolean} [bold]
  * @property {boolean} [promptPrefix]
+ * @property {boolean} [guideArrow]
  */
 
 /**
@@ -32,6 +34,7 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
   const markerList = normalizeMarkerRanges(value, markerRanges);
   const boldList = normalizeBoldRanges(value, boldRanges);
   const promptPrefixList = listPromptPrefixRanges(value);
+  const guideArrowList = listGuideArrowRanges(value);
 
   const boundaries = new Set([0, value.length]);
   for (const mention of mentionList) {
@@ -55,6 +58,10 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
     boundaries.add(range.end);
   }
   for (const range of promptPrefixList) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  }
+  for (const range of guideArrowList) {
     boundaries.add(range.start);
     boundaries.add(range.end);
   }
@@ -85,6 +92,9 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
     const promptPrefix = promptPrefixList.some(
       (item) => item.start <= start && item.end >= end,
     );
+    const guideArrow = guideArrowList.some(
+      (item) => item.start <= start && item.end >= end,
+    );
 
     segments.push({
       text: value.slice(start, end),
@@ -94,6 +104,7 @@ export function buildMirrorSegments(text, mentions, markerRanges, boldRanges, ta
       ...(marker ? { marker } : {}),
       ...(bold ? { bold: true } : {}),
       ...(promptPrefix ? { promptPrefix: true } : {}),
+      ...(guideArrow ? { guideArrow: true } : {}),
     });
   }
 

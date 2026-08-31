@@ -1,6 +1,11 @@
 import { getAssetGridLayout } from "../../lib/libraryAssetGridLayout.js";
 import { resolveFichaPreviewKind, promptPreviewText } from "../../lib/libraryFichaPreview.js";
 import { LibraryAssetImgMark } from "./LibraryAssetImgMark.jsx";
+import { useI18n } from "../../i18n/useI18n.js";
+
+function isPendingAssignItem(item) {
+  return Boolean(item?.__pendingAssign);
+}
 
 function LibraryAssetEmptySlot() {
   return (
@@ -13,15 +18,20 @@ function LibraryAssetEmptySlot() {
   );
 }
 
-function MetadataCardBody({ item }) {
+function MetadataCardBody({ item, pendingLabel = "" }) {
   const kind = resolveFichaPreviewKind(item, "image");
   if (kind === "image") {
     return (
-      <img
-        className="library-asset-metadata-card__img"
-        src={item.mediaUrl}
-        alt=""
-      />
+      <>
+        <img
+          className="library-asset-metadata-card__img"
+          src={item.mediaUrl}
+          alt=""
+        />
+        {isPendingAssignItem(item) && pendingLabel ? (
+          <span className="library-asset-metadata-card__pending-badge">{pendingLabel}</span>
+        ) : null}
+      </>
     );
   }
 
@@ -49,7 +59,10 @@ function assetCardClass(item) {
   const media = resolveFichaPreviewKind(item, "image") === "image"
     ? " library-asset-metadata-card--media"
     : "";
-  return `library-asset-queue__slot library-asset-metadata-card${media}`;
+  const pending = isPendingAssignItem(item)
+    ? " library-asset-metadata-card--pending"
+    : "";
+  return `library-asset-queue__slot library-asset-metadata-card${media}${pending}`;
 }
 
 /**
@@ -61,6 +74,8 @@ export function LibraryAssetMetadataGrid({
   onOpenItem,
   interactive = true,
 }) {
+  const { t } = useI18n();
+  const pendingLabel = t("doc.library.assetPendingPreview");
   const layout = getAssetGridLayout(items.length);
   const className = [
     "library-asset-queue",
@@ -76,7 +91,11 @@ export function LibraryAssetMetadataGrid({
       style={{ "--asset-slot-min": `${layout.slotMinHeight}px` }}
     >
       {items.map((item) => {
-        if (interactive && onOpenItem) {
+        const pending = isPendingAssignItem(item);
+        const ariaLabel = pending
+          ? `${item.tag || "IMG"} — ${pendingLabel}`
+          : (item.tag || "IMG");
+        if (interactive && onOpenItem && !pending) {
           return (
             <button
               key={item.id}
@@ -87,9 +106,9 @@ export function LibraryAssetMetadataGrid({
                 event.stopPropagation();
                 onOpenItem(item);
               }}
-              aria-label={item.tag || "IMG"}
+              aria-label={ariaLabel}
             >
-              <MetadataCardBody item={item} />
+              <MetadataCardBody item={item} pendingLabel={pendingLabel} />
             </button>
           );
         }
@@ -97,8 +116,9 @@ export function LibraryAssetMetadataGrid({
           <div
             key={item.id}
             className={assetCardClass(item)}
+            aria-label={pending ? ariaLabel : undefined}
           >
-            <MetadataCardBody item={item} />
+            <MetadataCardBody item={item} pendingLabel={pendingLabel} />
           </div>
         );
       })}

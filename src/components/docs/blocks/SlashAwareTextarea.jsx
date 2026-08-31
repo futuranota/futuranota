@@ -32,6 +32,7 @@ import {
 } from "../../../lib/docTextBoldRanges.js";
 import { markerStrokeSeed } from "../../../lib/docTextMarkerColors.js";
 import { buildMirrorSegments } from "../../../lib/docTextMirrorSegments.js";
+import { getGuideArrowRenderMode, listGuideArrowRanges } from "../../../lib/docGuideArrow.js";
 import { listPromptPrefixRanges } from "../../../lib/docPromptPrefix.js";
 import {
   applyTextEditToLibraryNameRefs,
@@ -98,6 +99,28 @@ function collapseDuplicateSlashTail(value) {
   return prefix + fixedTail;
 }
 
+function GuideArrowMirrorGlyph({ text, mode = "svg" }) {
+  if (mode === "text") {
+    return (
+      <span className="doc-slash-field__guide-arrow doc-slash-field__guide-arrow--text" aria-hidden>
+        {text}
+      </span>
+    );
+  }
+
+  return (
+    <span className="doc-slash-field__guide-arrow" aria-hidden>
+      <span className="doc-slash-field__guide-arrow__text">{text}</span>
+      <img
+        className="doc-slash-field__guide-arrow__icon"
+        src="/uploads/arrow-textarea.svg"
+        alt=""
+        draggable={false}
+      />
+    </span>
+  );
+}
+
 function MirrorContent({
   text,
   mentions,
@@ -105,6 +128,7 @@ function MirrorContent({
   libraryNameRefs,
   markerRanges,
   boldRanges,
+  guideArrowMode = "svg",
   tagRefCandidates = null,
   hoveredMentionId = null,
   hoveredTagRefId = null,
@@ -226,6 +250,8 @@ function MirrorContent({
           {segment.text}
         </span>
       );
+    } else if (segment.guideArrow) {
+      inner = <GuideArrowMirrorGlyph text={segment.text} mode={guideArrowMode} />;
     }
 
     // Faux-bold: paint weight via shadow only — never font-weight (metrics).
@@ -249,7 +275,7 @@ function MirrorContent({
       );
     }
 
-    if (segment.tagRef || segment.mention || segment.bold || segment.promptPrefix) {
+    if (segment.tagRef || segment.mention || segment.bold || segment.promptPrefix || segment.guideArrow) {
       return <span key={segment.tagRef?.id || segment.mention?.id || index}>{inner}</span>;
     }
     return <span key={index}>{inner}</span>;
@@ -420,6 +446,9 @@ export function SlashAwareTextarea({
   const hasLibraryNameRefs = normalizedLibraryNameRefs.length > 0;
   const promptPrefixRanges = useMemo(() => listPromptPrefixRanges(value), [value]);
   const hasPromptPrefix = promptPrefixRanges.length > 0;
+  const guideArrowRanges = useMemo(() => listGuideArrowRanges(value), [value]);
+  const hasGuideArrow = guideArrowRanges.length > 0;
+  const guideArrowMode = getGuideArrowRenderMode();
   const librarySpeakRefsEnabled = Array.isArray(librarySpeakRefs)
     || (libraryAssignEnabled && libraryNameInvokeEnabled);
   const normalizedLibrarySpeakRefs = useMemo(
@@ -427,9 +456,9 @@ export function SlashAwareTextarea({
     [librarySpeakRefs, librarySpeakRefsEnabled, value],
   );
   // Mirror overlay for chips, ink, and/or faux-bold glyphs.
-  const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold || hasLibraryNameRefs || hasPromptPrefix;
+  const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold || hasLibraryNameRefs || hasPromptPrefix || hasGuideArrow;
   // Glyph overlays require transparent textarea text (same as mentions).
-  const hideTextareaGlyphs = hasMentions || hasTagRefs || hasBold || hasLibraryNameRefs;
+  const hideTextareaGlyphs = hasMentions || hasTagRefs || hasBold || hasLibraryNameRefs || hasGuideArrow;
 
   const { slash } = splitBodyForSlash(value);
   const showGhost = Boolean(slash) && /^\/\s*$/.test(slash)
@@ -2055,6 +2084,7 @@ export function SlashAwareTextarea({
         hasBold ? "doc-slash-field--bolds" : "",
         hasLibraryNameRefs ? "doc-slash-field--library-names" : "",
         hasPromptPrefix ? "doc-slash-field--prompt-prefix" : "",
+        hasGuideArrow ? "doc-slash-field--guide-arrow" : "",
         hoveredMentionId || hoveredTagRefId ? "doc-slash-field--chip-hover" : "",
         wrapClassName,
       ].filter(Boolean).join(" ")}
@@ -2083,6 +2113,7 @@ export function SlashAwareTextarea({
             libraryNameRefs={normalizedLibraryNameRefs}
             markerRanges={normalizedMarkers}
             boldRanges={normalizedBolds}
+            guideArrowMode={guideArrowMode}
             tagRefCandidates={tagRefCandidates}
             hoveredMentionId={hoveredMentionId}
             hoveredTagRefId={hoveredTagRefId}

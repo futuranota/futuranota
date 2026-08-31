@@ -9091,7 +9091,8 @@ body.doc-content-resizing * {
 .doc-slash-field--markers .doc-slash-field__mirror,
 .doc-slash-field--bolds .doc-slash-field__mirror,
 .doc-slash-field--library-names .doc-slash-field__mirror,
-.doc-slash-field--prompt-prefix .doc-slash-field__mirror {
+.doc-slash-field--prompt-prefix .doc-slash-field__mirror,
+.doc-slash-field--guide-arrow .doc-slash-field__mirror {
   position: absolute;
   z-index: 0;
   margin: 0;
@@ -9134,6 +9135,33 @@ body.doc-content-resizing * {
     -0.28px 0 0 currentColor,
     0 0.28px 0 currentColor,
     0 -0.28px 0 currentColor;
+}
+
+.doc-slash-field__guide-arrow {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+.doc-slash-field__guide-arrow__text {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.doc-slash-field__guide-arrow__icon {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1.2em;
+  height: auto;
+  transform: translateY(-52%);
+  pointer-events: none;
+  display: block;
+}
+
+.doc-slash-field__guide-arrow--text {
+  color: #c6a1a0;
+  -webkit-text-fill-color: #c6a1a0;
 }
 
 /* ── Marker (plumón) strokes ─────────────────────────────────────────
@@ -10868,6 +10896,17 @@ body.doc-content-resizing * {
 .node-query-modal__export-pdf-library-float.is-ok {
   border-color: rgba(87, 188, 108, 0.45);
   color: rgba(200, 240, 210, 0.98);
+}
+
+.node-query-modal__organize-float--script {
+  border-color: rgba(198, 161, 160, 0.42);
+  color: rgba(220, 178, 176, 0.95);
+}
+
+.node-query-modal__organize-float--script:hover,
+.node-query-modal__organize-float--script:focus-visible {
+  border-color: rgba(198, 161, 160, 0.62);
+  color: #e8d4d2;
 }
 
 .node-query-modal__organize-float-label {
@@ -23491,6 +23530,28 @@ body.doc-content-resizing * {
 
 .library-asset-metadata-card--media {
   padding: 0;
+}
+
+.library-asset-metadata-card--pending {
+  outline: 1px dashed rgba(198, 161, 160, 0.65);
+  outline-offset: -1px;
+  opacity: 0.92;
+}
+
+.library-asset-metadata-card__pending-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.62);
+  pointer-events: none;
 }
 
 .library-asset-metadata-card__img {
