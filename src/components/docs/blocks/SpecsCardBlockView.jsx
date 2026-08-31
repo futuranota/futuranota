@@ -8,14 +8,24 @@ import {
 import { DIMENSION_UNIT_OPTIONS, WEIGHT_UNIT_OPTIONS } from "../../../lib/metricUnits.js";
 import { normalizeWallColor } from "../../../lib/folderLibraryNormalize.js";
 import { libraryItemToBannerPatch } from "../../../lib/libraryImageCardPick.js";
+import {
+  resolveSpecsCardPanelLinkColorId,
+  resolveSpecsCardPanelStyle,
+  getSpecsCardPanelTheme,
+} from "../../../lib/specsCardPanelThemes.js";
+import { normalizeNodeLinkColorId } from "../../../lib/docNodeLinkColors.js";
 import { useLibraryItems } from "../../../hooks/useLibraryItems.js";
 import { useLibraryImagePickerCreate } from "../../../hooks/useLibraryImagePickerCreate.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
+import { NodeLinkColorPicker } from "./NodeLinkColorPicker.jsx";
 
 const SPECS_EMPTY_ASPECT = 0.72;
 const SPECS_CAP_LINE_HEIGHT_PX = 20.3;
+const SPECS_PANEL_SWATCH_OVERRIDES = {
+  white: getSpecsCardPanelTheme("white").surface,
+};
 
 function safeSpecsData(block) {
   return normalizeSpecsCard(block);
@@ -36,7 +46,7 @@ function SpecsDimensionsDisplay({ specs }) {
         <Fragment key={`${part}-${index}`}>
           {index > 0 ? (
             <span className="doc-specs-card__dim-sep doc-specs-card__dim-sep--display" aria-hidden>
-              ×
+              x
             </span>
           ) : null}
           <span className="doc-specs-card__dim-val">{part}</span>
@@ -129,6 +139,7 @@ export function SpecsCardBlockView({
   onSave,
   onEdit,
   onDelete,
+  docNodeLinkColor,
   libraryOwnerKind = "folder",
   libraryOwnerId = "",
   folderLibraryId = "",
@@ -161,6 +172,18 @@ export function SpecsCardBlockView({
   }, [data.libraryItemId, libraryItems]);
 
   const mediaWallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
+  const panelThemeStyle = useMemo(
+    () => resolveSpecsCardPanelStyle(block, docNodeLinkColor),
+    [block, docNodeLinkColor],
+  );
+  const panelLinkColorId = useMemo(
+    () => resolveSpecsCardPanelLinkColorId(block, docNodeLinkColor),
+    [block, docNodeLinkColor],
+  );
+
+  const handlePanelColorChange = useCallback((nextColorId) => {
+    onChange?.({ nodeLinkColor: normalizeNodeLinkColorId(nextColorId) });
+  }, [onChange]);
 
   const {
     pickerFolderId,
@@ -529,7 +552,10 @@ export function SpecsCardBlockView({
             </div>
           </div>
 
-          <div className="doc-specs-card__panel scroll-match-bg">
+          <div
+            className="doc-specs-card__panel scroll-match-bg"
+            style={panelThemeStyle}
+          >
             <SpecsPanelActions
               isEdit={isEdit}
               canSave={canSave}
@@ -564,7 +590,7 @@ export function SpecsCardBlockView({
                   {(["x", "y", "z"]).map((axis, index) => (
                     <Fragment key={axis}>
                       {index > 0 ? (
-                        <span className="doc-specs-card__dim-sep doc-specs-card__dim-sep--edit" aria-hidden>×</span>
+                        <span className="doc-specs-card__dim-sep doc-specs-card__dim-sep--edit" aria-hidden>x</span>
                       ) : null}
                       <input
                         type="text"
@@ -682,6 +708,22 @@ export function SpecsCardBlockView({
                 </span>
               ),
               { rowClass: "doc-specs-card__row--optional" },
+            ) : null}
+
+            {isEdit ? (
+              <div
+                className="doc-specs-card__panel-colors"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <NodeLinkColorPicker
+                  variant="inline"
+                  value={panelLinkColorId}
+                  onChange={handlePanelColorChange}
+                  label={t("doc.specsCard.panelColor")}
+                  swatchOverrides={SPECS_PANEL_SWATCH_OVERRIDES}
+                />
+              </div>
             ) : null}
           </div>
         </div>

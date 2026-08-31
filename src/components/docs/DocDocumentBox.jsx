@@ -969,6 +969,7 @@ export function DocDocumentBox({
               libraryOwnerKind="folder"
               libraryOwnerId={docId || ""}
               folderLibraryId={docId || ""}
+              docNodeLinkColor={metaStripNodeLinkColor}
             />
           ) : !isFolderSlashSurface ? (
             <div

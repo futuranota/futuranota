@@ -75,6 +75,7 @@ import {
 import { TOOL_SLASH_ACTIONS } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, ensureAllLinkedOwnerContinuationSlots, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
+import { resolveSpecsCardActiveLinkColorId } from "../../../lib/specsCardPanelThemes.js";
 import {
   buildDetachedWidgetEmbedded,
   captureDocBlockWidgetSnapshot,
@@ -211,6 +212,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   folderViewMode = null,
   folderIndexMode = false,
   allowShredDrag = false,
+  docNodeLinkColor = NO_NODE_LINK_COLOR_ID,
   libraryOwnerKind = "folder",
   libraryOwnerId = "",
   folderLibraryId = "",
@@ -2204,6 +2206,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.SPECS_CARD ? (
             <SpecsCardBlockView
               block={block}
+              docNodeLinkColor={docNodeLinkColor}
               libraryOwnerKind={libraryOwnerKind}
               libraryOwnerId={libraryOwnerId}
               folderLibraryId={folderLibraryId}
@@ -2219,7 +2222,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onSave={() => {
                 if (!(block.imageSaved && block.src)) return;
-                let next = updateBlockAt(blocksRef.current, index, { specsSaved: true });
+                const frozenColor = resolveSpecsCardActiveLinkColorId(block, docNodeLinkColor);
+                let next = updateBlockAt(blocksRef.current, index, {
+                  specsSaved: true,
+                  nodeLinkColor: frozenColor,
+                  panelLinkColor: frozenColor,
+                });
                 next = ensureEmptyTextBlockAfter(next, index);
                 setBlocks(next);
                 const textBlock = next[index + 1];

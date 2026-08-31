@@ -7,6 +7,7 @@ export function NodeLinkColorPicker({
   className = "",
   label = "Nodes colors",
   variant = "block",
+  swatchOverrides = null,
 }) {
   if (!onChange && variant !== "inline") return null;
 
@@ -21,7 +22,8 @@ export function NodeLinkColorPicker({
           aria-label={colorLabel}
           title={colorLabel}
           className={"doc-node-link-color" + (value === id ? " is-on" : "")}
-          style={{ "--node-link-swatch": stroke }}
+          data-node-link-color={id}
+          style={{ "--node-link-swatch": swatchOverrides?.[id] ?? stroke }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();

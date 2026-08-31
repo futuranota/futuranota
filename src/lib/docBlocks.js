@@ -1527,6 +1527,12 @@ export function normalizeSpecsCard(block) {
   const imageSaved = media.imageSaved;
   const specsSaved = Boolean(block?.specsSaved) && imageSaved;
   const preserveLiveText = !specsSaved;
+  const nodeLinkColor = block?.nodeLinkColor != null && String(block.nodeLinkColor).trim() !== ""
+    ? normalizeNodeLinkColorId(block.nodeLinkColor)
+    : undefined;
+  const panelLinkColor = block?.panelLinkColor != null && String(block.panelLinkColor).trim() !== ""
+    ? normalizeNodeLinkColorId(block.panelLinkColor)
+    : undefined;
   return {
     src: media.src,
     name: media.name,
@@ -1540,6 +1546,8 @@ export function normalizeSpecsCard(block) {
     openFilePicker: media.openFilePicker,
     specsSaved,
     wallColor: normalizeWallColor(block?.wallColor ?? block?.panelColor),
+    ...(nodeLinkColor != null ? { nodeLinkColor } : {}),
+    ...(panelLinkColor != null ? { panelLinkColor } : {}),
     specs: {
       name: preserveLiveText ? String(specs.name ?? "") : String(specs.name ?? "").trim(),
       partNumber: String(specs.partNumber ?? "").trim(),
@@ -2838,6 +2846,8 @@ export function docBlocksToBody(blocks) {
           libraryOwnerId: normalized.libraryOwnerId,
           specsSaved: normalized.specsSaved,
           wallColor: normalized.wallColor,
+          nodeLinkColor: normalized.nodeLinkColor,
+          panelLinkColor: normalized.panelLinkColor,
           specs: normalized.specs,
         })}`;
       }

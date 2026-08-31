@@ -333,6 +333,7 @@ export const messages = {
         weight: "Weight",
         weightPlaceholder: "Value",
         unitLabel: "Unit",
+        panelColor: "Panel color",
         weightUnitLabel: "Weight unit",
       },
       layoutSwitch: {
@@ -2417,6 +2418,7 @@ export const messages = {
         weight: "Peso",
         weightPlaceholder: "Valor",
         unitLabel: "Unidad",
+        panelColor: "Color del panel",
         weightUnitLabel: "Unidad de peso",
       },
       layoutSwitch: {

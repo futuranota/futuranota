@@ -28,6 +28,8 @@ import {
   reconcileDocumentRetroactiveRefs,
 } from "../../lib/retroactiveLibraryNameRefs.js";
 import { imageSplitHasFill } from "../../lib/libraryImageCardPick.js";
+import { NO_NODE_LINK_COLOR_ID } from "../../lib/docNodeLinkColors.js";
+import { resolveSpecsCardActiveLinkColorId } from "../../lib/specsCardPanelThemes.js";
 import { assignLibraryItemToSet, cloneLibraryItemIntoSet } from "../../lib/folderLibrary.js";
 import {
   applyTextEditToMarkerRanges,
@@ -1738,10 +1740,17 @@ export function NodeWritingBlockStack({
                 }}
                 onSave={() => {
                   if (!(block.imageSaved && block.src)) return;
+                  const frozenColor = resolveSpecsCardActiveLinkColorId(block, NO_NODE_LINK_COLOR_ID);
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex
-                      ? { ...entry, specsSaved: true, type: NODE_BLOCK_TYPES.SPECS_CARD }
+                      ? {
+                        ...entry,
+                        specsSaved: true,
+                        nodeLinkColor: frozenColor,
+                        panelLinkColor: frozenColor,
+                        type: NODE_BLOCK_TYPES.SPECS_CARD,
+                      }
                       : entry
                   ));
                   next = ensureEmptyTextBlockAfterNode(next, blockIndex);
