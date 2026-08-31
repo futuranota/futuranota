@@ -829,20 +829,24 @@ export function SlashAwareTextarea({
   const syncMirrorTypography = useCallback(() => {
     const el = textareaRef.current;
     const mirror = mirrorRef.current;
-    if (!el || !mirror) return;
+    const wrap = wrapRef.current;
+    if (!el || !mirror || !wrap) return;
     copyTextareaTypography(el, mirror);
     const style = window.getComputedStyle(el);
+    const wrapRect = wrap.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
     mirror.style.position = "absolute";
-    mirror.style.top = "0";
-    mirror.style.left = "0";
-    mirror.style.width = `${el.offsetWidth}px`;
-    mirror.style.height = `${el.offsetHeight}px`;
+    mirror.style.top = `${elRect.top - wrapRect.top}px`;
+    mirror.style.left = `${elRect.left - wrapRect.left}px`;
+    mirror.style.right = "auto";
+    mirror.style.bottom = "auto";
+    // client* matches textarea line-wrap width (excludes scrollbar gutter).
+    mirror.style.width = `${el.clientWidth}px`;
+    mirror.style.height = `${el.clientHeight}px`;
     mirror.style.minHeight = style.minHeight;
-    mirror.style.margin = style.margin;
+    mirror.style.margin = "0";
     mirror.style.boxSizing = style.boxSizing;
     mirror.style.overflow = style.overflowY === "auto" ? "auto" : "hidden";
-    mirror.style.wordBreak = style.wordBreak;
-    mirror.style.overflowWrap = style.overflowWrap;
     mirror.style.zIndex = "0";
     mirror.scrollTop = el.scrollTop;
     mirror.scrollLeft = el.scrollLeft;
@@ -1188,7 +1192,67 @@ export function SlashAwareTextarea({
     syncHeight(true);
     syncGhostPosition();
     if (hasOverlay) syncMirrorTypography();
-  }, [value, hasOverlay, syncHeight, syncGhostPosition, syncMirrorTypography, normalizedMentions, normalizedTagRefs, normalizedMarkers, normalizedBolds]);
+  }, [
+    value,
+    hasOverlay,
+    hideTextareaGlyphs,
+    syncHeight,
+    syncGhostPosition,
+    syncMirrorTypography,
+    normalizedMentions,
+    normalizedTagRefs,
+    normalizedMarkers,
+    normalizedBolds,
+    normalizedLibraryNameRefs,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!hasOverlay) return undefined;
+    const el = textareaRef.current;
+    const wrap = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+
+    const sync = () => {
+      requestAnimationFrame(() => {
+        syncMirrorTypography();
+      });
+    };
+
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    if (wrap) ro.observe(wrap);
+
+    let typographyRoot = el.parentElement;
+    while (
+      typographyRoot
+      && !typographyRoot.style?.getPropertyValue?.("--font-doc-size")
+    ) {
+      typographyRoot = typographyRoot.parentElement;
+    }
+
+    let typographyObserver = null;
+    if (typographyRoot && typeof MutationObserver !== "undefined") {
+      typographyObserver = new MutationObserver(sync);
+      typographyObserver.observe(typographyRoot, {
+        attributes: true,
+        attributeFilter: ["style"],
+      });
+    }
+
+    let fontsCancelled = false;
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        if (!fontsCancelled) sync();
+      });
+    }
+
+    return () => {
+      fontsCancelled = true;
+      ro.disconnect();
+      typographyObserver?.disconnect();
+    };
+  }, [hasOverlay, syncMirrorTypography, textareaRef]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -2126,6 +2190,7 @@ export function SlashAwareTextarea({
             onBlur?.(e);
             return;
           }
+          if (hasOverlay) syncMirrorTypography();
           setFocused(false);
           setActiveQuery(null);
           activeQueryRef.current = null;
@@ -2141,6 +2206,7 @@ export function SlashAwareTextarea({
           onFocus?.(e);
           syncGhostPosition();
           syncMentionQuery();
+          if (hasOverlay) syncMirrorTypography();
         }}
         spellCheck={false}
         aria-label={ariaLabel}

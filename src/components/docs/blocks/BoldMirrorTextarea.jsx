@@ -46,25 +46,39 @@ export function BoldMirrorTextarea({
   const syncMirrorTypography = useCallback(() => {
     const el = textareaRef.current;
     const mirror = mirrorRef.current;
+    const wrap = mirror?.parentElement;
     if (!el || !mirror) return;
 
     copyTextareaTypography(el, mirror);
     const style = window.getComputedStyle(el);
-    mirror.style.position = "absolute";
-    mirror.style.top = "0";
-    mirror.style.left = "0";
-    mirror.style.width = `${el.offsetWidth}px`;
-    mirror.style.height = `${el.offsetHeight}px`;
+    if (wrap) {
+      const wrapRect = wrap.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      mirror.style.position = "absolute";
+      mirror.style.top = `${elRect.top - wrapRect.top}px`;
+      mirror.style.left = `${elRect.left - wrapRect.left}px`;
+      mirror.style.right = "auto";
+      mirror.style.bottom = "auto";
+      mirror.style.width = `${el.clientWidth}px`;
+      mirror.style.height = `${el.clientHeight}px`;
+    } else {
+      mirror.style.position = "absolute";
+      mirror.style.top = "0";
+      mirror.style.left = "0";
+      mirror.style.right = "auto";
+      mirror.style.bottom = "auto";
+      mirror.style.width = `${el.clientWidth}px`;
+      mirror.style.height = `${el.clientHeight}px`;
+    }
     mirror.style.minHeight = style.minHeight;
-    mirror.style.margin = style.margin;
+    mirror.style.margin = "0";
     mirror.style.boxSizing = style.boxSizing;
     mirror.style.overflow = style.overflowY === "auto" ? "auto" : "hidden";
-    mirror.style.wordBreak = style.wordBreak;
-    mirror.style.overflowWrap = style.overflowWrap;
     mirror.style.pointerEvents = "none";
     mirror.style.color = style.color;
     mirror.style.zIndex = "0";
     mirror.scrollTop = el.scrollTop;
+    mirror.scrollLeft = el.scrollLeft;
   }, [textareaRef]);
 
   const syncHeight = useCallback(() => {

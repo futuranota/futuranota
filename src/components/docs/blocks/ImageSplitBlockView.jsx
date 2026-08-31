@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BANNER_HEADLINE_MAX,
+  BANNER_HEADLINE_MAX_LINES,
   createTodoItem,
   IMAGE_SPLIT_BODY_MAX_LINES,
   IMAGE_SPLIT_BODY_MODE,
@@ -24,6 +25,64 @@ import {
 const IMAGE_SPLIT_CARD_PAD_PX = 6;
 /** Empty-dropzone / loading placeholder aspect (height / width). */
 const IMAGE_SPLIT_EMPTY_ASPECT = 0.72;
+/** Matches `.doc-image-split__prompt` vertical padding + float bar reserve. */
+const IMAGE_SPLIT_PROMPT_PAD_Y_PX = 28 + 36;
+const IMAGE_SPLIT_PROMPT_FLOAT_BAR_PX = 44;
+const IMAGE_SPLIT_PROMPT_FONT_PX = 24;
+const IMAGE_SPLIT_PROMPT_LINE_HEIGHT = 1.2;
+const IMAGE_SPLIT_PROMPT_MIN_LINES = 3;
+
+/**
+ * Natural media-column height for the Prompt face from wrapped prompt copy.
+ * @param {number} mediaWidth
+ * @param {string} promptText
+ * @param {{ cap?: boolean }} [opts]
+ */
+function measurePromptMediaHeight(mediaWidth, promptText, { cap = true } = {}) {
+  const lineHeightPx = IMAGE_SPLIT_PROMPT_FONT_PX * IMAGE_SPLIT_PROMPT_LINE_HEIGHT;
+  const minMediaH = Math.round(
+    IMAGE_SPLIT_PROMPT_MIN_LINES * lineHeightPx
+    + IMAGE_SPLIT_PROMPT_PAD_Y_PX
+    + IMAGE_SPLIT_PROMPT_FLOAT_BAR_PX,
+  );
+  const maxMediaH = Math.round(
+    BANNER_HEADLINE_MAX_LINES * lineHeightPx
+    + IMAGE_SPLIT_PROMPT_PAD_Y_PX
+    + IMAGE_SPLIT_PROMPT_FLOAT_BAR_PX,
+  );
+  const width = Math.max(1, Math.floor(mediaWidth) - 22);
+  if (width < 8) return minMediaH;
+
+  const probe = document.createElement("div");
+  probe.style.cssText = [
+    "position:absolute",
+    "visibility:hidden",
+    "pointer-events:none",
+    "top:0",
+    "left:0",
+    `width:${width}px`,
+    "margin:0",
+    "padding:0",
+    "border:none",
+    "box-sizing:border-box",
+    'font-family:"Inter", var(--font-doc), sans-serif',
+    `font-size:${IMAGE_SPLIT_PROMPT_FONT_PX}px`,
+    "font-weight:700",
+    `line-height:${IMAGE_SPLIT_PROMPT_LINE_HEIGHT}`,
+    "letter-spacing:-0.01em",
+    "white-space:pre-wrap",
+    "word-break:break-word",
+    "overflow-wrap:break-word",
+  ].join(";");
+  probe.textContent = String(promptText ?? "").trim() || " ";
+  document.body.appendChild(probe);
+  const textH = Math.max(lineHeightPx, probe.scrollHeight);
+  probe.remove();
+
+  const natural = Math.round(textH + IMAGE_SPLIT_PROMPT_PAD_Y_PX + IMAGE_SPLIT_PROMPT_FLOAT_BAR_PX);
+  if (!cap) return Math.max(minMediaH, natural);
+  return Math.max(minMediaH, Math.min(natural, maxMediaH));
+}
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -205,6 +264,7 @@ export function ImageSplitBlockView({
   const bodyBelowRef = useRef(null);
   const bodyWrapRef = useRef(null);
   const bodyBelowWrapRef = useRef(null);
+  const promptScrollCapRef = useRef(false);
   const todoInputRefs = useRef({});
   const bodyLimitTimerRef = useRef(null);
   const libraryPromptSyncTimerRef = useRef(null);
@@ -449,16 +509,30 @@ export function ImageSplitBlockView({
 
       const padTotal = IMAGE_SPLIT_CARD_PAD_PX * 2;
       const innerW = Math.max(1, card.clientWidth - padTotal);
-      const imgEl = card.querySelector("img.doc-image-split__img");
-      const iw = Number(block?.width) || imgEl?.naturalWidth || 0;
-      const ih = Number(block?.height) || imgEl?.naturalHeight || 0;
-      const ratio = (showingImage && iw > 0 && ih > 0)
-        ? (ih / iw)
-        : IMAGE_SPLIT_EMPTY_ASPECT;
-      const naturalCardH = Math.round(innerW * ratio + padTotal);
+      let naturalCardH;
+      if (showingPrompt) {
+        const promptUncapped = measurePromptMediaHeight(innerW, libraryPrompt, { cap: false });
+        const promptMediaH = measurePromptMediaHeight(innerW, libraryPrompt, { cap: true });
+        promptScrollCapRef.current = promptUncapped > promptMediaH;
+        card.dataset.promptScroll = promptScrollCapRef.current ? "1" : "0";
+        naturalCardH = promptMediaH + padTotal;
+      } else {
+        promptScrollCapRef.current = false;
+        card.dataset.promptScroll = "0";
+        const imgEl = card.querySelector("img.doc-image-split__img");
+        const iw = Number(block?.width) || imgEl?.naturalWidth || 0;
+        const ih = Number(block?.height) || imgEl?.naturalHeight || 0;
+        const ratio = (showingImage && iw > 0 && ih > 0)
+          ? (ih / iw)
+          : IMAGE_SPLIT_EMPTY_ASPECT;
+        naturalCardH = Math.round(innerW * ratio + padTotal);
+      }
+      const heightCap = showingPrompt
+        ? naturalCardH
+        : Math.min(naturalCardH, portraitCap);
       const cardHeight = Math.max(
         Math.round(lineHeight + padTotal),
-        Math.min(naturalCardH, portraitCap),
+        heightCap,
       );
 
       // Side column matches card height; body fit uses remaining space under headline.
@@ -499,8 +573,20 @@ export function ImageSplitBlockView({
       card.style.height = "";
       card.style.minHeight = "";
       card.style.maxHeight = "";
+      delete card.dataset.promptScroll;
     };
-  }, [showingImage, splitSaved, isTodoBody, headlineValue, block?.src, block?.width, block?.height, mediaFace]);
+  }, [
+    showingImage,
+    showingPrompt,
+    libraryPrompt,
+    splitSaved,
+    isTodoBody,
+    headlineValue,
+    block?.src,
+    block?.width,
+    block?.height,
+    mediaFace,
+  ]);
 
   // Reflow side/below whenever body or side height changes.
   useLayoutEffect(() => {

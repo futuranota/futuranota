@@ -12,14 +12,21 @@ export function copyTextareaTypography(textarea, mirror) {
   const style = window.getComputedStyle(textarea);
   mirror.style.boxSizing = style.boxSizing;
   mirror.style.border = style.border;
-  mirror.style.font = style.font;
+  mirror.style.fontFamily = style.fontFamily;
   mirror.style.fontSize = style.fontSize;
   mirror.style.fontWeight = style.fontWeight;
+  mirror.style.fontStyle = style.fontStyle;
   mirror.style.lineHeight = style.lineHeight;
   mirror.style.letterSpacing = style.letterSpacing;
+  mirror.style.fontOpticalSizing = style.fontOpticalSizing || "";
+  mirror.style.fontKerning = style.fontKerning;
+  mirror.style.textIndent = style.textIndent;
   mirror.style.padding = style.padding;
   mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.wordBreak = style.wordBreak || "break-word";
+  mirror.style.overflowWrap = style.overflowWrap || "break-word";
   mirror.style.wordWrap = "break-word";
+  mirror.style.tabSize = style.tabSize;
   mirror.style.overflow = "hidden";
 }
 

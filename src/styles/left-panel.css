@@ -9089,9 +9089,9 @@ body.doc-content-resizing * {
 .doc-slash-field--mentions .doc-slash-field__mirror,
 .doc-slash-field--tagrefs .doc-slash-field__mirror,
 .doc-slash-field--markers .doc-slash-field__mirror,
-.doc-slash-field--bolds .doc-slash-field__mirror {
+.doc-slash-field--bolds .doc-slash-field__mirror,
+.doc-slash-field--library-names .doc-slash-field__mirror {
   position: absolute;
-  inset: 0;
   z-index: 0;
   margin: 0;
   pointer-events: none;
@@ -11631,7 +11631,7 @@ body.doc-content-resizing * {
   padding: 6px;
   box-sizing: border-box;
   border-radius: 5px;
-  background: #F1F1F1;
+  background: var(--surface-base);
   align-self: flex-start;
   overflow: hidden;
   position: relative;
@@ -12035,20 +12035,21 @@ body.doc-content-resizing * {
 .doc-image-split__media--prompt {
   flex-direction: column;
   align-items: stretch;
-  justify-content: stretch;
+  justify-content: flex-start;
   background: var(--surface-base);
 }
 
 .doc-image-split__prompt {
   display: block;
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  height: auto;
   min-height: 0;
   margin: 0;
   padding: 28px 12px 36px 10px;
   border: none;
   resize: none;
-  overflow: auto;
+  overflow: hidden;
   background: transparent;
   outline: none;
   font-family: "Inter", var(--font-doc), sans-serif;
@@ -12085,6 +12086,10 @@ body.doc-content-resizing * {
 }
 
 .doc-image-split__prompt--static {
+  overflow: hidden;
+}
+
+.doc-image-split__card[data-prompt-scroll="1"] .doc-image-split__prompt {
   overflow: auto;
 }
 
