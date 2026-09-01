@@ -15,7 +15,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   speechLang?: string,
  *   labels?: Record<string, string>,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | object>,
- *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library" | "export_md" | "save_md_library") => void | Promise<void>,
+ *   onDocumentAction?: (action: "organize" | "organize_script" | "import_pdf" | "export_pdf" | "save_pdf_library" | "export_md" | "save_md_library") => void | boolean | Promise<void | boolean>,
  *   writingEmpty?: boolean,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,

@@ -27,6 +27,7 @@ import {
   buildGinaPdfUploadChip,
   buildGinaPdfWaitMessage,
   buildGinaPdfDoneMessage,
+  buildGinaScriptAppliedAck,
 } from "../../lib/gina/ginaDocActionChips.js";
 import { buildGinaDocumentSyncOpening } from "../../lib/gina/ginaOpenings.js";
 import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
@@ -787,7 +788,7 @@ function joinTranscript(finalParts, interim) {
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
  *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null, searchSequence?: { preludeMessage?: string } | null }>,
- *   onDocumentAction?: (action: "organize" | "import_pdf" | "export_pdf" | "save_pdf_library" | "export_md" | "save_md_library") => void | Promise<void>,
+ *   onDocumentAction?: (action: "organize" | "organize_script" | "import_pdf" | "export_pdf" | "save_pdf_library" | "export_md" | "save_md_library") => void | boolean | Promise<void | boolean>,
  *   writingEmpty?: boolean,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
@@ -1070,6 +1071,7 @@ export function GinaChatCard({
           locale: chipLocale,
           surface: "document",
           mode: "first",
+          writingEmpty: Boolean(writingEmpty),
         });
         setMessages((prev) => {
           if (prev.some((m) => m.sender === "ai")) return prev;
@@ -1154,7 +1156,7 @@ export function GinaChatCard({
       if (soundTimer != null) window.clearTimeout(soundTimer);
       if (textTimer != null) window.clearTimeout(textTimer);
     };
-  }, [openingMessage, openingMode, chipLocale, documentId, autoRunPrompt]);
+  }, [openingMessage, openingMode, chipLocale, documentId, autoRunPrompt, writingEmpty]);
 
   useEffect(() => () => {
     stopGinaFilesMovementSound();
@@ -2797,6 +2799,40 @@ export function GinaChatCard({
                               setIsAiAnimating(true);
                               return;
                             }
+                            if (chip.action === "organize_script") {
+                              const ackId = makeMsgId();
+                              setMessages((prev) => [
+                                ...prev,
+                                { id: makeMsgId(), sender: "user", text: label },
+                                {
+                                  id: ackId,
+                                  sender: "ai",
+                                  text: buildGinaScriptAppliedAck({ locale: chipLocale }),
+                                  plainBody: true,
+                                  visualization: null,
+                                  chips: null,
+                                },
+                              ]);
+                              isAiAnimatingRef.current = true;
+                              setIsAiAnimating(true);
+                              void Promise.resolve(onDocumentAction?.("organize_script"))
+                                .then((changed) => {
+                                  if (typeof changed !== "boolean") return;
+                                  setMessages((prev) => prev.map((m) => (
+                                    m.id === ackId
+                                      ? {
+                                        ...m,
+                                        text: buildGinaScriptAppliedAck({
+                                          locale: chipLocale,
+                                          changed,
+                                        }),
+                                      }
+                                      : m
+                                  )));
+                                })
+                                .catch(() => {});
+                              return;
+                            }
                             return;
                           }
                           if (chip.kind === "doc_export_format") {
@@ -2932,10 +2968,7 @@ export function GinaChatCard({
                             ]);
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
-                            const organizeAction = chip.id === "doc_organize_style_story"
-                              ? "organize_script"
-                              : "organize";
-                            void Promise.resolve(onDocumentAction?.(organizeAction)).catch(() => {});
+                            void Promise.resolve(onDocumentAction?.("organize")).catch(() => {});
                             return;
                           }
                           if (chip.kind === "doc_export_dest") {
@@ -3171,6 +3204,40 @@ export function GinaChatCard({
                         ]);
                         isAiAnimatingRef.current = true;
                         setIsAiAnimating(true);
+                        return;
+                      }
+                      if (item.action === "organize_script") {
+                        const ackId = makeMsgId();
+                        setMessages((prev) => [
+                          ...prev,
+                          { id: makeMsgId(), sender: "user", text: label },
+                          {
+                            id: ackId,
+                            sender: "ai",
+                            text: buildGinaScriptAppliedAck({ locale: chipLocale }),
+                            plainBody: true,
+                            visualization: null,
+                            chips: null,
+                          },
+                        ]);
+                        isAiAnimatingRef.current = true;
+                        setIsAiAnimating(true);
+                        void Promise.resolve(onDocumentAction?.("organize_script"))
+                          .then((changed) => {
+                            if (typeof changed !== "boolean") return;
+                            setMessages((prev) => prev.map((m) => (
+                              m.id === ackId
+                                ? {
+                                  ...m,
+                                  text: buildGinaScriptAppliedAck({
+                                    locale: chipLocale,
+                                    changed,
+                                  }),
+                                }
+                                : m
+                            )));
+                          })
+                          .catch(() => {});
                       }
                     }}
                   >

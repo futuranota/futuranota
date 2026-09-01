@@ -30,7 +30,6 @@ import {
   computeTextEditDelta,
   normalizeBoldRanges,
 } from "../../../lib/docTextBoldRanges.js";
-import { markerStrokeSeed } from "../../../lib/docTextMarkerColors.js";
 import { buildMirrorSegments } from "../../../lib/docTextMirrorSegments.js";
 import { getGuideArrowRenderMode, listGuideArrowRanges } from "../../../lib/docGuideArrow.js";
 import { listPromptPrefixRanges } from "../../../lib/docPromptPrefix.js";
@@ -267,7 +266,6 @@ function MirrorContent({
           className={
             "doc-text-marker"
             + ` doc-text-marker--${marker.colorId}`
-            + ` doc-text-marker--seed${markerStrokeSeed(marker)}`
           }
         >
           {inner}
@@ -285,7 +283,7 @@ function MirrorContent({
 /**
  * Textarea for slash commands at end of a line.
  * Optional company @tag mentions: autocomplete + pink mirror + hover card.
- * Optional marker (highlighter) ranges: plumón ink painted in the mirror.
+ * Optional marker (highlighter) ranges: colored ink on the mirror glyphs.
  * Optional bold ranges: faux-bold in the mirror (no font-weight metric shift).
  */
 export function SlashAwareTextarea({

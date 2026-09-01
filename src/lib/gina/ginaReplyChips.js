@@ -88,6 +88,7 @@ const STATUS_CHIP_META = {
  *   locale?: string,
  *   hasDaySheet?: boolean,
  *   surface?: "dashboard" | "document",
+ *   writingEmpty?: boolean,
  *   mode?: "first" | "return" | "progress",
  * }} [opts]
  * @returns {GinaReplyChip[]}
@@ -117,12 +118,19 @@ export function buildGinaOpeningChips(opts = {}) {
         primary: true,
       },
       {
-        id: "doc_algo_mas",
-        kind: "more_actions",
-        label: en ? "Something else" : "Algo más",
-        text: en ? "Something else" : "Algo más",
+        id: "doc_action_script",
+        kind: "doc_action",
+        action: "organize_script",
+        label: en ? "Fix script" : "Arreglar Guion",
+        text: en ? "Fix script" : "Arreglar Guion",
       },
     ];
+    docChips.push({
+      id: "doc_algo_mas",
+      kind: "more_actions",
+      label: en ? "Something else" : "Algo más",
+      text: en ? "Something else" : "Algo más",
+    });
     return docChips;
   }
 

@@ -11,6 +11,7 @@ import {
   buildGinaPdfToTextMessage,
   buildGinaOrganizeAppliedAck,
   buildGinaExportAppliedAck,
+  buildGinaScriptAppliedAck,
 } from "./ginaDocActionChips.js";
 
 describe("ginaDocActionChips", () => {
@@ -96,5 +97,13 @@ describe("ginaDocActionChips", () => {
       .toContain("estándar");
     expect(buildGinaExportAppliedAck({ locale: "es", action: "export_md" }))
       .toMatch(/Markdown/);
+  });
+
+  it("script ack reflects whether anything changed", () => {
+    expect(buildGinaScriptAppliedAck({ locale: "es" })).toMatch(/arreglé el guion/);
+    expect(buildGinaScriptAppliedAck({ locale: "es", changed: false }))
+      .toMatch(/No encontré marcadores/);
+    expect(buildGinaScriptAppliedAck({ locale: "en", changed: false }))
+      .toMatch(/Nothing to fix/);
   });
 });

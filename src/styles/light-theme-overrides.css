@@ -101,20 +101,21 @@
   opacity: 1;
 }
 
-/* Text markers — stronger on light body */
+/* Text markers — readable ink on light body */
 :root[data-theme="light"] .doc-text-marker--rose {
-  --marker-ink: rgba(196, 134, 120, 0.48);
-  --marker-ink-soft: rgba(196, 134, 120, 0.26);
+  --marker-text: #b86a58;
 }
 
 :root[data-theme="light"] .doc-text-marker--mint {
-  --marker-ink: rgba(42, 138, 74, 0.38);
-  --marker-ink-soft: rgba(42, 138, 74, 0.2);
+  --marker-text: #2a8a4a;
 }
 
 :root[data-theme="light"] .doc-text-marker--yellow {
-  --marker-ink: rgba(168, 106, 0, 0.38);
-  --marker-ink-soft: rgba(168, 106, 0, 0.2);
+  --marker-text: #9a6800;
+}
+
+:root[data-theme="light"] .doc-text-marker--blue {
+  --marker-text: #3d6ec9;
 }
 
 :root[data-theme="light"] .doc-inplace-select-all__input::selection {

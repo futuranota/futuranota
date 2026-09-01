@@ -279,7 +279,6 @@ export function NodeQueryModal({
   const [libraryInitialTab, setLibraryInitialTab] = useState(null);
   const [libraryAutoPdfImport, setLibraryAutoPdfImport] = useState(false);
   const [organizingWriting, setOrganizingWriting] = useState(false);
-  const [organizingScript, setOrganizingScript] = useState(false);
   const [parentFolderPickerOpen, setParentFolderPickerOpen] = useState(false);
   const parentFolderPickerRef = useRef(null);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -1615,16 +1614,12 @@ export function NodeQueryModal({
   }, [organizingWriting, writingBlocks, updateWritingBlocks]);
 
   const handleOrganizeScriptWriting = useCallback(() => {
-    if (organizingScript || organizingWriting) return;
+    if (organizingWriting) return false;
     const plan = planOrganizeScriptWritingBlocks(writingBlocks);
-    if (!plan.changed) return;
-    setOrganizingScript(true);
-    try {
-      updateWritingBlocks(plan.blocks);
-    } finally {
-      setOrganizingScript(false);
-    }
-  }, [organizingScript, organizingWriting, writingBlocks, updateWritingBlocks]);
+    if (!plan.changed) return false;
+    updateWritingBlocks(plan.blocks);
+    return true;
+  }, [organizingWriting, writingBlocks, updateWritingBlocks]);
 
   useEffect(() => () => {
     organizeRunIdRef.current += 1;
@@ -1922,8 +1917,7 @@ export function NodeQueryModal({
       return;
     }
     if (key === "organize_script") {
-      void handleOrganizeScriptWriting();
-      return;
+      return handleOrganizeScriptWriting();
     }
     if (key === "export_pdf") {
       void handleExportWritingPdf();
@@ -3134,34 +3128,6 @@ export function NodeQueryModal({
               onPrev={() => goToPage(pageIndex - 1)}
               onNext={() => goToPage(pageIndex + 1)}
             />
-          ) : null}
-          {isTextWritingMode ? (
-            <div className="node-query-modal__doc-float-stack">
-              <button
-                type="button"
-                className={
-                  "node-query-modal__organize-float node-query-modal__organize-float--script"
-                  + (organizingScript ? " is-loading" : "")
-                }
-                onClick={() => { void handleOrganizeScriptWriting(); }}
-                disabled={
-                  organizingScript
-                  || organizingWriting
-                  || writingTextAreasAreEmpty(writingBlocks)
-                }
-                title={t("docs.organizeScriptTitle")}
-                aria-label={t("docs.organizeScriptTitle")}
-              >
-                {organizingScript ? (
-                  <span className="node-query-modal__organize-float-spinner" aria-hidden />
-                ) : null}
-                <span className="node-query-modal__organize-float-label">
-                  {organizingScript
-                    ? t("docs.organizeScriptLoading")
-                    : t("docs.organizeScript")}
-                </span>
-              </button>
-            </div>
           ) : null}
           {slashCommandsEnabled ? (
             <DocSlashCommandPicker

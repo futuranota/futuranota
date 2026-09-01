@@ -9164,82 +9164,31 @@ body.doc-content-resizing * {
   -webkit-text-fill-color: #c6a1a0;
 }
 
-/* ── Marker (plumón) strokes ─────────────────────────────────────────
-   Background-only ink under white text; glyph metrics never change.
-   Uneven gradient + organic radii + per-range seed = hand-drawn feel. */
+/* ── Marker (highlight) — ink on glyphs, not background wash ─────────
+   Color applies to the text itself; metrics unchanged (no font-weight). */
 .doc-text-marker {
-  --marker-ink: var(--marker-ink-default, rgba(255, 214, 10, 0.32));
-  --marker-ink-soft: var(--marker-ink-soft-default, rgba(255, 214, 10, 0.16));
-  background: linear-gradient(
-    100deg,
-    var(--marker-ink-soft) 0%,
-    var(--marker-ink) 7%,
-    var(--marker-ink) 50%,
-    var(--marker-ink) 93%,
-    var(--marker-ink-soft) 100%
-  );
-  border-radius: 0.45em 0.25em 0.55em 0.3em / 0.75em 0.4em 0.65em 0.5em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  /* Keep ink flush with glyphs — wide ±X shadows looked like a horizontal jump. */
-  box-shadow:
-    -0.06em 0 0.02em var(--marker-ink-soft),
-    0.06em 0 0.02em var(--marker-ink-soft);
+  --marker-text: var(--marker-text-default, #ffd60a);
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  color: var(--marker-text);
+  -webkit-text-fill-color: var(--marker-text);
 }
 
 .doc-text-marker--yellow {
-  --marker-ink: rgba(255, 214, 10, 0.32);
-  --marker-ink-soft: rgba(255, 214, 10, 0.16);
+  --marker-text: #ffd60a;
 }
 
 .doc-text-marker--mint {
-  --marker-ink: rgba(133, 218, 153, 0.28);
-  --marker-ink-soft: rgba(133, 218, 153, 0.14);
+  --marker-text: #85da99;
 }
 
 .doc-text-marker--rose {
-  --marker-ink: rgba(199, 161, 161, 0.30);
-  --marker-ink-soft: rgba(199, 161, 161, 0.15);
+  --marker-text: #e0b4b4;
 }
 
 .doc-text-marker--blue {
-  --marker-ink: rgba(122, 168, 255, 0.28);
-  --marker-ink-soft: rgba(122, 168, 255, 0.14);
-}
-
-/* Per-range seeds: vary stroke angle + corners so no two strokes match. */
-.doc-text-marker--seed1 {
-  background: linear-gradient(
-    97deg,
-    var(--marker-ink) 0%,
-    var(--marker-ink) 46%,
-    var(--marker-ink) 90%,
-    var(--marker-ink-soft) 100%
-  );
-  border-radius: 0.3em 0.55em 0.35em 0.5em / 0.5em 0.7em 0.45em 0.8em;
-}
-
-.doc-text-marker--seed2 {
-  background: linear-gradient(
-    104deg,
-    var(--marker-ink-soft) 0%,
-    var(--marker-ink) 10%,
-    var(--marker-ink) 55%,
-    var(--marker-ink) 100%
-  );
-  border-radius: 0.5em 0.3em 0.6em 0.25em / 0.65em 0.5em 0.75em 0.4em;
-}
-
-.doc-text-marker--seed3 {
-  background: linear-gradient(
-    99deg,
-    var(--marker-ink) 0%,
-    var(--marker-ink) 40%,
-    var(--marker-ink-soft) 52%,
-    var(--marker-ink) 64%,
-    var(--marker-ink) 100%
-  );
-  border-radius: 0.35em 0.5em 0.3em 0.55em / 0.55em 0.75em 0.5em 0.65em;
+  --marker-text: #7aa8ff;
 }
 
 /* Chip look must NOT change glyph metrics (no bold/padding), otherwise the

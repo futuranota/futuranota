@@ -74,16 +74,18 @@ describe("ginaReplyChips", () => {
     expect(bare.map((c) => c.id)).toEqual([
       "doc_today_schedule",
       "check_free_hours_doc",
+      "doc_action_script",
       "doc_algo_mas",
     ]);
-    expect(bare[0].label).toBe("Horario de hoy");
     expect(bare[0].icon).toBe("/uploads/accounting.svg");
     expect(bare[0].text).toBe("Horario de hoy");
     expect(bare[1].label).toBe("Ver horas libres del día");
     expect(bare[1].icon).toBe("/uploads/ClockCountdown.svg");
     expect(bare[1].primary).toBe(true);
-    expect(bare[2].label).toBe("Algo más");
-    expect(bare[2].kind).toBe("more_actions");
+    expect(bare[2].label).toBe("Arreglar Guion");
+    expect(bare[2].action).toBe("organize_script");
+    expect(bare[3].label).toBe("Algo más");
+    expect(bare[3].kind).toBe("more_actions");
 
     const chips = buildGinaOpeningChips({
       locale: "es",
@@ -93,6 +95,7 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toEqual([
       "doc_today_schedule",
       "check_free_hours_doc",
+      "doc_action_script",
       "doc_algo_mas",
     ]);
     expect(chips.some((c) => c.id === "today")).toBe(false);
@@ -108,8 +111,10 @@ describe("ginaReplyChips", () => {
     });
     expect(chips[0].text).toBe("Today's hours");
     expect(chips[1].text).toBe("See free hours for today");
-    expect(chips[2].text).toBe("Something else");
-    expect(chips[2].kind).toBe("more_actions");
+    expect(chips[2].text).toBe("Fix script");
+    expect(chips[2].action).toBe("organize_script");
+    expect(chips[3].text).toBe("Something else");
+    expect(chips[3].kind).toBe("more_actions");
   });
 
   it("in-doc day sheet headline omits counts and “puedes decir” prose", () => {

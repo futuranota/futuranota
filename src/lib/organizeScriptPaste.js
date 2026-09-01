@@ -1,6 +1,7 @@
 /**
- * Script organize: bracket actions → line-start arrows, reflow dialogue,
- * collapse TEXT gaps. Does not promote headings — H1/H2/H3 stay untouched.
+ * Arreglar Guion: bracket actions → arrows, reflow dialogue, collapse TEXT gaps,
+ * clean pasted ** / -- markers → native boldRanges + colon separators.
+ * Does not promote headings — H1/H2/H3 titles only strip stray **.
  */
 
 import {
@@ -8,16 +9,72 @@ import {
   ensureNodeWritingTail,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
+  trimTrailingEmptyTextBlocks,
 } from "./nodeInlineContent.js";
+import { normalizeBoldRanges } from "./docTextBoldRanges.js";
 
 const BRACKET_ACTION_RE = /\[([^\]]+)\]/g;
 const LINE_START_ARROW_RE = /^(\s*)(?:->|⇒|➔|➜)\s*/;
 const SPEAKER_LINE_RE = /^[A-ZÁÉÍÓÚÑÜ][\p{L}]+(?:\s+[A-ZÁÉÍÓÚÑÜ][\p{L}]+)?$/u;
+const LIST_SEP_RE = /\s*(?:[—–]|--)\s+/;
+const MIN_LIST_BODY_LEN = 8;
+const MAX_LIST_LABEL_LEN = 48;
+const MAX_LIST_LABEL_WORDS = 6;
 
 /**
  * @param {string} text
  */
 export function normalizeScriptText(text) {
+  return normalizeScriptTextWithBold(text).text;
+}
+
+/**
+ * @param {string} text
+ * @returns {{ text: string, boldRanges: import("./docTextBoldRanges.js").BoldRange[] }}
+ */
+export function normalizeScriptTextWithBold(text) {
+  const lines = buildScriptLinesBeforeBoldClean(text);
+  /** @type {string[]} */
+  const outLines = [];
+  /** @type {import("./docTextBoldRanges.js").BoldRange[]} */
+  const boldRanges = [];
+  let offset = 0;
+
+  for (const rawLine of lines) {
+    const line = fixTightPunctuation(normalizeScriptLine(rawLine));
+    if (!line) {
+      if (outLines.length && outLines[outLines.length - 1] !== "") {
+        outLines.push("");
+        offset += 1;
+      }
+      continue;
+    }
+
+    const { line: cleaned, boldRanges: lineBold } = cleanScriptLineMarkers(line);
+    if (outLines.length > 0) offset += 1;
+    for (const range of lineBold) {
+      boldRanges.push({
+        start: offset + range.start,
+        end: offset + range.end,
+      });
+    }
+    outLines.push(cleaned);
+    offset += cleaned.length;
+  }
+
+  while (outLines.length && outLines[outLines.length - 1] === "") outLines.pop();
+  const resultText = outLines.join("\n").trim();
+  return {
+    text: resultText,
+    boldRanges: normalizeBoldRanges(resultText, boldRanges),
+  };
+}
+
+/**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function buildScriptLinesBeforeBoldClean(text) {
   const expanded = expandBracketActions(
     String(text ?? "")
       .replace(/\r\n?/g, "\n")
@@ -30,9 +87,125 @@ export function normalizeScriptText(text) {
     expanded.split("\n").map((line) => line.replace(/[ \t]+$/g, "")),
   );
   const spaced = formatScriptBlockSpacing(reflowed);
-  return fixTightPunctuation(
-    collapseBlankRuns(spaced).join("\n").trim(),
-  );
+  return collapseBlankRuns(spaced);
+}
+
+/**
+ * Strip markdown-style ** wrappers from heading titles.
+ * @param {string} title
+ */
+export function cleanScriptHeadingTitle(title) {
+  return String(title ?? "")
+    .replace(/^\*\*(.+)\*\*$/, "$1")
+    .trim();
+}
+
+/**
+ * @param {string} label
+ */
+function isValidListLabel(label) {
+  const t = String(label ?? "").trim();
+  if (!t || t.length > MAX_LIST_LABEL_LEN) return false;
+  if (/\*\*|(?:^|\s)--/.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= MAX_LIST_LABEL_WORDS;
+}
+
+/**
+ * @param {string} line
+ */
+function isBoldCleanExemptLine(line) {
+  const t = String(line ?? "").trim();
+  if (!t) return true;
+  if (isActionLine(t)) return true;
+  if (/^["“«]/.test(t)) return true;
+  if (isSpeakerLine(t)) return true;
+  return false;
+}
+
+/**
+ * @param {string} label
+ * @param {string} body
+ */
+function formatListLine(label, body) {
+  const cleanLabel = label.trim();
+  const cleanBody = body.trim();
+  const line = `${cleanLabel}: ${cleanBody}`;
+  return {
+    line,
+    boldRanges: [{ start: 0, end: cleanLabel.length }],
+  };
+}
+
+/**
+ * Clean pasted ** / -- markers and normalize list rows to Label: body + bold label.
+ *
+ * @param {string} line
+ * @returns {{ line: string, boldRanges: import("./docTextBoldRanges.js").BoldRange[] }}
+ */
+export function cleanScriptLineMarkers(line) {
+  const trimmed = String(line ?? "").trim();
+  if (!trimmed || isBoldCleanExemptLine(trimmed)) {
+    return { line: trimmed, boldRanges: [] };
+  }
+
+  const starDash = trimmed.match(/^\*\*(.+?)\*\*\s*(?:[—–]|--)\s*(.+)$/);
+  if (starDash) {
+    const label = starDash[1].trim();
+    const body = starDash[2].trim();
+    if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+      return formatListLine(label, body);
+    }
+  }
+
+  const starColon = trimmed.match(/^\*\*(.+?)\*\*\s*:\s*(.+)$/);
+  if (starColon) {
+    const label = starColon[1].trim();
+    const body = starColon[2].trim();
+    if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+      return formatListLine(label, body);
+    }
+  }
+
+  const dashMarker = trimmed.match(/^--(?![\s-])(.+?)\s*(?:[—–]|--)\s*(.+)$/);
+  if (dashMarker) {
+    const label = dashMarker[1].trim();
+    const body = dashMarker[2].trim();
+    if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+      return formatListLine(label, body);
+    }
+  }
+
+  const dashMarkerSpaced = trimmed.match(/^--\s+(.+?)\s*(?:[—–]|--)\s*(.+)$/);
+  if (dashMarkerSpaced) {
+    const label = dashMarkerSpaced[1].trim();
+    const body = dashMarkerSpaced[2].trim();
+    if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+      return formatListLine(label, body);
+    }
+  }
+
+  const colonList = trimmed.match(/^([^:]+?)\s*:\s*(.+)$/);
+  if (colonList && !trimmed.includes("**")) {
+    const label = colonList[1].trim();
+    const body = colonList[2].trim();
+    if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+      return formatListLine(label, body);
+    }
+  }
+
+  if (LIST_SEP_RE.test(trimmed)) {
+    const parts = trimmed.split(LIST_SEP_RE);
+    if (parts.length === 2) {
+      const label = parts[0].replace(/^\*\*(.+)\*\*$/, "$1").replace(/^--(?![\s-])/, "").trim();
+      const body = parts[1].trim();
+      if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
+        return formatListLine(label, body);
+      }
+    }
+  }
+
+  return { line: trimmed, boldRanges: [] };
 }
 
 /**
@@ -81,6 +254,19 @@ function isDialogueLine(line) {
 }
 
 /**
+ * @param {string} line
+ */
+function isAffiliateListLine(line) {
+  const t = String(line ?? "").trim();
+  if (!t) return false;
+  if (/^\*\*(.+?)\*\*\s*(?:[—–]|--|:)/.test(t)) return true;
+  if (/^--(?![\s-])/.test(t)) return true;
+  if (/^--\s+\S/.test(t)) return true;
+  if (/^[^:\n]{1,48}:\s+\S/.test(t)) return true;
+  return false;
+}
+
+/**
  * @param {string} prev
  * @param {string} next
  */
@@ -88,6 +274,7 @@ function shouldJoinScriptLines(prev, next) {
   const a = String(prev ?? "").trim();
   const b = String(next ?? "").trim();
   if (!a || !b) return false;
+  if (isAffiliateListLine(a) || isAffiliateListLine(b)) return false;
   if (isActionLine(a) || isActionLine(b)) return false;
   if (isSpeakerLine(a) || isSpeakerLine(b)) return false;
 
@@ -303,21 +490,40 @@ function isMergeableTextBlock(block) {
  * @param {object[]} blocks
  */
 function blocksScriptKey(blocks) {
-  return normalizeWritingBlocks(blocks)
+  return trimTrailingEmptyTextBlocks(normalizeWritingBlocks(blocks))
     .map((block) => {
       if (
         block.type === NODE_BLOCK_TYPES.H1
         || block.type === NODE_BLOCK_TYPES.H2
         || block.type === NODE_BLOCK_TYPES.H3
       ) {
-        return `${block.type}:${String(block.title ?? "").trim()}`;
+        return `${block.type}:${cleanScriptHeadingTitle(block.title)}`;
       }
       if (isMergeableTextBlock(block)) {
-        return `text:${String(block.text ?? "").trim()}`;
+        const bold = (block.boldRanges || [])
+          .map((range) => `${range.start}-${range.end}`)
+          .join(",");
+        return `text:${String(block.text ?? "").trim()}:b${bold}`;
       }
       return `${block.type}:${block.id}`;
     })
     .join("|");
+}
+
+/**
+ * @param {object} block
+ */
+function normalizeHeadingBlock(block) {
+  if (
+    block.type !== NODE_BLOCK_TYPES.H1
+    && block.type !== NODE_BLOCK_TYPES.H2
+    && block.type !== NODE_BLOCK_TYPES.H3
+  ) {
+    return block;
+  }
+  const title = cleanScriptHeadingTitle(block.title);
+  if (title === String(block.title ?? "").trim()) return block;
+  return { ...block, title };
 }
 
 /**
@@ -337,9 +543,12 @@ export function applyOrganizeScriptToWritingBlocks(blocks) {
   const flushText = () => {
     if (!textBuf.length) return;
     const plain = textBuf.join("\n\n");
-    const script = normalizeScriptText(plain);
-    if (script) {
-      out.push(createEmptyTextBlock(script));
+    const { text, boldRanges } = normalizeScriptTextWithBold(plain);
+    if (text) {
+      out.push(createEmptyTextBlock(
+        text,
+        boldRanges.length ? { boldRanges } : {},
+      ));
     }
     textBuf = [];
   };
@@ -351,7 +560,7 @@ export function applyOrganizeScriptToWritingBlocks(blocks) {
       continue;
     }
     flushText();
-    out.push(block);
+    out.push(normalizeHeadingBlock(block));
   }
   flushText();
 

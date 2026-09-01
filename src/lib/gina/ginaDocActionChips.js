@@ -97,6 +97,21 @@ export function buildGinaOrganizeStyleChips(opts = {}) {
 }
 
 /**
+ * @param {{ locale?: string, changed?: boolean }} [opts]
+ */
+export function buildGinaScriptAppliedAck(opts = {}) {
+  const en = opts.locale === "en";
+  if (opts.changed === false) {
+    return en
+      ? "Nothing to fix — I didn’t find markers to clean in this document."
+      : "No encontré marcadores para arreglar en este documento.";
+  }
+  return en
+    ? "Done — I cleaned ** and -- markers, bolded the names, and unified them with colons."
+    : "Listo — arreglé el guion: limpié ** y --, puse negrita en los nombres y unifiqué con dos puntos.";
+}
+
+/**
  * @param {{ locale?: string, styleId?: string }} [opts]
  */
 export function buildGinaOrganizeAppliedAck(opts = {}) {
