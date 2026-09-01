@@ -7,7 +7,6 @@ import './styles.css';
 import './styles/parte3.css';
 import './styles/left-panel.css';
 import './styles/intel-reference.css';
-import './styles/studio.css';
 import './styles/pack-wizard.css';
 import './styles/export-workspace-modal.css';
 import './styles/export-pack-modal.css';

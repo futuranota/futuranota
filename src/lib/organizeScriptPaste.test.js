@@ -7,6 +7,7 @@ import {
   fixTightPunctuation,
   normalizeScriptText,
   normalizeScriptTextWithBold,
+  pickRandomMarkerColorId,
   reflowScriptLines,
 } from "./organizeScriptPaste.js";
 import {
@@ -14,6 +15,7 @@ import {
   createInlineH1Block,
   NODE_BLOCK_TYPES,
 } from "./nodeInlineContent.js";
+import { DOC_TEXT_MARKER_COLORS } from "./docTextMarkerColors.js";
 
 describe("expandBracketActions", () => {
   it("converts a full-line bracket action to an arrow line", () => {
@@ -76,37 +78,63 @@ describe("normalizeScriptText", () => {
   });
 });
 
+describe("pickRandomMarkerColorId", () => {
+  it("picks yellow when rng returns 0", () => {
+    expect(pickRandomMarkerColorId(() => 0)).toBe("yellow");
+  });
+
+  it("always returns a valid marker color id", () => {
+    const id = pickRandomMarkerColorId();
+    expect(DOC_TEXT_MARKER_COLORS.some((c) => c.id === id)).toBe(true);
+  });
+});
+
 describe("cleanScriptLineMarkers", () => {
-  it("turns **Label** — body into bold label with colon", () => {
+  it("turns **Label** — body into label line + body line with bold and marker", () => {
     const out = cleanScriptLineMarkers(
       "**GoAffPro** — Plan Hobby completamente gratis para empezar sin riesgo",
+      "yellow",
     );
-    expect(out.line).toBe(
-      "GoAffPro: Plan Hobby completamente gratis para empezar sin riesgo",
-    );
-    expect(out.boldRanges).toEqual([{ start: 0, end: 8 }]);
+    expect(out.lines).toEqual([
+      "GoAffPro:",
+      "Plan Hobby completamente gratis para empezar sin riesgo",
+    ]);
+    expect(out.boldRanges).toEqual([{ start: 0, end: 9 }]);
+    expect(out.markerRanges).toEqual([{ start: 0, end: 9, colorId: "yellow" }]);
   });
 
-  it("bolds clean Label: body rows like UpPromote", () => {
+  it("splits and marks clean Label: body rows like UpPromote", () => {
     const out = cleanScriptLineMarkers(
       "UpPromote: Integrada con Shopify, plan gratuito limitado pero funcional para empezar",
+      "yellow",
     );
-    expect(out.line).toMatch(/^UpPromote:/);
-    expect(out.boldRanges).toEqual([{ start: 0, end: 9 }]);
+    expect(out.lines[0]).toBe("UpPromote:");
+    expect(out.lines[1]).toMatch(/^Integrada con Shopify/);
+    expect(out.boldRanges).toEqual([{ start: 0, end: 10 }]);
+    expect(out.markerRanges[0].colorId).toBe("yellow");
   });
 
-  it("cleans --Label — body marker rows", () => {
+  it("cleans --Label — body marker rows onto two lines", () => {
     const out = cleanScriptLineMarkers(
       "--Trackdesk — Gratis mientras tus ingresos se mantengan por debajo del umbral",
+      "yellow",
     );
-    expect(out.line).toMatch(/^Trackdesk:/);
-    expect(out.boldRanges).toEqual([{ start: 0, end: 9 }]);
+    expect(out.lines[0]).toBe("Trackdesk:");
+    expect(out.lines[1]).toMatch(/^Gratis mientras/);
+    expect(out.boldRanges).toEqual([{ start: 0, end: 10 }]);
+  });
+
+  it("uses the same session color on already-split label lines", () => {
+    const out = cleanScriptLineMarkers("GoAffPro:", "mint");
+    expect(out.lines).toEqual(["GoAffPro:"]);
+    expect(out.markerRanges[0].colorId).toBe("mint");
   });
 
   it("leaves script action lines untouched", () => {
     const out = cleanScriptLineMarkers("-> Gina camina hacia la cámara");
-    expect(out.line).toBe("-> Gina camina hacia la cámara");
+    expect(out.lines).toEqual(["-> Gina camina hacia la cámara"]);
     expect(out.boldRanges).toEqual([]);
+    expect(out.markerRanges).toEqual([]);
   });
 });
 
@@ -118,16 +146,35 @@ describe("cleanScriptHeadingTitle", () => {
 });
 
 describe("normalizeScriptTextWithBold", () => {
-  it("applies affiliate list cleanup with bold ranges", () => {
+  const fixedRng = () => 0;
+
+  it("applies affiliate list cleanup with bold and marker ranges on split lines", () => {
     const text = [
       "**GoAffPro** — Plan Hobby completamente gratis para empezar",
       "**Post Affiliate Pro** — Treinta días gratis para probar sin tarjeta",
     ].join("\n");
-    const { text: out, boldRanges } = normalizeScriptTextWithBold(text);
-    expect(out).toContain("GoAffPro: Plan Hobby");
-    expect(out).toContain("Post Affiliate Pro: Treinta días");
-    expect(boldRanges.some((r) => r.start === 0 && r.end === 8)).toBe(true);
-    expect(boldRanges.some((r) => out.slice(r.start, r.end) === "Post Affiliate Pro")).toBe(true);
+    const { text: out, boldRanges, markerRanges } = normalizeScriptTextWithBold(text, fixedRng);
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("GoAffPro:");
+    expect(lines[1]).toMatch(/^Plan Hobby/);
+    expect(lines[2]).toBe("Post Affiliate Pro:");
+    expect(lines[3]).toMatch(/^Treinta días/);
+    expect(boldRanges.some((r) => out.slice(r.start, r.end) === "GoAffPro:")).toBe(true);
+    expect(boldRanges.some((r) => out.slice(r.start, r.end) === "Post Affiliate Pro:")).toBe(true);
+    const colorIds = markerRanges.map((r) => r.colorId);
+    expect(colorIds).toEqual(["yellow", "yellow"]);
+    expect(markerRanges.every((r) => DOC_TEXT_MARKER_COLORS.some((c) => c.id === r.colorId))).toBe(true);
+  });
+
+  it("picks one color per run and may change on the next run", () => {
+    const text = [
+      "**GoAffPro** — Plan Hobby",
+      "**Trackdesk** — Gratis mientras",
+    ].join("\n");
+    const first = normalizeScriptTextWithBold(text, () => 0);
+    const second = normalizeScriptTextWithBold(text, () => 0.99);
+    expect(first.markerRanges.map((r) => r.colorId)).toEqual(["yellow", "yellow"]);
+    expect(second.markerRanges.map((r) => r.colorId)).toEqual(["blue", "blue"]);
   });
 });
 
@@ -159,7 +206,7 @@ describe("applyOrganizeScriptToWritingBlocks", () => {
     expect(changed).toBe(false);
   });
 
-  it("cleans affiliate rows and strips ** from H1 title", () => {
+  it("cleans affiliate rows onto split lines with markers and strips ** from H1 title", () => {
     const before = [
       createInlineH1Block("**Listing de links affiliados**"),
       createEmptyTextBlock("**GoAffPro** — Plan Hobby completamente gratis para empezar"),
@@ -169,10 +216,14 @@ describe("applyOrganizeScriptToWritingBlocks", () => {
     expect(first.changed).toBe(true);
     expect(first.blocks[0].title).toBe("Listing de links affiliados");
     const textBlock = first.blocks.find((b) => b.type === NODE_BLOCK_TYPES.TEXT && b.text?.includes("GoAffPro"));
-    expect(textBlock?.text).toContain("GoAffPro: Plan Hobby");
+    const lines = textBlock?.text?.split("\n") ?? [];
+    expect(lines[0]).toBe("GoAffPro:");
+    expect(lines[1]).toMatch(/^Plan Hobby/);
     expect(textBlock?.boldRanges?.length).toBeGreaterThan(0);
+    expect(textBlock?.markerRanges?.length).toBeGreaterThan(0);
 
     const second = applyOrganizeScriptToWritingBlocks(first.blocks);
-    expect(second.changed).toBe(false);
+    const textBlock2 = second.blocks.find((b) => b.type === NODE_BLOCK_TYPES.TEXT && b.text?.includes("GoAffPro"));
+    expect(textBlock2?.text?.split("\n")).toEqual(lines);
   });
 });

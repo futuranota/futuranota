@@ -12,6 +12,8 @@ import {
   trimTrailingEmptyTextBlocks,
 } from "./nodeInlineContent.js";
 import { normalizeBoldRanges } from "./docTextBoldRanges.js";
+import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
+import { DOC_TEXT_MARKER_COLORS } from "./docTextMarkerColors.js";
 
 const BRACKET_ACTION_RE = /\[([^\]]+)\]/g;
 const LINE_START_ARROW_RE = /^(\s*)(?:->|⇒|➔|➜)\s*/;
@@ -22,22 +24,45 @@ const MAX_LIST_LABEL_LEN = 48;
 const MAX_LIST_LABEL_WORDS = 6;
 
 /**
- * @param {string} text
+ * @param {() => number} [rng]
+ * @returns {string}
  */
-export function normalizeScriptText(text) {
-  return normalizeScriptTextWithBold(text).text;
+export function pickRandomMarkerColorId(rng = Math.random) {
+  const roll = typeof rng === "function" ? rng() : Math.random();
+  const idx = Math.floor(Math.max(0, Math.min(0.999999, roll)) * DOC_TEXT_MARKER_COLORS.length);
+  return DOC_TEXT_MARKER_COLORS[idx]?.id ?? DOC_TEXT_MARKER_COLORS[0].id;
+}
+
+/**
+ * @param {string} line
+ * @returns {{ lines: string[], boldRanges: import("./docTextBoldRanges.js").BoldRange[], markerRanges: import("./docTextMarkerRanges.js").MarkerRange[] }}
+ */
+function unchangedScriptLine(line) {
+  return { lines: [line], boldRanges: [], markerRanges: [] };
 }
 
 /**
  * @param {string} text
- * @returns {{ text: string, boldRanges: import("./docTextBoldRanges.js").BoldRange[] }}
+ * @param {() => number} [rng]
  */
-export function normalizeScriptTextWithBold(text) {
+export function normalizeScriptText(text, rng = Math.random) {
+  return normalizeScriptTextWithBold(text, rng).text;
+}
+
+/**
+ * @param {string} text
+ * @param {() => number} [rng]
+ * @returns {{ text: string, boldRanges: import("./docTextBoldRanges.js").BoldRange[], markerRanges: import("./docTextMarkerRanges.js").MarkerRange[] }}
+ */
+export function normalizeScriptTextWithBold(text, rng = Math.random) {
   const lines = buildScriptLinesBeforeBoldClean(text);
+  const markerColorId = pickRandomMarkerColorId(rng);
   /** @type {string[]} */
   const outLines = [];
   /** @type {import("./docTextBoldRanges.js").BoldRange[]} */
   const boldRanges = [];
+  /** @type {import("./docTextMarkerRanges.js").MarkerRange[]} */
+  const markerRanges = [];
   let offset = 0;
 
   for (const rawLine of lines) {
@@ -50,16 +75,33 @@ export function normalizeScriptTextWithBold(text) {
       continue;
     }
 
-    const { line: cleaned, boldRanges: lineBold } = cleanScriptLineMarkers(line);
-    if (outLines.length > 0) offset += 1;
-    for (const range of lineBold) {
-      boldRanges.push({
-        start: offset + range.start,
-        end: offset + range.end,
-      });
+    const {
+      lines: cleanedLines,
+      boldRanges: lineBold,
+      markerRanges: lineMarker,
+    } = cleanScriptLineMarkers(line, markerColorId);
+
+    for (let i = 0; i < cleanedLines.length; i += 1) {
+      const subLine = cleanedLines[i];
+      if (outLines.length > 0) offset += 1;
+      if (i === 0) {
+        for (const range of lineBold) {
+          boldRanges.push({
+            start: offset + range.start,
+            end: offset + range.end,
+          });
+        }
+        for (const range of lineMarker) {
+          markerRanges.push({
+            start: offset + range.start,
+            end: offset + range.end,
+            colorId: range.colorId,
+          });
+        }
+      }
+      outLines.push(subLine);
+      offset += subLine.length;
     }
-    outLines.push(cleaned);
-    offset += cleaned.length;
   }
 
   while (outLines.length && outLines[outLines.length - 1] === "") outLines.pop();
@@ -67,6 +109,7 @@ export function normalizeScriptTextWithBold(text) {
   return {
     text: resultText,
     boldRanges: normalizeBoldRanges(resultText, boldRanges),
+    markerRanges: normalizeMarkerRanges(resultText, markerRanges),
   };
 }
 
@@ -124,29 +167,53 @@ function isBoldCleanExemptLine(line) {
 }
 
 /**
+ * @param {string} line
+ */
+function isAlreadySplitLabelLine(line) {
+  const m = String(line ?? "").trim().match(/^([^:]+):\s*$/);
+  if (!m) return false;
+  return isValidListLabel(m[1].trim());
+}
+
+/**
  * @param {string} label
  * @param {string} body
+ * @param {string} colorId
  */
-function formatListLine(label, body) {
+function formatListLine(label, body, colorId) {
   const cleanLabel = label.trim();
   const cleanBody = body.trim();
-  const line = `${cleanLabel}: ${cleanBody}`;
+  const headLine = `${cleanLabel}:`;
+  const end = headLine.length;
+  const headRange = { start: 0, end };
   return {
-    line,
-    boldRanges: [{ start: 0, end: cleanLabel.length }],
+    lines: [headLine, cleanBody],
+    boldRanges: [headRange],
+    markerRanges: [{ ...headRange, colorId }],
   };
 }
 
 /**
- * Clean pasted ** / -- markers and normalize list rows to Label: body + bold label.
+ * Clean pasted ** / -- markers → Label: / body on two lines + bold + marker color.
  *
  * @param {string} line
- * @returns {{ line: string, boldRanges: import("./docTextBoldRanges.js").BoldRange[] }}
+ * @param {string} [colorId] one session color for all labels in a run
+ * @returns {{ lines: string[], boldRanges: import("./docTextBoldRanges.js").BoldRange[], markerRanges: import("./docTextMarkerRanges.js").MarkerRange[] }}
  */
-export function cleanScriptLineMarkers(line) {
+export function cleanScriptLineMarkers(line, colorId) {
+  const markerColorId = colorId ?? pickRandomMarkerColorId();
   const trimmed = String(line ?? "").trim();
   if (!trimmed || isBoldCleanExemptLine(trimmed)) {
-    return { line: trimmed, boldRanges: [] };
+    return unchangedScriptLine(trimmed);
+  }
+
+  if (isAlreadySplitLabelLine(trimmed)) {
+    const end = trimmed.length;
+    return {
+      lines: [trimmed],
+      boldRanges: [{ start: 0, end }],
+      markerRanges: [{ start: 0, end, colorId: markerColorId }],
+    };
   }
 
   const starDash = trimmed.match(/^\*\*(.+?)\*\*\s*(?:[—–]|--)\s*(.+)$/);
@@ -154,7 +221,7 @@ export function cleanScriptLineMarkers(line) {
     const label = starDash[1].trim();
     const body = starDash[2].trim();
     if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-      return formatListLine(label, body);
+      return formatListLine(label, body, markerColorId);
     }
   }
 
@@ -163,7 +230,7 @@ export function cleanScriptLineMarkers(line) {
     const label = starColon[1].trim();
     const body = starColon[2].trim();
     if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-      return formatListLine(label, body);
+      return formatListLine(label, body, markerColorId);
     }
   }
 
@@ -172,7 +239,7 @@ export function cleanScriptLineMarkers(line) {
     const label = dashMarker[1].trim();
     const body = dashMarker[2].trim();
     if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-      return formatListLine(label, body);
+      return formatListLine(label, body, markerColorId);
     }
   }
 
@@ -181,7 +248,7 @@ export function cleanScriptLineMarkers(line) {
     const label = dashMarkerSpaced[1].trim();
     const body = dashMarkerSpaced[2].trim();
     if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-      return formatListLine(label, body);
+      return formatListLine(label, body, markerColorId);
     }
   }
 
@@ -190,7 +257,7 @@ export function cleanScriptLineMarkers(line) {
     const label = colonList[1].trim();
     const body = colonList[2].trim();
     if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-      return formatListLine(label, body);
+      return formatListLine(label, body, markerColorId);
     }
   }
 
@@ -200,12 +267,12 @@ export function cleanScriptLineMarkers(line) {
       const label = parts[0].replace(/^\*\*(.+)\*\*$/, "$1").replace(/^--(?![\s-])/, "").trim();
       const body = parts[1].trim();
       if (isValidListLabel(label) && body.length >= MIN_LIST_BODY_LEN) {
-        return formatListLine(label, body);
+        return formatListLine(label, body, markerColorId);
       }
     }
   }
 
-  return { line: trimmed, boldRanges: [] };
+  return unchangedScriptLine(trimmed);
 }
 
 /**
@@ -503,7 +570,10 @@ function blocksScriptKey(blocks) {
         const bold = (block.boldRanges || [])
           .map((range) => `${range.start}-${range.end}`)
           .join(",");
-        return `text:${String(block.text ?? "").trim()}:b${bold}`;
+        const markers = (block.markerRanges || [])
+          .map((range) => `${range.start}-${range.end}-${range.colorId}`)
+          .join(",");
+        return `text:${String(block.text ?? "").trim()}:b${bold}:m${markers}`;
       }
       return `${block.type}:${block.id}`;
     })
@@ -543,11 +613,14 @@ export function applyOrganizeScriptToWritingBlocks(blocks) {
   const flushText = () => {
     if (!textBuf.length) return;
     const plain = textBuf.join("\n\n");
-    const { text, boldRanges } = normalizeScriptTextWithBold(plain);
+    const { text, boldRanges, markerRanges } = normalizeScriptTextWithBold(plain);
     if (text) {
       out.push(createEmptyTextBlock(
         text,
-        boldRanges.length ? { boldRanges } : {},
+        {
+          ...(boldRanges.length ? { boldRanges } : {}),
+          ...(markerRanges.length ? { markerRanges } : {}),
+        },
       ));
     }
     textBuf = [];

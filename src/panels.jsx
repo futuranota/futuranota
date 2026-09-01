@@ -21,9 +21,7 @@ import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
-import { StudioPanel } from './components/studio/StudioPanel.jsx';
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
-import { clearStudioSessionDraft } from './lib/studioConfig.js';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { resolveCurrentCorpus, resolveIntelCampaignBrand } from './lib/currentCorpus.js';
 import { resolveLaunchRadarObjectId } from './lib/agents/resolveLaunchRadarObjectId.js';
@@ -600,7 +598,6 @@ function useIntelOverlayTabs() {
   const { t } = useI18n();
   return useMemo(() => ([
     { id: "embed-link", label: t("intel.embedLink"), iconSrc: INTEL_EMBED_LINK_ICON },
-    { id: "studio", label: t("intel.studio") },
   ]), [t]);
 }
 
@@ -846,14 +843,9 @@ function IntelPanel({
   const intelLocked = isIntelPanelLocked(planProfile);
   const overlayTabs = useIntelOverlayTabs();
   const [embedPanelOpen, setEmbedPanelOpen] = useState(false);
-  const [studioPanelOpen, setStudioPanelOpen] = useState(false);
   const [bodyMode, setBodyMode] = useState("calendar");
 
-  const overlayTabValue = embedPanelOpen
-    ? "embed-link"
-    : studioPanelOpen
-      ? "studio"
-      : null;
+  const overlayTabValue = embedPanelOpen ? "embed-link" : null;
 
   const { corpusScopeBrand, corpusObjectId } = useMemo(() => {
     const { currentCorpus, brandName } = resolveCurrentCorpus(objectsById, selectedObjectId);
@@ -868,31 +860,17 @@ function IntelPanel({
   useEffect(() => {
     if (!intelLocked) return;
     setEmbedPanelOpen(false);
-    clearStudioSessionDraft();
-    setStudioPanelOpen(false);
   }, [intelLocked]);
 
   const handleOverlayTab = (tabId) => {
     if (intelLocked) return;
     if (tabId === "embed-link") {
       setEmbedPanelOpen(true);
-      clearStudioSessionDraft();
-      setStudioPanelOpen(false);
-      return;
-    }
-    if (tabId === "studio") {
-      setStudioPanelOpen(true);
-      setEmbedPanelOpen(false);
     }
   };
 
   const handleEmbedPanelClose = () => {
     setEmbedPanelOpen(false);
-  };
-
-  const handleStudioPanelClose = () => {
-    clearStudioSessionDraft();
-    setStudioPanelOpen(false);
   };
 
   return (
@@ -916,9 +894,6 @@ function IntelPanel({
           onClose={handleEmbedPanelClose}
           onSlashCreateNode={onSlashCreateNode}
         />
-      ) : null}
-      {studioPanelOpen ? (
-        <StudioPanel onClose={handleStudioPanelClose} />
       ) : null}
       <div className="col-header intel-header">
         <div className="intel-toolbar-row">

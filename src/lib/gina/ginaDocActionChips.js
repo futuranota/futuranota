@@ -107,8 +107,8 @@ export function buildGinaScriptAppliedAck(opts = {}) {
       : "No encontré marcadores para arreglar en este documento.";
   }
   return en
-    ? "Done — I cleaned ** and -- markers, bolded the names, and unified them with colons."
-    : "Listo — arreglé el guion: limpié ** y --, puse negrita en los nombres y unifiqué con dos puntos.";
+    ? "Done — I cleaned ** and -- markers, bolded the names in one color, put each label on its own line, and moved the body below."
+    : "Listo — arreglé el guion: limpié ** y --, puse negrita y un solo color en los nombres, el rótulo en su línea y el cuerpo abajo.";
 }
 
 /**
