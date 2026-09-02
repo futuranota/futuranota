@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   BANNER_HEADLINE_MAX,
@@ -6,10 +6,13 @@ import {
   IMAGE_SPLIT_BODY_MAX_LINES,
 } from "../../../lib/docBlocks.js";
 import { libraryItemToBannerPatch } from "../../../lib/libraryImageCardPick.js";
+import { normalizeWallColor } from "../../../lib/folderLibrary.js";
+import { useLibraryItems } from "../../../hooks/useLibraryItems.js";
 import { useLibraryImagePickerCreate } from "../../../hooks/useLibraryImagePickerCreate.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
+import { DocCardMediaActions } from "./DocCardMediaActions.jsx";
 
 /** Empty / loading media aspect (height / width), aligned with image-card. */
 const BANNER_EMPTY_ASPECT = 0.72;
@@ -115,10 +118,20 @@ export function BannerBlockView({
   const [error, setError] = useState(null);
   const [headlineAtLimit, setHeadlineAtLimit] = useState(false);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [libraryEditOpen, setLibraryEditOpen] = useState(false);
 
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const bannerSaved = Boolean(block?.bannerSaved && imageSaved);
   const isEdit = !bannerSaved;
+
+  const resolvedLibraryOwnerKind = block?.libraryOwnerKind || libraryOwnerKind;
+  const resolvedLibraryOwnerId = block?.libraryOwnerId || libraryOwnerId;
+  const libraryItems = useLibraryItems(resolvedLibraryOwnerKind, resolvedLibraryOwnerId);
+  const editingLibraryItem = useMemo(() => {
+    const itemId = String(block?.libraryItemId || "").trim();
+    if (!itemId) return null;
+    return libraryItems.find((item) => item.id === itemId) || null;
+  }, [block?.libraryItemId, libraryItems]);
 
   const {
     pickerFolderId,
@@ -297,12 +310,49 @@ export function BannerBlockView({
   };
 
   const handlePickLibraryItem = useCallback((item, ownerKind, ownerId) => {
-    if (!isEdit) return;
     const patch = libraryItemToBannerPatch(item, ownerKind, ownerId);
     if (!patch) return;
-    onChange?.({ ...patch, bannerSaved: false });
+    onChange?.({
+      ...patch,
+      wallColor: normalizeWallColor(item.wallColor),
+      bannerSaved: isEdit ? false : Boolean(block?.bannerSaved),
+    });
     setLibraryPickerOpen(false);
-  }, [isEdit, onChange]);
+  }, [block?.bannerSaved, isEdit, onChange]);
+
+  const openLibraryEdit = useCallback(() => {
+    if (editingLibraryItem) {
+      setLibraryEditOpen(true);
+      return;
+    }
+    setLibraryPickerOpen(true);
+  }, [editingLibraryItem]);
+
+  const handleLibraryEditSaved = useCallback((saved) => {
+    if (!saved) {
+      setLibraryEditOpen(false);
+      return;
+    }
+    const ownerKind = block?.libraryOwnerKind || pickerPrimaryKind;
+    const ownerId = block?.libraryOwnerId || pickerPrimaryId;
+    const patch = libraryItemToBannerPatch(saved, ownerKind, ownerId);
+    if (patch) {
+      onChange?.({
+        ...patch,
+        wallColor: normalizeWallColor(saved.wallColor),
+        bannerSaved: isEdit ? false : Boolean(block?.bannerSaved),
+      });
+    }
+    setLibraryEditOpen(false);
+  }, [
+    block?.bannerSaved,
+    block?.libraryOwnerId,
+    block?.libraryOwnerKind,
+    isEdit,
+    onChange,
+    pickerPrimaryId,
+    pickerPrimaryKind,
+  ]);
 
   const handleRemoveBlock = () => {
     if (onDelete) {
@@ -399,6 +449,15 @@ export function BannerBlockView({
 
   const canSave = imageSaved && !uploading;
 
+  const handleMediaBarEdit = useCallback(() => {
+    if (isEdit) {
+      if (!canSave) return;
+      onSave?.();
+      return;
+    }
+    openLibraryEdit();
+  }, [canSave, isEdit, onSave, openLibraryEdit]);
+
   return (
     <div className={"doc-banner" + (bannerSaved ? " doc-banner--saved" : "")}>
       <input
@@ -487,50 +546,15 @@ export function BannerBlockView({
                 </button>
               </>
             )}
-            <div className="doc-card-float-actions">
-              {isEdit ? (
-                <button
-                  type="button"
-                  className="doc-card-float-btn"
-                  disabled={!canSave}
-                  onClick={() => {
-                    if (!canSave) return;
-                    onSave?.();
-                  }}
-                >
-                  {t("doc.banner.save")}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="doc-card-float-btn"
-                  onClick={() => onEdit?.()}
-                >
-                  {t("doc.banner.edit")}
-                </button>
-              )}
-              <div className="doc-card-float-actions__group">
-                {isEdit ? (
-                  <button
-                    type="button"
-                    className="doc-card-float-btn"
-                    onClick={() => setLibraryPickerOpen(true)}
-                  >
-                    {t("doc.imageSplit.pickLibrary")}
-                  </button>
-                ) : null}
-                {isEdit && onDelete ? (
-                  <button
-                    type="button"
-                    className="doc-card-float-btn"
-                    onClick={handleRemoveBlock}
-                    disabled={uploading}
-                  >
-                    {t("doc.imageBlock.remove")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
+            <DocCardMediaActions
+              className="doc-card-float-actions doc-card-media-actions"
+              isEdit={isEdit}
+              canSave={canSave}
+              saveLabelKey="doc.banner.save"
+              onChangeImage={() => setLibraryPickerOpen(true)}
+              onEditAction={handleMediaBarEdit}
+              onRemove={handleRemoveBlock}
+            />
           </div>
 
           <div className="doc-banner__copy">
@@ -591,6 +615,21 @@ export function BannerBlockView({
           overlayClassName="folder-library-element-overlay--above-picker"
           onClose={closeCreateModal}
           onSaved={handleCreateSaved}
+        />
+      ) : null}
+
+      {libraryEditOpen && editingLibraryItem ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || block?.libraryOwnerId || pickerPrimaryId}
+          ownerKind={block?.libraryOwnerKind || pickerPrimaryKind}
+          ownerId={block?.libraryOwnerId || pickerPrimaryId}
+          item={editingLibraryItem}
+          lockCategory
+          hidePresentationToggle={editingLibraryItem.presentation === "visual"}
+          defaultPresentation={editingLibraryItem.presentation === "visual" ? "visual" : ""}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={() => setLibraryEditOpen(false)}
+          onSaved={handleLibraryEditSaved}
         />
       ) : null}
 

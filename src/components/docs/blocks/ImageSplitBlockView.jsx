@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   BANNER_HEADLINE_MAX,
   BANNER_HEADLINE_MAX_LINES,
@@ -13,6 +13,9 @@ import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { imageSplitHasFill, libraryItemToImageSplitPatch } from "../../../lib/libraryImageCardPick.js";
 import { writeImageSplitPromptToLibrary } from "../../../lib/libraryImageCardSync.js";
+import { normalizeWallColor } from "../../../lib/folderLibrary.js";
+import { useLibraryItems } from "../../../hooks/useLibraryItems.js";
+import { DocCardMediaActions } from "./DocCardMediaActions.jsx";
 import {
   findMaxFittingPrefixLength,
   resolveLineFitHeight,
@@ -280,6 +283,7 @@ export function ImageSplitBlockView({
 
   const [error, setError] = useState("");
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [libraryEditOpen, setLibraryEditOpen] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
   const [columnHeight, setColumnHeight] = useState(null);
   const [sideHeight, setSideHeight] = useState(null);
@@ -301,6 +305,15 @@ export function ImageSplitBlockView({
   const showingPrompt = mediaFace === "prompt" && (isEdit || hasLibraryPrompt || imageSaved);
   const wallColor = String(block?.wallColor || "").trim();
   const wallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
+
+  const resolvedLibraryOwnerKind = block?.libraryOwnerKind || libraryOwnerKind;
+  const resolvedLibraryOwnerId = block?.libraryOwnerId || libraryOwnerId;
+  const libraryItems = useLibraryItems(resolvedLibraryOwnerKind, resolvedLibraryOwnerId);
+  const editingLibraryItem = useMemo(() => {
+    const itemId = String(block?.libraryItemId || "").trim();
+    if (!itemId) return null;
+    return libraryItems.find((item) => item.id === itemId) || null;
+  }, [block?.libraryItemId, libraryItems]);
 
   const {
     pickerFolderId,
@@ -663,16 +676,55 @@ export function ImageSplitBlockView({
   };
 
   const handlePickLibraryItem = (item, ownerKind, ownerId) => {
-    if (!isEdit) return;
     const resolvedOwnerId = String(ownerId || "").trim()
       || (ownerKind === "folder" ? pickerFolderId : pickerDocumentId);
     const patch = libraryItemToImageSplitPatch(item, ownerKind, resolvedOwnerId);
     if (!patch) return;
     libraryPromptRef.current = patch.libraryPrompt || "";
-    onChange?.(patch);
+    onChange?.({
+      ...patch,
+      splitSaved: isEdit ? false : Boolean(block?.splitSaved),
+    });
     setLibraryPickerOpen(false);
     setError(null);
   };
+
+  const openLibraryEdit = useCallback(() => {
+    if (editingLibraryItem) {
+      setLibraryEditOpen(true);
+      return;
+    }
+    if (imageSaved || cardFilled) {
+      setLibraryPickerOpen(true);
+    }
+  }, [cardFilled, editingLibraryItem, imageSaved]);
+
+  const handleLibraryEditSaved = useCallback((saved) => {
+    if (!saved) {
+      setLibraryEditOpen(false);
+      return;
+    }
+    const ownerKind = block?.libraryOwnerKind || pickerPrimaryKind;
+    const ownerId = block?.libraryOwnerId || pickerPrimaryId;
+    const patch = libraryItemToImageSplitPatch(saved, ownerKind, ownerId);
+    if (patch) {
+      libraryPromptRef.current = patch.libraryPrompt || "";
+      onChange?.({
+        ...patch,
+        wallColor: normalizeWallColor(saved.wallColor),
+        splitSaved: isEdit ? false : Boolean(block?.splitSaved),
+      });
+    }
+    setLibraryEditOpen(false);
+  }, [
+    block?.libraryOwnerId,
+    block?.libraryOwnerKind,
+    block?.splitSaved,
+    isEdit,
+    onChange,
+    pickerPrimaryId,
+    pickerPrimaryKind,
+  ]);
 
   const writeLinkedLibraryPrompt = (nextBlock) => {
     const target = writeImageSplitPromptToLibrary(nextBlock, libraryHints);
@@ -1017,6 +1069,17 @@ export function ImageSplitBlockView({
   };
 
   const canSave = cardFilled;
+
+  const handleMediaBarEdit = useCallback(() => {
+    if (isEdit) {
+      if (!canSave) return;
+      flushLibraryPrompt(latestLibraryBlock());
+      onSave?.();
+      return;
+    }
+    openLibraryEdit();
+  }, [canSave, isEdit, onSave, openLibraryEdit]);
+
   const columnStyle = columnHeight ? {
     height: `${columnHeight}px`,
     maxHeight: `${columnHeight}px`,
@@ -1055,51 +1118,16 @@ export function ImageSplitBlockView({
     );
   };
 
-  const renderMediaBar = ({ showSources = true } = {}) => (
-    <div className="doc-card-float-actions doc-image-split__media-actions">
-      {isEdit ? (
-        <button
-          type="button"
-          className="doc-card-float-btn"
-          disabled={!canSave}
-          onClick={() => {
-            if (!canSave) return;
-            flushLibraryPrompt(latestLibraryBlock());
-            onSave?.();
-          }}
-        >
-          {t("doc.imageSplit.save")}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="doc-card-float-btn"
-          onClick={() => onEdit?.()}
-        >
-          {t("doc.imageSplit.edit")}
-        </button>
-      )}
-      <div className="doc-card-float-actions__group">
-        {isEdit && showSources ? (
-          <button
-            type="button"
-            className="doc-card-float-btn"
-            onClick={() => setLibraryPickerOpen(true)}
-          >
-            {t("doc.imageSplit.pickLibrary")}
-          </button>
-        ) : null}
-        {isEdit && onDelete ? (
-          <button
-            type="button"
-            className="doc-card-float-btn"
-            onClick={handleRemoveBlock}
-          >
-            {t("doc.imageBlock.remove")}
-          </button>
-        ) : null}
-      </div>
-    </div>
+  const renderMediaBar = ({ showChange = true } = {}) => (
+    <DocCardMediaActions
+      className="doc-card-float-actions doc-image-split__media-actions doc-card-media-actions"
+      isEdit={isEdit}
+      canSave={canSave}
+      showChange={showChange}
+      onChangeImage={() => setLibraryPickerOpen(true)}
+      onEditAction={handleMediaBarEdit}
+      onRemove={handleRemoveBlock}
+    />
   );
 
   return (
@@ -1254,7 +1282,7 @@ export function ImageSplitBlockView({
                   {t("doc.imageSplit.libraryDropHint")}
                 </span>
               </button>
-              {renderMediaBar({ showSources: false })}
+              {renderMediaBar()}
             </div>
           ) : null}
         </div>
@@ -1436,6 +1464,21 @@ export function ImageSplitBlockView({
           overlayClassName="folder-library-element-overlay--above-picker"
           onClose={closeCreateModal}
           onSaved={handleCreateSaved}
+        />
+      ) : null}
+
+      {libraryEditOpen && editingLibraryItem ? (
+        <FolderLibraryElementModal
+          folderId={pickerFolderId || block?.libraryOwnerId || pickerPrimaryId}
+          ownerKind={block?.libraryOwnerKind || pickerPrimaryKind}
+          ownerId={block?.libraryOwnerId || pickerPrimaryId}
+          item={editingLibraryItem}
+          lockCategory
+          hidePresentationToggle={editingLibraryItem.presentation === "visual"}
+          defaultPresentation={editingLibraryItem.presentation === "visual" ? "visual" : ""}
+          overlayClassName="folder-library-element-overlay--above-picker"
+          onClose={() => setLibraryEditOpen(false)}
+          onSaved={handleLibraryEditSaved}
         />
       ) : null}
     </div>

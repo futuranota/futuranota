@@ -11785,6 +11785,7 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+.doc-card-media-actions,
 .doc-image-split__media-actions {
   position: absolute;
   left: 6px;
@@ -11792,16 +11793,20 @@ body.doc-content-resizing * {
   bottom: 6px;
   z-index: 6;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
 }
 
 .doc-image-split__media:hover .doc-image-split__media-actions,
-.doc-image-split__media:focus-within .doc-image-split__media-actions {
+.doc-image-split__media:focus-within .doc-image-split__media-actions,
+.doc-banner__media:hover .doc-card-media-actions,
+.doc-banner__media:focus-within .doc-card-media-actions,
+.doc-specs-card__media:hover .doc-card-media-actions,
+.doc-specs-card__media:focus-within .doc-card-media-actions {
   opacity: 1;
   pointer-events: auto;
 }

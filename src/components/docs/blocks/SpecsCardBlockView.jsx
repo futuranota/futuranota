@@ -20,6 +20,7 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import { FolderLibraryElementModal } from "../FolderLibraryElementModal.jsx";
 import { LibraryImageCardPicker } from "../LibraryImageCardPicker.jsx";
 import { NodeLinkColorPicker } from "./NodeLinkColorPicker.jsx";
+import { DocCardMediaActions } from "./DocCardMediaActions.jsx";
 
 const SPECS_EMPTY_ASPECT = 0.72;
 const SPECS_CAP_LINE_HEIGHT_PX = 20.3;
@@ -76,55 +77,6 @@ function SpecsPanelActions({ isEdit, canSave, onEditAction, t }) {
         }}
       >
         {isEdit ? t("doc.specsCard.save") : t("doc.specsCard.edit")}
-      </button>
-    </div>
-  );
-}
-
-function SpecsMediaActions({
-  isEdit,
-  canSave,
-  onChangeImage,
-  onEditAction,
-  onRemove,
-  t,
-}) {
-  return (
-    <div
-      className="doc-specs-card__media-actions"
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="doc-specs-card__media-btn"
-        onClick={(event) => {
-          event.stopPropagation();
-          onChangeImage();
-        }}
-      >
-        {t("doc.specsCard.change")}
-      </button>
-      <button
-        type="button"
-        className="doc-specs-card__media-btn"
-        disabled={isEdit && !canSave}
-        onClick={(event) => {
-          event.stopPropagation();
-          onEditAction();
-        }}
-      >
-        {isEdit ? t("doc.specsCard.save") : t("doc.specsCard.edit")}
-      </button>
-      <button
-        type="button"
-        className="doc-specs-card__media-btn"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-      >
-        {t("doc.specsCard.remove")}
       </button>
     </div>
   );
@@ -539,16 +491,16 @@ export function SpecsCardBlockView({
                 </span>
               </button>
             )}
-              {imageSaved ? (
-                <SpecsMediaActions
-                  isEdit={isEdit}
-                  canSave={canSave}
-                  onChangeImage={() => setLibraryPickerOpen(true)}
-                  onEditAction={handleMediaBarEdit}
-                  onRemove={handleRemoveBlock}
-                  t={t}
-                />
-              ) : null}
+              <DocCardMediaActions
+                className="doc-specs-card__media-actions"
+                btnClassName="doc-specs-card__media-btn"
+                isEdit={isEdit}
+                canSave={canSave}
+                saveLabelKey="doc.specsCard.save"
+                onChangeImage={() => setLibraryPickerOpen(true)}
+                onEditAction={handleMediaBarEdit}
+                onRemove={handleRemoveBlock}
+              />
             </div>
           </div>
 
