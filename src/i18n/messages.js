@@ -143,6 +143,10 @@ export const messages = {
         convertFailed: "Could not convert the image.",
         deleteConfirm: "Delete this image from the document?",
       },
+      cardMedia: {
+        add: "Add",
+        edit: "Edit",
+      },
       codeBlock: {
         previewAvailable: "Preview available",
         uiTab: "UI",
@@ -2162,6 +2166,10 @@ export const messages = {
         invalidType: "Elegí un archivo de imagen.",
         convertFailed: "No se pudo convertir la imagen.",
         deleteConfirm: "¿Eliminar esta imagen del documento?",
+      },
+      cardMedia: {
+        add: "Agregar",
+        edit: "Editar",
       },
       codeBlock: {
         previewAvailable: "Preview disponible",

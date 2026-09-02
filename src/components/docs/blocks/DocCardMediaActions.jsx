@@ -1,15 +1,19 @@
 import { useI18n } from "../../../i18n/useI18n.js";
 
 /**
- * Moodboard-style media chrome: Cambiar · Guardar/Editar · Quitar.
- * Shown on image cards, banners, and specs cards (including empty insert state).
+ * Card media chrome.
+ * Saved: solo Editar (revela herramientas).
+ * Editing: Agregar · Editar imagen · Guardar · Quitar.
  */
 export function DocCardMediaActions({
   isEdit,
   canSave,
-  showChange = true,
-  onChangeImage,
-  onEditAction,
+  showAdd = true,
+  showEditImage = false,
+  onAddImage,
+  onEditImage,
+  onSave,
+  onEdit,
   onRemove,
   saveLabelKey = "doc.imageSplit.save",
   className = "doc-card-float-actions doc-card-media-actions",
@@ -17,34 +21,68 @@ export function DocCardMediaActions({
 }) {
   const { t } = useI18n();
 
+  if (!isEdit) {
+    return (
+      <div
+        className={`${className} doc-card-media-actions--saved`}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className={btnClassName}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit?.();
+          }}
+        >
+          {t("doc.cardMedia.edit")}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={className}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      {showChange ? (
+      {showAdd ? (
         <button
           type="button"
           className={btnClassName}
           onClick={(event) => {
             event.stopPropagation();
-            onChangeImage?.();
+            onAddImage?.();
           }}
         >
-          {t("doc.imageBlock.replace")}
+          {t("doc.cardMedia.add")}
+        </button>
+      ) : null}
+      {showEditImage ? (
+        <button
+          type="button"
+          className={btnClassName}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEditImage?.();
+          }}
+        >
+          {t("doc.library.edit")}
         </button>
       ) : null}
       <button
         type="button"
         className={btnClassName}
-        disabled={isEdit && !canSave}
+        disabled={!canSave}
         onClick={(event) => {
           event.stopPropagation();
-          onEditAction?.();
+          if (!canSave) return;
+          onSave?.();
         }}
       >
-        {isEdit ? t(saveLabelKey) : t("doc.library.edit")}
+        {t(saveLabelKey)}
       </button>
       <button
         type="button"

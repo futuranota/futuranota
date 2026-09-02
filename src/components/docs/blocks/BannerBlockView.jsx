@@ -449,14 +449,10 @@ export function BannerBlockView({
 
   const canSave = imageSaved && !uploading;
 
-  const handleMediaBarEdit = useCallback(() => {
-    if (isEdit) {
-      if (!canSave) return;
-      onSave?.();
-      return;
-    }
-    openLibraryEdit();
-  }, [canSave, isEdit, onSave, openLibraryEdit]);
+  const handleMediaBarSave = useCallback(() => {
+    if (!canSave) return;
+    onSave?.();
+  }, [canSave, onSave]);
 
   return (
     <div className={"doc-banner" + (bannerSaved ? " doc-banner--saved" : "")}>
@@ -551,8 +547,11 @@ export function BannerBlockView({
               isEdit={isEdit}
               canSave={canSave}
               saveLabelKey="doc.banner.save"
-              onChangeImage={() => setLibraryPickerOpen(true)}
-              onEditAction={handleMediaBarEdit}
+              showEditImage={Boolean(String(block?.libraryItemId || "").trim()) && imageSaved}
+              onAddImage={() => setLibraryPickerOpen(true)}
+              onEditImage={openLibraryEdit}
+              onSave={handleMediaBarSave}
+              onEdit={() => onEdit?.()}
               onRemove={handleRemoveBlock}
             />
           </div>

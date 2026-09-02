@@ -376,14 +376,10 @@ export function SpecsCardBlockView({
     onEdit?.();
   }, [canSave, isEdit, onSave, onEdit]);
 
-  const handleMediaBarEdit = useCallback(() => {
-    if (isEdit) {
-      if (!canSave) return;
-      onSave?.();
-      return;
-    }
-    openLibraryEdit();
-  }, [canSave, isEdit, onSave, openLibraryEdit]);
+  const handleMediaBarSave = useCallback(() => {
+    if (!canSave) return;
+    onSave?.();
+  }, [canSave, onSave]);
 
   const handleImageClick = useCallback(() => {
     if (!specsSaved || isEdit) return;
@@ -497,8 +493,11 @@ export function SpecsCardBlockView({
                 isEdit={isEdit}
                 canSave={canSave}
                 saveLabelKey="doc.specsCard.save"
-                onChangeImage={() => setLibraryPickerOpen(true)}
-                onEditAction={handleMediaBarEdit}
+                showEditImage={Boolean(String(data.libraryItemId || "").trim()) && imageSaved}
+                onAddImage={() => setLibraryPickerOpen(true)}
+                onEditImage={openLibraryEdit}
+                onSave={handleMediaBarSave}
+                onEdit={() => onEdit?.()}
                 onRemove={handleRemoveBlock}
               />
             </div>

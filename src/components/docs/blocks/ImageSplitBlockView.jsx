@@ -299,7 +299,7 @@ export function ImageSplitBlockView({
   const splitSaved = Boolean(block?.splitSaved && cardFilled);
   const isEdit = !splitSaved;
   const mediaFace = block?.mediaFace === "prompt" ? "prompt" : "image";
-  const showFaceSwitch = isEdit || imageSaved;
+  const showFaceSwitch = isEdit;
   const showingImage = mediaFace === "image" && imageSaved;
   const showingImageDropzone = mediaFace === "image" && !imageSaved && isEdit;
   const showingPrompt = mediaFace === "prompt" && (isEdit || hasLibraryPrompt || imageSaved);
@@ -1070,15 +1070,11 @@ export function ImageSplitBlockView({
 
   const canSave = cardFilled;
 
-  const handleMediaBarEdit = useCallback(() => {
-    if (isEdit) {
-      if (!canSave) return;
-      flushLibraryPrompt(latestLibraryBlock());
-      onSave?.();
-      return;
-    }
-    openLibraryEdit();
-  }, [canSave, isEdit, onSave, openLibraryEdit]);
+  const handleMediaBarSave = useCallback(() => {
+    if (!canSave) return;
+    flushLibraryPrompt(latestLibraryBlock());
+    onSave?.();
+  }, [canSave, onSave]);
 
   const columnStyle = columnHeight ? {
     height: `${columnHeight}px`,
@@ -1118,14 +1114,17 @@ export function ImageSplitBlockView({
     );
   };
 
-  const renderMediaBar = ({ showChange = true } = {}) => (
+  const renderMediaBar = ({ showAdd = true } = {}) => (
     <DocCardMediaActions
       className="doc-card-float-actions doc-image-split__media-actions doc-card-media-actions"
       isEdit={isEdit}
       canSave={canSave}
-      showChange={showChange}
-      onChangeImage={() => setLibraryPickerOpen(true)}
-      onEditAction={handleMediaBarEdit}
+      showAdd={showAdd}
+      showEditImage={Boolean(String(block?.libraryItemId || "").trim()) && imageSaved}
+      onAddImage={() => setLibraryPickerOpen(true)}
+      onEditImage={openLibraryEdit}
+      onSave={handleMediaBarSave}
+      onEdit={() => onEdit?.()}
       onRemove={handleRemoveBlock}
     />
   );

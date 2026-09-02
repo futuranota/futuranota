@@ -11811,6 +11811,10 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+.doc-card-media-actions--saved {
+  justify-content: flex-end;
+}
+
 .doc-image-split__media-actions-end {
   display: flex;
   align-items: center;
