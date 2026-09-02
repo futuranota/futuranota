@@ -247,6 +247,8 @@ function shrinkSplitUntilNoOverflow(el, full, split) {
  */
 export function ImageSplitBlockView({
   block,
+  pairedTextBlock = null,
+  onPairedTextChange,
   onChange,
   onSave,
   onEdit,
@@ -297,12 +299,17 @@ export function ImageSplitBlockView({
   const hasLibraryPrompt = Boolean(libraryPrompt.trim());
   const cardFilled = imageSplitHasFill(block);
   const splitSaved = Boolean(block?.splitSaved && cardFilled);
-  const isEdit = !splitSaved;
+  const isMediaEdit = !splitSaved;
+  const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+    ? IMAGE_SPLIT_BODY_MODE.TODO
+    : IMAGE_SPLIT_BODY_MODE.TEXT;
+  const isTodoBody = bodyMode === IMAGE_SPLIT_BODY_MODE.TODO;
+  const isTextEditable = !isTodoBody;
   const mediaFace = block?.mediaFace === "prompt" ? "prompt" : "image";
-  const showFaceSwitch = isEdit;
+  const showFaceSwitch = isMediaEdit;
   const showingImage = mediaFace === "image" && imageSaved;
-  const showingImageDropzone = mediaFace === "image" && !imageSaved && isEdit;
-  const showingPrompt = mediaFace === "prompt" && (isEdit || hasLibraryPrompt || imageSaved);
+  const showingImageDropzone = mediaFace === "image" && !imageSaved && isMediaEdit;
+  const showingPrompt = mediaFace === "prompt" && (isMediaEdit || hasLibraryPrompt || imageSaved);
   const wallColor = String(block?.wallColor || "").trim();
   const wallStyle = wallColor ? { backgroundColor: wallColor } : undefined;
 
@@ -329,7 +336,7 @@ export function ImageSplitBlockView({
     handleCreateSaved,
     closeCreateModal,
   } = useLibraryImagePickerCreate({
-    isEdit,
+    isEdit: isMediaEdit,
     libraryOwnerKind,
     libraryOwnerId,
     folderLibraryId,
@@ -352,16 +359,16 @@ export function ImageSplitBlockView({
     folderId: pickerFolderId,
     documentId: pickerDocumentId,
   };
-  const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
-    ? IMAGE_SPLIT_BODY_MODE.TODO
-    : IMAGE_SPLIT_BODY_MODE.TEXT;
-  const isTodoBody = bodyMode === IMAGE_SPLIT_BODY_MODE.TODO;
   const todoItems = Array.isArray(block?.todoItems) && block.todoItems.length > 0
     ? block.todoItems
     : [createTodoItem()];
 
-  const headlineValue = String(block?.overlayTitle ?? "");
-  const bodyValue = block?.body || "";
+  const headlineValue = String(
+    pairedTextBlock?.imageSplitHeadline
+    ?? block?.overlayTitle
+    ?? "",
+  );
+  const bodyValue = pairedTextBlock?.text ?? block?.body ?? "";
   const showBelow = !isTodoBody && (belowText.length > 0 || belowFocused);
 
   const pulseBodyLimit = useCallback(() => {
@@ -376,10 +383,10 @@ export function ImageSplitBlockView({
   }, []);
 
   useEffect(() => {
-    if (!isEdit || !block?.openFilePicker || cardFilled) return;
+    if (!isMediaEdit || !block?.openFilePicker || cardFilled) return;
     setLibraryPickerOpen(true);
     onChange?.({ openFilePicker: false });
-  }, [block?.openFilePicker, block?.id, cardFilled, onChange, isEdit]);
+  }, [block?.openFilePicker, block?.id, cardFilled, onChange, isMediaEdit]);
 
   const applySplitResult = useCallback((result) => {
     splitIndexRef.current = result.split;
@@ -444,7 +451,7 @@ export function ImageSplitBlockView({
 
   const restorePendingCaret = useCallback((result) => {
     let pending = pendingCaretRef.current;
-    if (!pending || !isEdit || isTodoBody) {
+    if (!pending || !isTextEditable || isTodoBody) {
       pendingCaretRef.current = null;
       return;
     }
@@ -501,7 +508,7 @@ export function ImageSplitBlockView({
         setBelowFocused(true);
       }
     }
-  }, [isEdit, isTodoBody, pulseBodyLimit]);
+  }, [isTextEditable, isTodoBody, pulseBodyLimit]);
 
   useLayoutEffect(() => {
     const card = cardRef.current;
@@ -635,7 +642,7 @@ export function ImageSplitBlockView({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-  }, [belowText, showBelow, isEdit]);
+  }, [belowText, showBelow, isTextEditable]);
 
   useEffect(() => {
     if (!focusTodoItemId || !isTodoBody) return;
@@ -643,7 +650,7 @@ export function ImageSplitBlockView({
   }, [focusTodoItemId, isTodoBody, todoItems.length]);
 
   useEffect(() => {
-    if (!autoFocusBody || !isEdit || isTodoBody) return;
+    if (!autoFocusBody || !isTextEditable || isTodoBody) return;
     const el = headlineRef.current;
     if (!el) return;
     requestAnimationFrame(() => {
@@ -651,10 +658,10 @@ export function ImageSplitBlockView({
       const len = el.value?.length ?? 0;
       el.setSelectionRange?.(len, len);
     });
-  }, [autoFocusBody, isEdit, isTodoBody, block?.id]);
+  }, [autoFocusBody, isTextEditable, isTodoBody, block?.id]);
 
   const handleClearImage = () => {
-    if (!isEdit) return;
+    if (!isMediaEdit) return;
     onChange?.({
       src: "",
       name: "",
@@ -683,7 +690,7 @@ export function ImageSplitBlockView({
     libraryPromptRef.current = patch.libraryPrompt || "";
     onChange?.({
       ...patch,
-      splitSaved: isEdit ? false : Boolean(block?.splitSaved),
+      splitSaved: isMediaEdit ? false : Boolean(block?.splitSaved),
     });
     setLibraryPickerOpen(false);
     setError(null);
@@ -712,7 +719,7 @@ export function ImageSplitBlockView({
       onChange?.({
         ...patch,
         wallColor: normalizeWallColor(saved.wallColor),
-        splitSaved: isEdit ? false : Boolean(block?.splitSaved),
+        splitSaved: isMediaEdit ? false : Boolean(block?.splitSaved),
       });
     }
     setLibraryEditOpen(false);
@@ -720,7 +727,7 @@ export function ImageSplitBlockView({
     block?.libraryOwnerId,
     block?.libraryOwnerKind,
     block?.splitSaved,
-    isEdit,
+    isMediaEdit,
     onChange,
     pickerPrimaryId,
     pickerPrimaryKind,
@@ -773,9 +780,23 @@ export function ImageSplitBlockView({
     handleClearImage();
   };
 
-  const handleFieldChange = (patch) => {
-    if (!isEdit) return;
+  const handleMediaChange = (patch) => {
+    if (!isMediaEdit) return;
     onChange?.({ ...patch, splitSaved: false });
+  };
+
+  const handlePairedTextUpdate = (patch) => {
+    if (!isTextEditable) return;
+    if (onPairedTextChange) {
+      onPairedTextChange(patch);
+      return;
+    }
+    if ("text" in patch) {
+      onChange?.({ body: patch.text });
+    }
+    if ("imageSplitHeadline" in patch) {
+      onChange?.({ overlayTitle: patch.imageSplitHeadline });
+    }
   };
 
   const handleFaceChange = (face) => {
@@ -787,7 +808,7 @@ export function ImageSplitBlockView({
       onChange?.(patch);
       return;
     }
-    if (!isEdit) return;
+    if (!isMediaEdit) return;
     onChange?.({ ...patch, splitSaved: false });
   };
 
@@ -797,7 +818,7 @@ export function ImageSplitBlockView({
   };
 
   const addTodoItem = (afterIndex = todoItems.length - 1) => {
-    if (!isEdit) return null;
+    if (!isMediaEdit) return null;
     const newItem = createTodoItem();
     const next = [
       ...todoItems.slice(0, afterIndex + 1),
@@ -818,7 +839,7 @@ export function ImageSplitBlockView({
   };
 
   const handleTodoItemKeyDown = (index, event) => {
-    if (!isEdit) return;
+    if (!isMediaEdit) return;
     const item = todoItems[index];
     if (!item) return;
 
@@ -871,13 +892,13 @@ export function ImageSplitBlockView({
   }, []);
 
   const handleHeadlineChange = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     const next = String(event.target.value ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
-    handleFieldChange({ overlayTitle: next });
+    handlePairedTextUpdate({ imageSplitHeadline: next });
   };
 
   const handleHeadlineKeyDown = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       focusBodyStart();
@@ -885,28 +906,26 @@ export function ImageSplitBlockView({
   };
 
   const handleSideChange = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     const nextSideDom = String(event.target.value ?? "");
     const prevSide = sideTextRef.current;
     const below = belowTextRef.current;
     const nextBody = composeBodyAfterSideEdit(prevSide, nextSideDom, below);
-    // Keep side ref aligned to the portion before below in the reconciled body.
     const nextSide = below && nextBody.endsWith(below)
       ? nextBody.slice(0, nextBody.length - below.length)
       : nextSideDom;
     sideTextRef.current = nextSide;
     if (nextBody === bodyValue) {
-      // Still force DOM back to the authoritative side half if it drifted.
       if (event.target.value !== nextSide) event.target.value = nextSide;
       return;
     }
     const caret = event.target.selectionStart ?? nextSide.length;
     pendingCaretRef.current = { zone: "side", offset: caret };
-    handleFieldChange({ body: nextBody });
+    handlePairedTextUpdate({ text: nextBody });
   };
 
   const handleBelowChange = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     const nextBelowDom = String(event.target.value ?? "");
     const nextBody = composeBodyAfterBelowEdit(
       sideTextRef.current,
@@ -921,11 +940,11 @@ export function ImageSplitBlockView({
       offset: caret,
       prevSplit: splitIndexRef.current,
     };
-    handleFieldChange({ body: nextBody });
+    handlePairedTextUpdate({ text: nextBody });
   };
 
   const handleSideKeyDown = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
 
     const el = bodyTextareaRef.current;
     const atStart = el
@@ -982,7 +1001,7 @@ export function ImageSplitBlockView({
   };
 
   const handleBelowKeyDown = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
 
     const el = bodyBelowRef.current;
     const atStart = el
@@ -1006,7 +1025,7 @@ export function ImageSplitBlockView({
         pendingCaretRef.current = { zone: "side", offset: 0 };
         setBelowFocused(false);
       }
-      handleFieldChange({ body: nextBody });
+      handlePairedTextUpdate({ text: nextBody });
       return;
     }
 
@@ -1023,7 +1042,7 @@ export function ImageSplitBlockView({
   };
 
   const handleSidePaste = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     const el = bodyTextareaRef.current;
     if (!el) return;
 
@@ -1042,11 +1061,11 @@ export function ImageSplitBlockView({
       : nextSideDom;
     sideTextRef.current = nextSide;
     pendingCaretRef.current = { zone: "side", offset: start + paste.length };
-    if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
+    if (nextBody !== bodyValue) handlePairedTextUpdate({ text: nextBody });
   };
 
   const handleBelowPaste = (event) => {
-    if (!isEdit) return;
+    if (!isTextEditable) return;
     const el = bodyBelowRef.current;
     if (!el) return;
 
@@ -1065,7 +1084,7 @@ export function ImageSplitBlockView({
       offset: start + paste.length,
       prevSplit: splitIndexRef.current,
     };
-    if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
+    if (nextBody !== bodyValue) handlePairedTextUpdate({ text: nextBody });
   };
 
   const canSave = cardFilled;
@@ -1086,38 +1105,30 @@ export function ImageSplitBlockView({
   } : undefined;
 
   const renderSideHeadline = () => {
-    if (isTodoBody) return null;
-    if (isEdit) {
-      return (
-        <input
-          ref={headlineRef}
-          type="text"
-          className="doc-image-split__side-headline"
-          value={headlineValue}
-          maxLength={IMAGE_SPLIT_TITLE_MAX}
-          placeholder={t("doc.imageSplit.headlinePlaceholder")}
-          aria-label={t("doc.imageSplit.headlinePlaceholder")}
-          spellCheck={false}
-          onChange={handleHeadlineChange}
-          onKeyDown={handleHeadlineKeyDown}
-          onFocus={() => {
-            notifyBodyFocus();
-          }}
-        />
-      );
-    }
-    if (!headlineValue.trim()) return null;
+    if (isTodoBody || !isTextEditable) return null;
     return (
-      <div className="doc-image-split__side-headline doc-image-split__side-headline--static">
-        {headlineValue}
-      </div>
+      <textarea
+        ref={headlineRef}
+        rows={1}
+        className="doc-image-split__side-headline doc-image-split__side-headline--field"
+        value={headlineValue}
+        maxLength={IMAGE_SPLIT_TITLE_MAX}
+        placeholder={t("doc.imageSplit.headlinePlaceholder")}
+        aria-label={t("doc.imageSplit.headlinePlaceholder")}
+        spellCheck={false}
+        onChange={handleHeadlineChange}
+        onKeyDown={handleHeadlineKeyDown}
+        onFocus={() => {
+          notifyBodyFocus();
+        }}
+      />
     );
   };
 
   const renderMediaBar = ({ showAdd = true } = {}) => (
     <DocCardMediaActions
       className="doc-card-float-actions doc-image-split__media-actions doc-card-media-actions"
-      isEdit={isEdit}
+      isEdit={isMediaEdit}
       canSave={canSave}
       showAdd={showAdd}
       showEditImage={Boolean(String(block?.libraryItemId || "").trim()) && imageSaved}
@@ -1161,7 +1172,7 @@ export function ImageSplitBlockView({
                   </button>
                 </div>
               ) : null}
-              {isEdit ? (
+              {isMediaEdit ? (
                 <button
                   type="button"
                   className="doc-image-split__img-btn"
@@ -1217,7 +1228,7 @@ export function ImageSplitBlockView({
                   </button>
                 </div>
               ) : null}
-              {isEdit ? (
+              {isMediaEdit ? (
                 <textarea
                   className="doc-image-split__prompt"
                   value={libraryPrompt}
@@ -1228,7 +1239,7 @@ export function ImageSplitBlockView({
                   onChange={(event) => {
                     const next = event.target.value.slice(0, BANNER_HEADLINE_MAX);
                     libraryPromptRef.current = next;
-                    handleFieldChange({ libraryPrompt: next });
+                    handleMediaChange({ libraryPrompt: next });
                     scheduleLibraryPromptSync(next);
                   }}
                   onBlur={() => flushLibraryPrompt(latestLibraryBlock())}
@@ -1271,8 +1282,8 @@ export function ImageSplitBlockView({
               <button
                 type="button"
                 className="doc-image-split__dropzone"
-                disabled={!isEdit}
-                onClick={() => isEdit && setLibraryPickerOpen(true)}
+                disabled={!isMediaEdit}
+                onClick={() => isMediaEdit && setLibraryPickerOpen(true)}
               >
                 <span className="doc-image-split__dropzone-title">
                   {t("doc.imageSplit.pickLibrary")}
@@ -1297,7 +1308,7 @@ export function ImageSplitBlockView({
               <div
                 className={
                   "doc-image-split__embedded-todo"
-                  + (isEdit ? "" : " doc-image-split__embedded-todo--saved")
+                  + (isMediaEdit ? "" : " doc-image-split__embedded-todo--saved")
                 }
               >
                 <div className="doc-image-split__embedded-todo-header">
@@ -1307,11 +1318,11 @@ export function ImageSplitBlockView({
                     value={block?.todoListTitle || ""}
                     placeholder={t("doc.imageSplit.todoTitlePlaceholder")}
                     aria-label={t("doc.imageSplit.todoTitlePlaceholder")}
-                    readOnly={!isEdit}
+                    readOnly={!isMediaEdit}
                     onChange={(e) => handleTodoPatch({ todoListTitle: e.target.value })}
                     onFocus={notifyBodyFocus}
                   />
-                  {isEdit ? (
+                  {isMediaEdit ? (
                     <button
                       type="button"
                       className="doc-image-split__embedded-todo-new"
@@ -1337,7 +1348,7 @@ export function ImageSplitBlockView({
                         }
                         aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
                         onClick={() => updateTodoItem(index, { checked: !item.checked }, {
-                          keepSaved: !isEdit,
+                          keepSaved: !isMediaEdit,
                         })}
                       >
                         <span aria-hidden />
@@ -1351,7 +1362,7 @@ export function ImageSplitBlockView({
                         className="doc-image-split__embedded-todo-input"
                         data-image-split-todo-id={item.id}
                         value={item.text}
-                        readOnly={!isEdit}
+                        readOnly={!isMediaEdit}
                         placeholder={t("doc.imageSplit.todoItemPlaceholder")}
                         onChange={(e) => updateTodoItem(index, { text: e.target.value })}
                         onKeyDown={(e) => handleTodoItemKeyDown(index, e)}
@@ -1361,7 +1372,7 @@ export function ImageSplitBlockView({
                   ))}
                 </div>
               </div>
-            ) : isEdit ? (
+            ) : isTextEditable ? (
               <textarea
                 ref={bodyTextareaRef}
                 className={
@@ -1398,7 +1409,7 @@ export function ImageSplitBlockView({
           className="doc-image-split__body-below"
           ref={bodyBelowWrapRef}
         >
-          {isEdit ? (
+          {isTextEditable ? (
             <textarea
               ref={bodyBelowRef}
               className="doc-image-split__body-field doc-image-split__body-field--below"

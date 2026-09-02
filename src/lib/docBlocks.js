@@ -1111,6 +1111,7 @@ function normalizeImageSplitBlock(block) {
       : Array.isArray(block?.todoItems)
         ? normalizeEmbeddedTodoItems(block.todoItems)
         : [],
+    pairedTextBlockId: String(block?.pairedTextBlockId || "").trim() || undefined,
     splitSaved: Boolean(block?.splitSaved) && filled,
   };
 }
@@ -2028,7 +2029,164 @@ export function normalizeDocBlock(block) {
       ? { embedded: block.embedded }
       : {}),
     ...(block.macroNodeSlot ? { macroNodeSlot: block.macroNodeSlot } : {}),
+    ...(String(block?.imageSplitPairId || "").trim()
+      ? { imageSplitPairId: String(block.imageSplitPairId).trim() }
+      : {}),
+    ...(String(block?.imageSplitHeadline || "").trim()
+      ? { imageSplitHeadline: String(block.imageSplitHeadline).slice(0, IMAGE_SPLIT_TITLE_MAX) }
+      : {}),
   });
+}
+
+/** TEXT block rendered in the Image card side column (document flow, not image metadata). */
+export function isImageSplitPairedTextBlock(block) {
+  return block?.type === DOC_BLOCK_TYPES.TEXT
+    && Boolean(String(block?.imageSplitPairId || "").trim());
+}
+
+/**
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @param {number} imageIndex
+ */
+export function getImageSplitPairedTextIndex(blocks, imageIndex) {
+  const image = blocks?.[imageIndex];
+  if (!image || image.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return -1;
+  const pairedId = String(image.pairedTextBlockId || "").trim();
+  if (pairedId) {
+    const idx = blocks.findIndex((entry) => entry?.id === pairedId);
+    if (idx >= 0 && isImageSplitPairedTextBlock(blocks[idx])) return idx;
+  }
+  const next = blocks[imageIndex + 1];
+  if (isImageSplitPairedTextBlock(next) && next.imageSplitPairId === image.id) {
+    return imageIndex + 1;
+  }
+  return -1;
+}
+
+function ensureEmptyTextBlockAfterRaw(blocks, blockIndex) {
+  if (blockIndex < 0 || blockIndex >= blocks.length) return blocks;
+  const current = blocks[blockIndex];
+  const after = blocks[blockIndex + 1];
+  if (
+    current?.type === DOC_BLOCK_TYPES.H1
+    && after?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+  ) {
+    return blocks;
+  }
+  if (isEmptyTextBlock(after)) return blocks;
+  const next = [...blocks];
+  next.splice(blockIndex + 1, 0, createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
+  return next;
+}
+
+/**
+ * Ensure a paired TEXT block exists beside an Image card; migrate legacy body/headline off the card.
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @param {number} imageIndex
+ */
+export function ensureImageSplitPairedTextBlock(blocks, imageIndex) {
+  const next = blocks.map((entry) => normalizeDocBlock(entry));
+  const image = next[imageIndex];
+  if (!image || image.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return next;
+
+  const legacyHeadline = String(image.overlayTitle || "").trim();
+  const legacyBody = String(image.body || "").trim();
+  let pairedIndex = getImageSplitPairedTextIndex(next, imageIndex);
+
+  if (pairedIndex < 0) {
+    const after = next[imageIndex + 1];
+    if (
+      after?.type === DOC_BLOCK_TYPES.TEXT
+      && isEmptyTextBlock(after)
+      && !isImageSplitPairedTextBlock(after)
+    ) {
+      next[imageIndex + 1] = normalizeDocBlock({
+        ...after,
+        imageSplitPairId: image.id,
+        ...(legacyHeadline ? { imageSplitHeadline: legacyHeadline } : {}),
+        ...(legacyBody ? { text: legacyBody } : {}),
+      });
+      pairedIndex = imageIndex + 1;
+    } else {
+      const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+        text: legacyBody,
+        imageSplitPairId: image.id,
+        ...(legacyHeadline ? { imageSplitHeadline: legacyHeadline } : {}),
+      });
+      next.splice(imageIndex + 1, 0, textBlock);
+      pairedIndex = imageIndex + 1;
+    }
+    next[imageIndex] = normalizeDocBlock({
+      ...next[imageIndex],
+      pairedTextBlockId: next[pairedIndex].id,
+      overlayTitle: "",
+      body: "",
+    });
+    return next;
+  }
+
+  let paired = next[pairedIndex];
+  let pairedPatch = null;
+  if (legacyHeadline && !String(paired.imageSplitHeadline || "").trim()) {
+    pairedPatch = { ...(pairedPatch || {}), imageSplitHeadline: legacyHeadline };
+  }
+  if (legacyBody) {
+    const merged = [String(paired.text || "").trim(), legacyBody].filter(Boolean).join("\n\n");
+    pairedPatch = { ...(pairedPatch || {}), text: merged };
+  }
+  if (pairedPatch) {
+    next[pairedIndex] = normalizeDocBlock({ ...paired, ...pairedPatch });
+  }
+  if (legacyHeadline || legacyBody) {
+    next[imageIndex] = normalizeDocBlock({
+      ...next[imageIndex],
+      overlayTitle: "",
+      body: "",
+      pairedTextBlockId: next[pairedIndex].id,
+    });
+  } else if (!String(next[imageIndex].pairedTextBlockId || "").trim()) {
+    next[imageIndex] = normalizeDocBlock({
+      ...next[imageIndex],
+      pairedTextBlockId: next[pairedIndex].id,
+    });
+  }
+  return next;
+}
+
+function ensureAllImageSplitPairings(blocks) {
+  let next = blocks.map((entry) => normalizeDocBlock(entry));
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    if (next[i]?.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) continue;
+    next = ensureImageSplitPairedTextBlock(next, i);
+  }
+  return next;
+}
+
+/** Guardar imagen: fija media; el copy vive en el TEXT emparejado. */
+export function saveImageSplitMediaBlock(blocks, imageIndex) {
+  let next = ensureImageSplitPairedTextBlock(blocks, imageIndex);
+  next = next.map((entry, i) => (
+    i === imageIndex && entry.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      ? normalizeDocBlock({ ...entry, splitSaved: true })
+      : entry
+  ));
+  const pairedIndex = getImageSplitPairedTextIndex(next, imageIndex);
+  const tailIndex = pairedIndex >= 0 ? pairedIndex : imageIndex;
+  return ensureEmptyTextBlockAfterRaw(next, tailIndex);
+}
+
+/** Remove Image card and its paired side-column TEXT block. */
+export function removeImageSplitBundleAt(blocks, imageIndex) {
+  let next = [...blocks];
+  const pairedIndex = getImageSplitPairedTextIndex(next, imageIndex);
+  next.splice(imageIndex, 1);
+  if (pairedIndex > imageIndex) {
+    const adjusted = pairedIndex - 1;
+    if (isImageSplitPairedTextBlock(next[adjusted])) {
+      next.splice(adjusted, 1);
+    }
+  }
+  return next.length ? next : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
 }
 
 function mergeAdjacentTextBlocks(blocks) {
@@ -2042,6 +2200,10 @@ function mergeAdjacentTextBlocks(blocks) {
       && !prev.embedded
       && !block.macroNodeSlot
       && !prev.macroNodeSlot
+      && !isImageSplitPairedTextBlock(block)
+      && !isImageSplitPairedTextBlock(prev)
+      && !isEmptyTextBlock(block)
+      && !isEmptyTextBlock(prev)
     ) {
       const combined = mergeMentionBlocks(
         prev.text || "",
@@ -2092,7 +2254,8 @@ function mergeAdjacentTextBlocks(blocks) {
 
 export function normalizeDocBlocks(blocks) {
   if (!Array.isArray(blocks) || blocks.length === 0) return [];
-  return mergeAdjacentTextBlocks(blocks.map(normalizeDocBlock));
+  const paired = ensureAllImageSplitPairings(blocks);
+  return mergeAdjacentTextBlocks(paired);
 }
 
 /**
@@ -3029,14 +3192,23 @@ export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, 
 }
 
 export function replaceBlocksFromSlashInImageSplitBody(blocks, blockIndex, bodyValue, newBlock) {
-  const normalized = normalizeDocBlocks(blocks);
-  const block = normalized[blockIndex];
-  if (!block || block.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return normalized;
+  let next = ensureImageSplitPairedTextBlock(blocks, blockIndex);
+  const pairedIndex = getImageSplitPairedTextIndex(next, blockIndex);
+  if (pairedIndex < 0) {
+    const block = next[blockIndex];
+    if (!block || block.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return next;
+    const { prefix } = splitBodyForSlash(bodyValue);
+    next = [...next];
+    next[blockIndex] = normalizeDocBlock({ ...block, body: prefix });
+    next.splice(blockIndex + 1, 0, normalizeDocBlock(newBlock));
+    return next;
+  }
 
+  const paired = next[pairedIndex];
   const { prefix } = splitBodyForSlash(bodyValue);
-  const next = [...normalized];
-  next[blockIndex] = normalizeDocBlock({ ...block, body: prefix });
-  next.splice(blockIndex + 1, 0, normalizeDocBlock(newBlock));
+  next = [...next];
+  next[pairedIndex] = normalizeDocBlock({ ...paired, text: prefix });
+  next.splice(pairedIndex + 1, 0, normalizeDocBlock(newBlock));
   return next;
 }
 

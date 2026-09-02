@@ -20,6 +20,11 @@ import {
   IMAGE_SPLIT_BODY_MODE,
   ensureEmptyTextBlockAfter,
   ensureWritableDocTail,
+  ensureImageSplitPairedTextBlock,
+  getImageSplitPairedTextIndex,
+  isImageSplitPairedTextBlock,
+  removeImageSplitBundleAt,
+  saveImageSplitMediaBlock,
   hasProductCardBlock,
   h1HasVideoEmbedSibling,
   insertBlockAfter,
@@ -571,7 +576,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       }
 
       if (focused.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
-        const bodyValue = focused.body || "";
+        let blocksForSlash = ensureImageSplitPairedTextBlock(blocksRef.current, blockIndex);
+        const pairedIndex = getImageSplitPairedTextIndex(blocksForSlash, blockIndex);
+        const pairedBlock = pairedIndex >= 0 ? blocksForSlash[pairedIndex] : null;
+        const bodyValue = pairedBlock?.text || focused.body || "";
         // [+] always uses the picker alias (not a typed /command confirm).
         // replaceBlocksFromSlash* / applyTodoSlash strip any trailing /… from body.
         if (parsed.type === DOC_BLOCK_TYPES.TODO) {
@@ -586,7 +594,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         const newBlock = createDocBlockFromSlash(parsed);
         if (!newBlock) return;
         let next = replaceBlocksFromSlashInImageSplitBody(
-          blocksRef.current,
+          blocksForSlash,
           blockIndex,
           bodyValue,
           newBlock,
@@ -1785,6 +1793,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ? resolveBlockById(collapsedActiveWriteId)
           : null;
 
+        if (block.type === DOC_BLOCK_TYPES.TEXT && isImageSplitPairedTextBlock(block)) {
+          return null;
+        }
+
         if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
           if (getLinkedOwnerForContinuationSlot(blocks, index) < 0) {
             return null;
@@ -2014,6 +2026,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT ? (
               <ImageSplitBlockView
                 block={block}
+                pairedTextBlock={(() => {
+                  const pairedIndex = getImageSplitPairedTextIndex(blocks, index);
+                  return pairedIndex >= 0 ? blocks[pairedIndex] : null;
+                })()}
                 autoFocusBody={focusBlockId === block.id && imageSplitHasFill(block) && !block.splitSaved}
                 focusTodoItemId={
                   focusBlockId === block.id && block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
@@ -2024,10 +2040,20 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 libraryOwnerKind={libraryOwnerKind}
                 libraryOwnerId={libraryOwnerId}
                 folderLibraryId={folderLibraryId}
+                onPairedTextChange={(patch) => {
+                  let next = ensureImageSplitPairedTextBlock(blocksRef.current, index);
+                  const pairedIndex = getImageSplitPairedTextIndex(next, index);
+                  if (pairedIndex < 0) return;
+                  next = updateBlockAt(next, pairedIndex, patch);
+                  setBlocks(next);
+                  requestContentGrow();
+                }}
                 onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
+                next = ensureImageSplitPairedTextBlock(next, index);
+                const pairedIndex = getImageSplitPairedTextIndex(next, index);
                 if (imageSplitHasFill({ ...block, ...patch })) {
-                  next = ensureEmptyTextBlockAfter(next, index);
+                  next = ensureEmptyTextBlockAfter(next, pairedIndex >= 0 ? pairedIndex : index);
                 }
                 setBlocks(next);
                 if (imageSplitHasFill({ ...block, ...patch })) {
@@ -2036,14 +2062,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onSave={() => {
                 if (!imageSplitHasFill(block)) return;
-                let next = updateBlockAt(blocksRef.current, index, { splitSaved: true });
-                next = ensureEmptyTextBlockAfter(next, index);
+                const next = saveImageSplitMediaBlock(blocksRef.current, index);
                 setBlocks(next);
-                const textBlock = next[index + 1];
-                if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
-                  onFocusBlock?.(textBlock.id);
-                  focusBlockCaret(textBlock.id, 0);
-                }
                 requestContentGrow();
               }}
               onEdit={() => {
@@ -2063,7 +2083,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.imageSplit");
                 if (!ok) return;
-                removeCommandBlockAt(index);
+                const next = removeImageSplitBundleAt(blocksRef.current, index);
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+                requestContentGrow();
               }}
               onBodyKeyDown={(e) => {
                 if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
