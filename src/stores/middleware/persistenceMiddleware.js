@@ -10,7 +10,8 @@ import {
 } from "../../lib/docSyncDirty.js";
 import { normalizeFolderLibraryItems, normalizeLibrarySets, normalizePromptClasses } from "../../lib/folderLibraryNormalize.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
-import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
+import { sanitizePersistedSnapshot, pruneStrayDefaultYo, localWorkspaceNeedsCloudHydrate } from "../../lib/storeSanitize.js";
+import { shouldAllowOrphanDelete as orphanDeleteIsAllowed } from "../../lib/orphanDeleteGuard.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
 import { mergeEntityMapsPreferNewer } from "../../lib/mergeEntityMapsPreferNewer.js";
 import {
@@ -21,12 +22,17 @@ import {
 } from "../../lib/nodePersistedContentScore.js";
 import {
   clearLastSyncedAt,
+  clearWorkspaceOwnerUserId,
+  fetchWorkspaceRowCounts,
   fetchWorkspaceVersion,
   maxUpdatedAtFromRows,
   parseVersionMs,
   readLastSyncedAt,
+  readWorkspaceOwnerUserId,
   shouldSkipFullHydrate,
+  WORKSPACE_FOLDERS_TABLE,
   writeLastSyncedAt,
+  writeWorkspaceOwnerUserId,
 } from "../../lib/workspaceVersionGate.js";
 import { scheduleDocImageDataUrlBackfill } from "../../lib/migrateDocImageDataUrls.js";
 import {
@@ -369,10 +375,14 @@ let isSyncedWithRemote = false;
 /** Last completed flush of companies/campaigns/nodes to cloud. Guards SIGNED_OUT wipe. */
 let lastCloudFlushOk = true;
 let hydrateInFlight = false;
+/** Google/session restore often arrives as INITIAL_SESSION while the first hydrate is still waiting on getSession. */
+let hydrateQueuedAfterAuth = false;
 let lastSyncWarnAt = 0;
 /** Serialize remote writes so a stale in-flight upsert cannot resurrect deleted folders. */
 let syncInFlight = null;
 let syncNeedsRerun = false;
+/** Local edits arrived before hydrate finished — push once cloud sync is enabled. */
+let syncDeferredWhileNotReady = false;
 
 /** Doc/node/company IDs deleted locally that hydrate must not resurrect until remote orphan cleanup lands. */
 const pendingDeletedDocIds = new Set();
@@ -738,7 +748,7 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
   const cleared = [];
   const heldForGrace = [];
   const now = Date.now();
-  const markedAtMap = table === "campaigns"
+  const markedAtMap = table === WORKSPACE_FOLDERS_TABLE
     ? deletedDocMarkedAt
     : table === "companies"
       ? deletedCompanyMarkedAt
@@ -747,7 +757,7 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
     if (stillRemote.has(id)) continue;
     // Companies + folders: NEVER auto-clear. A sibling tab / stale hydrate can
     // re-upsert during grace; clearing the tombstone then lets ghosts resurrect.
-    if (table === "companies" || table === "campaigns") {
+    if (table === "companies" || table === WORKSPACE_FOLDERS_TABLE) {
       heldForGrace.push(id);
       continue;
     }
@@ -767,7 +777,7 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
   }
   // #endregion
   if (cleared.length) {
-    const kind = table === "campaigns" ? "docs" : table === "companies" ? "companies" : "nodes";
+    const kind = table === WORKSPACE_FOLDERS_TABLE ? "docs" : table === "companies" ? "companies" : "nodes";
     removeIdsFromTombstoneLedger(kind, cleared);
     writeTombstoneLedger();
   }
@@ -877,6 +887,50 @@ function mergeLocalCadenceIntoObjects(objects) {
 }
 
 /**
+ * Never orphan-delete a richer remote when local is a partial snapshot (second browser / bad hydrate).
+ * Explicit tombstone purges still run via purgeTombstonedRows.
+ * @param {string} table
+ * @param {string} userId
+ * @param {string[]} localIds
+ * @param {Set<string>} pendingDeleteIds
+ */
+async function shouldAllowOrphanDelete(table, userId, localIds, pendingDeleteIds) {
+  const localCount = localIds.length;
+  const hasPendingDeletes = pendingDeleteIds.size > 0;
+
+  if (hasPendingDeletes) return true;
+  if (localCount <= 0) return false;
+
+  const { data: remoteRows, error: selectErr } = await supabase
+    .from(table)
+    .select("id")
+    .eq("user_id", userId);
+
+  if (selectErr) {
+    console.error(formatSupabaseError(selectErr, `Select ${table} for orphan guard`));
+    return orphanDeleteIsAllowed({
+      localCount,
+      remoteCount: 0,
+      hasPendingDeletes,
+      remoteCountUnknown: true,
+    });
+  }
+
+  const remoteCount = (remoteRows || []).length;
+  const allow = orphanDeleteIsAllowed({ localCount, remoteCount, hasPendingDeletes });
+  if (!allow) {
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae9c04'},body:JSON.stringify({sessionId:'ae9c04',runId:'post-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:shouldAllowOrphanDelete',message:'Blocked orphan delete — remote richer than local',data:{table,localCount,remoteCount,localIdsSample:localIds.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    console.warn(
+      `[futura-nota] Skipping orphan delete on ${table}: remote (${remoteCount}) > local (${localCount}). `
+        + "Local may be incomplete — would wipe cloud folders.",
+    );
+  }
+  return allow;
+}
+
+/**
  * Delete remote rows for this user that are not in localIds.
  * @param {string} table
  * @param {string} userId
@@ -900,6 +954,10 @@ async function deleteOrphanRows(table, userId, localIds) {
     .filter((id) => id && !localSet.has(id));
 
   if (!orphanIds.length) return true;
+
+  // #region agent log
+  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae9c04'},body:JSON.stringify({sessionId:'ae9c04',runId:'post-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:deleteOrphanRows',message:'Orphan delete executing',data:{table,localCount:localIds.length,remoteCount:(remoteRows||[]).length,orphanCount:orphanIds.length,orphanSample:orphanIds.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   const { error: deleteErr } = await supabase
     .from(table)
@@ -1394,7 +1452,14 @@ function readLocalWorkspaceSnapshot() {
 }
 
 let flushPersistenceSyncImpl = async () => ({ ok: true });
+let saveLocalWorkspaceToDiskImpl = () => {};
+let cancelRemoteSyncForLogoutImpl = () => {};
+let clearLocalWorkspaceOnLogoutImpl = (userId) => {};
 let reconcileWorkspaceDeletesImpl = () => false;
+
+function scopedWorkspaceStorageKey(userId) {
+  return `${STORAGE_KEY}:${userId}`;
+}
 
 /**
  * Product rule: re-arm delete tombstones from disk and purge ghost folders from live stores.
@@ -1403,6 +1468,24 @@ let reconcileWorkspaceDeletesImpl = () => false;
  */
 export function reconcileWorkspaceDeletes() {
   return reconcileWorkspaceDeletesImpl();
+}
+
+/** Snapshot workspace to localStorage only — safe during logout (no cloud await). */
+export function saveLocalWorkspaceToDisk() {
+  saveLocalWorkspaceToDiskImpl();
+}
+
+/** Stop debounced / gated cloud writes before clearing the auth session. */
+export function cancelRemoteSyncForLogout() {
+  cancelRemoteSyncForLogoutImpl();
+}
+
+/**
+ * Sign-out / account switch: archive per-user snapshot, wipe shared cache + live stores.
+ * @param {string|null|undefined} userId
+ */
+export function clearLocalWorkspaceOnLogout(userId) {
+  clearLocalWorkspaceOnLogoutImpl(userId);
 }
 
 export function initPersistenceMiddleware(stores) {
@@ -1449,6 +1532,27 @@ export function initPersistenceMiddleware(stores) {
       useObjectsStore.setState({ objects: stripped.objects || {} });
     }
     return true;
+  }
+
+  function getLocalWorkspaceRowCounts() {
+    const objects = useObjectsStore.getState().objects || {};
+    const docs = useDocsStore.getState().docs || {};
+    const nodes = useNodesStore.getState().nodes || {};
+    const canvasNodes = useCanvasStore.getState().canvasNodes || {};
+    const canvasConnections = useCanvasStore.getState().canvasConnections || {};
+    const groupings = useCanvasStore.getState().groupings || {};
+    const timelines = useTimelineStore.getState().timelines || {};
+    const countLiveIds = (map, tombstoneSet) =>
+      Object.keys(map).filter((id) => !tombstoneSet.has(id)).length;
+    return {
+      companies: countLiveIds(objects, pendingDeletedCompanyIds),
+      [WORKSPACE_FOLDERS_TABLE]: countLiveIds(docs, pendingDeletedDocIds),
+      nodes: countLiveIds(nodes, pendingDeletedNodeIds),
+      canvas_nodes: Object.keys(canvasNodes).length,
+      canvas_connections: Object.keys(canvasConnections).length,
+      groupings: Object.keys(groupings).length,
+      timelines: Object.keys(timelines).length,
+    };
   }
 
   const getLocalState = () => ({
@@ -1500,6 +1604,27 @@ export function initPersistenceMiddleware(stores) {
 
   const applyStateToStores = (data) => {
     if (!data) return;
+    const liveHasData = !localWorkspaceNeedsCloudHydrate(
+      useObjectsStore.getState().objects,
+      useDocsStore.getState().docs,
+    ) || Object.keys(useNodesStore.getState().nodes || {}).length > 0;
+    const incomingHasData = !localWorkspaceNeedsCloudHydrate(
+      data.objects,
+      data.docs,
+    ) || Object.keys(data.nodes || {}).length > 0;
+    if (
+      liveHasData
+      && !incomingHasData
+      && pendingDeletedDocIds.size === 0
+      && pendingDeletedNodeIds.size === 0
+      && pendingDeletedCompanyIds.size === 0
+    ) {
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae9c04'},body:JSON.stringify({sessionId:'ae9c04',runId:'pre-fix',hypothesisId:'H3',location:'persistenceMiddleware.js:applyStateToStores:refuse',message:'Refused empty overwrite',data:{liveNames:Object.values(useObjectsStore.getState().objects||{}).map((o)=>o?.name),liveDocCount:Object.keys(useDocsStore.getState().docs||{}).length,incomingDocCount:Object.keys(data.docs||{}).length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      console.warn("[futura-nota] Refusing empty workspace overwrite.");
+      return;
+    }
     restorePendingDeletesFromSnapshot(data);
     const stripped = stripPendingDeletesFromState(data);
     const { objects } = sanitizeAllObjectCadences(
@@ -1585,24 +1710,125 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const finishWorkspaceHydration = () => {
-    const { objects, addObject } = useObjectsStore.getState();
+    const { objects } = useObjectsStore.getState();
     const pruned = pruneStrayDefaultYo(objects);
     if (pruned !== objects) {
       useObjectsStore.setState({ objects: pruned });
     }
-    const nextObjects = useObjectsStore.getState().objects;
-    if (Object.keys(nextObjects).length > 0) {
-      useUIStateStore.getState().setWorkspaceHydrated(true);
-      return;
-    }
-    if (!findObjectIdByName(nextObjects, "yo")) {
-      addObject("yo", "");
-    }
     useUIStateStore.getState().setWorkspaceHydrated(true);
   };
 
-  /** Instant UI paint from disk — do not seed default "yo" (remote may still arrive). */
+  /** Hydrate complete — allow cloud writes and flush any edits made while waiting. */
+  function enableCloudSync(userId) {
+    isSyncedWithRemote = true;
+    if (userId) writeWorkspaceOwnerUserId(userId);
+    if (syncDeferredWhileNotReady) {
+      syncDeferredWhileNotReady = false;
+      debouncedRemoteSync();
+    }
+  }
+
+  function archiveWorkspaceSnapshotForUser(userId) {
+    if (!userId || typeof localStorage === "undefined") return;
+    try {
+      const payload = JSON.stringify(getLocalState());
+      if (payload && payload !== "{}") {
+        localStorage.setItem(scopedWorkspaceStorageKey(userId), payload);
+      }
+    } catch {
+      // quota / private mode
+    }
+  }
+
+  function wipeSharedWorkspaceDisk() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOMBSTONE_LEDGER_KEY);
+    } catch {
+      // private mode / quota
+    }
+    clearLastSyncedAt();
+    clearWorkspaceOwnerUserId();
+  }
+
+  function clearInMemoryTombstones() {
+    pendingDeletedDocIds.clear();
+    pendingDeletedNodeIds.clear();
+    pendingDeletedCompanyIds.clear();
+    deletedDocMarkedAt.clear();
+    deletedNodeMarkedAt.clear();
+    deletedCompanyMarkedAt.clear();
+  }
+
+  function wipeLiveWorkspaceStores() {
+    clearInMemoryTombstones();
+    applyStateToStores(emptyWorkspaceSnapshot());
+    useUIStateStore.getState().setWorkspaceHydrated(false);
+    isSyncedWithRemote = false;
+    syncDeferredWhileNotReady = false;
+  }
+
+  function adoptScopedWorkspaceForUser(userId) {
+    if (!userId || typeof localStorage === "undefined") return false;
+    try {
+      const scoped = localStorage.getItem(scopedWorkspaceStorageKey(userId));
+      if (!scoped) return false;
+      localStorage.setItem(STORAGE_KEY, scoped);
+      writeWorkspaceOwnerUserId(userId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Ensure futura-nota-v1 belongs to the signed-in user (not a prior account in this profile).
+   * @param {string} userId
+   */
+  function prepareWorkspaceForAuthenticatedUser(userId) {
+    const owner = readWorkspaceOwnerUserId();
+    if (owner === userId) return;
+
+    if (owner && owner !== userId) {
+      console.warn(
+        "[futura-nota] Account switch — loading workspace for user",
+        userId,
+        `(previous owner ${owner}).`,
+      );
+      wipeSharedWorkspaceDisk();
+      wipeLiveWorkspaceStores();
+      if (adoptScopedWorkspaceForUser(userId)) {
+        refreshTombstonesFromDisk();
+        paintLocalWorkspace();
+        stripPendingDeletesFromLiveStores();
+        repairLocalObjectCadencesInStores();
+      } else {
+        writeWorkspaceOwnerUserId(userId);
+      }
+      return;
+    }
+
+    // No owner tag — adopt per-user archive if this account signed out here before.
+    if (adoptScopedWorkspaceForUser(userId)) {
+      refreshTombstonesFromDisk();
+      paintLocalWorkspace();
+      stripPendingDeletesFromLiveStores();
+      repairLocalObjectCadencesInStores();
+      return;
+    }
+
+    // Legacy single-user cache: tag owner but keep snapshot until hydrate proves otherwise.
+    if (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY)) {
+      writeWorkspaceOwnerUserId(userId);
+      return;
+    }
+
+    writeWorkspaceOwnerUserId(userId);
+  }
+
+  /** Instant UI paint from disk — only when owner tag matches (avoids wrong-account flash). */
   const paintLocalWorkspace = () => {
+    if (!readWorkspaceOwnerUserId()) return false;
     try {
       refreshTombstonesFromDisk();
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -1650,9 +1876,13 @@ export function initPersistenceMiddleware(stores) {
    */
   const loadFromSupabase = async (opts = {}) => {
     const { hydrateOnVersionError = true } = opts;
-    if (hydrateInFlight) return;
+    if (hydrateInFlight) {
+      hydrateQueuedAfterAuth = true;
+      return;
+    }
     hydrateInFlight = true;
     const tombstoneRevisionAtStart = deleteTombstoneRevision;
+    let hadUser = false;
     try {
       const configErr = getSupabaseConfigError();
       if (configErr) {
@@ -1670,22 +1900,47 @@ export function initPersistenceMiddleware(stores) {
         loadLocalFallback();
         return;
       }
+      hadUser = true;
+      prepareWorkspaceForAuthenticatedUser(userId);
 
       const hasPendingDeletes =
         pendingDeletedDocIds.size > 0
         || pendingDeletedNodeIds.size > 0
         || pendingDeletedCompanyIds.size > 0;
-      const lastSyncedAt = readLastSyncedAt();
+      const localEmpty = localWorkspaceNeedsCloudHydrate(
+        useObjectsStore.getState().objects,
+        useDocsStore.getState().docs,
+      );
+      // Empty Chrome (or yo-only) must not inherit a stale gate from a previous session.
+      if (localEmpty) clearLastSyncedAt();
+      const lastSyncedAt = localEmpty ? null : readLastSyncedAt();
       let remoteVersion = null;
+      let remoteCounts = null;
       let versionFetchFailed = false;
-      try {
-        remoteVersion = await fetchWorkspaceVersion(supabase, userId);
-      } catch (versionErr) {
+      let countsFetchFailed = false;
+      const localCounts = getLocalWorkspaceRowCounts();
+      const [versionResult, countsResult] = await Promise.allSettled([
+        fetchWorkspaceVersion(supabase, userId),
+        fetchWorkspaceRowCounts(supabase, userId),
+      ]);
+      if (versionResult.status === "fulfilled") {
+        remoteVersion = versionResult.value;
+      } else {
         versionFetchFailed = true;
         console.warn(
           "[futura-nota] Workspace version check failed —",
           hydrateOnVersionError ? "falling through to full hydrate." : "keeping local snapshot.",
-          versionErr?.message || versionErr,
+          versionResult.reason?.message || versionResult.reason,
+        );
+      }
+      if (countsResult.status === "fulfilled") {
+        remoteCounts = countsResult.value;
+      } else {
+        countsFetchFailed = true;
+        console.warn(
+          "[futura-nota] Workspace row-count probe failed —",
+          hydrateOnVersionError ? "falling through to full hydrate." : "timestamp gate only.",
+          countsResult.reason?.message || countsResult.reason,
         );
       }
 
@@ -1695,22 +1950,28 @@ export function initPersistenceMiddleware(stores) {
           lastSyncedAt,
           remoteVersion,
           hasPendingDeletes,
+          localEmpty,
+          localCounts: countsFetchFailed ? null : localCounts,
+          remoteCounts: countsFetchFailed ? null : remoteCounts,
         })
       ) {
         stripPendingDeletesFromLiveStores();
-        isSyncedWithRemote = true;
+        enableCloudSync(userId);
         finishWorkspaceHydration();
+        scheduleDocImageDataUrlBackfill();
         console.log(
           "[futura-nota] Version gate: skipped full hydrate (local in sync).",
-          { lastSyncedAt, remoteVersion },
+          { lastSyncedAt, remoteVersion, localCounts, remoteCounts },
         );
-        scheduleDocImageDataUrlBackfill();
         return;
       }
 
-      if (versionFetchFailed && !hydrateOnVersionError) {
+      if (
+        (versionFetchFailed || countsFetchFailed)
+        && !hydrateOnVersionError
+      ) {
         stripPendingDeletesFromLiveStores();
-        isSyncedWithRemote = true;
+        enableCloudSync(userId);
         finishWorkspaceHydration();
         scheduleDocImageDataUrlBackfill();
         return;
@@ -1726,7 +1987,7 @@ export function initPersistenceMiddleware(stores) {
         { data: dbTimelines, error: tlErr },
       ] = await Promise.all([
         supabase.from("companies").select("*").eq("user_id", userId),
-        supabase.from("campaigns").select("*").eq("user_id", userId),
+        supabase.from(WORKSPACE_FOLDERS_TABLE).select("*").eq("user_id", userId),
         supabase.from("nodes").select("*").eq("user_id", userId),
         supabase.from("canvas_nodes").select("*").eq("user_id", userId),
         supabase.from("canvas_connections").select("*").eq("user_id", userId),
@@ -1737,6 +1998,9 @@ export function initPersistenceMiddleware(stores) {
       if (compErr) throw compErr;
       if (campErr) throw campErr;
       if (nodeErr) throw nodeErr;
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae9c04'},body:JSON.stringify({sessionId:'ae9c04',runId:'post-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:hydrate:remoteCounts',message:'Supabase SELECT row counts',data:{companyCount:(dbCompanies||[]).length,companyNames:(dbCompanies||[]).map((c)=>c.name),campaignCount:(dbCampaigns||[]).length,campaignNames:(dbCampaigns||[]).map((c)=>c.name),nodeCount:(dbNodes||[]).length,nodesWithParent:(dbNodes||[]).filter((n)=>n.parent_doc_id).length,localEmpty,skipGate:!versionFetchFailed&&shouldSkipFullHydrate({lastSyncedAt,remoteVersion,hasPendingDeletes,localEmpty})},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (cnErr) throw cnErr;
       if (ccErr) throw ccErr;
       if (grpErr) throw grpErr;
@@ -2031,14 +2295,15 @@ export function initPersistenceMiddleware(stores) {
 
       reconcileWorkspaceDeletes();
       finishWorkspaceHydration();
-
-      // Tombstones can clear now that hydrate has applied without resurrecting.
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae9c04'},body:JSON.stringify({sessionId:'ae9c04',runId:'post-fix',hypothesisId:'H3',location:'persistenceMiddleware.js:hydrate:applied',message:'Zustand after hydrate apply',data:{preferredLocal,preferredMemory,storeCompanyNames:Object.values(useObjectsStore.getState().objects||{}).map((o)=>o?.name),storeDocCount:Object.keys(useDocsStore.getState().docs||{}).length,storeDocTitles:Object.values(useDocsStore.getState().docs||{}).map((d)=>d?.title),storeNodeCount:Object.keys(useNodesStore.getState().nodes||{}).length,nodesWithParent:Object.values(useNodesStore.getState().nodes||{}).filter((n)=>n?.parentDocId).length,pendingDocTombstones:pendingDeletedDocIds.size},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (
         pendingDeletedDocIds.size
         || pendingDeletedNodeIds.size
         || pendingDeletedCompanyIds.size
       ) {
-        await clearTombstonesConfirmedAbsent("campaigns", userId, pendingDeletedDocIds);
+        await clearTombstonesConfirmedAbsent(WORKSPACE_FOLDERS_TABLE, userId, pendingDeletedDocIds);
         await clearTombstonesConfirmedAbsent("nodes", userId, pendingDeletedNodeIds);
         await clearTombstonesConfirmedAbsent("companies", userId, pendingDeletedCompanyIds);
       }
@@ -2099,7 +2364,7 @@ export function initPersistenceMiddleware(stores) {
         tier: filteredTimelineUi.currentTier,
       });
 
-      isSyncedWithRemote = true;
+      enableCloudSync(userId);
       console.log("Supabase sync loaded for user:", userId);
       finishWorkspaceHydration();
       const hydratedVersion =
@@ -2149,11 +2414,19 @@ export function initPersistenceMiddleware(stores) {
     } finally {
       hydrateInFlight = false;
       useUIStateStore.getState().setWorkspaceHydrated(true);
+      if (hydrateQueuedAfterAuth) {
+        hydrateQueuedAfterAuth = false;
+        // Only retry when the in-flight pass had no session (Chrome Google restore).
+        if (!hadUser) loadFromSupabase();
+      }
     }
   };
 
   const syncToSupabase = async (_stateArg) => {
-    if (!isSyncedWithRemote) return { ok: true };
+    if (!isSyncedWithRemote) {
+      syncDeferredWhileNotReady = true;
+      return { ok: false, reason: "awaiting_hydrate" };
+    }
 
     if (syncInFlight) {
       syncNeedsRerun = true;
@@ -2203,8 +2476,10 @@ export function initPersistenceMiddleware(stores) {
       // sync that started before a delete cannot re-upsert a tombstoned corpus
       // at the top of the loop, then lose the race to orphan cleanup.
 
-      // 1. Campaigns (folders = doc_kind content) — only upsert locally edited docs
-      // so a stale tab cannot overwrite cloud rows it never touched.
+      // 1. Campaigns (folders) — upsert dirty rows, but orphan-delete against ALL local ids.
+      const allCampaignLocalIds = Object.values(state.docs || {})
+        .filter((doc) => doc?.id && !frozenDeletedDocIds.has(doc.id))
+        .map((doc) => doc.id);
       const dirtyDocIdSet = getDirtyDocIds();
       const campaignsRows = Object.values(state.docs || {})
         .filter((doc) => doc?.id && !frozenDeletedDocIds.has(doc.id))
@@ -2247,7 +2522,6 @@ export function initPersistenceMiddleware(stores) {
         updated_at: doc.updatedAt || now,
       }));
 
-      const campaignLocalIds = campaignsRows.map((r) => r.id);
       // #region agent log
       {
         const scheduleRows = campaignsRows
@@ -2270,7 +2544,7 @@ export function initPersistenceMiddleware(stores) {
       if (campaignsRows.length > 0) {
         campaignsUpsertOk = await runUpsert(
           "Upsert campaigns",
-          supabase.from("campaigns").upsert(campaignsRows, upsertOpts),
+          supabase.from(WORKSPACE_FOLDERS_TABLE).upsert(campaignsRows, upsertOpts),
         );
         if (!campaignsUpsertOk) {
           criticalOk = false;
@@ -2285,11 +2559,13 @@ export function initPersistenceMiddleware(stores) {
         }
       }
       const campaignsOrphansOk = campaignsUpsertOk
-        ? await deleteOrphanRows("campaigns", userId, campaignLocalIds)
-        : false;
+        && (allCampaignLocalIds.length > 0 || pendingDeletedDocIds.size > 0)
+        && await shouldAllowOrphanDelete(WORKSPACE_FOLDERS_TABLE, userId, allCampaignLocalIds, pendingDeletedDocIds)
+        ? await deleteOrphanRows(WORKSPACE_FOLDERS_TABLE, userId, allCampaignLocalIds)
+        : campaignsUpsertOk;
       // Explicitly DELETE tombstoned folders even if orphan select glitches.
       const campaignsTombstoneOk = campaignsUpsertOk
-        ? await purgeTombstonedRows("campaigns", userId, pendingDeletedDocIds)
+        ? await purgeTombstonedRows(WORKSPACE_FOLDERS_TABLE, userId, pendingDeletedDocIds)
         : false;
       if (pendingDeletedDocIds.size > 0 && !campaignsTombstoneOk) {
         criticalOk = false;
@@ -2336,8 +2612,10 @@ export function initPersistenceMiddleware(stores) {
         if (!nodesUpsertOk) criticalOk = false;
       }
       const nodesOrphansOk = nodesUpsertOk
+        && (nodeLocalIds.length > 0 || pendingDeletedNodeIds.size > 0)
+        && await shouldAllowOrphanDelete("nodes", userId, nodeLocalIds, pendingDeletedNodeIds)
         ? await deleteOrphanRows("nodes", userId, nodeLocalIds)
-        : false;
+        : nodesUpsertOk;
       const nodesTombstoneOk = nodesUpsertOk
         ? await purgeTombstonedRows("nodes", userId, pendingDeletedNodeIds)
         : false;
@@ -2351,7 +2629,7 @@ export function initPersistenceMiddleware(stores) {
 
       // Only drop tombstones after remote SELECT proves the rows are gone.
       if (campaignsOrphansOk && campaignsTombstoneOk) {
-        await clearTombstonesConfirmedAbsent("campaigns", userId, pendingDeletedDocIds);
+        await clearTombstonesConfirmedAbsent(WORKSPACE_FOLDERS_TABLE, userId, pendingDeletedDocIds);
       }
       if (nodesOrphansOk && nodesTombstoneOk) {
         await clearTombstonesConfirmedAbsent("nodes", userId, pendingDeletedNodeIds);
@@ -2425,11 +2703,12 @@ export function initPersistenceMiddleware(stores) {
         }
       }
 
-      // Empty local = last corpus deleted → orphan-delete still runs.
       const companyLocalIds = companiesRows.map((r) => r.id);
       const companiesOrphansOk = companiesUpsertOk
+        && (companyLocalIds.length > 0 || pendingDeletedCompanyIds.size > 0)
+        && await shouldAllowOrphanDelete("companies", userId, companyLocalIds, pendingDeletedCompanyIds)
         ? await deleteOrphanRows("companies", userId, companyLocalIds)
-        : false;
+        : companiesUpsertOk;
       const companiesTombstoneOk = companiesUpsertOk
         ? await purgeTombstonedRows("companies", userId, frozenDeletedCompanyIds)
         : false;
@@ -2567,8 +2846,15 @@ export function initPersistenceMiddleware(stores) {
       }
 
       if (criticalOk) {
-        // Gate token only after a confirmed cloud write (not on local edit alone).
-        writeLastSyncedAt(now);
+        // Gate token only after a confirmed cloud write — use remote max, not client clock.
+        let syncedAt = now;
+        try {
+          const remoteVersionAfterSync = await fetchWorkspaceVersion(supabase, userId);
+          if (remoteVersionAfterSync) syncedAt = remoteVersionAfterSync;
+        } catch {
+          // keep sync-time fallback
+        }
+        writeLastSyncedAt(syncedAt);
         console.log("Supabase sync complete for user:", userId);
       } else {
         console.warn("Supabase sync finished with critical upsert failures for user:", userId);
@@ -2593,6 +2879,30 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const debouncedRemoteSync = debounce(syncToSupabase, 1500);
+
+  saveLocalWorkspaceToDiskImpl = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
+    } catch {
+      // quota / private mode
+    }
+  };
+
+  cancelRemoteSyncForLogoutImpl = () => {
+    debouncedRemoteSync.cancel();
+    isSyncedWithRemote = false;
+    syncNeedsRerun = false;
+    syncDeferredWhileNotReady = false;
+  };
+
+  clearLocalWorkspaceOnLogoutImpl = (userId) => {
+    cancelRemoteSyncForLogoutImpl();
+    if (userId) archiveWorkspaceSnapshotForUser(userId);
+    wipeSharedWorkspaceDisk();
+    clearInMemoryTombstones();
+    applyStateToStores(emptyWorkspaceSnapshot());
+    useUIStateStore.getState().setWorkspaceHydrated(true);
+  };
 
   flushPersistenceSyncImpl = async () => {
     debouncedRemoteSync.cancel();
@@ -2655,9 +2965,9 @@ export function initPersistenceMiddleware(stores) {
       flushPersistenceSyncBestEffort();
       return;
     }
-    // Tab visible again: version-gated re-check (no full SELECT * if unchanged).
+    // Tab visible again: version-gated re-check (pull remote if another browser pushed).
     if (isSyncedWithRemote && !hydrateInFlight) {
-      loadFromSupabase({ hydrateOnVersionError: false }).catch((err) => {
+      loadFromSupabase({ hydrateOnVersionError: true }).catch((err) => {
         console.warn("Version-gated focus hydrate failed:", err?.message || err);
       });
     }
@@ -2682,6 +2992,28 @@ export function initPersistenceMiddleware(stores) {
       // quota / private mode
     }
   }
+  // Bind auth BEFORE the first hydrate. Chrome + Google restores the session as
+  // INITIAL_SESSION (not SIGNED_IN). If hydrate already started without a user,
+  // that event used to be ignored and the sidebar stayed empty.
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+      const localEmpty = localWorkspaceNeedsCloudHydrate(
+        useObjectsStore.getState().objects,
+        useDocsStore.getState().docs,
+      );
+      if (isSyncedWithRemote && !localEmpty) return;
+      if (hydrateInFlight) {
+        hydrateQueuedAfterAuth = true;
+        return;
+      }
+      loadFromSupabase();
+    }
+    if (event === "SIGNED_OUT") {
+      clearLocalWorkspaceOnLogoutImpl();
+      debouncedRemoteSync.cancel();
+    }
+  });
+
   loadFromSupabase();
 
   // Sibling /app tabs: adopt delete ledger so they stop re-upserting ghost folders.
@@ -2696,54 +3028,6 @@ export function initPersistenceMiddleware(stores) {
     if (!adoptTombstoneLedger(ledger)) return;
     if (reconcileWorkspaceDeletes()) {
       debouncedRemoteSync();
-    }
-  });
-
-  // Escuchar cambios de sesión — recargar solo en login real, no en cada refresh de token
-  supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_IN") {
-      // Initial boot already called loadFromSupabase(); skip duplicate wipe on auth echo.
-      if (isSyncedWithRemote || hydrateInFlight) return;
-      loadFromSupabase();
-    }
-    if (event === "SIGNED_OUT") {
-      isSyncedWithRemote = false;
-      pendingDeletedDocIds.clear();
-      pendingDeletedNodeIds.clear();
-      pendingDeletedCompanyIds.clear();
-      deletedDocMarkedAt.clear();
-      deletedNodeMarkedAt.clear();
-      deletedCompanyMarkedAt.clear();
-      clearLastSyncedAt();
-      try {
-        localStorage.removeItem(TOMBSTONE_LEDGER_KEY);
-      } catch {
-        // private mode / quota
-      }
-      debouncedRemoteSync.cancel();
-      // Keep local workspace if the last cloud flush failed — otherwise a new folder
-      // that only lived in localStorage would be wiped before it ever reached Supabase.
-      if (!lastCloudFlushOk) {
-        console.warn(
-          "SIGNED_OUT: skipping workspace wipe — last cloud flush did not confirm sync",
-        );
-        useUIStateStore.getState().setWorkspaceHydrated(true);
-        return;
-      }
-      useUIStateStore.getState().setWorkspaceHydrated(false);
-      const empty = emptyWorkspaceSnapshot();
-      applyStateToStores(empty);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
-      } catch {
-        // private mode / quota
-      }
-      try {
-        localStorage.removeItem("futura-nota-left-panel-v1");
-      } catch {
-        // private mode / quota
-      }
-      useUIStateStore.getState().setWorkspaceHydrated(true);
     }
   });
 

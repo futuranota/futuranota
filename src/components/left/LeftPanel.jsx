@@ -164,6 +164,7 @@ import { DepartmentsPanel } from "../departments/DepartmentsPanel.jsx";
 import { DocListTitle } from "../docs/DocListTitle.jsx";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 import {
+  ALL_DEPARTMENT_FILTER_ID,
   UNASSIGNED_DEPARTMENT_FILTER_ID,
   findDepartmentById,
   folderMatchesDepartmentFilter,
@@ -2033,7 +2034,7 @@ export function LeftPanel({
   const [ginaPendingLearn, setGinaPendingLearn] = useState(null);
   const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
   const [ginaOpeningMode, setGinaOpeningMode] = useState(/** @type {"first" | "return" | "progress"} */ ("first"));
-  const [departmentFilterId, setDepartmentFilterId] = useState(UNASSIGNED_DEPARTMENT_FILTER_ID);
+  const [departmentFilterId, setDepartmentFilterId] = useState(ALL_DEPARTMENT_FILTER_ID);
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   /** Last category chosen per department — restored when switching back to that dept. */
   const [categoryByDepartmentId, setCategoryByDepartmentId] = useState({});
@@ -2332,7 +2333,7 @@ export function LeftPanel({
 
   // Drop stale department / category filters when options change.
   useEffect(() => {
-    if (!departmentFilterId) {
+    if (!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID) {
       if (departmentCategoryFilter) setDepartmentCategoryFilter("");
       return;
     }
@@ -2340,7 +2341,7 @@ export function LeftPanel({
       (dept) => dept.id === departmentFilterId,
     );
     if (!stillExists) {
-      setDepartmentFilterId("");
+      setDepartmentFilterId(ALL_DEPARTMENT_FILTER_ID);
       setDepartmentCategoryFilter("");
       setCategoryByDepartmentId((prev) => {
         if (!(departmentFilterId in prev)) return prev;
@@ -2390,7 +2391,8 @@ export function LeftPanel({
 
   const filteredUncategorizedDocs = useMemo(
     () => {
-      if (contentProductFilter || departmentFilterId) return [];
+      if (contentProductFilter) return [];
+      if (departmentFilterId && departmentFilterId !== ALL_DEPARTMENT_FILTER_ID) return [];
       return uncategorizedDocs;
     },
     [uncategorizedDocs, contentProductFilter, departmentFilterId],
@@ -2542,7 +2544,7 @@ export function LeftPanel({
     }
     if (prevFilterObjectIdRef.current === filterObjectId) return;
     prevFilterObjectIdRef.current = filterObjectId;
-    setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
+    setDepartmentFilterId(ALL_DEPARTMENT_FILTER_ID);
     setDepartmentCategoryFilter("");
     setCategoryByDepartmentId({});
     setFolderSearchQuery("");
@@ -5801,7 +5803,9 @@ export function LeftPanel({
                       onChange={(e) => {
                         const nextId = e.target.value;
                         setCategoryByDepartmentId((prev) => {
-                          if (!departmentFilterId) return prev;
+                          if (!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID) {
+                            return prev;
+                          }
                           if (prev[departmentFilterId] === departmentCategoryFilter) {
                             return prev;
                           }
@@ -5812,10 +5816,16 @@ export function LeftPanel({
                         });
                         setDepartmentFilterId(nextId);
                         setDepartmentCategoryFilter(
-                          nextId ? (categoryByDepartmentId[nextId] || "") : "",
+                          nextId
+                          && nextId !== ALL_DEPARTMENT_FILTER_ID
+                            ? (categoryByDepartmentId[nextId] || "")
+                            : "",
                         );
                       }}
                     >
+                      <option value={ALL_DEPARTMENT_FILTER_ID}>
+                        {t("sidebar.departmentFilterAll")}
+                      </option>
                       <option value={UNASSIGNED_DEPARTMENT_FILTER_ID}>
                         {t("sidebar.departmentFilterUnassigned")}
                       </option>
@@ -5832,25 +5842,27 @@ export function LeftPanel({
                       aria-hidden
                       className={
                         "lp-department-filter__category-icon"
-                        + (!departmentFilterId ? " is-disabled" : "")
+                        + (!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID
+                          ? " is-disabled"
+                          : "")
                       }
                     />
                     <select
                       id="lp-department-category-filter"
                       className="lp-department-filter__select lp-department-filter__select--category"
                       value={departmentCategoryFilter}
-                      disabled={!departmentFilterId}
+                      disabled={!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID}
                       onChange={(e) => {
                         const nextCategory = e.target.value;
                         setDepartmentCategoryFilter(nextCategory);
-                        if (!departmentFilterId) return;
+                        if (!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID) return;
                         setCategoryByDepartmentId((prev) => ({
                           ...prev,
                           [departmentFilterId]: nextCategory,
                         }));
                       }}
                     >
-                      {!departmentFilterId ? (
+                      {!departmentFilterId || departmentFilterId === ALL_DEPARTMENT_FILTER_ID ? (
                         <option value="">
                           {t("sidebar.departmentCategoryFilterNeedParent")}
                         </option>
@@ -5962,7 +5974,8 @@ export function LeftPanel({
                         />
                       ))}
                     </>
-                  ) : departmentFilterId || departmentCategoryFilter ? (
+                  ) : (departmentFilterId && departmentFilterId !== ALL_DEPARTMENT_FILTER_ID)
+                    || departmentCategoryFilter ? (
                     <div className="lp-empty lp-empty--department">
                       <p className="lp-empty-department-title">
                         <DepartmentsGlyph className="lp-empty-department-icon" />

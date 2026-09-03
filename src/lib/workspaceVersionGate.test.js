@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   maxIsoTimestamp,
   maxUpdatedAtFromRows,
   parseVersionMs,
+  readWorkspaceOwnerUserId,
+  remoteHasMoreRowsThanLocal,
   shouldSkipFullHydrate,
+  writeWorkspaceOwnerUserId,
+  clearWorkspaceOwnerUserId,
+  WORKSPACE_FOLDERS_TABLE,
+  WORKSPACE_OWNER_USER_KEY,
 } from "./workspaceVersionGate.js";
 
 describe("shouldSkipFullHydrate", () => {
@@ -39,6 +45,17 @@ describe("shouldSkipFullHydrate", () => {
     ).toBe(false);
   });
 
+  it("never skips when local workspace is empty", () => {
+    expect(
+      shouldSkipFullHydrate({
+        lastSyncedAt: local,
+        remoteVersion: local,
+        hasPendingDeletes: false,
+        localEmpty: true,
+      }),
+    ).toBe(false);
+  });
+
   it("skips when remote equals local", () => {
     expect(
       shouldSkipFullHydrate({
@@ -68,6 +85,47 @@ describe("shouldSkipFullHydrate", () => {
       }),
     ).toBe(false);
   });
+
+  it("hydrates when remote row counts exceed local (same timestamp)", () => {
+    const counts = {
+      companies: 2,
+      [WORKSPACE_FOLDERS_TABLE]: 1,
+      nodes: 0,
+      canvas_nodes: 0,
+      canvas_connections: 0,
+      groupings: 0,
+      timelines: 0,
+    };
+    expect(
+      shouldSkipFullHydrate({
+        lastSyncedAt: local,
+        remoteVersion: local,
+        hasPendingDeletes: false,
+        localCounts: { ...counts, companies: 1 },
+        remoteCounts: counts,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("remoteHasMoreRowsThanLocal", () => {
+  it("detects extra remote companies", () => {
+    expect(
+      remoteHasMoreRowsThanLocal(
+        { companies: 1 },
+        { companies: 2 },
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores equal or lower remote counts", () => {
+    expect(
+      remoteHasMoreRowsThanLocal(
+        { companies: 2 },
+        { companies: 1 },
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("maxUpdatedAtFromRows", () => {
@@ -93,5 +151,30 @@ describe("parseVersionMs / maxIsoTimestamp", () => {
     expect(
       maxIsoTimestamp("2026-07-18T12:00:00.000Z", "2026-07-18T13:00:00.000Z"),
     ).toBe("2026-07-18T13:00:00.000Z");
+  });
+});
+
+describe("workspace owner user id", () => {
+  const memory = new Map();
+
+  beforeEach(() => {
+    memory.clear();
+    globalThis.localStorage = {
+      getItem: (k) => memory.get(k) ?? null,
+      setItem: (k, v) => memory.set(k, String(v)),
+      removeItem: (k) => memory.delete(k),
+    };
+  });
+
+  it("writes and reads owner id", () => {
+    writeWorkspaceOwnerUserId("user-a");
+    expect(readWorkspaceOwnerUserId()).toBe("user-a");
+    expect(memory.get(WORKSPACE_OWNER_USER_KEY)).toBe("user-a");
+  });
+
+  it("clears owner id", () => {
+    writeWorkspaceOwnerUserId("user-a");
+    clearWorkspaceOwnerUserId();
+    expect(readWorkspaceOwnerUserId()).toBeNull();
   });
 });

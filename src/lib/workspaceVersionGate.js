@@ -4,11 +4,15 @@
  */
 
 export const LAST_SYNCED_AT_KEY = "futura-nota-last-synced-at-v1";
+/** Which auth user owns the shared futura-nota-v1 snapshot in this browser profile. */
+export const WORKSPACE_OWNER_USER_KEY = "futura-nota-workspace-owner-v1";
 
 /** Tables included in the workspace hydrate SELECT *. */
+export const WORKSPACE_FOLDERS_TABLE = "folders";
+
 export const WORKSPACE_VERSION_TABLES = [
   "companies",
-  "campaigns",
+  WORKSPACE_FOLDERS_TABLE,
   "nodes",
   "canvas_nodes",
   "canvas_connections",
@@ -28,18 +32,40 @@ export function parseVersionMs(value) {
 }
 
 /**
+ * Remote has rows another browser added while our max(updated_at) gate still matches.
+ * @param {Record<string, number>|null|undefined} localCounts
+ * @param {Record<string, number>|null|undefined} remoteCounts
+ */
+export function remoteHasMoreRowsThanLocal(localCounts, remoteCounts) {
+  if (!localCounts || !remoteCounts) return false;
+  for (const table of WORKSPACE_VERSION_TABLES) {
+    const remote = Number(remoteCounts[table] ?? 0);
+    const local = Number(localCounts[table] ?? 0);
+    if (remote > local) return true;
+  }
+  return false;
+}
+
+/**
  * @param {object} params
  * @param {string|null|undefined} params.lastSyncedAt
  * @param {string|null|undefined} params.remoteVersion
  * @param {boolean} params.hasPendingDeletes
+ * @param {Record<string, number>|null|undefined} [params.localCounts]
+ * @param {Record<string, number>|null|undefined} [params.remoteCounts]
  * @returns {boolean} true → skip the 7× SELECT *
  */
 export function shouldSkipFullHydrate({
   lastSyncedAt,
   remoteVersion,
   hasPendingDeletes = false,
+  localEmpty = false,
+  localCounts = null,
+  remoteCounts = null,
 }) {
   if (hasPendingDeletes) return false;
+  if (localEmpty) return false;
+  if (remoteHasMoreRowsThanLocal(localCounts, remoteCounts)) return false;
   const localMs = parseVersionMs(lastSyncedAt);
   const remoteMs = parseVersionMs(remoteVersion);
   if (localMs == null || remoteMs == null) return false;
@@ -121,6 +147,38 @@ export function clearLastSyncedAt() {
 }
 
 /**
+ * @returns {string|null}
+ */
+export function readWorkspaceOwnerUserId() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(WORKSPACE_OWNER_USER_KEY);
+    return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {string} userId */
+export function writeWorkspaceOwnerUserId(userId) {
+  if (typeof localStorage === "undefined" || !userId) return;
+  try {
+    localStorage.setItem(WORKSPACE_OWNER_USER_KEY, String(userId));
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function clearWorkspaceOwnerUserId() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem(WORKSPACE_OWNER_USER_KEY);
+  } catch {
+    // private mode / quota
+  }
+}
+
+/**
  * Light version probe: RPC first, then per-table updated_at limit 1.
  * @param {import('@supabase/supabase-js').SupabaseClient} client
  * @param {string} userId
@@ -160,4 +218,27 @@ export async function fetchWorkspaceVersion(client, userId) {
     if (maxMs == null || ms > maxMs) maxMs = ms;
   }
   return maxMs == null ? null : new Date(maxMs).toISOString();
+}
+
+/**
+ * Light row counts (head-only) for version-gate mismatch detection.
+ * @param {import('@supabase/supabase-js').SupabaseClient} client
+ * @param {string} userId
+ * @returns {Promise<Record<string, number>>}
+ */
+export async function fetchWorkspaceRowCounts(client, userId) {
+  if (!client || !userId) return {};
+
+  const entries = await Promise.all(
+    WORKSPACE_VERSION_TABLES.map(async (table) => {
+      const { count, error } = await client
+        .from(table)
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId);
+      if (error) throw error;
+      return [table, count ?? 0];
+    }),
+  );
+
+  return Object.fromEntries(entries);
 }

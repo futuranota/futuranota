@@ -24,6 +24,8 @@ export const messages = {
       noParent: "No parent",
       loading: "Loading…",
       saving: "Saving…",
+      signOut: "Sign out",
+      signingOut: "Signing out…",
     },
     account: {
       exportMyData: "Export my data",
@@ -863,6 +865,7 @@ export const messages = {
       departmentUnlock: "Unlock department",
       departmentChange: "Change department",
       departmentFilterUnassigned: "Uncategorized",
+      departmentFilterAll: "All folders",
       departmentFilterLabel: "Department",
       departmentCategoryFilterLabel: "Category",
       departmentCategoryFilterAll: "All categories",
@@ -1848,6 +1851,8 @@ export const messages = {
       noParent: "Sin padre",
       loading: "Cargando…",
       saving: "Guardando…",
+      signOut: "Cerrar sesión",
+      signingOut: "Cerrando sesión…",
     },
     account: {
       exportMyData: "Exportar mis datos",
@@ -2051,6 +2056,7 @@ export const messages = {
       departmentUnlock: "Unlock department",
       departmentChange: "Cambiar departamento",
       departmentFilterUnassigned: "Uncategorized",
+      departmentFilterAll: "Todos los folders",
       departmentFilterLabel: "Department",
       departmentCategoryFilterLabel: "Category",
       departmentCategoryFilterAll: "All categories",

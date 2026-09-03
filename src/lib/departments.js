@@ -128,6 +128,8 @@ export function formatDepartmentOfLabel(department) {
 
 /** Sentinel filter id: Uncategorized (folders with no department). */
 export const UNASSIGNED_DEPARTMENT_FILTER_ID = "";
+/** Sidebar default: show every folder, assigned or not. */
+export const ALL_DEPARTMENT_FILTER_ID = "*";
 
 /**
  * True when folder has no departmentId — same bucket as sidebar Uncategorized.
@@ -140,7 +142,7 @@ export function isUnassignedDepartmentFolder(folder) {
 
 /**
  * Match a folder against the sidebar department filter.
- * Empty / Uncategorized → folders with no departmentId (virtual department).
+ * All (`*`) → every folder. Empty / Uncategorized → folders with no departmentId.
  * Concrete id → folders assigned to that department (category tag optional).
  *
  * @param {{ departmentId?: string|null, category?: string|null }|null|undefined} folder
@@ -148,6 +150,7 @@ export function isUnassignedDepartmentFolder(folder) {
  * @returns {boolean}
  */
 export function folderMatchesDepartmentFilter(folder, filterDepartmentId) {
+  if (filterDepartmentId === ALL_DEPARTMENT_FILTER_ID) return true;
   const folderDept = String(folder?.departmentId || "").trim();
   if (!filterDepartmentId) return !folderDept;
   return folderDept === String(filterDepartmentId);

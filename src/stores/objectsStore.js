@@ -59,6 +59,9 @@ export const useObjectsStore = create(
             },
           },
         }));
+        flushPersistenceSync().catch((err) => {
+          console.warn("Flush after company create failed:", err?.message || err);
+        });
         return id;
       },
 

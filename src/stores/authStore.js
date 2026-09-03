@@ -3,12 +3,18 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
 import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authRedirect.js';
 import { getSupabaseConfigError } from '../lib/supabaseClient';
-import { flushPersistenceSync } from './middleware/persistenceMiddleware.js';
+import {
+  cancelRemoteSyncForLogout,
+  clearLocalWorkspaceOnLogout,
+} from './middleware/persistenceMiddleware.js';
+import { clearStoredAuthSession } from '../lib/resolveSyncUserId.js';
 import { clearPendingProCheckout } from '../lib/pendingCheckout.js';
 import { clearLeftPanelNavSnapshot } from './uiStateStore.js';
 import { useObjectTargetHoldStore } from './objectTargetHoldStore.js';
 
 let authListenerBound = false;
+
+const LOGOUT_REMOTE_TIMEOUT_MS = 2500;
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -110,23 +116,32 @@ export const useAuthStore = create((set, get) => ({
   },
 
   signOut: async () => {
-    const flush = await flushPersistenceSync();
-    if (!flush?.ok) {
-      const message =
-        "No se pudo guardar en la nube. Intentá de nuevo antes de cerrar sesión.";
-      console.error("Logout aborted — cloud flush failed:", flush?.reason || flush?.error || flush);
-      return { ok: false, error: message };
-    }
+    const signingOutUserId = get().user?.id;
+    clearLocalWorkspaceOnLogout(signingOutUserId);
     clearPendingProCheckout();
     clearLeftPanelNavSnapshot();
     useObjectTargetHoldStore.getState().release();
     try {
-      localStorage.removeItem("futura-nota-plan-cache-v1");
+      localStorage.removeItem('futura-nota-plan-cache-v1');
     } catch {
       // private mode / quota
     }
-    await supabase.auth.signOut();
-    set({ user: null, session: null });
+
+    // Clear UI session first — logout must never wait on cloud sync.
+    set({ user: null, session: null, loading: false });
+
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((resolve) => {
+          window.setTimeout(resolve, LOGOUT_REMOTE_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (err) {
+      console.warn('Supabase signOut failed:', err?.message || err);
+    }
+    clearStoredAuthSession();
+
     return { ok: true };
   },
 
@@ -142,4 +157,3 @@ export const useAuthStore = create((set, get) => ({
     if (error) throw error;
   },
 }));
-

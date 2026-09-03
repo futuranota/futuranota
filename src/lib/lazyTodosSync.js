@@ -464,7 +464,7 @@ export function initLazyTodosSync(useLazyTodosStore) {
   hydrateFromRemote();
 
   supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_IN") {
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
       debouncedRemoteSync?.cancel();
       debouncedDeleteSync?.cancel();
       hasCompletedHydrate = false;

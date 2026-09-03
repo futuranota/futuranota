@@ -15,7 +15,8 @@
     "verify:apis": "dotenv -e .env.local -- node scripts/verify-integrations.mjs",
     "verify:apis:config": "dotenv -e .env.local -- node scripts/verify-integrations.mjs --config-only",
     "seed:management": "dotenv -e .env.local -- node scripts/seed-management-futuranota.mjs",
-    "reset:credits": "dotenv -e .env.local -- node scripts/reset-admin-credits.mjs"
+    "reset:credits": "dotenv -e .env.local -- node scripts/reset-admin-credits.mjs",
+    "audit:workspace": "dotenv -e .env.local -- node scripts/workspace-sync-audit.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

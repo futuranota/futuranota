@@ -11,7 +11,7 @@ export function findObjectIdByName(objectMap, name) {
 }
 
 /**
- * Remove auto-seeded "yo" when the user already has real companies (refresh race fix).
+ * Remove auto-seeded "yo" placeholder (even if it is the only company).
  * @param {Record<string, { id?: string, name?: string, description?: string, brand?: string, children?: string[], cadence?: object }>} objectMap
  */
 export function pruneStrayDefaultYo(objectMap) {
@@ -19,9 +19,6 @@ export function pruneStrayDefaultYo(objectMap) {
 
   const yoId = findObjectIdByName(objectMap, "yo");
   if (!yoId) return objectMap;
-
-  const otherIds = Object.keys(objectMap).filter((id) => id !== yoId);
-  if (otherIds.length === 0) return objectMap;
 
   const yo = objectMap[yoId];
   const desc = (yo?.description || "").trim();
@@ -48,6 +45,15 @@ export function pruneStrayDefaultYo(objectMap) {
   return next;
 }
 
+/**
+ * True when this browser has no real account data (empty, or only the yo placeholder).
+ */
+export function localWorkspaceNeedsCloudHydrate(objects, docs) {
+  const pruned = pruneStrayDefaultYo(objects || {});
+  const docCount = Object.keys(docs && typeof docs === "object" ? docs : {}).length;
+  return Object.keys(pruned).length === 0 && docCount === 0;
+}
+
 export function sanitizePersistedSnapshot(parsed) {
   if (!isRecord(parsed)) return null;
 
@@ -55,7 +61,7 @@ export function sanitizePersistedSnapshot(parsed) {
   if (!isRecord(objects) || !isRecord(docs) || !isRecord(nodes)) return null;
 
   const snapshot = {
-    objects,
+    objects: pruneStrayDefaultYo(objects),
     docs,
     nodes,
     canvasNodes: isRecord(parsed.canvasNodes) ? parsed.canvasNodes : {},

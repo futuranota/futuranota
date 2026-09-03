@@ -108,3 +108,17 @@ export async function resolveSyncUserId() {
 
   return session.user.id;
 }
+
+/** Remove persisted Supabase session keys so logout cannot resurrect via storage recovery. */
+export function clearStoredAuthSession() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith("sb-") || !key.endsWith("-auth-token")) continue;
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // private mode / quota
+  }
+}

@@ -39,6 +39,7 @@ export function UserMenu() {
   const [exportDataError, setExportDataError] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
   const [trashCount, setTrashCount] = useState(() => getTrashItemCount());
+  const [loggingOut, setLoggingOut] = useState(false);
   const rootRef = useRef(null);
   const profile = usePlanStore((s) => s.profile);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
@@ -81,13 +82,17 @@ export function UserMenu() {
   });
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
     setOpen(false);
-    const result = await signOut();
-    if (result && result.ok === false) {
-      window.alert(result.error || "No se pudo guardar en la nube. Intentá de nuevo antes de cerrar sesión.");
-      return;
+    try {
+      await signOut();
+    } catch (err) {
+      console.error("[UserMenu] signOut failed:", err);
+    } finally {
+      setLoggingOut(false);
+      navigate("/login", { replace: true });
     }
-    navigate("/login", { replace: true });
   };
 
   const handleMuteToggle = () => {
@@ -332,8 +337,14 @@ export function UserMenu() {
           </div>
 
           <div className="user-menu__footer">
-            <button type="button" className="user-menu__sign-out" onClick={handleLogout}>
-              Sign Out
+            <button
+              type="button"
+              className="user-menu__sign-out"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              aria-busy={loggingOut}
+            >
+              {loggingOut ? t("common.signingOut") : t("common.signOut")}
             </button>
           </div>
         </div>

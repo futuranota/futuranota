@@ -19,7 +19,7 @@ BEGIN
     FROM (
       SELECT max(updated_at) AS v FROM public.companies WHERE user_id = p_user_id
       UNION ALL
-      SELECT max(updated_at) FROM public.campaigns WHERE user_id = p_user_id
+      SELECT max(updated_at) FROM public.folders WHERE user_id = p_user_id
       UNION ALL
       SELECT max(updated_at) FROM public.nodes WHERE user_id = p_user_id
       UNION ALL
