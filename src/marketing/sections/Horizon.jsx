@@ -1,5 +1,3 @@
-import { Link } from 'react-router-dom';
-import { PATHS, blogPostPath } from '../lib/paths.js';
 import { getHorizon } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
@@ -13,7 +11,6 @@ function normalizeItem(raw = {}, index = 0) {
   const includes = Array.isArray(raw.includes) ? raw.includes.filter(Boolean) : [];
   const kitType = raw.kitType === 'website-plugin' ? 'website-plugin' : 'instructions';
   const previewUrl = typeof raw.previewUrl === 'string' ? raw.previewUrl.trim() : '';
-  const blogSlug = typeof raw.blogSlug === 'string' ? raw.blogSlug.trim() : '';
   const downloadUrl = raw.downloadUrl || '#';
   const free = Boolean(raw.free) || raw.price === 'Free';
 
@@ -35,9 +32,7 @@ function normalizeItem(raw = {}, index = 0) {
     hot: Boolean(raw.hot),
     downloadUrl,
     previewUrl,
-    blogSlug,
     image: typeof raw.image === 'string' ? raw.image.trim() : '',
-    readHref: blogSlug ? blogPostPath(blogSlug) : `${PATHS.blogs}?cat=Horizon`,
   };
 }
 
@@ -131,9 +126,6 @@ function HorizonCard({ item }) {
                 Preview
               </span>
             )}
-            <Link to={item.readHref} className="btn btn-ghost btn-sm">
-              Read
-            </Link>
           </div>
         </div>
       </div>

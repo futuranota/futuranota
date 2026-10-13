@@ -5,8 +5,6 @@ import { MarketingLayout } from './marketing/layout/MarketingLayout.jsx';
 import { HomePage } from './marketing/pages/HomePage.jsx';
 import { HorizonPage } from './marketing/pages/HorizonPage.jsx';
 import { HowPage } from './marketing/pages/HowPage.jsx';
-import { BlogsPage } from './marketing/pages/BlogsPage.jsx';
-import { BlogPostPage } from './marketing/pages/BlogPostPage.jsx';
 import { WelcomePage } from './marketing/pages/WelcomePage.jsx';
 import { ForgotPasswordPage } from './marketing/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './marketing/pages/ResetPasswordPage.jsx';
@@ -22,7 +20,7 @@ import { useLocation } from 'react-router-dom';
 import { captureReferralFromLocation } from './lib/referralStorage.js';
 import { consumeOAuthDashboardRedirect } from './lib/authRedirect.js';
 import { PATHS } from './marketing/lib/paths.js';
-import App from './App.jsx';
+import PromptDesk from './components/prompts/PromptDesk.jsx';
 
 // Protege rutas que requieren sesión
 function ProtectedRoute({ children }) {
@@ -98,9 +96,6 @@ export default function AppRouter() {
           <Route path="horizon" element={<HorizonPage />} />
           <Route path="how" element={<HowPage />} />
           <Route path="marketplace" element={<Navigate to="/horizon" replace />} />
-          <Route path="blogs" element={<BlogsPage />} />
-          <Route path="blogs/:slug" element={<BlogPostPage />} />
-          <Route path="ensenanzas" element={<Navigate to="/blogs" replace />} />
         </Route>
 
         <Route path="welcome" element={<WelcomePage />} />
@@ -121,7 +116,7 @@ export default function AppRouter() {
 
         <Route path="app/*" element={
           <ProtectedRoute>
-            <App />
+            <PromptDesk />
           </ProtectedRoute>
         } />
 

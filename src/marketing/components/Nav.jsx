@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Wordmark } from './Wordmark.jsx';
-import { BlogNavMegaMenu } from './BlogNavMegaMenu.jsx';
 import { NavPreferences } from '../../components/shared/NavPreferences.jsx';
 import { TranslatedText } from '../../components/shared/TranslatedText.jsx';
 import { useI18n } from '../../i18n/useI18n.js';
@@ -12,7 +11,6 @@ import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
 export function Nav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
-  const [blogsOpen, setBlogsOpen] = useState(false);
   const showReturn = pathname !== PATHS.home;
   const siteTina = useSiteTina();
   const site = siteTina?.document ?? getSite();
@@ -34,19 +32,6 @@ export function Nav() {
               <TranslatedText text={label} />
             </Link>
           ))}
-          <div className="nav__item nav__item--mega">
-            <button
-              type="button"
-              className={`nav__link nav__mega-trigger${blogsOpen ? ' is-open' : ''}`}
-              aria-expanded={blogsOpen}
-              aria-haspopup="true"
-              onClick={() => setBlogsOpen((o) => !o)}
-            >
-              {t("marketing.blogs")}
-              <span className="nav__mega-chevron" aria-hidden />
-            </button>
-            <BlogNavMegaMenu open={blogsOpen} onClose={() => setBlogsOpen(false)} />
-          </div>
         </nav>
         <div className="nav__actions">
           <NavPreferences />
@@ -79,7 +64,6 @@ export function Nav() {
               <TranslatedText text={label} />
             </Link>
           ))}
-          <Link to={PATHS.blogs} className="nav__mobile-link" onClick={() => setOpen(false)}>{t("marketing.blogs")}</Link>
           {showReturn && (
             <Link to={PATHS.home} className="nav__mobile-link nav__mobile-return" onClick={() => setOpen(false)}>← {t("marketing.return")}</Link>
           )}

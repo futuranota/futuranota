@@ -7,7 +7,7 @@
   "footer": {
     "columns": [
       { "heading": "Product", "links": ["Features", "Pricing", "Documentation", "Changelog"] },
-      { "heading": "Learn", "links": ["Blogs", "Horizon", "How it works"] },
+      { "heading": "Learn", "links": ["Horizon", "How it works"] },
       { "heading": "Community", "links": ["GitHub", "Twitter / X", "Discord", "Contact"] },
       { "heading": "Legal", "links": ["Privacy", "Terms", "Cookies"] }
     ],

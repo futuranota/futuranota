@@ -25,14 +25,64 @@ if (getSupabaseConfigError()) {
   console.warn(getSupabaseConfigError());
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    flowType: 'pkce',
-    // Manual exchange in authRedirect.js — avoid double PKCE redemption.
-    detectSessionInUrl: false,
-    persistSession: true,
-  },
-});
+function unavailableSupabase(message) {
+  const error = { message };
+  const auth = {
+    onAuthStateChange() {
+      return { data: { subscription: { unsubscribe() {} } } };
+    },
+    getSession: async () => ({ data: { session: null }, error: null }),
+    refreshSession: async () => ({ data: { session: null }, error: null }),
+    getUser: async () => ({ data: { user: null }, error }),
+    signInWithPassword: async () => ({ data: { session: null, user: null }, error }),
+    signUp: async () => ({ data: { session: null, user: null }, error }),
+    signOut: async () => ({ error: null }),
+    resetPasswordForEmail: async () => ({ data: {}, error }),
+    updateUser: async () => ({ data: { user: null }, error }),
+    signInWithOAuth: async () => ({ data: null, error }),
+    exchangeCodeForSession: async () => ({ data: { session: null }, error }),
+    setSession: async () => ({ data: { session: null }, error }),
+  };
+  const chain = {
+    select() { return chain; },
+    insert() { return chain; },
+    update() { return chain; },
+    delete() { return chain; },
+    upsert() { return chain; },
+    eq() { return chain; },
+    neq() { return chain; },
+    order() { return chain; },
+    limit() { return chain; },
+    single: async () => ({ data: null, error }),
+    maybeSingle: async () => ({ data: null, error }),
+    then(resolve, reject) {
+      return Promise.resolve({ data: null, error }).then(resolve, reject);
+    },
+  };
+  return {
+    auth,
+    from() { return chain; },
+    storage: {
+      from() {
+        return {
+          upload: async () => ({ data: null, error }),
+          getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        };
+      },
+    },
+  };
+}
+
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        flowType: 'pkce',
+        // Manual exchange in authRedirect.js — avoid double PKCE redemption.
+        detectSessionInUrl: false,
+        persistSession: true,
+      },
+    })
+  : unavailableSupabase(getSupabaseConfigError());
 
 /**
  * @param {{ message?: string, code?: string, details?: string, hint?: string }|null} error

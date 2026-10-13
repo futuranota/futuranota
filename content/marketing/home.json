@@ -108,7 +108,7 @@
   },
   "directory": {
     "eyebrow": "EXPLORE FUTURA NOTA",
-    "title": "Three windows. Step through any one.",
+    "title": "Two windows. Step through either one.",
     "lead": "Every part of Futura Nota now lives on its own page. Pick a window below and dive in.",
     "cards": [
       {
@@ -130,16 +130,6 @@
         "tags": ["5 steps", "90-sec walkthrough"],
         "cta": "See how it works",
         "span": 5
-      },
-      {
-        "slug": "blogs",
-        "num": "03",
-        "eyebrow": "BLOGS",
-        "title": "Trends, marketing, and commerce — read the signal before it lands.",
-        "blurb": "Marketing, sales, entrepreneur, and the launches worth studying — filter by topic or browse by section.",
-        "tags": ["Trends", "Marketing", "Sales", "Entrepreneur"],
-        "cta": "Read the blog",
-        "span": 12
       }
     ]
   },
