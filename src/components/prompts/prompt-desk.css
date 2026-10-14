@@ -104,8 +104,7 @@
 }
 
 .prompt-panel__name,
-.prompt-panel__body,
-.prompt-vars__row input {
+.prompt-panel__body {
   width: 100%;
   border: 0;
   background: transparent;
@@ -120,8 +119,7 @@
 }
 
 .prompt-panel__name::placeholder,
-.prompt-panel__body::placeholder,
-.prompt-vars__row input::placeholder {
+.prompt-panel__body::placeholder {
   color: rgba(255, 255, 255, 0.38);
 }
 
@@ -239,9 +237,7 @@
 }
 
 .prompt-format select,
-.prompt-panel__tools button,
-.prompt-vars__add,
-.prompt-vars__row button {
+.prompt-panel__tools button {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
   color: inherit;
@@ -255,35 +251,6 @@
 .prompt-panel__tools button:disabled {
   opacity: 0.35;
   cursor: default;
-}
-
-.prompt-vars {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.prompt-vars__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.prompt-vars__row input {
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #101010;
-}
-
-.prompt-vars__row button {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-}
-
-.prompt-vars__add {
-  align-self: flex-start;
 }
 
 .prompt-panel__body {

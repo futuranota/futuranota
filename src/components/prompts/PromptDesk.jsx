@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import GlassFolder from './GlassFolder.jsx';
@@ -21,17 +22,12 @@ function blankStep() {
   return { id: uid(), prompt: '', image: '', format: 'text' };
 }
 
-function blankVariable() {
-  return { id: uid(), from: '', to: '' };
-}
-
 function blankPrompt() {
   return {
     id: uid(),
     name: 'Untitled',
     meta: 'Prompt',
     modelId: '',
-    variables: [blankVariable()],
     stepIndex: 0,
     steps: [blankStep()],
   };
@@ -56,17 +52,6 @@ function stepAt(prompt) {
   const steps = prompt.steps?.length ? prompt.steps : [blankStep()];
   const index = Math.min(Math.max(prompt.stepIndex || 0, 0), steps.length - 1);
   return { steps, index, step: steps[index] };
-}
-
-function applyVariables(text, variables) {
-  let next = String(text || '');
-  for (const variable of variables || []) {
-    const from = String(variable.from || '');
-    if (!from) continue;
-    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    next = next.replace(new RegExp(escaped, 'gi'), String(variable.to || ''));
-  }
-  return next;
 }
 
 function sheetsOf(prompts) {
@@ -126,6 +111,8 @@ export default function PromptDesk() {
   const [folders, setFolders] = useState(() => [blankFolder(0)]);
   const [active, setActive] = useState(null);
   const [compact, setCompact] = useState(false);
+  const [floating, setFloating] = useState(false);
+  const floatRef = useRef(null);
 
   const activePrompt = useMemo(() => {
     if (!active) return null;
@@ -163,6 +150,56 @@ export default function PromptDesk() {
   function closePanel() {
     setActive(null);
     setCompact(false);
+    closeFloat();
+  }
+
+  function closeFloat() {
+    const slot = floatRef.current;
+    if (!slot) return;
+    floatRef.current = null;
+    slot.root.unmount();
+    slot.window.close();
+    setFloating(false);
+  }
+
+  async function openFloat() {
+    const api = window.documentPictureInPicture;
+    if (!api?.requestWindow) {
+      setCompact(true);
+      return;
+    }
+    const openSlot = floatRef.current;
+    if (openSlot?.window && !openSlot.window.closed) {
+      openSlot.window.focus();
+      setFloating(true);
+      setCompact(false);
+      return;
+    }
+    try {
+      const pipWindow = await api.requestWindow({ width: 340, height: 480 });
+      const doc = pipWindow.document;
+      doc.title = 'Futura Nota';
+      const style = doc.createElement('style');
+      style.textContent = FLOAT_CSS;
+      doc.head.appendChild(style);
+      const mount = doc.createElement('div');
+      mount.id = 'prompt-float-root';
+      doc.body.replaceChildren(mount);
+      const root = createRoot(mount);
+      const onHide = () => {
+        pipWindow.removeEventListener('pagehide', onHide);
+        if (floatRef.current?.window !== pipWindow) return;
+        floatRef.current = null;
+        root.unmount();
+        setFloating(false);
+      };
+      pipWindow.addEventListener('pagehide', onHide);
+      floatRef.current = { window: pipWindow, root };
+      setFloating(true);
+      setCompact(false);
+    } catch {
+      setCompact(true);
+    }
   }
 
   function renameFolder(folderId, label) {
@@ -175,6 +212,7 @@ export default function PromptDesk() {
     setFolders((prev) => prev.filter((folder) => folder.id !== folderId));
     setActive((current) => (current?.folderId === folderId ? null : current));
     setCompact(false);
+    if (active?.folderId === folderId) closeFloat();
   }
 
   function deletePrompt(folderId, promptId) {
@@ -185,7 +223,25 @@ export default function PromptDesk() {
     )));
     setActive((current) => (current?.promptId === promptId ? null : current));
     setCompact(false);
+    if (active?.promptId === promptId) closeFloat();
   }
+
+  useEffect(() => {
+    const slot = floatRef.current;
+    if (!slot?.root || !floating) return;
+    if (!activePrompt) {
+      closeFloat();
+      return;
+    }
+    slot.window.document.title = activePrompt.prompt.name || 'Futura Nota';
+    slot.root.render(
+      <FloatCard
+        prompt={activePrompt.prompt}
+        view={slot.window}
+        onPatch={patchPrompt}
+      />
+    );
+  });
 
   return (
     <div className="prompt-desk">
@@ -214,12 +270,12 @@ export default function PromptDesk() {
         ))}
       </div>
 
-      {activePrompt ? (
+      {activePrompt && !floating ? (
         <InstructionPanel
           prompt={activePrompt.prompt}
           compact={compact}
           onPatch={patchPrompt}
-          onCompact={() => setCompact(true)}
+          onCompact={() => { void openFloat(); }}
           onExpand={() => setCompact(false)}
           onClose={closePanel}
           onDelete={() => deletePrompt(activePrompt.folder.id, activePrompt.prompt.id)}
@@ -231,9 +287,8 @@ export default function PromptDesk() {
 
 function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose, onDelete }) {
   const { steps, index, step } = stepAt(prompt);
-  const variables = prompt.variables?.length ? prompt.variables : [];
-  const snippet = (step.prompt || 'Prompt vacío').trim().slice(0, 90);
-  const copiedText = applyVariables(step.prompt, variables).trim();
+  const copiedText = step.prompt.trim();
+  const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const chipImage = step.image || coverImage(prompt);
 
@@ -247,12 +302,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   function takeImage(file) {
     readImageFile(file, (image) => patchStep({ image }));
-  }
-
-  function patchVariable(id, patch) {
-    onPatch({
-      variables: variables.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    });
   }
 
   function goBack() {
@@ -376,40 +425,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               {copied ? 'Copiado' : 'Copiar'}
             </button>
           </div>
-          <div className="prompt-vars">
-            {variables.map((variable) => (
-              <div key={variable.id} className="prompt-vars__row">
-                <input
-                  value={variable.from}
-                  placeholder="texto"
-                  aria-label="Texto a cambiar"
-                  onChange={(event) => patchVariable(variable.id, { from: event.target.value })}
-                />
-                <input
-                  value={variable.to}
-                  placeholder="cambiar por"
-                  aria-label="Cambiar por"
-                  onChange={(event) => patchVariable(variable.id, { to: event.target.value })}
-                />
-                <button
-                  type="button"
-                  aria-label="Quitar variable"
-                  onClick={() => onPatch({
-                    variables: variables.filter((item) => item.id !== variable.id),
-                  })}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="prompt-vars__add"
-              onClick={() => onPatch({ variables: [...variables, blankVariable()] })}
-            >
-              Agregar variable
-            </button>
-          </div>
           <textarea
             className={
               step.format && step.format !== 'text'
@@ -451,3 +466,199 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     </section>
   );
 }
+
+async function copyInView(text, view) {
+  if (!text) return false;
+  try {
+    await view.navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const doc = view.document;
+      const textarea = doc.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      doc.body.appendChild(textarea);
+      textarea.select();
+      const ok = doc.execCommand('copy');
+      doc.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function FloatCard({ prompt, view, onPatch }) {
+  const { steps, index, step } = stepAt(prompt);
+  const text = step.prompt.trim();
+  const image = step.image || coverImage(prompt);
+  const [copied, setCopied] = useState(false);
+
+  function goBack() {
+    if (index <= 0) return;
+    onPatch({ stepIndex: index - 1 });
+  }
+
+  function goForward() {
+    if (index < steps.length - 1) {
+      onPatch({ stepIndex: index + 1 });
+      return;
+    }
+    onPatch({
+      steps: [...steps, blankStep()],
+      stepIndex: steps.length,
+    });
+  }
+
+  async function copyPrompt() {
+    if (!text) return;
+    const ok = await copyInView(text, view);
+    if (!ok) return;
+    setCopied(true);
+    view.setTimeout(() => setCopied(false), 1200);
+  }
+
+  return (
+    <section className="prompt-float" aria-label="Prompt flotante">
+      {image ? (
+        <img className="prompt-float__img" src={image} alt="" />
+      ) : (
+        <span className="prompt-float__img prompt-float__img--empty">Sin imagen</span>
+      )}
+      <p className="prompt-float__name">{prompt.name || 'Untitled'}</p>
+      <pre className="prompt-float__text">{text || 'Prompt vacío'}</pre>
+      <button type="button" className="prompt-float__copy" onClick={() => { void copyPrompt(); }} disabled={!text}>
+        {copied ? 'Copiado' : 'Copiar'}
+      </button>
+      <div className="prompt-steps">
+        <button
+          type="button"
+          className="prompt-steps__arrow"
+          aria-label="Paso anterior"
+          disabled={index <= 0}
+          onClick={goBack}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 6.5 9 12l5.5 5.5" />
+          </svg>
+        </button>
+        <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+        <button
+          type="button"
+          className="prompt-steps__arrow"
+          aria-label="Paso siguiente"
+          onClick={goForward}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9.5 6.5 15 12l-5.5 5.5" />
+          </svg>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+const FLOAT_CSS = `
+  html, body, #prompt-float-root { height: 100%; margin: 0; }
+  body {
+    --surface-base: #151515;
+    --text-primary: #fff;
+    background: var(--surface-base);
+    color: var(--text-primary);
+  }
+  .prompt-float {
+    box-sizing: border-box;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  .prompt-float__img {
+    width: 100%;
+    height: 140px;
+    flex: none;
+    object-fit: cover;
+    border-radius: 12px;
+    background: #101010;
+  }
+  .prompt-float__img--empty {
+    display: grid;
+    place-items: center;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 13px;
+  }
+  .prompt-float__name {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 560;
+    letter-spacing: -0.02em;
+  }
+  .prompt-float__text {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 12px;
+    padding: 12px;
+    background: #101010;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .prompt-float__copy {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: inherit;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .prompt-float__copy:disabled { opacity: 0.35; cursor: default; }
+  .prompt-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+  .prompt-steps__arrow {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 18px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+  }
+  .prompt-steps__arrow svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .prompt-steps__arrow:disabled { opacity: 0.35; cursor: default; }
+  .prompt-steps__count {
+    min-width: 48px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.78);
+  }
+`;
