@@ -343,6 +343,18 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     });
   }
 
+  function deleteIndex() {
+    if (steps.length <= 1) {
+      onPatch({ steps: [blankStep(0)], stepIndex: 0 });
+      return;
+    }
+    const nextSteps = steps.filter((_, itemIndex) => itemIndex !== index);
+    onPatch({
+      steps: nextSteps,
+      stepIndex: Math.min(index, nextSteps.length - 1),
+    });
+  }
+
   async function copyPrompt() {
     if (!canCopy) return;
     const ok = await copyToClipboard(copiedText);
@@ -376,32 +388,23 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         if (item) takeImage(item.getAsFile());
       }}
     >
-      <header className="prompt-panel__bar">
-        <input
-          className="prompt-panel__name"
-          value={prompt.name}
-          placeholder="Nombre"
-          aria-label="Nombre"
-          onChange={(event) => onPatch({ name: event.target.value })}
-        />
-        <div className="prompt-panel__actions">
-          <button type="button" onClick={saveStep}>Guardar</button>
-          {showImage ? null : (
-            <button type="button" onClick={() => setShowImage(true)}>Agregar imagen</button>
-          )}
-          <button type="button" onClick={onCompact}>Comprimir</button>
-          <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
-            <img src="/uploads/closed-tab.svg" alt="" />
-          </button>
-        </div>
-      </header>
-      <div className="prompt-panel__split">
-        <div className="prompt-panel__media-tools">
-          {showImage ? (
+      <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
+        <img src="/uploads/closed-tab.svg" alt="" />
+      </button>
+      <div className={showImage ? 'prompt-panel__split' : 'prompt-panel__split prompt-panel__split--prompt'}>
+        {showImage ? (
+          <div className="prompt-panel__media-tools">
             <button type="button" onClick={() => setShowImage(false)}>Omitir</button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         <div className="prompt-panel__editor-tools">
+          <input
+            className="prompt-panel__name"
+            value={prompt.name}
+            placeholder="Nombre"
+            aria-label="Nombre"
+            onChange={(event) => onPatch({ name: event.target.value })}
+          />
           <div className="prompt-models" role="listbox" aria-label="Modelo">
             {PROMPT_MODELS.map((model) => {
               const selected = prompt.modelId === model.id;
@@ -419,6 +422,24 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 </button>
               );
             })}
+            {showImage ? null : (
+              <button type="button" className="prompt-models__item" onClick={() => setShowImage(true)}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </span>
+                <span>Agregar imagen</span>
+              </button>
+            )}
+            <button type="button" className="prompt-models__item" onClick={onCompact}>
+              <span className="prompt-models__glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
+                </svg>
+              </span>
+              <span>Comprimir</span>
+            </button>
           </div>
           <div className="prompt-panel__tools">
             <label className="prompt-format">
@@ -479,9 +500,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 onChange={(event) => takeImage(event.target.files?.[0])}
               />
             </label>
-        ) : (
-          <div className="prompt-panel__blank" aria-hidden="true" />
-        )}
+        ) : null}
           <div className="prompt-sheet">
             <input
               className="prompt-sheet__title"
@@ -516,6 +535,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             ) : null}
             </div>
           </div>
+          <div className="prompt-panel__foot">
+            {step.prompt.trim() ? (
+              <div className="prompt-panel__step-actions">
+                <button type="button" onClick={saveStep}>Guardar</button>
+                <button type="button" onClick={deleteIndex}>Eliminar</button>
+              </div>
+            ) : null}
           <div className="prompt-steps">
             <button
               type="button"
@@ -539,6 +565,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <path d="M9.5 6.5 15 12l-5.5 5.5" />
               </svg>
             </button>
+          </div>
           </div>
       </div>
     </section>
