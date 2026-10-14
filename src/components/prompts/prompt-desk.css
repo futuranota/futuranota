@@ -117,6 +117,32 @@
   cursor: pointer;
 }
 
+.prompt-desk__search {
+  position: relative;
+  z-index: 1;
+  padding: 18px 32px 0;
+}
+
+.prompt-desk__search input {
+  display: block;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  border: 1px solid rgba(20, 20, 22, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: inherit;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.prompt-desk__search input:focus {
+  border-color: rgba(20, 20, 22, 0.35);
+  background: #fff;
+}
+
 .prompt-desk__grid {
   position: relative;
   z-index: 1;

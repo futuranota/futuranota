@@ -4,14 +4,17 @@ import { Nav } from '../components/Nav.jsx';
 import { Footer } from '../components/Footer.jsx';
 import { SiteTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { applyMarketingTheme } from '../lib/theme.js';
+import { PATHS } from '../lib/paths.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 import '../styles/landing-tweaks.css';
+import '../styles/plain-landing.css';
 
 const DEFAULT_THEME = { accent: 'terracotta', texture: 'on' };
 
 export function MarketingLayout() {
-  const { hash } = useLocation();
+  const { hash, pathname } = useLocation();
+  const home = pathname === PATHS.home;
 
   useEffect(() => {
     applyMarketingTheme(DEFAULT_THEME);
@@ -30,12 +33,14 @@ export function MarketingLayout() {
 
   return (
     <SiteTinaProvider>
-      <div className="canvas-bg" />
-      <Nav />
-      <main>
-        <Outlet />
-      </main>
-      <Footer />
+      <div className={home ? 'marketing-shell marketing-shell--home' : 'marketing-shell'}>
+        <div className="canvas-bg" />
+        <Nav />
+        <main>
+          <Outlet />
+        </main>
+        {home ? null : <Footer />}
+      </div>
     </SiteTinaProvider>
   );
 }

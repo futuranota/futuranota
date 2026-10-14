@@ -355,7 +355,7 @@ const FRONT_PATH =
   (FRONT_H - 22) +
   "Z"
 
-const MAX_VISIBLE = 4
+export const MAX_VISIBLE = 4
 
 const SAMPLE_FILES = [
   { name: "Cover — final", meta: "PNG · 4.8 MB", art: "ember" },
@@ -364,7 +364,7 @@ const SAMPLE_FILES = [
 ]
 
 function fileSignature(list) {
-  return JSON.stringify((list || []).map((f) => [f.name, f.meta || "", f.image || "", f.promptId || ""]))
+  return JSON.stringify((list || []).map((f) => [f.name, f.meta || "", f.image || "", f.promptId || "", f.highlight ? 1 : 0]))
 }
 
 export default function GlassFolder({
@@ -690,7 +690,7 @@ export default function GlassFolder({
                 </>
               )
               const common = {
-                className: "gf-sheet" + (picture ? " gf-sheet--art" : "") + (id === dropped ? " gf-sheet--drop" : ""),
+                className: "gf-sheet" + (picture ? " gf-sheet--art" : "") + (file.highlight ? " gf-sheet--hit" : "") + (id === dropped ? " gf-sheet--drop" : ""),
                 style: {
                   "--gf-slot": slot,
                   "--gf-depth": visible.length - 1 - v,
@@ -853,6 +853,15 @@ canvas.gf-art[data-ready] { opacity: 1; filter: none; }
   transition-delay: 0s;
 }
 .gf-sheet:focus-visible { outline: 2px solid #4c8dff; outline-offset: 2px; }
+.gf-sheet--hit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(255, 214, 90, 0.42);
+}
 .gf-sheet-art { position: absolute; left: 0; top: 0; width: 272px; height: 184px; max-width: none; object-fit: cover; transition: opacity .9s var(--gf-ease), filter .9s var(--gf-ease); }
 canvas.gf-sheet-art { opacity: 0; filter: blur(10px); }
 canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
@@ -861,7 +870,7 @@ canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
   background: linear-gradient(180deg, rgba(0, 0, 0, .42) 0%, rgba(0, 0, 0, 0) 34%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
 }
-.gf-sheet-head { position: absolute; left: 14px; right: 14px; top: 11px; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; white-space: nowrap; }
+.gf-sheet-head { position: absolute; left: 14px; right: 14px; top: 11px; z-index: 2; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; white-space: nowrap; }
 .gf-sheet-name { overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; font-weight: 560; letter-spacing: -.005em; color: #18181b; }
 .gf-sheet-meta { flex: none; font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: .02em; color: rgba(24, 24, 27, .5); }
 .gf-root[data-tone="dark"] .gf-sheet-name, .gf-sheet--art .gf-sheet-name { color: #fafafa; }

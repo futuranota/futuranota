@@ -12,7 +12,7 @@ import {
 } from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { useAuthStore } from '../../stores/authStore.js';
-import GlassFolder from './GlassFolder.jsx';
+import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import './prompt-desk.css';
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
@@ -96,12 +96,40 @@ function stepAt(prompt) {
   return { steps, index, step: steps[index] };
 }
 
-function sheetsOf(prompts) {
+function fileTitle(prompt) {
+  return prompt.name || 'Untitled';
+}
+
+function promptsForSearch(prompts, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return prompts;
+  const matches = [];
+  const rest = [];
+  for (const prompt of prompts) {
+    if (fileTitle(prompt).toLowerCase().includes(q)) matches.push(prompt);
+    else rest.push(prompt);
+  }
+  if (!matches.length) return prompts;
+  const shown = matches.slice(0, MAX_VISIBLE);
+  const overflow = matches.slice(MAX_VISIBLE);
+  const room = MAX_VISIBLE - shown.length;
+  const below = rest.slice(0, room);
+  const hidden = rest.slice(room);
+  return [...hidden, ...overflow, ...shown, ...below];
+}
+
+function titleHit(prompt, query) {
+  return fileTitle(prompt).toLowerCase().includes(query);
+}
+
+function sheetsOf(prompts, query = '') {
+  const q = query.trim().toLowerCase();
   return prompts.map((prompt) => ({
-    name: prompt.name || 'Untitled',
+    name: fileTitle(prompt),
     meta: prompt.meta || 'Prompt',
     image: coverImage(prompt) || undefined,
     promptId: prompt.id,
+    highlight: Boolean(q) && titleHit(prompt, q),
   }));
 }
 
@@ -152,10 +180,14 @@ function AccountRail() {
   );
 }
 
-function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
-  const sheets = useMemo(() => sheetsOf(folder.prompts), [folder.prompts]);
+function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
+  const [opened, setOpened] = useState(false);
+  const sheets = useMemo(
+    () => sheetsOf(folder.prompts, searchOpen ? highlightQuery : ''),
+    [folder.prompts, searchOpen, highlightQuery],
+  );
   return (
-    <div className="prompt-desk__folder">
+    <div className={searchOpen ? 'prompt-desk__folder prompt-desk__folder--hit' : 'prompt-desk__folder'}>
       <button
         type="button"
         className="prompt-desk__delete"
@@ -172,6 +204,11 @@ function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt, onRename, onDele
         action="add"
         width={300}
         appearDelay={appearDelay}
+        open={searchOpen || opened}
+        onOpenChange={(next) => {
+          if (searchOpen) return;
+          setOpened(next);
+        }}
         onLabelChange={(label) => onRename(folder.id, label)}
         onAdd={() => {
           const prompt = blankPrompt();
@@ -223,6 +260,8 @@ function saveMode(patch, beforePrompt) {
 
 export default function PromptDesk() {
   const [folders, setFolders] = useState(null);
+  const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState('');
   const [active, setActive] = useState(null);
   const [compact, setCompact] = useState(false);
   const [floating, setFloating] = useState(false);
@@ -451,6 +490,31 @@ export default function PromptDesk() {
     );
   });
 
+  const shownFolders = useMemo(() => {
+    const list = folders || [];
+    const q = submitted.trim().toLowerCase();
+    if (!q) return list.map((folder) => ({ folder, searchOpen: false }));
+    const matched = [];
+    const rest = [];
+    for (const folder of list) {
+      const hit = folder.prompts.some((prompt) => titleHit(prompt, q));
+      if (!hit) {
+        rest.push({ folder, searchOpen: false });
+        continue;
+      }
+      matched.push({
+        folder: { ...folder, prompts: promptsForSearch(folder.prompts, q) },
+        searchOpen: true,
+      });
+    }
+    return [...matched, ...rest];
+  }, [folders, submitted]);
+
+  useEffect(() => {
+    if (!submitted.trim()) return;
+    document.querySelector('.prompt-desk__folder--hit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [submitted, shownFolders]);
+
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
@@ -462,11 +526,27 @@ export default function PromptDesk() {
           Nueva colección
         </button>
       </header>
+      <div className="prompt-desk__search">
+        <input
+          type="search"
+          value={query}
+          placeholder="Buscar"
+          aria-label="Buscar un archivo"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            setSubmitted(query.trim());
+          }}
+        />
+      </div>
       <div className="prompt-desk__grid">
-        {(folders || []).map((folder, index) => (
+        {shownFolders.map(({ folder, searchOpen }, index) => (
           <FolderCard
             key={folder.id}
             folder={folder}
+            searchOpen={searchOpen}
+            highlightQuery={submitted}
             appearDelay={index * 120}
             onAdd={addPrompt}
             onRename={renameFolder}
