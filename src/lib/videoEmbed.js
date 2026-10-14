@@ -13,6 +13,8 @@ const ALLOWED_EMBED_HOSTS = new Set([
   "youtube-nocookie.com",
   "player.vimeo.com",
   "vimeo.com",
+  "www.instagram.com",
+  "instagram.com",
 ]);
 
 export function isAllowedEmbedSrc(src) {
@@ -138,6 +140,46 @@ function parseVimeo(input) {
   };
 }
 
+function extractInstagramPermalink(raw) {
+  const text = String(raw ?? "");
+  const permalink = text.match(/data-instgrm-permalink=["']([^"']+)["']/i);
+  if (permalink) return decodeHtmlEntities(permalink[1]);
+  const iframeSrc = extractIframeSrc(text);
+  if (iframeSrc && /instagram\.com|instagr\.am/i.test(iframeSrc)) return iframeSrc;
+  return text;
+}
+
+function parseInstagram(input) {
+  const text = normalizeVideoInputUrl(extractInstagramPermalink(input));
+  if (!text || text.startsWith("<")) return null;
+
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.replace(/^www\./, "");
+  if (host !== "instagram.com" && host !== "instagr.am") return null;
+
+  const parts = url.pathname.split("/").filter(Boolean);
+  const kindIndex = parts.findIndex((part) => (
+    part === "p" || part === "reel" || part === "reels" || part === "tv"
+  ));
+  if (kindIndex < 0) return null;
+
+  const shortcode = (parts[kindIndex + 1] || "").split(/[?#]/)[0];
+  if (!/^[A-Za-z0-9_-]+$/.test(shortcode)) return null;
+
+  const kind = parts[kindIndex] === "reels" ? "reel" : parts[kindIndex];
+  return {
+    provider: "instagram",
+    videoId: shortcode,
+    embedSrc: `https://www.instagram.com/${kind}/${shortcode}/embed`,
+  };
+}
+
 /**
  * Parse pasted URL or iframe snippet into a safe embed payload.
  * @param {string} raw
@@ -154,14 +196,14 @@ export function parseVideoEmbedInput(raw) {
     };
   }
 
-  const parsed = parseYouTube(input) || parseVimeo(input);
+  const parsed = parseYouTube(input) || parseVimeo(input) || parseInstagram(input);
   if (!parsed) {
     return {
       provider: "unknown",
       videoId: "",
       embedSrc: "",
       rawInput: input,
-      error: "Solo YouTube y Vimeo por ahora. Pega una URL o código embed válido.",
+      error: "Solo YouTube, Vimeo e Instagram por ahora. Pega una URL o código embed válido.",
     };
   }
 

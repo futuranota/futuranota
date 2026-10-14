@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { useNavigate } from 'react-router-dom';
+import { useI18n } from '../../i18n/useI18n.js';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import {
@@ -9,6 +11,7 @@ import {
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
+import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder from './GlassFolder.jsx';
 import './prompt-desk.css';
 
@@ -107,6 +110,46 @@ function readImageFile(file, onLoad) {
   const reader = new FileReader();
   reader.onload = () => onLoad(String(reader.result || ''));
   reader.readAsDataURL(file);
+}
+
+function AccountRail() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const signOut = useAuthStore((state) => state.signOut);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const email = user?.email || '';
+  const initial = (email[0] || 'F').toUpperCase();
+
+  async function handleSignOut() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn('[prompt-desk] sign out failed', error?.message || error);
+    } finally {
+      setLoggingOut(false);
+      navigate('/login', { replace: true });
+    }
+  }
+
+  return (
+    <aside className="prompt-desk__rail" aria-label="Cuenta">
+      <div className="prompt-desk__account">
+        <span className="prompt-desk__avatar" aria-hidden="true">{initial}</span>
+        {email ? <span className="prompt-desk__email">{email}</span> : null}
+        <button
+          type="button"
+          className="prompt-desk__signout"
+          onClick={() => { void handleSignOut(); }}
+          disabled={loggingOut}
+        >
+          {loggingOut ? t('common.signingOut') : t('common.signOut')}
+        </button>
+      </div>
+    </aside>
+  );
 }
 
 function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
@@ -411,6 +454,8 @@ export default function PromptDesk() {
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
+      <AccountRail />
+      <div className="prompt-desk__main">
       <header className="prompt-desk__bar">
         <p className="prompt-desk__mark">Futura Nota</p>
         <button type="button" className="prompt-desk__new" onClick={addCollection} disabled={!folders}>
@@ -445,6 +490,7 @@ export default function PromptDesk() {
           onClose={closePanel}
         />
       ) : null}
+      </div>
     </div>
   );
 }
@@ -519,7 +565,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   function saveVideo(raw) {
     const parsed = parseVideoEmbedInput(raw);
     if (parsed.error || !parsed.embedSrc) {
-      setVideoError(parsed.error || 'Pega un enlace de YouTube o Vimeo.');
+      setVideoError(parsed.error || 'Pega un enlace de YouTube, Vimeo o Instagram.');
       return;
     }
     setVideoError('');
@@ -537,6 +583,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   function togglePlayback() {
     const frame = videoRef.current;
     if (!frame?.contentWindow || !step.video) return;
+    if (step.video.provider === 'instagram') return;
     const nextPaused = !videoPaused;
     if (step.video.provider === 'vimeo') {
       frame.contentWindow.postMessage(JSON.stringify({ method: nextPaused ? 'pause' : 'play' }), '*');
@@ -768,6 +815,9 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 title="Video"
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowFullScreen
+                sandbox={step.video?.provider === 'instagram'
+                  ? 'allow-scripts allow-same-origin allow-presentation'
+                  : undefined}
               />
             ) : (
               <form
@@ -779,7 +829,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               >
                 <input
                   value={videoDraft}
-                  placeholder="Pega un enlace de YouTube o Vimeo"
+                  placeholder="Pega un enlace de YouTube, Vimeo o Instagram"
                   aria-label="Enlace del video"
                   onChange={(event) => setVideoDraft(event.target.value)}
                 />
@@ -799,6 +849,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         {showVideo && step.video?.embedSrc ? (
           <div className="prompt-panel__media-foot">
             <div className="prompt-video__banner">
+              {step.video?.provider === 'instagram' ? null : (
               <button
                 type="button"
                 className="prompt-video__pause"
@@ -815,6 +866,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   </svg>
                 )}
               </button>
+              )}
               <button type="button" className="prompt-video__extract">Extraer texto</button>
             </div>
             <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
