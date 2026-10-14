@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import {
+  currentPromptUserId,
+  loadPromptDesk,
+  savePromptDesk,
+  uploadPromptImage,
+} from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import GlassFolder from './GlassFolder.jsx';
 import './prompt-desk.css';
@@ -29,6 +35,7 @@ function blankStep(index = 0) {
     title: defaultStepTitle(index),
     prompt: '',
     image: '',
+    imagePath: '',
     video: null,
     format: 'text',
     promptSaved: false,
@@ -139,44 +146,136 @@ function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt, onRename, onDele
   );
 }
 
+function saveMode(patch, beforePrompt) {
+  if (!patch) return 'debounce';
+  if ('stepIndex' in patch || 'modelId' in patch) return 'now';
+  if (patch.steps && beforePrompt) {
+    const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
+    const nextIds = patch.steps.map((item) => item.id).join();
+    if (prevIds !== nextIds) return 'now';
+    const structural = patch.steps.some((step) => {
+      const prev = (beforePrompt.steps || []).find((item) => item.id === step.id);
+      if (!prev) return true;
+      return prev.image !== step.image
+        || prev.imagePath !== step.imagePath
+        || prev.format !== step.format
+        || prev.promptSaved !== step.promptSaved
+        || JSON.stringify(prev.video) !== JSON.stringify(step.video);
+    });
+    if (structural) return 'now';
+  }
+  if (patch.stepPatch) {
+    const fields = { ...patch.stepPatch };
+    delete fields.id;
+    delete fields.title;
+    delete fields.prompt;
+    delete fields.promptSaved;
+    if (Object.keys(fields).length) return 'now';
+    if (patch.stepPatch.promptSaved && !('prompt' in patch.stepPatch) && !('title' in patch.stepPatch)) {
+      return 'now';
+    }
+  }
+  return 'debounce';
+}
+
 export default function PromptDesk() {
-  const [folders, setFolders] = useState(() => [blankFolder(0)]);
+  const [folders, setFolders] = useState(null);
   const [active, setActive] = useState(null);
   const [compact, setCompact] = useState(false);
   const [floating, setFloating] = useState(false);
   const floatRef = useRef(null);
+  const foldersRef = useRef([]);
+  const savedRef = useRef([]);
+  const userIdRef = useRef(null);
+  const saveTimerRef = useRef(0);
+  const savingRef = useRef(null);
+  const queuedRef = useRef(null);
 
   const activePrompt = useMemo(() => {
-    if (!active) return null;
+    if (!active || !folders) return null;
     const folder = folders.find((item) => item.id === active.folderId);
     const prompt = folder?.prompts.find((item) => item.id === active.promptId);
     if (!folder || !prompt) return null;
     return { folder, prompt };
   }, [folders, active]);
 
+  function queueSave(next, mode) {
+    queuedRef.current = next;
+    window.clearTimeout(saveTimerRef.current);
+    if (mode === 'now') {
+      void flushSave();
+      return;
+    }
+    saveTimerRef.current = window.setTimeout(() => { void flushSave(); }, 350);
+  }
+
+  async function flushSave() {
+    window.clearTimeout(saveTimerRef.current);
+    const userId = userIdRef.current;
+    const snapshot = queuedRef.current;
+    if (!userId || !snapshot) return;
+    if (savingRef.current) return;
+    queuedRef.current = null;
+    const previous = savedRef.current;
+    savingRef.current = savePromptDesk(userId, snapshot, previous)
+      .then(() => {
+        savedRef.current = snapshot;
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] save failed', error?.message || error);
+        if (!queuedRef.current) queuedRef.current = snapshot;
+      })
+      .finally(() => {
+        savingRef.current = null;
+        if (queuedRef.current && queuedRef.current !== snapshot) void flushSave();
+      });
+    await savingRef.current;
+  }
+
+  function updateFolders(recipe, mode = 'debounce') {
+    const next = recipe(foldersRef.current || []);
+    foldersRef.current = next;
+    setFolders(next);
+    queueSave(next, mode);
+  }
+
   function addCollection() {
-    setFolders((prev) => [...prev, blankFolder(prev.length)]);
+    updateFolders((prev) => [...prev, blankFolder(prev.length)], 'now');
   }
 
   function addPrompt(folderId, prompt) {
-    setFolders((prev) => prev.map((folder) => (
+    updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId
         ? { ...folder, prompts: [...folder.prompts, prompt] }
         : folder
-    )));
+    )), 'now');
   }
 
   function patchPrompt(patch) {
     if (!active) return;
-    setFolders((prev) => prev.map((folder) => {
+    const before = (foldersRef.current || [])
+      .find((folder) => folder.id === active.folderId)
+      ?.prompts.find((prompt) => prompt.id === active.promptId);
+    updateFolders((prev) => prev.map((folder) => {
       if (folder.id !== active.folderId) return folder;
       return {
         ...folder,
-        prompts: folder.prompts.map((prompt) => (
-          prompt.id === active.promptId ? { ...prompt, ...patch } : prompt
-        )),
+        prompts: folder.prompts.map((prompt) => {
+          if (prompt.id !== active.promptId) return prompt;
+          if (patch.stepPatch) {
+            const { stepPatch, ...rest } = patch;
+            return {
+              ...prompt,
+              ...rest,
+              steps: (prompt.steps || []).map((step) => (
+                step.id === stepPatch.id ? { ...step, ...stepPatch, id: step.id } : step
+              )),
+            };
+          }
+          return { ...prompt, ...patch };
+        }),
       };
-    }));
+    }), saveMode(patch, before));
   }
 
   function closePanel() {
@@ -235,28 +334,63 @@ export default function PromptDesk() {
   }
 
   function renameFolder(folderId, label) {
-    setFolders((prev) => prev.map((folder) => (
+    updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId ? { ...folder, label } : folder
     )));
   }
 
   function deleteFolder(folderId) {
-    setFolders((prev) => prev.filter((folder) => folder.id !== folderId));
+    updateFolders((prev) => prev.filter((folder) => folder.id !== folderId), 'now');
     setActive((current) => (current?.folderId === folderId ? null : current));
     setCompact(false);
     if (active?.folderId === folderId) closeFloat();
   }
 
   function deletePrompt(folderId, promptId) {
-    setFolders((prev) => prev.map((folder) => (
+    updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId
         ? { ...folder, prompts: folder.prompts.filter((prompt) => prompt.id !== promptId) }
         : folder
-    )));
+    )), 'now');
     setActive((current) => (current?.promptId === promptId ? null : current));
     setCompact(false);
     if (active?.promptId === promptId) closeFloat();
   }
+
+  useEffect(() => {
+    let cancel = false;
+    currentPromptUserId()
+      .then(async (userId) => {
+        if (cancel) return;
+        if (!userId) {
+          const next = [blankFolder(0)];
+          foldersRef.current = next;
+          setFolders(next);
+          return;
+        }
+        userIdRef.current = userId;
+        const loaded = await loadPromptDesk(userId);
+        if (cancel) return;
+        const next = loaded.length ? loaded : [blankFolder(0)];
+        foldersRef.current = next;
+        savedRef.current = loaded;
+        setFolders(next);
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] load failed', error?.message || error);
+        if (cancel) return;
+        const next = [blankFolder(0)];
+        foldersRef.current = next;
+        setFolders(next);
+      });
+    const flush = () => { void flushSave(); };
+    window.addEventListener('pagehide', flush);
+    return () => {
+      cancel = true;
+      window.removeEventListener('pagehide', flush);
+      void flushSave();
+    };
+  }, []);
 
   useEffect(() => {
     const slot = floatRef.current;
@@ -279,12 +413,12 @@ export default function PromptDesk() {
       <div className="prompt-desk__dots" aria-hidden="true" />
       <header className="prompt-desk__bar">
         <p className="prompt-desk__mark">Futura Nota</p>
-        <button type="button" className="prompt-desk__new" onClick={addCollection}>
+        <button type="button" className="prompt-desk__new" onClick={addCollection} disabled={!folders}>
           Nueva colección
         </button>
       </header>
       <div className="prompt-desk__grid">
-        {folders.map((folder, index) => (
+        {(folders || []).map((folder, index) => (
           <FolderCard
             key={folder.id}
             folder={folder}
@@ -321,8 +455,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
-  const [showImage, setShowImage] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
+  const [showImage, setShowImage] = useState(() => Boolean(step.image) && !step.video?.embedSrc);
+  const [showVideo, setShowVideo] = useState(() => Boolean(step.video?.embedSrc));
   const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
@@ -332,11 +466,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const chipImage = step.image || coverImage(prompt);
 
   function patchStep(patch) {
-    onPatch({
-      steps: steps.map((item, itemIndex) => (
-        itemIndex === index ? { ...item, ...patch } : item
-      )),
-    });
+    onPatch({ stepPatch: { id: step.id, ...patch } });
   }
 
   useEffect(() => {
@@ -345,11 +475,45 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setVideoPaused(true);
   }, [step.id, step.video?.embedSrc]);
 
+  useEffect(() => {
+    if (step.video?.embedSrc) {
+      setShowVideo(true);
+      setShowImage(false);
+    } else if (step.image) {
+      setShowImage(true);
+      setShowVideo(false);
+    } else {
+      setShowImage(false);
+      setShowVideo(false);
+    }
+  }, [step.id]);
+
   function takeImage(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const stepId = step.id;
     readImageFile(file, (image) => {
-      patchStep({ image, promptSaved: false });
+      onPatch({ stepPatch: { id: stepId, image, promptSaved: false } });
       setShowImage(true);
     });
+    currentPromptUserId()
+      .then((userId) => {
+        if (!userId) return null;
+        return uploadPromptImage(file, stepId, userId);
+      })
+      .then((uploaded) => {
+        if (!uploaded) return;
+        onPatch({
+          stepPatch: {
+            id: stepId,
+            image: uploaded.url,
+            imagePath: uploaded.path,
+            promptSaved: false,
+          },
+        });
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] image upload failed', error?.message || error);
+      });
   }
 
   function saveVideo(raw) {
@@ -627,7 +791,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         ) : null}
         {showImage && step.image ? (
           <div className="prompt-panel__media-foot">
-            <button type="button" className="prompt-panel__remove" onClick={() => patchStep({ image: '' })}>
+            <button type="button" className="prompt-panel__remove" onClick={() => patchStep({ image: '', imagePath: '' })}>
               Remove
             </button>
           </div>
@@ -760,11 +924,7 @@ function FloatCard({ prompt, view, onPatch }) {
   const [copied, setCopied] = useState(false);
 
   function patchFloatStep(patch) {
-    onPatch({
-      steps: steps.map((item, itemIndex) => (
-        itemIndex === index ? { ...item, ...patch, promptSaved: true } : item
-      )),
-    });
+    onPatch({ stepPatch: { id: step.id, ...patch, promptSaved: true } });
   }
 
   function goBack() {
@@ -784,11 +944,7 @@ function FloatCard({ prompt, view, onPatch }) {
   }
 
   function patchStepTitle(title) {
-    onPatch({
-      steps: steps.map((item, itemIndex) => (
-        itemIndex === index ? { ...item, title } : item
-      )),
-    });
+    onPatch({ stepPatch: { id: step.id, title } });
   }
 
   async function copyPrompt() {
