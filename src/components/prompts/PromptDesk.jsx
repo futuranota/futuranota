@@ -1,11 +1,28 @@
 import { useMemo, useState } from 'react';
+import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
+import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import GlassFolder from './GlassFolder.jsx';
 import './prompt-desk.css';
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
 
+const PROMPT_MODELS = [
+  { id: 'openai', label: 'ChatGPT', src: '/uploads/source/OpenAiLogo.svg' },
+  { id: 'claude', label: 'Claude', src: '/uploads/claude-color.svg' },
+  { id: 'grok', label: 'Grok', src: '/uploads/grok.svg' },
+  { id: 'gemini', label: 'Gemini', src: '/uploads/gemini-color.svg' },
+];
+
 function uid() {
   return crypto.randomUUID();
+}
+
+function blankStep() {
+  return { id: uid(), prompt: '', image: '', format: 'text' };
+}
+
+function blankVariable() {
+  return { id: uid(), from: '', to: '' };
 }
 
 function blankPrompt() {
@@ -13,9 +30,10 @@ function blankPrompt() {
     id: uid(),
     name: 'Untitled',
     meta: 'Prompt',
-    description: '',
-    prompt: '',
-    image: '',
+    modelId: '',
+    variables: [blankVariable()],
+    stepIndex: 0,
+    steps: [blankStep()],
   };
 }
 
@@ -30,11 +48,32 @@ function blankFolder(index) {
   };
 }
 
+function coverImage(prompt) {
+  return (prompt.steps || []).find((step) => step.image)?.image || '';
+}
+
+function stepAt(prompt) {
+  const steps = prompt.steps?.length ? prompt.steps : [blankStep()];
+  const index = Math.min(Math.max(prompt.stepIndex || 0, 0), steps.length - 1);
+  return { steps, index, step: steps[index] };
+}
+
+function applyVariables(text, variables) {
+  let next = String(text || '');
+  for (const variable of variables || []) {
+    const from = String(variable.from || '');
+    if (!from) continue;
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    next = next.replace(new RegExp(escaped, 'gi'), String(variable.to || ''));
+  }
+  return next;
+}
+
 function sheetsOf(prompts) {
   return prompts.map((prompt) => ({
     name: prompt.name || 'Untitled',
     meta: prompt.meta || 'Prompt',
-    image: prompt.image || undefined,
+    image: coverImage(prompt) || undefined,
     promptId: prompt.id,
   }));
 }
@@ -148,23 +187,6 @@ export default function PromptDesk() {
     setCompact(false);
   }
 
-  function goNext() {
-    if (!active) return;
-    const folder = folders.find((item) => item.id === active.folderId);
-    if (!folder) return;
-    const index = folder.prompts.findIndex((prompt) => prompt.id === active.promptId);
-    const next = folder.prompts[index + 1];
-    if (!next) return;
-    setActive({ folderId: folder.id, promptId: next.id });
-    setCompact(false);
-  }
-
-  const hasNext = Boolean(
-    activePrompt
-    && activePrompt.folder.prompts.findIndex((prompt) => prompt.id === activePrompt.prompt.id)
-      < activePrompt.folder.prompts.length - 1,
-  );
-
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
@@ -196,12 +218,10 @@ export default function PromptDesk() {
         <InstructionPanel
           prompt={activePrompt.prompt}
           compact={compact}
-          hasNext={hasNext}
           onPatch={patchPrompt}
           onCompact={() => setCompact(true)}
           onExpand={() => setCompact(false)}
           onClose={closePanel}
-          onNext={goNext}
           onDelete={() => deletePrompt(activePrompt.folder.id, activePrompt.prompt.id)}
         />
       ) : null}
@@ -209,18 +229,61 @@ export default function PromptDesk() {
   );
 }
 
-function InstructionPanel({ prompt, compact, hasNext, onPatch, onCompact, onExpand, onClose, onNext, onDelete }) {
-  const snippet = (prompt.prompt || prompt.description || 'Prompt vacío').trim().slice(0, 90);
+function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose, onDelete }) {
+  const { steps, index, step } = stepAt(prompt);
+  const variables = prompt.variables?.length ? prompt.variables : [];
+  const snippet = (step.prompt || 'Prompt vacío').trim().slice(0, 90);
+  const copiedText = applyVariables(step.prompt, variables).trim();
+  const [copied, setCopied] = useState(false);
+  const chipImage = step.image || coverImage(prompt);
+
+  function patchStep(patch) {
+    onPatch({
+      steps: steps.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, ...patch } : item
+      )),
+    });
+  }
 
   function takeImage(file) {
-    readImageFile(file, (image) => onPatch({ image }));
+    readImageFile(file, (image) => patchStep({ image }));
+  }
+
+  function patchVariable(id, patch) {
+    onPatch({
+      variables: variables.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    });
+  }
+
+  function goBack() {
+    if (index <= 0) return;
+    onPatch({ stepIndex: index - 1 });
+  }
+
+  function goForward() {
+    if (index < steps.length - 1) {
+      onPatch({ stepIndex: index + 1 });
+      return;
+    }
+    onPatch({
+      steps: [...steps, blankStep()],
+      stepIndex: steps.length,
+    });
+  }
+
+  async function copyPrompt() {
+    if (!copiedText) return;
+    const ok = await copyToClipboard(copiedText);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
   }
 
   if (compact) {
     return (
       <button type="button" className="prompt-chip" onClick={onExpand}>
-        {prompt.image ? (
-          <img className="prompt-chip__img" src={prompt.image} alt="" />
+        {chipImage ? (
+          <img className="prompt-chip__img" src={chipImage} alt="" />
         ) : (
           <span className="prompt-chip__img prompt-chip__img--empty" aria-hidden="true" />
         )}
@@ -250,19 +313,11 @@ function InstructionPanel({ prompt, compact, hasNext, onPatch, onCompact, onExpa
           onChange={(event) => onPatch({ name: event.target.value })}
         />
         <div className="prompt-panel__actions">
-          <button type="button" onClick={onNext} disabled={!hasNext}>Next</button>
           <button type="button" onClick={onDelete}>Eliminar</button>
           <button type="button" onClick={onCompact}>Comprimir</button>
           <button type="button" onClick={onClose}>Cerrar</button>
         </div>
       </header>
-      <input
-        className="prompt-panel__desc"
-        value={prompt.description}
-        placeholder="Descripción"
-        aria-label="Descripción"
-        onChange={(event) => onPatch({ description: event.target.value })}
-      />
       <div className="prompt-panel__split">
         <label
           className="prompt-panel__image"
@@ -272,8 +327,8 @@ function InstructionPanel({ prompt, compact, hasNext, onPatch, onCompact, onExpa
             takeImage(event.dataTransfer.files?.[0]);
           }}
         >
-          {prompt.image ? (
-            <img src={prompt.image} alt="" />
+          {step.image ? (
+            <img src={step.image} alt="" />
           ) : (
             <span>Suelta o elige una imagen</span>
           )}
@@ -283,13 +338,115 @@ function InstructionPanel({ prompt, compact, hasNext, onPatch, onCompact, onExpa
             onChange={(event) => takeImage(event.target.files?.[0])}
           />
         </label>
-        <textarea
-          className="prompt-panel__body"
-          value={prompt.prompt}
-          placeholder="Pega el prompt"
-          aria-label="Prompt"
-          onChange={(event) => onPatch({ prompt: event.target.value })}
-        />
+        <div className="prompt-panel__editor">
+          <div className="prompt-models" role="listbox" aria-label="Modelo">
+            {PROMPT_MODELS.map((model) => {
+              const selected = prompt.modelId === model.id;
+              return (
+                <button
+                  key={model.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={selected ? 'prompt-models__item is-selected' : 'prompt-models__item'}
+                  onClick={() => onPatch({ modelId: selected ? '' : model.id })}
+                >
+                  <img src={model.src} alt="" />
+                  <span>{model.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="prompt-panel__tools">
+            <label className="prompt-format">
+              <span className="sr-only">Formato</span>
+              <select
+                value={step.format || 'text'}
+                aria-label="Formato"
+                onChange={(event) => patchStep({ format: event.target.value })}
+              >
+                {PROMPT_FORMATS.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.id === 'text' ? 'Text' : entry.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={() => { void copyPrompt(); }} disabled={!copiedText}>
+              {copied ? 'Copiado' : 'Copiar'}
+            </button>
+          </div>
+          <div className="prompt-vars">
+            {variables.map((variable) => (
+              <div key={variable.id} className="prompt-vars__row">
+                <input
+                  value={variable.from}
+                  placeholder="texto"
+                  aria-label="Texto a cambiar"
+                  onChange={(event) => patchVariable(variable.id, { from: event.target.value })}
+                />
+                <input
+                  value={variable.to}
+                  placeholder="cambiar por"
+                  aria-label="Cambiar por"
+                  onChange={(event) => patchVariable(variable.id, { to: event.target.value })}
+                />
+                <button
+                  type="button"
+                  aria-label="Quitar variable"
+                  onClick={() => onPatch({
+                    variables: variables.filter((item) => item.id !== variable.id),
+                  })}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="prompt-vars__add"
+              onClick={() => onPatch({ variables: [...variables, blankVariable()] })}
+            >
+              Agregar variable
+            </button>
+          </div>
+          <textarea
+            className={
+              step.format && step.format !== 'text'
+                ? 'prompt-panel__body prompt-panel__body--code'
+                : 'prompt-panel__body'
+            }
+            value={step.prompt}
+            placeholder="Pega el prompt"
+            aria-label="Prompt"
+            spellCheck={!step.format || step.format === 'text'}
+            onChange={(event) => patchStep({ prompt: event.target.value })}
+          />
+          <div className="prompt-steps">
+            <button
+              type="button"
+              className="prompt-steps__arrow"
+              aria-label="Paso anterior"
+              disabled={index <= 0}
+              onClick={goBack}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14.5 6.5 9 12l5.5 5.5" />
+              </svg>
+            </button>
+            <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+            <button
+              type="button"
+              className="prompt-steps__arrow"
+              aria-label="Paso siguiente"
+              onClick={goForward}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9.5 6.5 15 12l-5.5 5.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );
