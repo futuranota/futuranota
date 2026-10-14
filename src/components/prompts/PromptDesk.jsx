@@ -305,6 +305,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const [showImage, setShowImage] = useState(false);
+  const [dragImage, setDragImage] = useState(false);
   const chipImage = step.image || coverImage(prompt);
 
   function patchStep(patch) {
@@ -386,7 +387,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         <div className="prompt-panel__actions">
           <button type="button" onClick={saveStep}>Guardar</button>
           {showImage ? null : (
-            <button type="button" onClick={() => setShowImage(true)}>Add image</button>
+            <button type="button" onClick={() => setShowImage(true)}>Agregar imagen</button>
           )}
           <button type="button" onClick={onCompact}>Comprimir</button>
           <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
@@ -395,35 +396,12 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         </div>
       </header>
       <div className="prompt-panel__split">
-        {showImage ? (
-          <div className="prompt-panel__media">
-            <div className="prompt-panel__media-tools">
-              <button type="button" onClick={() => setShowImage(false)}>Omitir</button>
-            </div>
-            <label
-              className="prompt-panel__image"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                takeImage(event.dataTransfer.files?.[0]);
-              }}
-            >
-              {step.image ? (
-                <img src={step.image} alt="" />
-              ) : (
-                <span>Suelta o elige una imagen</span>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(event) => takeImage(event.target.files?.[0])}
-              />
-            </label>
-          </div>
-        ) : (
-          <div className="prompt-panel__blank" aria-hidden="true" />
-        )}
-        <div className="prompt-panel__editor">
+        <div className="prompt-panel__media-tools">
+          {showImage ? (
+            <button type="button" onClick={() => setShowImage(false)}>Omitir</button>
+          ) : null}
+        </div>
+        <div className="prompt-panel__editor-tools">
           <div className="prompt-models" role="listbox" aria-label="Modelo">
             {PROMPT_MODELS.map((model) => {
               const selected = prompt.modelId === model.id;
@@ -458,6 +436,52 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               </select>
             </label>
           </div>
+        </div>
+        {showImage ? (
+            <label
+              className={dragImage ? 'prompt-panel__image is-dragging' : 'prompt-panel__image'}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragImage(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragImage(true);
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget)) return;
+                setDragImage(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragImage(false);
+                takeImage(event.dataTransfer.files?.[0]);
+              }}
+            >
+              {step.image ? (
+                <img src={step.image} alt="" />
+              ) : (
+                <span className="prompt-panel__drop">
+                  <span className="prompt-panel__drop-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 16V5" />
+                      <path d="m7.5 9.5 4.5-4.5 4.5 4.5" />
+                      <path d="M5 19h14" />
+                    </svg>
+                  </span>
+                  <span className="prompt-panel__drop-title">Elige una imagen o suéltala aquí</span>
+                  <span className="prompt-panel__drop-hint">JPG, PNG y WEBP</span>
+                </span>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/*"
+                onChange={(event) => takeImage(event.target.files?.[0])}
+              />
+            </label>
+        ) : (
+          <div className="prompt-panel__blank" aria-hidden="true" />
+        )}
           <div className="prompt-sheet">
             <input
               className="prompt-sheet__title"
@@ -516,7 +540,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               </svg>
             </button>
           </div>
-        </div>
       </div>
     </section>
   );
