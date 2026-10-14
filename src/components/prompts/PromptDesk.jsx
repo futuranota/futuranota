@@ -18,8 +18,23 @@ function uid() {
   return crypto.randomUUID();
 }
 
-function blankStep() {
-  return { id: uid(), prompt: '', image: '', format: 'text' };
+function defaultStepTitle(index) {
+  return `Prompt ${String(index + 1).padStart(2, '0')}`;
+}
+
+function blankStep(index = 0) {
+  return {
+    id: uid(),
+    title: defaultStepTitle(index),
+    prompt: '',
+    image: '',
+    format: 'text',
+    promptSaved: false,
+  };
+}
+
+function stepTitleOf(step, index) {
+  return typeof step.title === 'string' ? step.title : defaultStepTitle(index);
 }
 
 function blankPrompt() {
@@ -176,9 +191,9 @@ export default function PromptDesk() {
       return;
     }
     try {
-      const pipWindow = await api.requestWindow({ width: 340, height: 480 });
+      const pipWindow = await api.requestWindow({ width: 400, height: 360 });
       const doc = pipWindow.document;
-      doc.title = 'Futura Nota';
+      doc.title = '';
       const style = doc.createElement('style');
       style.textContent = FLOAT_CSS;
       doc.head.appendChild(style);
@@ -233,7 +248,6 @@ export default function PromptDesk() {
       closeFloat();
       return;
     }
-    slot.window.document.title = activePrompt.prompt.name || 'Futura Nota';
     slot.root.render(
       <FloatCard
         prompt={activePrompt.prompt}
@@ -278,18 +292,19 @@ export default function PromptDesk() {
           onCompact={() => { void openFloat(); }}
           onExpand={() => setCompact(false)}
           onClose={closePanel}
-          onDelete={() => deletePrompt(activePrompt.folder.id, activePrompt.prompt.id)}
         />
       ) : null}
     </div>
   );
 }
 
-function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose, onDelete }) {
+function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose }) {
   const { steps, index, step } = stepAt(prompt);
   const copiedText = step.prompt.trim();
+  const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
+  const [showImage, setShowImage] = useState(false);
   const chipImage = step.image || coverImage(prompt);
 
   function patchStep(patch) {
@@ -301,7 +316,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   function takeImage(file) {
-    readImageFile(file, (image) => patchStep({ image }));
+    readImageFile(file, (image) => {
+      patchStep({ image, promptSaved: false });
+      setShowImage(true);
+    });
+  }
+
+  function saveStep() {
+    patchStep({ promptSaved: true });
   }
 
   function goBack() {
@@ -315,13 +337,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       return;
     }
     onPatch({
-      steps: [...steps, blankStep()],
+      steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
     });
   }
 
   async function copyPrompt() {
-    if (!copiedText) return;
+    if (!canCopy) return;
     const ok = await copyToClipboard(copiedText);
     if (!ok) return;
     setCopied(true);
@@ -362,31 +384,45 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           onChange={(event) => onPatch({ name: event.target.value })}
         />
         <div className="prompt-panel__actions">
-          <button type="button" onClick={onDelete}>Eliminar</button>
+          <button type="button" onClick={saveStep}>Guardar</button>
+          {showImage ? null : (
+            <button type="button" onClick={() => setShowImage(true)}>Add image</button>
+          )}
           <button type="button" onClick={onCompact}>Comprimir</button>
-          <button type="button" onClick={onClose}>Cerrar</button>
+          <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
+            <img src="/uploads/closed-tab.svg" alt="" />
+          </button>
         </div>
       </header>
       <div className="prompt-panel__split">
-        <label
-          className="prompt-panel__image"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            takeImage(event.dataTransfer.files?.[0]);
-          }}
-        >
-          {step.image ? (
-            <img src={step.image} alt="" />
-          ) : (
-            <span>Suelta o elige una imagen</span>
-          )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(event) => takeImage(event.target.files?.[0])}
-          />
-        </label>
+        {showImage ? (
+          <div className="prompt-panel__media">
+            <div className="prompt-panel__media-tools">
+              <button type="button" onClick={() => setShowImage(false)}>Omitir</button>
+            </div>
+            <label
+              className="prompt-panel__image"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                takeImage(event.dataTransfer.files?.[0]);
+              }}
+            >
+              {step.image ? (
+                <img src={step.image} alt="" />
+              ) : (
+                <span>Suelta o elige una imagen</span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => takeImage(event.target.files?.[0])}
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="prompt-panel__blank" aria-hidden="true" />
+        )}
         <div className="prompt-panel__editor">
           <div className="prompt-models" role="listbox" aria-label="Modelo">
             {PROMPT_MODELS.map((model) => {
@@ -412,7 +448,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               <select
                 value={step.format || 'text'}
                 aria-label="Formato"
-                onChange={(event) => patchStep({ format: event.target.value })}
+                onChange={(event) => patchStep({ format: event.target.value, promptSaved: false })}
               >
                 {PROMPT_FORMATS.map((entry) => (
                   <option key={entry.id} value={entry.id}>
@@ -421,22 +457,41 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 ))}
               </select>
             </label>
-            <button type="button" onClick={() => { void copyPrompt(); }} disabled={!copiedText}>
-              {copied ? 'Copiado' : 'Copiar'}
-            </button>
           </div>
-          <textarea
-            className={
-              step.format && step.format !== 'text'
-                ? 'prompt-panel__body prompt-panel__body--code'
-                : 'prompt-panel__body'
-            }
-            value={step.prompt}
-            placeholder="Pega el prompt"
-            aria-label="Prompt"
-            spellCheck={!step.format || step.format === 'text'}
-            onChange={(event) => patchStep({ prompt: event.target.value })}
-          />
+          <div className="prompt-sheet">
+            <input
+              className="prompt-sheet__title"
+              value={stepTitleOf(step, index)}
+              placeholder="Título"
+              aria-label="Título de esta página"
+              onChange={(event) => patchStep({ title: event.target.value })}
+            />
+            <div className="prompt-drawer">
+            <textarea
+              className={
+                step.format && step.format !== 'text'
+                  ? 'prompt-panel__body prompt-panel__body--code'
+                  : 'prompt-panel__body'
+              }
+              value={step.prompt}
+              placeholder="Descripción"
+              aria-label="Descripción"
+              spellCheck={!step.format || step.format === 'text'}
+              onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
+            />
+            {canCopy ? (
+              <button
+                type="button"
+                className="prompt-copy"
+                onClick={() => { void copyPrompt(); }}
+                aria-label={copied ? 'Copiado' : 'Copiar'}
+                title={copied ? 'Copiado' : 'Copiar'}
+              >
+                {copied ? '✓' : '⧉'}
+              </button>
+            ) : null}
+            </div>
+          </div>
           <div className="prompt-steps">
             <button
               type="button"
@@ -494,8 +549,16 @@ async function copyInView(text, view) {
 function FloatCard({ prompt, view, onPatch }) {
   const { steps, index, step } = stepAt(prompt);
   const text = step.prompt.trim();
-  const image = step.image || coverImage(prompt);
+  const canCopy = Boolean(step.promptSaved && text);
   const [copied, setCopied] = useState(false);
+
+  function patchFloatStep(patch) {
+    onPatch({
+      steps: steps.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, ...patch, promptSaved: true } : item
+      )),
+    });
+  }
 
   function goBack() {
     if (index <= 0) return;
@@ -508,13 +571,21 @@ function FloatCard({ prompt, view, onPatch }) {
       return;
     }
     onPatch({
-      steps: [...steps, blankStep()],
+      steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
     });
   }
 
+  function patchStepTitle(title) {
+    onPatch({
+      steps: steps.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, title } : item
+      )),
+    });
+  }
+
   async function copyPrompt() {
-    if (!text) return;
+    if (!canCopy) return;
     const ok = await copyInView(text, view);
     if (!ok) return;
     setCopied(true);
@@ -523,16 +594,35 @@ function FloatCard({ prompt, view, onPatch }) {
 
   return (
     <section className="prompt-float" aria-label="Prompt flotante">
-      {image ? (
-        <img className="prompt-float__img" src={image} alt="" />
-      ) : (
-        <span className="prompt-float__img prompt-float__img--empty">Sin imagen</span>
-      )}
-      <p className="prompt-float__name">{prompt.name || 'Untitled'}</p>
-      <pre className="prompt-float__text">{text || 'Prompt vacío'}</pre>
-      <button type="button" className="prompt-float__copy" onClick={() => { void copyPrompt(); }} disabled={!text}>
-        {copied ? 'Copiado' : 'Copiar'}
-      </button>
+      <div className="prompt-float__sheet">
+        <input
+          className="prompt-float__step"
+          value={stepTitleOf(step, index)}
+          placeholder="Título"
+          aria-label="Título de esta página"
+          onChange={(event) => patchStepTitle(event.target.value)}
+        />
+        <div className="prompt-drawer">
+          <textarea
+            className="prompt-float__text"
+            value={step.prompt}
+            placeholder="Descripción"
+            aria-label="Descripción"
+            onChange={(event) => patchFloatStep({ prompt: event.target.value })}
+          />
+          {canCopy ? (
+            <button
+              type="button"
+              className="prompt-copy"
+              onClick={() => { void copyPrompt(); }}
+              aria-label={copied ? 'Copiado' : 'Copiar'}
+              title={copied ? 'Copiado' : 'Copiar'}
+            >
+              {copied ? '✓' : '⧉'}
+            </button>
+          ) : null}
+        </div>
+      </div>
       <div className="prompt-steps">
         <button
           type="button"
@@ -562,69 +652,106 @@ function FloatCard({ prompt, view, onPatch }) {
 }
 
 const FLOAT_CSS = `
-  html, body, #prompt-float-root { height: 100%; margin: 0; }
+  html, body, #prompt-float-root {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     --surface-base: #151515;
     --text-primary: #fff;
     background: var(--surface-base);
-    color: var(--text-primary);
+    color: #fff;
+    color-scheme: dark;
   }
   .prompt-float {
     box-sizing: border-box;
     height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    gap: 12px;
+    padding: 12px;
+    overflow: hidden;
     background: var(--surface-base);
     color: var(--text-primary);
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
-  .prompt-float__img {
-    width: 100%;
-    height: 140px;
-    flex: none;
-    object-fit: cover;
-    border-radius: 12px;
+  .prompt-float__sheet {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
     background: #101010;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   }
-  .prompt-float__img--empty {
-    display: grid;
-    place-items: center;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 13px;
+  .prompt-float__sheet:focus-within {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
   }
-  .prompt-float__name {
+  .prompt-float__step {
+    flex: none;
+    width: 100%;
     margin: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
+    color: #fff;
+    font: inherit;
     font-size: 18px;
     font-weight: 560;
     letter-spacing: -0.02em;
+    padding: 14px 16px 12px;
+    outline: none;
   }
-  .prompt-float__text {
+  .prompt-float__step::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-drawer {
+    position: relative;
     flex: 1;
     min-height: 0;
-    margin: 0;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-radius: 12px;
-    padding: 12px;
-    background: #101010;
-    font: inherit;
-    font-size: 13px;
-    line-height: 1.45;
+    display: flex;
   }
-  .prompt-float__copy {
-    border: 1px solid rgba(255, 255, 255, 0.2);
+  .prompt-float__text {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    resize: none;
+    overflow: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 16px 48px 16px 16px;
     background: transparent;
-    color: inherit;
-    border-radius: 999px;
-    padding: 8px 14px;
+    color: #fff;
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.45;
+    outline: none;
+  }
+  .prompt-float__text::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-float__text::-webkit-scrollbar { width: 8px; }
+  .prompt-float__text::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .prompt-copy {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    background: #333333;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 14px;
+    line-height: 1;
     cursor: pointer;
   }
-  .prompt-float__copy:disabled { opacity: 0.35; cursor: default; }
   .prompt-steps {
     display: flex;
     align-items: center;
