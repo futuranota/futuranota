@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import GlassFolder from './GlassFolder.jsx';
 import './prompt-desk.css';
 
@@ -28,6 +29,7 @@ function blankStep(index = 0) {
     title: defaultStepTitle(index),
     prompt: '',
     image: '',
+    video: null,
     format: 'text',
     promptSaved: false,
   };
@@ -35,6 +37,21 @@ function blankStep(index = 0) {
 
 function stepTitleOf(step, index) {
   return typeof step.title === 'string' ? step.title : defaultStepTitle(index);
+}
+
+function playbackSrc(video) {
+  const src = normalizeEmbedSrcForPlayback(video?.embedSrc || '');
+  if (!src) return '';
+  try {
+    const url = new URL(src);
+    if (video?.provider === 'youtube') {
+      url.searchParams.set('enablejsapi', '1');
+      url.searchParams.set('origin', window.location.origin);
+    }
+    return url.toString();
+  } catch {
+    return src;
+  }
 }
 
 function blankPrompt() {
@@ -305,7 +322,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const [showImage, setShowImage] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [dragImage, setDragImage] = useState(false);
+  const [videoDraft, setVideoDraft] = useState('');
+  const [videoError, setVideoError] = useState('');
+  const [videoPaused, setVideoPaused] = useState(true);
+  const videoRef = useRef(null);
+  const showSide = showImage || showVideo;
   const chipImage = step.image || coverImage(prompt);
 
   function patchStep(patch) {
@@ -316,11 +339,58 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     });
   }
 
+  useEffect(() => {
+    setVideoDraft(step.video?.rawInput || '');
+    setVideoError('');
+    setVideoPaused(true);
+  }, [step.id, step.video?.embedSrc]);
+
   function takeImage(file) {
     readImageFile(file, (image) => {
       patchStep({ image, promptSaved: false });
       setShowImage(true);
     });
+  }
+
+  function saveVideo(raw) {
+    const parsed = parseVideoEmbedInput(raw);
+    if (parsed.error || !parsed.embedSrc) {
+      setVideoError(parsed.error || 'Pega un enlace de YouTube o Vimeo.');
+      return;
+    }
+    setVideoError('');
+    setVideoDraft(parsed.rawInput);
+    patchStep({
+      video: {
+        rawInput: parsed.rawInput,
+        provider: parsed.provider,
+        videoId: parsed.videoId,
+        embedSrc: parsed.embedSrc,
+      },
+    });
+  }
+
+  function togglePlayback() {
+    const frame = videoRef.current;
+    if (!frame?.contentWindow || !step.video) return;
+    const nextPaused = !videoPaused;
+    if (step.video.provider === 'vimeo') {
+      frame.contentWindow.postMessage(JSON.stringify({ method: nextPaused ? 'pause' : 'play' }), '*');
+    } else {
+      frame.contentWindow.postMessage(JSON.stringify({
+        event: 'command',
+        func: nextPaused ? 'pauseVideo' : 'playVideo',
+        args: [],
+      }), '*');
+    }
+    setVideoPaused(nextPaused);
+  }
+
+  function removeVideo() {
+    setVideoDraft('');
+    setVideoError('');
+    setVideoPaused(true);
+    patchStep({ video: null });
   }
 
   function saveStep() {
@@ -381,7 +451,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   return (
     <section
-      className="prompt-panel"
+      className={showSide ? 'prompt-panel prompt-panel--wide' : 'prompt-panel'}
       aria-label="Prompt"
       onPaste={(event) => {
         const item = [...event.clipboardData.items].find((entry) => entry.type.startsWith('image/'));
@@ -389,14 +459,11 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       }}
     >
       <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
-        <img src="/uploads/closed-tab.svg" alt="" />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
       </button>
-      <div className={showImage ? 'prompt-panel__split' : 'prompt-panel__split prompt-panel__split--prompt'}>
-        {showImage ? (
-          <div className="prompt-panel__media-tools">
-            <button type="button" onClick={() => setShowImage(false)}>Omitir</button>
-          </div>
-        ) : null}
+      <div className={showSide ? 'prompt-panel__split' : 'prompt-panel__split prompt-panel__split--prompt'}>
         <div className="prompt-panel__editor-tools">
           <input
             className="prompt-panel__name"
@@ -423,13 +490,37 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               );
             })}
             {showImage ? null : (
-              <button type="button" className="prompt-models__item" onClick={() => setShowImage(true)}>
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={() => {
+                  setShowImage(true);
+                  setShowVideo(false);
+                }}
+              >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M12 5v14M5 12h14" />
                   </svg>
                 </span>
                 <span>Agregar imagen</span>
+              </button>
+            )}
+            {showVideo ? null : (
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={() => {
+                  setShowVideo(true);
+                  setShowImage(false);
+                }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path className="prompt-models__play" d="M9 7v10l8-5-8-5z" />
+                  </svg>
+                </span>
+                <span>Agregar video</span>
               </button>
             )}
             <button type="button" className="prompt-models__item" onClick={onCompact}>
@@ -459,6 +550,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           </div>
         </div>
         {showImage ? (
+          <div className="prompt-panel__stage">
             <label
               className={dragImage ? 'prompt-panel__image is-dragging' : 'prompt-panel__image'}
               onDragEnter={(event) => {
@@ -500,6 +592,71 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 onChange={(event) => takeImage(event.target.files?.[0])}
               />
             </label>
+          </div>
+        ) : null}
+        {showVideo ? (
+          <div className="prompt-panel__video">
+            {step.video?.embedSrc ? (
+              <iframe
+                ref={videoRef}
+                className="prompt-panel__player"
+                src={playbackSrc(step.video)}
+                title="Video"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <form
+                className="prompt-panel__video-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveVideo(videoDraft);
+                }}
+              >
+                <input
+                  value={videoDraft}
+                  placeholder="Pega un enlace de YouTube o Vimeo"
+                  aria-label="Enlace del video"
+                  onChange={(event) => setVideoDraft(event.target.value)}
+                />
+                <button type="submit">Incrustar</button>
+                {videoError ? <p role="alert">{videoError}</p> : null}
+              </form>
+            )}
+          </div>
+        ) : null}
+        {showImage && step.image ? (
+          <div className="prompt-panel__media-foot">
+            <button type="button" className="prompt-panel__remove" onClick={() => patchStep({ image: '' })}>
+              Remove
+            </button>
+          </div>
+        ) : null}
+        {showVideo && step.video?.embedSrc ? (
+          <div className="prompt-panel__media-foot">
+            <div className="prompt-video__banner">
+              <button
+                type="button"
+                className="prompt-video__pause"
+                onClick={togglePlayback}
+                aria-label={videoPaused ? 'Play' : 'Pause'}
+              >
+                {videoPaused ? (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path className="prompt-video__play" d="M8 5v14l11-7-11-7z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14M16 5v14" />
+                  </svg>
+                )}
+              </button>
+              <button type="button" className="prompt-video__extract">Extraer texto</button>
+            </div>
+            <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
+              Remove
+            </button>
+          </div>
         ) : null}
           <div className="prompt-sheet">
             <input

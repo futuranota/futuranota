@@ -87,7 +87,11 @@
 .prompt-panel {
   position: fixed;
   z-index: 40;
-  inset: 28px;
+  top: 28px;
+  bottom: 28px;
+  left: 50%;
+  width: min(840px, calc(100% - 56px));
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -95,6 +99,10 @@
   border-radius: 18px;
   background: var(--surface-base);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+.prompt-panel--wide {
+  width: min(1180px, calc(100% - 56px));
 }
 
 .prompt-panel__bar {
@@ -145,22 +153,32 @@
 
 .prompt-panel__close {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
   z-index: 2;
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
   padding: 0;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 50%;
-  background: transparent;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 8px 18px rgba(0, 0, 0, 0.28);
   cursor: pointer;
 }
 
-.prompt-panel__close img {
-  width: 52px;
-  height: 52px;
-  display: block;
+.prompt-panel__close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .sr-only {
@@ -204,27 +222,76 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  padding-right: 56px;
+  padding-right: 44px;
 }
 
 .prompt-panel__split--prompt .prompt-panel__editor-tools {
   padding-right: 0;
 }
 
-.prompt-panel__media-tools {
-  display: flex;
-  justify-content: flex-end;
+.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__editor-tools {
+  grid-column: 2;
+  grid-row: 1;
 }
 
-.prompt-panel__media-tools button {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-sheet {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.prompt-panel__stage {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+}
+
+.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__video {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-height: 0;
+  height: 100%;
+}
+
+.prompt-panel__media-foot {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: center;
+}
+
+.prompt-panel__media-foot .prompt-video__banner {
+  width: 100%;
+}
+
+.prompt-panel__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-panel__stage .prompt-panel__image {
+  flex: 1;
+  height: auto;
+}
+
+.prompt-panel__remove {
+  align-self: center;
+  border: 0;
   background: transparent;
-  color: inherit;
-  border-radius: 999px;
-  padding: 8px 14px;
+  color: rgba(255, 255, 255, 0.42);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
+  padding: 0;
+}
+
+.prompt-panel__remove:hover {
+  color: #fff;
 }
 
 .prompt-panel__image,
@@ -308,6 +375,127 @@
   cursor: pointer;
 }
 
+.prompt-panel__video {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-panel__player,
+.prompt-panel__video-form {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  border: 2px dashed rgba(255, 255, 255, 0.34);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.prompt-panel__player {
+  border-style: solid;
+}
+
+.prompt-panel__video-form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+}
+
+.prompt-panel__video-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 10px;
+  background: #101010;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.prompt-panel__video-form button {
+  align-self: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-panel__video-form p {
+  margin: 0;
+  color: #ffb4b4;
+  font-size: 13px;
+}
+
+.prompt-video__banner {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 14px;
+  border: 2px dashed rgba(255, 255, 255, 0.34);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.prompt-video__pause {
+  grid-column: 2;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 8px 18px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.prompt-video__pause svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.prompt-video__play {
+  fill: currentColor;
+  stroke: none;
+}
+
+.prompt-video__extract {
+  grid-column: 3;
+  justify-self: start;
+  margin-left: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
 .prompt-panel__editor {
   min-height: 0;
   height: 100%;
@@ -363,6 +551,11 @@
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.prompt-models__play {
+  fill: currentColor;
+  stroke: none;
 }
 
 .prompt-models__item.is-selected {
@@ -472,10 +665,13 @@
 
 .prompt-panel__foot {
   grid-column: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  align-self: center;
 }
 
 .prompt-panel__step-actions {
@@ -596,8 +792,11 @@
 }
 
 @media (max-width: 800px) {
-  .prompt-panel {
-    inset: 12px;
+  .prompt-panel,
+  .prompt-panel--wide {
+    top: 12px;
+    bottom: 12px;
+    width: calc(100% - 24px);
   }
 
   .prompt-panel__split {
