@@ -46,27 +46,40 @@ function readImageFile(file, onLoad) {
   reader.readAsDataURL(file);
 }
 
-function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt }) {
+function FolderCard({ folder, appearDelay, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
   const sheets = useMemo(() => sheetsOf(folder.prompts), [folder.prompts]);
   return (
-    <GlassFolder
-      label={folder.label}
-      art={folder.art}
-      tone={folder.tone}
-      seed={folder.seed}
-      files={sheets}
-      action="add"
-      width={300}
-      appearDelay={appearDelay}
-      onAdd={() => {
-        const prompt = blankPrompt();
-        onAdd(folder.id, prompt);
-        return { name: prompt.name, meta: prompt.meta, promptId: prompt.id };
-      }}
-      onFileSelect={(file) => {
-        if (file?.promptId) onOpenPrompt(folder.id, file.promptId);
-      }}
-    />
+    <div className="prompt-desk__folder">
+      <button
+        type="button"
+        className="prompt-desk__delete"
+        onClick={() => onDeleteFolder(folder.id)}
+      >
+        Eliminar
+      </button>
+      <GlassFolder
+        label={folder.label}
+        art={folder.art}
+        tone={folder.tone}
+        seed={folder.seed}
+        files={sheets}
+        action="add"
+        width={300}
+        appearDelay={appearDelay}
+        onLabelChange={(label) => onRename(folder.id, label)}
+        onAdd={() => {
+          const prompt = blankPrompt();
+          onAdd(folder.id, prompt);
+          return { name: prompt.name, meta: prompt.meta, promptId: prompt.id };
+        }}
+        onFileSelect={(file) => {
+          if (file?.promptId) onOpenPrompt(folder.id, file.promptId);
+        }}
+        onFileDelete={(file) => {
+          if (file?.promptId) onDeletePrompt(folder.id, file.promptId);
+        }}
+      />
+    </div>
   );
 }
 
@@ -113,6 +126,45 @@ export default function PromptDesk() {
     setCompact(false);
   }
 
+  function renameFolder(folderId, label) {
+    setFolders((prev) => prev.map((folder) => (
+      folder.id === folderId ? { ...folder, label } : folder
+    )));
+  }
+
+  function deleteFolder(folderId) {
+    setFolders((prev) => prev.filter((folder) => folder.id !== folderId));
+    setActive((current) => (current?.folderId === folderId ? null : current));
+    setCompact(false);
+  }
+
+  function deletePrompt(folderId, promptId) {
+    setFolders((prev) => prev.map((folder) => (
+      folder.id === folderId
+        ? { ...folder, prompts: folder.prompts.filter((prompt) => prompt.id !== promptId) }
+        : folder
+    )));
+    setActive((current) => (current?.promptId === promptId ? null : current));
+    setCompact(false);
+  }
+
+  function goNext() {
+    if (!active) return;
+    const folder = folders.find((item) => item.id === active.folderId);
+    if (!folder) return;
+    const index = folder.prompts.findIndex((prompt) => prompt.id === active.promptId);
+    const next = folder.prompts[index + 1];
+    if (!next) return;
+    setActive({ folderId: folder.id, promptId: next.id });
+    setCompact(false);
+  }
+
+  const hasNext = Boolean(
+    activePrompt
+    && activePrompt.folder.prompts.findIndex((prompt) => prompt.id === activePrompt.prompt.id)
+      < activePrompt.folder.prompts.length - 1,
+  );
+
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
@@ -129,6 +181,9 @@ export default function PromptDesk() {
             folder={folder}
             appearDelay={index * 120}
             onAdd={addPrompt}
+            onRename={renameFolder}
+            onDeleteFolder={deleteFolder}
+            onDeletePrompt={deletePrompt}
             onOpenPrompt={(folderId, promptId) => {
               setActive({ folderId, promptId });
               setCompact(false);
@@ -141,17 +196,20 @@ export default function PromptDesk() {
         <InstructionPanel
           prompt={activePrompt.prompt}
           compact={compact}
+          hasNext={hasNext}
           onPatch={patchPrompt}
           onCompact={() => setCompact(true)}
           onExpand={() => setCompact(false)}
           onClose={closePanel}
+          onNext={goNext}
+          onDelete={() => deletePrompt(activePrompt.folder.id, activePrompt.prompt.id)}
         />
       ) : null}
     </div>
   );
 }
 
-function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose }) {
+function InstructionPanel({ prompt, compact, hasNext, onPatch, onCompact, onExpand, onClose, onNext, onDelete }) {
   const snippet = (prompt.prompt || prompt.description || 'Prompt vacío').trim().slice(0, 90);
 
   function takeImage(file) {
@@ -192,6 +250,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           onChange={(event) => onPatch({ name: event.target.value })}
         />
         <div className="prompt-panel__actions">
+          <button type="button" onClick={onNext} disabled={!hasNext}>Next</button>
+          <button type="button" onClick={onDelete}>Eliminar</button>
           <button type="button" onClick={onCompact}>Comprimir</button>
           <button type="button" onClick={onClose}>Cerrar</button>
         </div>
