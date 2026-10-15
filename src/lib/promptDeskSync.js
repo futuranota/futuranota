@@ -42,6 +42,7 @@ function stepFromRow(row) {
       }
       : null,
     format: row.format || 'text',
+    modelIds: Array.isArray(row.model_ids) ? row.model_ids.filter((id) => typeof id === 'string' && id) : [],
     promptSaved: Boolean(row.prompt_saved),
   };
 }
@@ -74,7 +75,8 @@ export function foldersFromRows(collections, files, steps) {
         modelId: file.model_id || '',
         variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
-        ...fileMedia(file, (stepsByFile.get(file.id) || []).map(stepFromRow)),
+        pdf: null,
+        video: null,
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
           .map((row) => {
@@ -110,25 +112,7 @@ function collectionRow(folder, userId, position) {
   };
 }
 
-function fileMedia(file, steps) {
-  const liftedPdf = steps.find((step) => step.pdf)?.pdf || null;
-  const liftedVideo = steps.find((step) => step.video)?.video || null;
-  const pdf = file.pdf_name
-    ? { name: file.pdf_name, path: file.pdf_path || '', url: promptImageUrl(file.pdf_path || '') }
-    : liftedPdf;
-  const video = file.video_embed_src
-    ? {
-      rawInput: file.video_raw_input || '',
-      provider: file.video_provider,
-      videoId: file.video_id,
-      embedSrc: file.video_embed_src,
-    }
-    : liftedVideo;
-  return { pdf, video };
-}
-
 function fileRow(prompt, userId, collectionId, position) {
-  const video = prompt.video?.embedSrc ? prompt.video : null;
   return {
     id: prompt.id,
     user_id: userId,
@@ -138,12 +122,6 @@ function fileRow(prompt, userId, collectionId, position) {
     model_id: prompt.modelId || '',
     variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
-    pdf_name: prompt.pdf?.name || null,
-    pdf_path: prompt.pdf?.path || null,
-    video_provider: video?.provider || null,
-    video_id: video?.videoId || null,
-    video_raw_input: video?.rawInput || null,
-    video_embed_src: video?.embedSrc || null,
     position,
     updated_at: new Date().toISOString(),
   };
@@ -159,6 +137,7 @@ function stepRow(step, userId, fileId, position) {
     description: step.description || '',
     prompt: step.prompt || '',
     format: step.format || 'text',
+    model_ids: Array.isArray(step.modelIds) ? step.modelIds : [],
     prompt_saved: Boolean(step.promptSaved),
     image_path: step.imagePath || null,
     video_provider: null,
@@ -183,7 +162,6 @@ function imagePaths(folders) {
   const paths = new Set();
   for (const folder of folders || []) {
     for (const prompt of folder.prompts || []) {
-      if (prompt.pdf?.path) paths.add(prompt.pdf.path);
       for (const step of prompt.steps || []) {
         if (step.imagePath) paths.add(step.imagePath);
       }

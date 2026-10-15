@@ -9,7 +9,6 @@ import {
   loadPromptDesk,
   savePromptDesk,
   uploadPromptImage,
-  uploadPromptPdf,
 } from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { resolvePrompt } from '../../lib/promptVariables.js';
@@ -36,14 +35,11 @@ function uid() {
   return crypto.randomUUID();
 }
 
-function defaultStepTitle(index) {
-  return `Prompt ${String(index + 1).padStart(2, '0')}`;
-}
-
-function blankStep(index = 0) {
+function blankStep() {
   return {
     id: uid(),
-    title: defaultStepTitle(index),
+    title: '',
+    modelIds: [],
     description: '',
     prompt: '',
     image: '',
@@ -55,8 +51,8 @@ function blankStep(index = 0) {
   };
 }
 
-function stepTitleOf(step, index) {
-  return typeof step.title === 'string' ? step.title : defaultStepTitle(index);
+function stepTitleOf(step) {
+  return typeof step.title === 'string' ? step.title : '';
 }
 
 function playbackSrc(video) {
@@ -591,44 +587,52 @@ export default function PromptDesk() {
 }
 
 function ModelPicker({
-  modelId,
+  modelIds,
   open,
   infoOpen,
   customDraft,
   onToggle,
   onToggleInfo,
   onCustomDraft,
-  onChoose,
+  onChange,
 }) {
-  const chosen = PROMPT_MODELS.find((model) => model.id === modelId) || null;
-  const customLabel = modelId && !chosen ? modelId : '';
+  const ids = Array.isArray(modelIds) ? modelIds : [];
+  function toggle(id) {
+    onChange(ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  }
   return (
     <div className="prompt-model">
-      {chosen ? (
-        <button type="button" className="prompt-models__item is-selected" aria-expanded={open} onClick={onToggle}>
-          <img src={chosen.src} alt="" />
-          <span>{chosen.label}</span>
-        </button>
-      ) : customLabel ? (
-        <button type="button" className="prompt-models__item is-selected" aria-expanded={open} onClick={onToggle}>
-          <span className="prompt-models__glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="7" />
-            </svg>
-          </span>
-          <span>{customLabel}</span>
-        </button>
-      ) : (
-        <button type="button" className="prompt-models__item" aria-expanded={open} onClick={onToggle}>
-          <span className="prompt-models__glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="7" />
-              <path d="M12 9v3l2 2" />
-            </svg>
-          </span>
-          <span>Select a model</span>
-        </button>
-      )}
+      {ids.map((id) => {
+        const known = PROMPT_MODELS.find((model) => model.id === id);
+        const label = known?.label || id;
+        return (
+          <button
+            key={id}
+            type="button"
+            className="prompt-models__item is-selected"
+            aria-label={`Quitar ${label}`}
+            onClick={() => toggle(id)}
+          >
+            {known ? <img src={known.src} alt="" /> : (
+              <span className="prompt-models__glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="7" />
+                </svg>
+              </span>
+            )}
+            <span>{label}</span>
+          </button>
+        );
+      })}
+      <button type="button" className="prompt-models__item" aria-expanded={open} onClick={onToggle}>
+        <span className="prompt-models__glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="7" />
+            <path d="M12 9v3l2 2" />
+          </svg>
+        </span>
+        <span>Select a model</span>
+      </button>
       <button
         type="button"
         className="prompt-model__info"
@@ -638,45 +642,47 @@ function ModelPicker({
       >
         i
       </button>
-      {infoOpen ? (
-        <p className="prompt-model__note" role="note">
-          Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
-        </p>
-      ) : null}
-      {open ? (
-        <div className="prompt-model__menu" role="listbox" aria-label="Select a model">
-          {PROMPT_MODELS.map((model) => (
-            <button
-              key={model.id}
-              type="button"
-              role="option"
-              aria-selected={model.id === modelId}
-              className="prompt-model__option"
-              onClick={() => onChoose(model.id === modelId ? '' : model.id)}
-            >
-              <img src={model.src} alt="" />
-              <span>{model.label}</span>
-            </button>
-          ))}
-          <form
-            className="prompt-model__custom"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = customDraft.trim();
-              if (!name) return;
-              onChoose(name);
-            }}
-          >
-            <input
-              value={customDraft}
-              placeholder="Custom destination"
-              aria-label="Custom destination"
-              onChange={(event) => onCustomDraft(event.target.value)}
-            />
-            <button type="submit">Set</button>
-          </form>
-        </div>
-      ) : null}
+    </div>
+  );
+}
+
+function ModelMenu({ modelIds, customDraft, onCustomDraft, onChange }) {
+  const ids = Array.isArray(modelIds) ? modelIds : [];
+  function toggle(id) {
+    onChange(ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  }
+  return (
+    <div className="prompt-drop prompt-model__menu" role="listbox" aria-label="Select a model">
+      {PROMPT_MODELS.map((model) => (
+        <button
+          key={model.id}
+          type="button"
+          role="option"
+          aria-selected={ids.includes(model.id)}
+          className={ids.includes(model.id) ? 'prompt-drop__choice is-selected' : 'prompt-drop__choice'}
+          onClick={() => toggle(model.id)}
+        >
+          <img src={model.src} alt="" />
+          <span>{model.label}</span>
+        </button>
+      ))}
+      <form
+        className="prompt-model__custom"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const name = customDraft.trim();
+          if (!name || ids.includes(name)) return;
+          onChange([...ids, name]);
+        }}
+      >
+        <input
+          value={customDraft}
+          placeholder="Custom destination"
+          aria-label="Custom destination"
+          onChange={(event) => onCustomDraft(event.target.value)}
+        />
+        <button type="submit">Set</button>
+      </form>
     </div>
   );
 }
@@ -705,6 +711,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [varsOpen, setVarsOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelInfo, setModelInfo] = useState(false);
+  const [formatOpen, setFormatOpen] = useState(false);
   const [customModel, setCustomModel] = useState('');
   const videoRef = useRef(null);
   const showSide = showImage || showVideo || showPdf;
@@ -748,14 +755,19 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }, [prompt.id]);
 
   useEffect(() => {
-    if (!sheetOpen) return;
-    setShowVideo(false);
-    setShowPdf(false);
-    setShowImage(Boolean(step.image));
-  }, [sheetOpen, step.id, step.image]);
+    setModelOpen(false);
+    setModelInfo(false);
+    setFormatOpen(false);
+    setCustomModel('');
+  }, [step.id]);
 
   useEffect(() => {
-    if (!showPdf || !prompt.pdf?.name || sheetOpen) {
+    if (!sheetOpen || showVideo || showPdf) return;
+    setShowImage(Boolean(step.image));
+  }, [sheetOpen, step.id, step.image, showVideo, showPdf]);
+
+  useEffect(() => {
+    if (!showPdf || !prompt.pdf?.name) {
       setPdfPages([]);
       setPdfPageCount(0);
       setPdfPageIndex(0);
@@ -823,7 +835,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       }
     })();
     return () => { cancel = true; };
-  }, [showPdf, sheetOpen, prompt.id, prompt.pdf?.name, prompt.pdf?.url]);
+  }, [showPdf, prompt.id, prompt.pdf?.name, prompt.pdf?.url]);
 
   function takeImage(file) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -910,18 +922,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setShowImage(false);
     setShowVideo(false);
     onPatch({ pdf: { name: file.name, path: '', url: '' } });
-    currentPromptUserId()
-      .then((userId) => {
-        if (!userId) return null;
-        return uploadPromptPdf(file, fileId, userId);
-      })
-      .then((uploaded) => {
-        if (!uploaded) return;
-        onPatch({ pdf: { name: file.name, path: uploaded.path, url: uploaded.url } });
-      })
-      .catch((error) => {
-        console.warn('[prompt-desk] pdf upload failed', error?.message || error);
-      });
   }
 
   async function extractPdf() {
@@ -1000,9 +1000,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   function openBuiltPrompt() {
     setSheetOpen(true);
-    setShowVideo(false);
-    setShowPdf(false);
-    setShowImage(Boolean(step.image));
   }
 
   function showIndexMedia() {
@@ -1112,7 +1109,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           <path d="M6 6l12 12M18 6 6 18" />
         </svg>
       </button>
-      <div className={showSide ? 'prompt-panel__split' : 'prompt-panel__split prompt-panel__split--prompt'}>
+      <div className={showSide ? 'prompt-panel__split prompt-panel__split--side' : 'prompt-panel__split prompt-panel__split--prompt'}>
         <div className="prompt-panel__editor-tools">
           <input
             className="prompt-panel__name"
@@ -1123,22 +1120,25 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           />
           <div className="prompt-models">
             <ModelPicker
-              modelId={prompt.modelId}
+              modelIds={step.modelIds}
               open={modelOpen}
               infoOpen={modelInfo}
               customDraft={customModel}
               onToggle={() => {
                 setModelOpen((open) => !open);
                 setModelInfo(false);
+                setFormatOpen(false);
+                setVarsOpen(false);
               }}
               onToggleInfo={() => {
                 setModelInfo((open) => !open);
                 setModelOpen(false);
+                setFormatOpen(false);
+                setVarsOpen(false);
               }}
               onCustomDraft={setCustomModel}
-              onChoose={(modelId) => {
-                onPatch({ modelId });
-                setModelOpen(false);
+              onChange={(modelIds) => {
+                patchStep({ modelIds });
                 setCustomModel('');
               }}
             />
@@ -1214,7 +1214,12 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               type="button"
               className={varsOpen ? 'prompt-models__item is-selected' : 'prompt-models__item'}
               aria-expanded={varsOpen}
-              onClick={() => setVarsOpen((open) => !open)}
+              onClick={() => {
+                setVarsOpen((open) => !open);
+                setModelOpen(false);
+                setModelInfo(false);
+                setFormatOpen(false);
+              }}
             >
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -1223,6 +1228,21 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               </span>
               <span>Variables</span>
             </button>
+            {sheetOpen ? (
+              <button
+                type="button"
+                className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
+                aria-expanded={formatOpen}
+                onClick={() => {
+                  setFormatOpen((open) => !open);
+                  setModelOpen(false);
+                  setModelInfo(false);
+                  setVarsOpen(false);
+                }}
+              >
+                {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
+              </button>
+            ) : null}
             <button type="button" className="prompt-models__item" onClick={onCompact}>
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -1232,22 +1252,49 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               <span>Comprimir</span>
             </button>
           </div>
-          {sheetOpen ? <div className="prompt-panel__tools">
-            <label className="prompt-format">
-              <span className="sr-only">Formato</span>
-              <select
-                value={step.format || 'text'}
-                aria-label="Formato"
-                onChange={(event) => patchStep({ format: event.target.value, promptSaved: false })}
-              >
-                {PROMPT_FORMATS.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.id === 'text' ? 'Text' : entry.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div> : null}
+          {modelInfo ? (
+            <p className="prompt-drop__note" role="note">
+              Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
+            </p>
+          ) : null}
+          {modelOpen ? (
+            <ModelMenu
+              modelIds={step.modelIds}
+              customDraft={customModel}
+              onCustomDraft={setCustomModel}
+              onChange={(modelIds) => {
+                patchStep({ modelIds });
+                setCustomModel('');
+              }}
+            />
+          ) : null}
+          {formatOpen ? (
+            <div className="prompt-drop" role="listbox" aria-label="Formato">
+              {PROMPT_FORMATS.map((entry) => {
+                const selected = (step.format || 'text') === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={selected ? 'prompt-drop__choice is-selected' : 'prompt-drop__choice'}
+                    onClick={() => patchStep({ format: entry.id, promptSaved: false })}
+                  >
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <VariableDeck
+            inline
+            open={varsOpen}
+            title={prompt.name}
+            variables={prompt.variables || []}
+            onChange={(variables) => onPatch({ variables })}
+            onClose={() => setVarsOpen(false)}
+          />
         </div>
         {showImage ? (
           <div className="prompt-panel__stage">
@@ -1294,7 +1341,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             </label>
           </div>
         ) : null}
-        {showVideo && !sheetOpen ? (
+        {showVideo ? (
           <div className="prompt-panel__video">
             {prompt.video?.embedSrc ? (
               <iframe
@@ -1328,7 +1375,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             )}
           </div>
         ) : null}
-        {showPdf && !sheetOpen ? (
+        {showPdf ? (
           <div className={`prompt-panel__pdf${pdfPages.length ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
               <>
@@ -1389,7 +1436,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             ) : null}
           </div>
         ) : null}
-        {showVideo && !sheetOpen ? (
+        {showVideo ? (
           <div className="prompt-panel__media-foot">
             {prompt.video?.embedSrc && prompt.video?.provider !== 'instagram' ? (
               <button
@@ -1419,7 +1466,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             ) : null}
           </div>
         ) : null}
-        {showPdf && !sheetOpen ? (
+        {showPdf ? (
           <div className="prompt-panel__media-foot">
             {pdfPages.length ? (
               <button
@@ -1534,13 +1581,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           </div>
           ) : null}
       </div>
-      <VariableDeck
-        open={varsOpen}
-        title={prompt.name}
-        variables={prompt.variables || []}
-        onChange={(variables) => onPatch({ variables })}
-        onClose={() => setVarsOpen(false)}
-      />
     </section>
   );
 }
@@ -1811,7 +1851,7 @@ const FLOAT_CSS = `
     word-break: break-word;
   }
   .prompt-body__editor[data-empty]::before {
-    content: "Descripción";
+    content: attr(data-placeholder);
     color: rgba(255, 255, 255, 0.38);
     pointer-events: none;
   }

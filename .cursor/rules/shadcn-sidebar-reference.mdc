@@ -1,0 +1,13 @@
+---
+description: Saved shadcn Sidebar paste for the next sidebar pass. Not the admin panel nav.
+alwaysApply: true
+---
+
+# Collapsible sidebar reference
+
+A shadcn Sidebar paste is saved for a later pass. Do not build it until the user asks to use it.
+
+- Archive: `.cursor/saved/shadcn-sidebar/Sidebar.original.tsx`
+- Brief: `.cursor/saved/shadcn-sidebar/CURSOR_BRIEF.md`
+
+When that pass starts, port the structure (provider, collapse, menu, footer, trigger) into this repo’s JSX and CSS. Do not add `cn`, `@/` aliases, `lucide-react`, Radix, or class-variance-authority. This is not the admin `/panel` sidebar (`admin-sidebar-nav`).

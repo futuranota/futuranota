@@ -409,7 +409,7 @@ function fixedHost(root) {
   return doc.documentElement;
 }
 
-export function VariableDeck({ open, title, variables, onChange, onClose }) {
+export function VariableDeck({ open, title, variables, onChange, onClose, inline = false }) {
   const list = variables || [];
   const [expanded, setExpanded] = useState({});
   const [adding, setAdding] = useState(false);
@@ -446,18 +446,9 @@ export function VariableDeck({ open, title, variables, onChange, onClose }) {
     onChange(list.map((item) => (item.id === id ? { ...item, name } : item)));
   }
 
-  return (
-    <div
-      className="prompt-library"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Variable library"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose?.();
-      }}
-    >
-      <div className="prompt-library__page">
-        <header className="prompt-library__head">
+  const library = (
+    <>
+        <header className={inline ? 'prompt-vars__head' : 'prompt-library__head'}>
           <div>
             <p>Variables</p>
             <h2>{title || 'This file'}</h2>
@@ -526,6 +517,29 @@ export function VariableDeck({ open, title, variables, onChange, onClose }) {
             <p className="prompt-library__empty">No variables yet.</p>
           ) : null}
         </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <section className="prompt-vars" aria-label="Variable library">
+        {library}
+      </section>
+    );
+  }
+
+  return (
+    <div
+      className="prompt-library"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Variable library"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
+      <div className="prompt-library__page">
+        {library}
       </div>
     </div>
   );
