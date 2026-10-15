@@ -2121,6 +2121,7 @@
   position: relative;
   z-index: 3;
   min-width: 0;
+  width: 100%;
   grid-column: 2;
   grid-row: 3;
   display: flex;
@@ -2128,7 +2129,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  align-self: center;
+  align-self: stretch;
 }
 
 .prompt-panel__step-actions {
@@ -2151,10 +2152,38 @@
 }
 
 .prompt-steps {
+  position: relative;
+  width: 100%;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
+}
+
+.prompt-steps__home {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 8px 18px rgba(0, 0, 0, 0.28);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-steps__home:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .prompt-steps__arrow {

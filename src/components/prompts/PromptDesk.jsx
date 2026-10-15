@@ -1205,12 +1205,16 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     patchStep({ promptSaved: false });
   }
 
+  function goHome() {
+    setSheetOpen(false);
+    setModelOpen(false);
+    setModelInfo(false);
+    setFormatOpen(false);
+    showIndexMedia();
+  }
+
   function goBack() {
-    if (index <= 0) {
-      setSheetOpen(false);
-      showIndexMedia();
-      return;
-    }
+    if (index <= 0) return;
     onPatch({ stepIndex: index - 1 });
   }
 
@@ -1302,6 +1306,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             onChange={(event) => onPatch({ name: event.target.value })}
           />
           <div className="prompt-models">
+            {sheetOpen ? (
             <ModelPicker
               modelIds={step.modelIds}
               open={modelOpen}
@@ -1325,6 +1330,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 setModelInfo(false);
               }}
             />
+            ) : null}
             {showImage ? null : (
               <button
                 type="button"
@@ -1416,12 +1422,12 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               <span>Comprimir</span>
             </button>
           </div>
-          {modelInfo ? (
+          {sheetOpen && modelInfo ? (
             <p className="prompt-drop__note" role="note">
               Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
             </p>
           ) : null}
-          {modelOpen ? (
+          {sheetOpen && modelOpen ? (
             <ModelMenu
               customDraft={customModel}
               onCustomDraft={setCustomModel}
@@ -1691,7 +1697,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             </div>
           </div>
           ) : (
-          <div className="prompt-index" aria-label="Portada">
+          <div className="prompt-index" aria-label="Home">
             <div className="prompt-index__fan">
               <span className="prompt-index__card" />
               <span className="prompt-index__card prompt-index__card--front" />
@@ -1712,8 +1718,16 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           <div className="prompt-steps">
             <button
               type="button"
+              className="prompt-steps__home"
+              onClick={goHome}
+            >
+              Home
+            </button>
+            <button
+              type="button"
               className="prompt-steps__arrow"
               aria-label="Paso anterior"
+              disabled={index <= 0}
               onClick={goBack}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">

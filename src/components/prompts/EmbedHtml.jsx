@@ -216,30 +216,61 @@ export function buildPromptEmbed({ text, markup = '', background, color, button 
   const fade = overflow
     ? `<div style="pointer-events:none;position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to top, ${box}, transparent)"></div>`
     : '';
-  return `<div style="box-sizing:border-box;width:100%;max-width:960px;padding:20px;border-radius:12px;background:${box};color:${ink}">
-  <div style="position:relative">
-    <div style="${textStyle}">${body}</div>
-    ${fade}
-  </div>
-  <div style="display:flex;justify-content:flex-end;margin-top:16px">
-    <button type="button" data-fn-prompt="${safe}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border:1px solid ${buttonInk}33;border-radius:6px;background:${fill};color:${buttonInk};font:500 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap">${COPY_ICON}<span>Copy</span></button>
+  return `<!-- REFERENCE: CUT THIS WHOLE BLOCK -->
+<div data-fn-embed style="width:100%;max-width:960px">
+  <div style="box-sizing:border-box;position:relative;width:100%;padding:20px;border-radius:12px;background:${box};color:${ink}">
+    <div style="position:relative">
+      <div style="${textStyle}">${body}</div>
+      ${fade}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <button type="button" data-fn-prompt="${safe}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border:1px solid ${buttonInk}33;border-radius:6px;background:${fill};color:${buttonInk};font:500 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap">${COPY_ICON}<span>Copy</span></button>
+    </div>
   </div>
 </div>
 <script>
 (function () {
-  var box = document.currentScript.previousElementSibling;
-  var button = box.querySelector("button");
-  var label = button.querySelector("span");
-  button.addEventListener("click", function () {
-    var text = button.getAttribute("data-fn-prompt") || "";
-    navigator.clipboard.writeText(text).then(function () {
-      var previous = label.textContent;
-      label.textContent = "Copied";
-      setTimeout(function () { label.textContent = previous; }, 1200);
+  var script = document.currentScript;
+  var root = script && script.previousElementSibling;
+  if (!root || !root.hasAttribute || !root.hasAttribute("data-fn-embed")) {
+    var nodes = document.querySelectorAll("[data-fn-embed]");
+    root = null;
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].getAttribute("data-fn-ready")) root = nodes[i];
+    }
+  }
+  if (!root || root.getAttribute("data-fn-ready")) return;
+  root.setAttribute("data-fn-ready", "1");
+  var button = root.querySelector("button");
+  if (button) {
+    var copyLabel = button.querySelector("span");
+    button.addEventListener("click", function () {
+      var text = button.getAttribute("data-fn-prompt") || "";
+      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+      navigator.clipboard.writeText(text).then(function () {
+        if (!copyLabel) return;
+        var previous = copyLabel.textContent;
+        copyLabel.textContent = "Copied";
+        setTimeout(function () { copyLabel.textContent = previous; }, 1200);
+      });
     });
-  });
+  }
+  var editor = false;
+  try {
+    editor = !!(window.Shopify && window.Shopify.designMode) || !!(window.wp && window.wp.customize);
+  } catch (error) {}
+  if (!editor || root.querySelector("[data-fn-setup]")) return;
+  root.style.boxSizing = "border-box";
+  root.style.background = "#f4e7a3";
+  root.style.padding = "12px";
+  var note = document.createElement("p");
+  note.setAttribute("data-fn-setup", "");
+  note.textContent = "Cut this whole block to remove it.";
+  note.style.cssText = "margin:0 0 10px;text-align:center;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;color:#151515";
+  root.insertBefore(note, root.firstChild);
 })();
-</script>`;
+</script>
+<!-- REFERENCE: END OF THE BLOCK -->`;
 }
 
 export default function EmbedHtml() {
