@@ -1,4 +1,5 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
+import { normalizeVariables } from './promptVariables.js';
 import { supabase } from './supabaseClient.js';
 
 const BUCKET = 'prompt-images';
@@ -63,6 +64,7 @@ export function foldersFromRows(collections, files, steps) {
         name: file.name || 'Untitled',
         meta: file.meta || 'Prompt',
         modelId: file.model_id || '',
+        variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
@@ -104,6 +106,7 @@ function fileRow(prompt, userId, collectionId, position) {
     name: prompt.name || 'Untitled',
     meta: prompt.meta || 'Prompt',
     model_id: prompt.modelId || '',
+    variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
     position,
     updated_at: new Date().toISOString(),

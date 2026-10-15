@@ -11,8 +11,10 @@ import {
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
+import { resolvePrompt } from '../../lib/promptVariables.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
+import { PromptBody, VariableDeck } from './PromptBody.jsx';
 import './prompt-desk.css';
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
@@ -70,6 +72,7 @@ function blankPrompt() {
     name: 'Untitled',
     meta: 'Prompt',
     modelId: '',
+    variables: [],
     stepIndex: 0,
     steps: [blankStep()],
   };
@@ -577,7 +580,7 @@ export default function PromptDesk() {
 
 function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose }) {
   const { steps, index, step } = stepAt(prompt);
-  const copiedText = step.prompt.trim();
+  const copiedText = resolvePrompt(step.prompt, prompt.variables || []).trim();
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
@@ -587,6 +590,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
   const [videoPaused, setVideoPaused] = useState(true);
+  const [varsOpen, setVarsOpen] = useState(false);
   const videoRef = useRef(null);
   const showSide = showImage || showVideo;
   const chipImage = step.image || coverImage(prompt);
@@ -688,6 +692,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     patchStep({ promptSaved: true });
   }
 
+  function editStep() {
+    patchStep({ promptSaved: false });
+  }
+
   function goBack() {
     if (index <= 0) return;
     onPatch({ stepIndex: index - 1 });
@@ -714,6 +722,21 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       steps: nextSteps,
       stepIndex: Math.min(index, nextSteps.length - 1),
     });
+  }
+
+  function commitBody({ prompt: nextPrompt, variables }) {
+    if (variables && nextPrompt != null) {
+      onPatch({
+        variables,
+        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false },
+      });
+      return;
+    }
+    if (variables) {
+      onPatch({ variables });
+      return;
+    }
+    patchStep({ prompt: nextPrompt, promptSaved: false });
   }
 
   async function copyPrompt() {
@@ -814,6 +837,19 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <span>Agregar video</span>
               </button>
             )}
+            <button
+              type="button"
+              className={varsOpen ? 'prompt-models__item is-selected' : 'prompt-models__item'}
+              aria-expanded={varsOpen}
+              onClick={() => setVarsOpen((open) => !open)}
+            >
+              <span className="prompt-models__glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M8 7h11M8 12h11M8 17h11M5 7h.01M5 12h.01M5 17h.01" />
+                </svg>
+              </span>
+              <span>Variables</span>
+            </button>
             <button type="button" className="prompt-models__item" onClick={onCompact}>
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -963,18 +999,19 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               onChange={(event) => patchStep({ title: event.target.value })}
             />
             <div className="prompt-drawer">
-            <textarea
+            <PromptBody
+              key={step.id}
+              prompt={step.prompt}
+              variables={prompt.variables || []}
+              readOnly={Boolean(step.promptSaved)}
+              onCommit={commitBody}
               className={
                 step.format && step.format !== 'text'
                   ? 'prompt-panel__body prompt-panel__body--code'
                   : 'prompt-panel__body'
               }
-              value={step.prompt}
-              placeholder="Descripción"
-              aria-label="Descripción"
               spellCheck={!step.format || step.format === 'text'}
-              onChange={(event) => patchStep({ prompt: event.target.value, promptSaved: false })}
-            />
+            >
             {canCopy ? (
               <button
                 type="button"
@@ -986,13 +1023,20 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 {copied ? '✓' : '⧉'}
               </button>
             ) : null}
+            </PromptBody>
             </div>
           </div>
           <div className="prompt-panel__foot">
             {step.prompt.trim() ? (
               <div className="prompt-panel__step-actions">
-                <button type="button" onClick={saveStep}>Guardar</button>
-                <button type="button" onClick={deleteIndex}>Eliminar</button>
+                {step.promptSaved ? (
+                  <button type="button" onClick={editStep}>Editar</button>
+                ) : (
+                  <>
+                    <button type="button" onClick={saveStep}>Guardar</button>
+                    <button type="button" onClick={deleteIndex}>Eliminar</button>
+                  </>
+                )}
               </div>
             ) : null}
           <div className="prompt-steps">
@@ -1021,6 +1065,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           </div>
           </div>
       </div>
+      <VariableDeck
+        open={varsOpen}
+        title={prompt.name}
+        variables={prompt.variables || []}
+        onChange={(variables) => onPatch({ variables })}
+        onClose={() => setVarsOpen(false)}
+      />
     </section>
   );
 }
@@ -1051,12 +1102,28 @@ async function copyInView(text, view) {
 
 function FloatCard({ prompt, view, onPatch }) {
   const { steps, index, step } = stepAt(prompt);
-  const text = step.prompt.trim();
+  const text = resolvePrompt(step.prompt, prompt.variables || []).trim();
   const canCopy = Boolean(step.promptSaved && text);
   const [copied, setCopied] = useState(false);
+  const [varsOpen, setVarsOpen] = useState(false);
 
   function patchFloatStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch, promptSaved: true } });
+  }
+
+  function commitBody({ prompt: nextPrompt, variables }) {
+    if (variables && nextPrompt != null) {
+      onPatch({
+        variables,
+        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: true },
+      });
+      return;
+    }
+    if (variables) {
+      onPatch({ variables });
+      return;
+    }
+    patchFloatStep({ prompt: nextPrompt });
   }
 
   function goBack() {
@@ -1097,14 +1164,24 @@ function FloatCard({ prompt, view, onPatch }) {
           aria-label="Título de esta página"
           onChange={(event) => patchStepTitle(event.target.value)}
         />
+        <div className="prompt-float__library">
+          <button
+            type="button"
+            className={varsOpen ? 'prompt-float__vars is-selected' : 'prompt-float__vars'}
+            aria-expanded={varsOpen}
+            onClick={() => setVarsOpen((open) => !open)}
+          >
+            Variables
+          </button>
+        </div>
         <div className="prompt-drawer">
-          <textarea
+          <PromptBody
+            key={step.id}
+            prompt={step.prompt}
+            variables={prompt.variables || []}
+            onCommit={commitBody}
             className="prompt-float__text"
-            value={step.prompt}
-            placeholder="Descripción"
-            aria-label="Descripción"
-            onChange={(event) => patchFloatStep({ prompt: event.target.value })}
-          />
+          >
           {canCopy ? (
             <button
               type="button"
@@ -1116,6 +1193,7 @@ function FloatCard({ prompt, view, onPatch }) {
               {copied ? '✓' : '⧉'}
             </button>
           ) : null}
+          </PromptBody>
         </div>
       </div>
       <div className="prompt-steps">
@@ -1142,6 +1220,13 @@ function FloatCard({ prompt, view, onPatch }) {
           </svg>
         </button>
       </div>
+      <VariableDeck
+        open={varsOpen}
+        title={prompt.name}
+        variables={prompt.variables || []}
+        onChange={(variables) => onPatch({ variables })}
+        onClose={() => setVarsOpen(false)}
+      />
     </section>
   );
 }
@@ -1160,6 +1245,7 @@ const FLOAT_CSS = `
     color-scheme: dark;
   }
   .prompt-float {
+    position: relative;
     box-sizing: border-box;
     height: 100%;
     min-height: 0;
@@ -1206,6 +1292,294 @@ const FLOAT_CSS = `
     flex: 1;
     min-height: 0;
     display: flex;
+    flex-direction: column;
+  }
+  .prompt-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .prompt-body__frame {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .prompt-body__editor {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .prompt-body__editor[data-empty]::before {
+    content: "Descripción";
+    color: rgba(255, 255, 255, 0.38);
+    pointer-events: none;
+  }
+  .prompt-float__library {
+    position: relative;
+    flex: none;
+    padding: 8px 16px 0;
+  }
+  .prompt-float__vars {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .prompt-float__vars.is-selected { border-color: rgba(255, 255, 255, 0.72); }
+  .prompt-library {
+    position: absolute;
+    z-index: 20;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .prompt-library__page {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    background: #151515;
+    color: #fff;
+    overflow: hidden;
+  }
+  .prompt-library__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .prompt-library__head p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .prompt-library__head h2 { margin: 4px 0 0; font-size: 18px; font-weight: 560; }
+  .prompt-library__actions { display: flex; align-items: center; gap: 8px; }
+  .prompt-library__add {
+    width: 32px;
+    height: 32px;
+    margin-top: 14px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    padding: 0;
+    cursor: pointer;
+  }
+  .prompt-library__add svg,
+  .prompt-library__rename svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .prompt-library__close {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  .prompt-library__head svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  .prompt-library__info {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .prompt-library__list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .prompt-library__name {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+  }
+  .prompt-library__empty { margin: 0; color: rgba(255, 255, 255, 0.62); font-size: 13px; }
+  .prompt-library__item { display: flex; flex-direction: column; gap: 6px; }
+  .prompt-library__row { display: flex; align-items: center; gap: 8px; }
+  .prompt-library__row > button:first-child {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  .prompt-library__row > button:first-child[aria-expanded="true"] { background: rgba(255, 255, 255, 0.08); }
+  .prompt-library__rename {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .prompt-library__item:hover .prompt-library__rename,
+  .prompt-library__rename:focus-visible { opacity: 1; }
+  .prompt-library__item textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.2em;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 10px;
+    resize: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    outline: none;
+  }
+  .prompt-var,
+  .prompt-var--filled {
+    display: inline;
+    max-width: 100%;
+    padding: 0 3px;
+    border-radius: 4px;
+    background: rgba(255, 120, 120, 0.16);
+    color: #ff8f8f;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .prompt-mention-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+  }
+  .prompt-mention {
+    position: absolute;
+    z-index: 1;
+    pointer-events: auto;
+    min-width: 180px;
+    padding: 6px;
+    border-radius: 10px;
+    background: #2a2a2a;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .prompt-mention button,
+  .prompt-mention__name {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .prompt-mention button.is-active { background: rgba(255, 255, 255, 0.08); }
+  .prompt-mention__name { cursor: default; color: rgba(255, 255, 255, 0.62); }
+  .prompt-namepop-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .prompt-namepop {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    width: min(320px, calc(100% - 48px));
+    padding: 16px;
+    border-radius: 14px;
+    background: #2a2a2a;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  }
+  .prompt-namepop img { width: 36px; height: auto; }
+  .prompt-namepop p { margin: 0; color: #fff; font-size: 14px; line-height: 1.35; }
+  .prompt-namepop input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 0;
+    outline: none;
+  }
+  .prompt-mention__name input {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    box-sizing: border-box;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    padding: 4px 0;
+    outline: none;
   }
   .prompt-float__text {
     width: 100%;
