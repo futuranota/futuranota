@@ -191,6 +191,50 @@ export async function extractTextFromPdfFile(file) {
 }
 
 /**
+ * Paint PDF pages as JPEG data URLs. The panel shows these pictures;
+ * Extraer datos sends the same pictures to Groq.
+ * @param {ArrayBuffer|Uint8Array} data
+ * @param {{ maxPages?: number, maxWidth?: number }} [opts]
+ * @returns {Promise<{ images: string[], pageCount: number }>}
+ */
+export async function renderPdfPageImages(data, opts = {}) {
+  const maxPages = opts.maxPages ?? 3;
+  const maxWidth = opts.maxWidth ?? 900;
+  const pdfjs = await ensurePdfjs();
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const pdf = await pdfjs.getDocument({
+    data: bytes,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  }).promise;
+  const pageCount = pdf.numPages;
+  const images = [];
+  try {
+    const shown = Math.min(pageCount, maxPages);
+    for (let i = 1; i <= shown; i += 1) {
+      const page = await pdf.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1.6, maxWidth / Math.max(base.width, 1));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext("2d");
+      if (!context) continue;
+      await page.render({ canvasContext: context, viewport }).promise;
+      images.push(canvas.toDataURL("image/jpeg", 0.72));
+    }
+  } finally {
+    try {
+      await pdf.destroy();
+    } catch {
+      // ignore
+    }
+  }
+  return { images, pageCount };
+}
+
+/**
  * True when a library attachment looks like a PDF (kind / name / url / category).
  * @param {unknown} item
  */

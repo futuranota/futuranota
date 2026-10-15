@@ -24,6 +24,7 @@ import { createUsageLogMiddleware } from './server/usageLogHandler.js';
 import { createBillingMiddleware } from './server/billingHandler.js';
 import { createDebugAgentLogMiddleware } from './server/debugAgentLogHandler.js';
 import { createGinaChatMiddleware } from './server/gina/ginaChatHandler.js';
+import { createPromptPdfMiddleware } from './server/promptPdfVision.js';
 import { createUsersMeMiddleware } from './server/usersMeHandler.js';
 
 function brandCadenceApiPlugin(env) {
@@ -62,6 +63,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createEventsMiddleware());
       server.middlewares.use(createWebProxyMiddleware());
       server.middlewares.use(createGinaChatMiddleware());
+      server.middlewares.use(createPromptPdfMiddleware());
     },
   };
 }

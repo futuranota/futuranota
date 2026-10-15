@@ -33,6 +33,13 @@ function stepFromRow(row) {
         embedSrc: row.video_embed_src,
       }
       : null,
+    pdf: row.pdf_name
+      ? {
+        name: row.pdf_name,
+        path: row.pdf_path || '',
+        url: promptImageUrl(row.pdf_path || ''),
+      }
+      : null,
     format: row.format || 'text',
     promptSaved: Boolean(row.prompt_saved),
   };
@@ -129,6 +136,8 @@ function stepRow(step, userId, fileId, position) {
     video_id: video?.videoId || null,
     video_raw_input: video?.rawInput || null,
     video_embed_src: video?.embedSrc || null,
+    pdf_name: step.pdf?.name || null,
+    pdf_path: step.pdf?.path || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -147,6 +156,7 @@ function imagePaths(folders) {
     for (const prompt of folder.prompts || []) {
       for (const step of prompt.steps || []) {
         if (step.imagePath) paths.add(step.imagePath);
+        if (step.pdf?.path) paths.add(step.pdf.path);
       }
     }
   }
@@ -198,6 +208,17 @@ export async function uploadPromptImage(file, stepId, userId) {
   const path = `${userId}/${stepId}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',
+    upsert: true,
+    cacheControl: '3600',
+  });
+  if (error) throw error;
+  return { path, url: promptImageUrl(path) };
+}
+
+export async function uploadPromptPdf(file, stepId, userId) {
+  const path = `${userId}/${stepId}.pdf`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    contentType: 'application/pdf',
     upsert: true,
     cacheControl: '3600',
   });

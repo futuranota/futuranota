@@ -9,13 +9,19 @@ import {
   loadPromptDesk,
   savePromptDesk,
   uploadPromptImage,
+  uploadPromptPdf,
 } from '../../lib/promptDeskSync.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { resolvePrompt } from '../../lib/promptVariables.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
+import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
+import { apiClient } from '../../api/client.js';
+import { API_ROUTES } from '../../api/routes.js';
 import { PromptBody, VariableDeck } from './PromptBody.jsx';
 import './prompt-desk.css';
+
+const pdfFiles = new Map();
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
 
@@ -42,6 +48,7 @@ function blankStep(index = 0) {
     image: '',
     imagePath: '',
     video: null,
+    pdf: null,
     format: 'text',
     promptSaved: false,
   };
@@ -243,7 +250,8 @@ function saveMode(patch, beforePrompt) {
         || prev.imagePath !== step.imagePath
         || prev.format !== step.format
         || prev.promptSaved !== step.promptSaved
-        || JSON.stringify(prev.video) !== JSON.stringify(step.video);
+        || JSON.stringify(prev.video) !== JSON.stringify(step.video)
+        || JSON.stringify(prev.pdf || null) !== JSON.stringify(step.pdf || null);
     });
     if (structural) return 'now';
   }
@@ -584,15 +592,21 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
-  const [showImage, setShowImage] = useState(() => Boolean(step.image) && !step.video?.embedSrc);
+  const [showImage, setShowImage] = useState(() => Boolean(step.image) && !step.video?.embedSrc && !step.pdf?.name);
   const [showVideo, setShowVideo] = useState(() => Boolean(step.video?.embedSrc));
+  const [showPdf, setShowPdf] = useState(() => Boolean(step.pdf?.name) && !step.video?.embedSrc && !step.image);
+  const [pdfError, setPdfError] = useState('');
+  const [pdfReading, setPdfReading] = useState(false);
+  const [pdfPages, setPdfPages] = useState([]);
+  const [pdfPageCount, setPdfPageCount] = useState(0);
+  const pdfPagesRef = useRef([]);
   const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
   const [videoPaused, setVideoPaused] = useState(true);
   const [varsOpen, setVarsOpen] = useState(false);
   const videoRef = useRef(null);
-  const showSide = showImage || showVideo;
+  const showSide = showImage || showVideo || showPdf;
   const chipImage = step.image || coverImage(prompt);
 
   function patchStep(patch) {
@@ -609,14 +623,55 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     if (step.video?.embedSrc) {
       setShowVideo(true);
       setShowImage(false);
+      setShowPdf(false);
     } else if (step.image) {
       setShowImage(true);
+      setShowVideo(false);
+      setShowPdf(false);
+    } else if (step.pdf?.name) {
+      setShowPdf(true);
+      setShowImage(false);
       setShowVideo(false);
     } else {
       setShowImage(false);
       setShowVideo(false);
+      setShowPdf(false);
     }
+    setPdfError('');
+    setPdfPages([]);
+    setPdfPageCount(0);
+    pdfPagesRef.current = [];
   }, [step.id]);
+
+  useEffect(() => {
+    if (!showPdf || !step.pdf?.name) {
+      setPdfPages([]);
+      setPdfPageCount(0);
+      pdfPagesRef.current = [];
+      return undefined;
+    }
+    let cancel = false;
+    const stepId = step.id;
+    const url = step.pdf?.url || '';
+    (async () => {
+      try {
+        const local = pdfFiles.get(stepId);
+        const data = local
+          ? await local.arrayBuffer()
+          : (url ? await fetchPdfBytesFromUrl(url) : null);
+        if (!data || cancel) return;
+        const rendered = await renderPdfPageImages(data);
+        if (cancel) return;
+        pdfPagesRef.current = rendered.images;
+        setPdfPages(rendered.images);
+        setPdfPageCount(rendered.pageCount);
+      } catch (error) {
+        console.warn('[prompt-desk] pdf preview failed', error?.message || error);
+        if (!cancel) setPdfError('No se pudo mostrar el PDF.');
+      }
+    })();
+    return () => { cancel = true; };
+  }, [showPdf, step.id, step.pdf?.name, step.pdf?.url]);
 
   function takeImage(file) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -685,7 +740,110 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setVideoDraft('');
     setVideoError('');
     setVideoPaused(true);
+    setShowVideo(false);
     patchStep({ video: null });
+  }
+
+  function takePdf(file) {
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setPdfError('Elige un archivo PDF.');
+      return;
+    }
+    const stepId = step.id;
+    pdfFiles.set(stepId, file);
+    setPdfError('');
+    setShowPdf(true);
+    setShowImage(false);
+    setShowVideo(false);
+    onPatch({
+      stepPatch: {
+        id: stepId,
+        pdf: { name: file.name, path: '', url: '' },
+        promptSaved: false,
+      },
+    });
+    currentPromptUserId()
+      .then((userId) => {
+        if (!userId) return null;
+        return uploadPromptPdf(file, stepId, userId);
+      })
+      .then((uploaded) => {
+        if (!uploaded) return;
+        onPatch({
+          stepPatch: {
+            id: stepId,
+            pdf: { name: file.name, path: uploaded.path, url: uploaded.url },
+          },
+        });
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] pdf upload failed', error?.message || error);
+      });
+  }
+
+  async function extractPdf() {
+    if (!step.pdf?.name) return;
+    setPdfReading(true);
+    setPdfError('');
+    try {
+      let images = pdfPagesRef.current;
+      if (!images.length) {
+        const local = pdfFiles.get(step.id);
+        const data = local
+          ? await local.arrayBuffer()
+          : (step.pdf?.url ? await fetchPdfBytesFromUrl(step.pdf.url) : null);
+        if (!data) {
+          setPdfError('Vuelve a elegir el PDF para leerlo.');
+          return;
+        }
+        const rendered = await renderPdfPageImages(data);
+        images = rendered.images;
+        pdfPagesRef.current = images;
+        setPdfPages(images);
+        setPdfPageCount(rendered.pageCount);
+      }
+      if (!images.length) {
+        setPdfError('No se pudo mostrar el PDF.');
+        return;
+      }
+      const account = useAuthStore.getState().user;
+      const result = await apiClient(API_ROUTES.promptPdfRead, {
+        method: 'POST',
+        body: JSON.stringify({
+          images,
+          userId: account?.id,
+          userEmail: account?.email,
+        }),
+      });
+      const text = String(result?.text || '').trim();
+      if (!text) {
+        setPdfError('Groq no encontró texto en estas páginas.');
+        return;
+      }
+      const current = step.prompt.trim();
+      patchStep({
+        prompt: current ? `${current}\n\n${text}` : text,
+        promptSaved: false,
+      });
+    } catch (error) {
+      console.warn('[prompt-desk] pdf read failed', error?.message || error);
+      const message = error instanceof Error ? error.message : 'No se pudo leer el PDF.';
+      setPdfError(message.length > 180 ? 'No se pudo leer el PDF.' : message);
+    } finally {
+      setPdfReading(false);
+    }
+  }
+
+  function clearPdf() {
+    pdfFiles.delete(step.id);
+    setPdfError('');
+    setPdfPages([]);
+    setPdfPageCount(0);
+    pdfPagesRef.current = [];
+    setShowPdf(false);
+    patchStep({ pdf: null });
   }
 
   function saveStep() {
@@ -810,6 +968,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 onClick={() => {
                   setShowImage(true);
                   setShowVideo(false);
+                  setShowPdf(false);
                 }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
@@ -827,6 +986,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 onClick={() => {
                   setShowVideo(true);
                   setShowImage(false);
+                  setShowPdf(false);
                 }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
@@ -834,7 +994,26 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                     <path className="prompt-models__play" d="M9 7v10l8-5-8-5z" />
                   </svg>
                 </span>
-                <span>Agregar video</span>
+                <span>Embed video</span>
+              </button>
+            )}
+            {showPdf ? null : (
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={() => {
+                  setShowPdf(true);
+                  setShowImage(false);
+                  setShowVideo(false);
+                }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M7 3h7l5 5v13H7z" />
+                    <path d="M14 3v5h5" />
+                  </svg>
+                </span>
+                <span>Agregar PDF</span>
               </button>
             )}
             <button
@@ -955,17 +1134,57 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             )}
           </div>
         ) : null}
-        {showImage && step.image ? (
-          <div className="prompt-panel__media-foot">
-            <button type="button" className="prompt-panel__remove" onClick={() => patchStep({ image: '', imagePath: '' })}>
-              Remove
-            </button>
+        {showPdf ? (
+          <div className={`prompt-panel__pdf${pdfPages.length ? ' prompt-panel__pdf--pages' : ''}`}>
+            {pdfPages.length ? (
+              <>
+                <div className="prompt-panel__pdf-pages">
+                  {pdfPages.map((src, pageIndex) => (
+                    <img key={`${step.id}-${pageIndex}`} src={src} alt="" />
+                  ))}
+                </div>
+                {pdfPageCount > pdfPages.length ? (
+                  <p className="prompt-panel__pdf-note">
+                    {`Primeras ${pdfPages.length} de ${pdfPageCount} páginas.`}
+                  </p>
+                ) : null}
+              </>
+            ) : step.pdf?.name ? (
+              <p>Abriendo el PDF…</p>
+            ) : (
+              <label className="prompt-panel__pdf-pick">
+                <span>Elige un PDF</span>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => takePdf(event.target.files?.[0])}
+                />
+              </label>
+            )}
           </div>
         ) : null}
-        {showVideo && step.video?.embedSrc ? (
+        {showImage ? (
           <div className="prompt-panel__media-foot">
-            <div className="prompt-video__banner">
-              {step.video?.provider === 'instagram' ? null : (
+            <button type="button" className="prompt-panel__remove" onClick={() => setShowImage(false)}>
+              Ocultar
+            </button>
+            {step.image ? (
+              <button
+                type="button"
+                className="prompt-panel__remove"
+                onClick={() => {
+                  setShowImage(false);
+                  patchStep({ image: '', imagePath: '' });
+                }}
+              >
+                Quitar
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {showVideo ? (
+          <div className="prompt-panel__media-foot">
+            {step.video?.embedSrc && step.video?.provider !== 'instagram' ? (
               <button
                 type="button"
                 className="prompt-video__pause"
@@ -982,12 +1201,38 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   </svg>
                 )}
               </button>
-              )}
-              <button type="button" className="prompt-video__extract">Extraer texto</button>
-            </div>
-            <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
-              Remove
+            ) : null}
+            <button type="button" className="prompt-panel__remove" onClick={() => setShowVideo(false)}>
+              Ocultar
             </button>
+            {step.video?.embedSrc ? (
+              <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
+                Quitar
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {showPdf ? (
+          <div className="prompt-panel__media-foot">
+            {step.pdf?.name ? (
+              <button
+                type="button"
+                className="prompt-video__extract"
+                disabled={pdfReading}
+                onClick={() => { void extractPdf(); }}
+              >
+                {pdfReading ? 'Leyendo…' : 'Extraer datos'}
+              </button>
+            ) : null}
+            {pdfError ? <p role="alert">{pdfError}</p> : null}
+            <button type="button" className="prompt-panel__remove" onClick={() => setShowPdf(false)}>
+              Ocultar
+            </button>
+            {step.pdf?.name ? (
+              <button type="button" className="prompt-panel__remove" onClick={clearPdf}>
+                Quitar
+              </button>
+            ) : null}
           </div>
         ) : null}
           <div className="prompt-sheet">

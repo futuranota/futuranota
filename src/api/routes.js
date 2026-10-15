@@ -16,6 +16,7 @@ export const API_ROUTES = {
   agentSalesAgent: "/api/agents/sales-agent",
   agentDeepResearcher: "/api/agents/deep-researcher",
   ginaChat: "/api/gina/chat",
+  promptPdfRead: "/api/prompts/read",
   socialHypeAnalytics: "/api/analytics/social-hype",
   horizonScan: "/api/analytics/horizon-scan",
   weatherForecast: "/api/weather/forecast",
