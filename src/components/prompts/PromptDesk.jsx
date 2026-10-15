@@ -44,6 +44,7 @@ function blankStep(index = 0) {
   return {
     id: uid(),
     title: defaultStepTitle(index),
+    description: '',
     prompt: '',
     image: '',
     imagePath: '',
@@ -259,6 +260,7 @@ function saveMode(patch, beforePrompt) {
     const fields = { ...patch.stepPatch };
     delete fields.id;
     delete fields.title;
+    delete fields.description;
     delete fields.prompt;
     delete fields.promptSaved;
     if (Object.keys(fields).length) return 'now';
@@ -1308,15 +1310,25 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             <input
               className="prompt-sheet__title"
               value={stepTitleOf(step, index)}
-              placeholder="Título"
-              aria-label="Título de esta página"
+              placeholder="Title"
+              aria-label="Title"
               onChange={(event) => patchStep({ title: event.target.value })}
+            />
+            <textarea
+              className="prompt-sheet__description"
+              value={step.description || ''}
+              placeholder="Brief description of the steps to follow"
+              aria-label="Brief description"
+              readOnly={Boolean(step.promptSaved)}
+              rows={2}
+              onChange={(event) => patchStep({ description: event.target.value, promptSaved: false })}
             />
             <div className="prompt-drawer">
             <PromptBody
               key={step.id}
               prompt={step.prompt}
               variables={prompt.variables || []}
+              placeholder="Describe the prompt to create or insert"
               readOnly={Boolean(step.promptSaved)}
               onCommit={commitBody}
               className={
@@ -1474,9 +1486,18 @@ function FloatCard({ prompt, view, onPatch }) {
         <input
           className="prompt-float__step"
           value={stepTitleOf(step, index)}
-          placeholder="Título"
-          aria-label="Título de esta página"
+          placeholder="Title"
+          aria-label="Title"
           onChange={(event) => patchStepTitle(event.target.value)}
+        />
+        <textarea
+          className="prompt-float__description"
+          value={step.description || ''}
+          placeholder="Brief description of the steps to follow"
+          aria-label="Brief description"
+          readOnly={Boolean(step.promptSaved)}
+          rows={2}
+          onChange={(event) => onPatch({ stepPatch: { id: step.id, description: event.target.value, promptSaved: false } })}
         />
         <div className="prompt-float__library">
           <button
@@ -1493,6 +1514,8 @@ function FloatCard({ prompt, view, onPatch }) {
             key={step.id}
             prompt={step.prompt}
             variables={prompt.variables || []}
+            placeholder="Describe the prompt to create or insert"
+            readOnly={Boolean(step.promptSaved)}
             onCommit={commitBody}
             className="prompt-float__text"
           >
@@ -1601,6 +1624,26 @@ const FLOAT_CSS = `
     outline: none;
   }
   .prompt-float__step::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-float__description {
+    flex: none;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.86);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 16px 10px;
+    resize: none;
+    outline: none;
+  }
+  .prompt-float__description::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-body__editor[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    color: rgba(255, 255, 255, 0.38);
+  }
   .prompt-drawer {
     position: relative;
     flex: 1;

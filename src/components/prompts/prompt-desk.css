@@ -836,6 +836,30 @@
   color: rgba(255, 255, 255, 0.38);
 }
 
+.prompt-sheet__description {
+  flex: none;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 10px 16px 12px;
+  resize: none;
+  outline: none;
+}
+
+.prompt-sheet__description::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.prompt-sheet__description[readonly] {
+  cursor: default;
+}
+
 .prompt-drawer {
   position: relative;
   flex: 1;
@@ -905,6 +929,11 @@
 .prompt-body__editor {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.prompt-body__editor[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.38);
 }
 
 .prompt-body__editor--locked {

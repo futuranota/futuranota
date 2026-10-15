@@ -22,6 +22,7 @@ function stepFromRow(row) {
   return {
     id: row.id,
     title: row.title || '',
+    description: row.description || '',
     prompt: row.prompt || '',
     image: promptImageUrl(imagePath),
     imagePath,
@@ -128,6 +129,7 @@ function stepRow(step, userId, fileId, position) {
     file_id: fileId,
     position,
     title: step.title || '',
+    description: step.description || '',
     prompt: step.prompt || '',
     format: step.format || 'text',
     prompt_saved: Boolean(step.promptSaved),

@@ -86,6 +86,7 @@ export function PromptBody({
   className,
   spellCheck = true,
   readOnly = false,
+  placeholder = '',
   children,
 }) {
   const editorRef = useRef(null);
@@ -281,7 +282,14 @@ export function PromptBody({
     return (
       <div className="prompt-body">
         <div className="prompt-body__frame">
-          <div className={`${editorClass} prompt-body__editor--locked`} role="textbox" aria-readonly="true" aria-label="Prompt">
+          <div
+            className={`${editorClass} prompt-body__editor--locked`}
+            role="textbox"
+            aria-readonly="true"
+            aria-label="Prompt"
+            data-placeholder={placeholder}
+            data-empty={resolvePrompt(prompt, list).trim() ? undefined : 'true'}
+          >
             {resolvePrompt(prompt, list)}
           </div>
           {children}
@@ -299,7 +307,8 @@ export function PromptBody({
           contentEditable
           role="textbox"
           aria-multiline="true"
-          aria-label="Descripción"
+          aria-label="Prompt"
+          data-placeholder={placeholder}
           spellCheck={spellCheck}
           onInput={() => {
             commitDom();
