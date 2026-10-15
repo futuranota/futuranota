@@ -36,17 +36,24 @@ function normalizeUsage(usage) {
 }
 
 /**
- * @param {{ images?: string[], userId?: string, userEmail?: string }} body
+ * @param {{ pages?: { index?: number, image?: string }[], images?: string[], userId?: string, userEmail?: string }} body
  */
 export async function processPromptPdfRead(body) {
-  const images = (Array.isArray(body.images) ? body.images : [])
-    .filter((url) => typeof url === "string" && url.startsWith("data:image/"))
+  const listed = Array.isArray(body.pages)
+    ? body.pages
+    : (Array.isArray(body.images) ? body.images.map((image, index) => ({ index: index + 1, image })) : []);
+  const pages = listed
+    .map((page, index) => ({
+      index: Number(page?.index) > 0 ? Number(page.index) : index + 1,
+      image: page?.image,
+    }))
+    .filter((page) => typeof page.image === "string" && page.image.startsWith("data:image/"))
     .slice(0, MAX_IMAGES);
-  if (!images.length) {
+  if (!pages.length) {
     return { status: 400, body: { error: "No hay páginas para leer." } };
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY || process.env.Groq_Api_key;
   if (!apiKey) {
     return { status: 503, body: { error: "GROQ_API_KEY is not set" } };
   }
@@ -66,9 +73,12 @@ export async function processPromptPdfRead(body) {
         content: [
           {
             type: "text",
-            text: "Estas imágenes son las páginas de un PDF, en orden. Transcribe el texto visible. Devuelve solo ese texto, conservando los párrafos. Si una página no tiene texto, omítela.",
+            text: "Transcribe el texto visible de cada página. Antes del texto de cada imagen escribe una línea \"Página N\" con el número que te indico. Conserva los párrafos. Si la página no tiene texto, deja solo ese encabezado.",
           },
-          ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+          ...pages.flatMap((page) => ([
+            { type: "text", text: `Página ${page.index}` },
+            { type: "image_url", image_url: { url: page.image } },
+          ])),
         ],
       }],
     }),
@@ -94,7 +104,7 @@ export async function processPromptPdfRead(body) {
     outputTokens: usage?.outputTokens,
     model: VISION_MODEL,
     billed: true,
-    meta: { pages: images.length },
+    meta: { pages: pages.length, indexes: pages.map((page) => page.index) },
   });
 
   if (!text) {

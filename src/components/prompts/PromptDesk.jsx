@@ -599,6 +599,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [pdfReading, setPdfReading] = useState(false);
   const [pdfPages, setPdfPages] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
+  const [pdfPageIndex, setPdfPageIndex] = useState(0);
+  const [pdfStatus, setPdfStatus] = useState('idle');
   const pdfPagesRef = useRef([]);
   const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
@@ -640,6 +642,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setPdfError('');
     setPdfPages([]);
     setPdfPageCount(0);
+    setPdfPageIndex(0);
+    setPdfStatus('idle');
     pdfPagesRef.current = [];
   }, [step.id]);
 
@@ -647,27 +651,68 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     if (!showPdf || !step.pdf?.name) {
       setPdfPages([]);
       setPdfPageCount(0);
+      setPdfPageIndex(0);
       pdfPagesRef.current = [];
+      setPdfStatus('idle');
       return undefined;
     }
     let cancel = false;
     const stepId = step.id;
     const url = step.pdf?.url || '';
+    const name = step.pdf.name;
+    setPdfStatus('loading');
+    setPdfPageIndex(0);
     (async () => {
       try {
         const local = pdfFiles.get(stepId);
-        const data = local
-          ? await local.arrayBuffer()
-          : (url ? await fetchPdfBytesFromUrl(url) : null);
-        if (!data || cancel) return;
-        const rendered = await renderPdfPageImages(data);
+        let data = null;
+        if (local) {
+          data = await local.arrayBuffer();
+        } else if (url) {
+          const controller = new AbortController();
+          const timer = window.setTimeout(() => controller.abort(), 15000);
+          let response;
+          try {
+            response = await fetch(url, { signal: controller.signal });
+          } finally {
+            window.clearTimeout(timer);
+          }
+          if (!response.ok) throw new Error(`fetch_${response.status}`);
+          const buffer = await response.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          pdfFiles.set(stepId, new File([bytes], name, { type: 'application/pdf' }));
+          data = bytes.slice();
+        }
         if (cancel) return;
+        if (!data) {
+          setPdfStatus('missing');
+          return;
+        }
+        const rendered = await renderPdfPageImages(data, {
+          onPage(snapshot) {
+            if (cancel) return;
+            pdfPagesRef.current = snapshot.images;
+            setPdfPages(snapshot.images);
+            setPdfPageCount(snapshot.pageCount);
+            setPdfStatus('ready');
+          },
+        });
+        if (cancel) return;
+        if (!rendered.images.length) {
+          setPdfStatus('missing');
+          setPdfError('No se pudo mostrar el PDF.');
+          return;
+        }
         pdfPagesRef.current = rendered.images;
         setPdfPages(rendered.images);
         setPdfPageCount(rendered.pageCount);
+        setPdfStatus('ready');
       } catch (error) {
         console.warn('[prompt-desk] pdf preview failed', error?.message || error);
-        if (!cancel) setPdfError('No se pudo mostrar el PDF.');
+        if (!cancel) {
+          setPdfStatus('missing');
+          setPdfError('No se pudo abrir el PDF guardado.');
+        }
       }
     })();
     return () => { cancel = true; };
@@ -809,15 +854,24 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         return;
       }
       const account = useAuthStore.getState().user;
-      const result = await apiClient(API_ROUTES.promptPdfRead, {
-        method: 'POST',
-        body: JSON.stringify({
-          images,
-          userId: account?.id,
-          userEmail: account?.email,
-        }),
-      });
-      const text = String(result?.text || '').trim();
+      const parts = [];
+      for (let start = 0; start < images.length; start += 3) {
+        const pages = images.slice(start, start + 3).map((image, offset) => ({
+          index: start + offset + 1,
+          image,
+        }));
+        const result = await apiClient(API_ROUTES.promptPdfRead, {
+          method: 'POST',
+          body: JSON.stringify({
+            pages,
+            userId: account?.id,
+            userEmail: account?.email,
+          }),
+        });
+        const piece = String(result?.text || '').trim();
+        if (piece) parts.push(piece);
+      }
+      const text = parts.join('\n\n');
       if (!text) {
         setPdfError('Groq no encontró texto en estas páginas.');
         return;
@@ -841,6 +895,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setPdfError('');
     setPdfPages([]);
     setPdfPageCount(0);
+    setPdfPageIndex(0);
+    setPdfStatus('idle');
     pdfPagesRef.current = [];
     setShowPdf(false);
     patchStep({ pdf: null });
@@ -1139,21 +1195,34 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             {pdfPages.length ? (
               <>
                 <div className="prompt-panel__pdf-pages">
-                  {pdfPages.map((src, pageIndex) => (
-                    <img key={`${step.id}-${pageIndex}`} src={src} alt="" />
-                  ))}
+                  <img src={pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)]} alt="" />
                 </div>
-                {pdfPageCount > pdfPages.length ? (
-                  <p className="prompt-panel__pdf-note">
-                    {`Primeras ${pdfPages.length} de ${pdfPageCount} páginas.`}
-                  </p>
-                ) : null}
+                <div className="prompt-panel__pdf-index">
+                  <button
+                    type="button"
+                    aria-label="Página anterior del PDF"
+                    disabled={pdfPageIndex <= 0}
+                    onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
+                  >
+                    ‹
+                  </button>
+                  <span>{`${Math.min(pdfPageIndex, pdfPages.length - 1) + 1} / ${pdfPages.length}`}</span>
+                  <button
+                    type="button"
+                    aria-label="Página siguiente del PDF"
+                    disabled={pdfPageIndex >= pdfPages.length - 1}
+                    onClick={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
+                  >
+                    ›
+                  </button>
+                </div>
               </>
-            ) : step.pdf?.name ? (
+            ) : pdfStatus === 'loading' ? (
               <p>Abriendo el PDF…</p>
             ) : (
               <label className="prompt-panel__pdf-pick">
-                <span>Elige un PDF</span>
+                <span>{step.pdf?.name || 'Elige un PDF'}</span>
+                {step.pdf?.name ? <span>Elige el PDF otra vez</span> : null}
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
@@ -1214,7 +1283,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         ) : null}
         {showPdf ? (
           <div className="prompt-panel__media-foot">
-            {step.pdf?.name ? (
+            {pdfPages.length ? (
               <button
                 type="button"
                 className="prompt-video__extract"

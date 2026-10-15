@@ -1,0 +1,28 @@
+---
+description: En cada conversación, cerrar con una solución concreta
+alwaysApply: true
+---
+
+# Siempre proponer una solución
+
+En cada conversación, no te quedes en el diagnóstico. Cierra con una solución que se pueda hacer.
+
+## Qué decir
+
+- Di qué está pasando, en una o dos frases.
+- Propón **una** solución. Si el usuario pidió elegir entre opciones, elige una y di por qué.
+- La solución nombra el siguiente paso: qué se cambia, en qué superficie, y qué se conserva.
+- Si hay un límite (tamaño, páginas, clave, SQL, modelo), dilo y explica cómo lo sortea la solución.
+- Si no se puede hacer ahora, di el límite y qué queda listo para cuando se desbloquee.
+
+## Qué no hacer
+
+- No terminar solo con el problema.
+- No dejar un menú de “podríamos” sin elegir.
+- No implementar de más cuando el usuario pidió una respuesta. La solución se propone; se construye cuando pide hacerlo.
+
+## Ejemplo
+
+El PDF se pinta a 640 px y Groq solo acepta 3 imágenes por llamada. La letra chica se pierde y la página 4 no entra.
+
+Solución: subir el render a ~1000 px y mandar las hojas numeradas, de 3 en 3 (Página 1, Página 2, Página 3). El panel sigue mostrando la misma columna; Groq recibe la foto más grande, no el tamaño en pantalla.

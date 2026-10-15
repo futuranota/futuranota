@@ -194,12 +194,13 @@ export async function extractTextFromPdfFile(file) {
  * Paint PDF pages as JPEG data URLs. The panel shows these pictures;
  * Extraer datos sends the same pictures to Groq.
  * @param {ArrayBuffer|Uint8Array} data
- * @param {{ maxPages?: number, maxWidth?: number }} [opts]
+ * @param {{ maxPages?: number, maxWidth?: number, onPage?: (snapshot: { images: string[], pageCount: number, index: number }) => void }} [opts]
  * @returns {Promise<{ images: string[], pageCount: number }>}
  */
 export async function renderPdfPageImages(data, opts = {}) {
-  const maxPages = opts.maxPages ?? 3;
-  const maxWidth = opts.maxWidth ?? 640;
+  const maxPages = opts.maxPages ?? 12;
+  const maxWidth = opts.maxWidth ?? 1000;
+  const onPage = typeof opts.onPage === "function" ? opts.onPage : null;
   const pdfjs = await ensurePdfjs();
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   const pdf = await pdfjs.getDocument({
@@ -215,15 +216,22 @@ export async function renderPdfPageImages(data, opts = {}) {
       await new Promise((resolve) => setTimeout(resolve, 0));
       const page = await pdf.getPage(i);
       const base = page.getViewport({ scale: 1 });
-      const scale = Math.min(1.25, maxWidth / Math.max(base.width, 1));
-      const viewport = page.getViewport({ scale });
+      let scale = Math.min(2, maxWidth / Math.max(base.width, 1));
+      let viewport = page.getViewport({ scale });
+      const maxEdge = 1600;
+      const edge = Math.max(viewport.width, viewport.height);
+      if (edge > maxEdge) {
+        scale *= maxEdge / edge;
+        viewport = page.getViewport({ scale });
+      }
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const context = canvas.getContext("2d");
       if (!context) continue;
       await page.render({ canvasContext: context, viewport }).promise;
-      images.push(canvas.toDataURL("image/jpeg", 0.72));
+      images.push(canvas.toDataURL("image/jpeg", 0.8));
+      if (onPage) onPage({ images: images.slice(), pageCount, index: i });
     }
   } finally {
     try {
