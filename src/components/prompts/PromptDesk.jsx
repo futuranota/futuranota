@@ -82,6 +82,8 @@ function blankPrompt() {
     modelId: '',
     variables: [],
     stepIndex: 0,
+    pdf: null,
+    video: null,
     steps: [blankStep()],
   };
 }
@@ -239,7 +241,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -588,15 +590,107 @@ export default function PromptDesk() {
   );
 }
 
+function ModelPicker({
+  modelId,
+  open,
+  infoOpen,
+  customDraft,
+  onToggle,
+  onToggleInfo,
+  onCustomDraft,
+  onChoose,
+}) {
+  const chosen = PROMPT_MODELS.find((model) => model.id === modelId) || null;
+  const customLabel = modelId && !chosen ? modelId : '';
+  return (
+    <div className="prompt-model">
+      {chosen ? (
+        <button type="button" className="prompt-models__item is-selected" aria-expanded={open} onClick={onToggle}>
+          <img src={chosen.src} alt="" />
+          <span>{chosen.label}</span>
+        </button>
+      ) : customLabel ? (
+        <button type="button" className="prompt-models__item is-selected" aria-expanded={open} onClick={onToggle}>
+          <span className="prompt-models__glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="7" />
+            </svg>
+          </span>
+          <span>{customLabel}</span>
+        </button>
+      ) : (
+        <button type="button" className="prompt-models__item" aria-expanded={open} onClick={onToggle}>
+          <span className="prompt-models__glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="7" />
+              <path d="M12 9v3l2 2" />
+            </svg>
+          </span>
+          <span>Select a model</span>
+        </button>
+      )}
+      <button
+        type="button"
+        className="prompt-model__info"
+        aria-expanded={infoOpen}
+        aria-label="Where this prompt is pasted"
+        onClick={onToggleInfo}
+      >
+        i
+      </button>
+      {infoOpen ? (
+        <p className="prompt-model__note" role="note">
+          Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
+        </p>
+      ) : null}
+      {open ? (
+        <div className="prompt-model__menu" role="listbox" aria-label="Select a model">
+          {PROMPT_MODELS.map((model) => (
+            <button
+              key={model.id}
+              type="button"
+              role="option"
+              aria-selected={model.id === modelId}
+              className="prompt-model__option"
+              onClick={() => onChoose(model.id === modelId ? '' : model.id)}
+            >
+              <img src={model.src} alt="" />
+              <span>{model.label}</span>
+            </button>
+          ))}
+          <form
+            className="prompt-model__custom"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = customDraft.trim();
+              if (!name) return;
+              onChoose(name);
+            }}
+          >
+            <input
+              value={customDraft}
+              placeholder="Custom destination"
+              aria-label="Custom destination"
+              onChange={(event) => onCustomDraft(event.target.value)}
+            />
+            <button type="submit">Set</button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose }) {
   const { steps, index, step } = stepAt(prompt);
   const copiedText = resolvePrompt(step.prompt, prompt.variables || []).trim();
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
-  const [showImage, setShowImage] = useState(() => Boolean(step.image) && !step.video?.embedSrc && !step.pdf?.name);
-  const [showVideo, setShowVideo] = useState(() => Boolean(step.video?.embedSrc));
-  const [showPdf, setShowPdf] = useState(() => Boolean(step.pdf?.name) && !step.video?.embedSrc && !step.image);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showImage, setShowImage] = useState(() => Boolean(step.image) && !prompt.video?.embedSrc && !prompt.pdf?.name);
+  const [showVideo, setShowVideo] = useState(() => Boolean(prompt.video?.embedSrc));
+  const [showPdf, setShowPdf] = useState(() => Boolean(prompt.pdf?.name) && !prompt.video?.embedSrc && !step.image);
   const [pdfError, setPdfError] = useState('');
   const [pdfReading, setPdfReading] = useState(false);
   const [pdfPages, setPdfPages] = useState([]);
@@ -609,6 +703,9 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [videoError, setVideoError] = useState('');
   const [videoPaused, setVideoPaused] = useState(true);
   const [varsOpen, setVarsOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [modelInfo, setModelInfo] = useState(false);
+  const [customModel, setCustomModel] = useState('');
   const videoRef = useRef(null);
   const showSide = showImage || showVideo || showPdf;
   const chipImage = step.image || coverImage(prompt);
@@ -618,39 +715,47 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   useEffect(() => {
-    setVideoDraft(step.video?.rawInput || '');
+    setSheetOpen(false);
+    setModelOpen(false);
+    setModelInfo(false);
+    setCustomModel('');
+    setVideoDraft(prompt.video?.rawInput || '');
     setVideoError('');
     setVideoPaused(true);
-  }, [step.id, step.video?.embedSrc]);
-
-  useEffect(() => {
-    if (step.video?.embedSrc) {
-      setShowVideo(true);
-      setShowImage(false);
-      setShowPdf(false);
-    } else if (step.image) {
-      setShowImage(true);
-      setShowVideo(false);
-      setShowPdf(false);
-    } else if (step.pdf?.name) {
-      setShowPdf(true);
-      setShowImage(false);
-      setShowVideo(false);
-    } else {
-      setShowImage(false);
-      setShowVideo(false);
-      setShowPdf(false);
-    }
     setPdfError('');
     setPdfPages([]);
     setPdfPageCount(0);
     setPdfPageIndex(0);
     setPdfStatus('idle');
     pdfPagesRef.current = [];
-  }, [step.id]);
+    if (prompt.video?.embedSrc) {
+      setShowVideo(true);
+      setShowImage(false);
+      setShowPdf(false);
+    } else if (prompt.pdf?.name) {
+      setShowPdf(true);
+      setShowImage(false);
+      setShowVideo(false);
+    } else if (step.image) {
+      setShowImage(true);
+      setShowVideo(false);
+      setShowPdf(false);
+    } else {
+      setShowImage(false);
+      setShowVideo(false);
+      setShowPdf(false);
+    }
+  }, [prompt.id]);
 
   useEffect(() => {
-    if (!showPdf || !step.pdf?.name) {
+    if (!sheetOpen) return;
+    setShowVideo(false);
+    setShowPdf(false);
+    setShowImage(Boolean(step.image));
+  }, [sheetOpen, step.id, step.image]);
+
+  useEffect(() => {
+    if (!showPdf || !prompt.pdf?.name || sheetOpen) {
       setPdfPages([]);
       setPdfPageCount(0);
       setPdfPageIndex(0);
@@ -659,14 +764,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       return undefined;
     }
     let cancel = false;
-    const stepId = step.id;
-    const url = step.pdf?.url || '';
-    const name = step.pdf.name;
+    const fileId = prompt.id;
+    const url = prompt.pdf?.url || '';
+    const name = prompt.pdf.name;
     setPdfStatus('loading');
     setPdfPageIndex(0);
     (async () => {
       try {
-        const local = pdfFiles.get(stepId);
+        const local = pdfFiles.get(fileId);
         let data = null;
         if (local) {
           data = await local.arrayBuffer();
@@ -682,7 +787,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           if (!response.ok) throw new Error(`fetch_${response.status}`);
           const buffer = await response.arrayBuffer();
           const bytes = new Uint8Array(buffer);
-          pdfFiles.set(stepId, new File([bytes], name, { type: 'application/pdf' }));
+          pdfFiles.set(fileId, new File([bytes], name, { type: 'application/pdf' }));
           data = bytes.slice();
         }
         if (cancel) return;
@@ -718,7 +823,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       }
     })();
     return () => { cancel = true; };
-  }, [showPdf, step.id, step.pdf?.name, step.pdf?.url]);
+  }, [showPdf, sheetOpen, prompt.id, prompt.pdf?.name, prompt.pdf?.url]);
 
   function takeImage(file) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -756,7 +861,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     }
     setVideoError('');
     setVideoDraft(parsed.rawInput);
-    patchStep({
+    onPatch({
       video: {
         rawInput: parsed.rawInput,
         provider: parsed.provider,
@@ -768,10 +873,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   function togglePlayback() {
     const frame = videoRef.current;
-    if (!frame?.contentWindow || !step.video) return;
-    if (step.video.provider === 'instagram') return;
+    if (!frame?.contentWindow || !prompt.video) return;
+    if (prompt.video.provider === 'instagram') return;
     const nextPaused = !videoPaused;
-    if (step.video.provider === 'vimeo') {
+    if (prompt.video.provider === 'vimeo') {
       frame.contentWindow.postMessage(JSON.stringify({ method: nextPaused ? 'pause' : 'play' }), '*');
     } else {
       frame.contentWindow.postMessage(JSON.stringify({
@@ -788,7 +893,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setVideoError('');
     setVideoPaused(true);
     setShowVideo(false);
-    patchStep({ video: null });
+    onPatch({ video: null });
   }
 
   function takePdf(file) {
@@ -798,32 +903,21 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       setPdfError('Elige un archivo PDF.');
       return;
     }
-    const stepId = step.id;
-    pdfFiles.set(stepId, file);
+    const fileId = prompt.id;
+    pdfFiles.set(fileId, file);
     setPdfError('');
     setShowPdf(true);
     setShowImage(false);
     setShowVideo(false);
-    onPatch({
-      stepPatch: {
-        id: stepId,
-        pdf: { name: file.name, path: '', url: '' },
-        promptSaved: false,
-      },
-    });
+    onPatch({ pdf: { name: file.name, path: '', url: '' } });
     currentPromptUserId()
       .then((userId) => {
         if (!userId) return null;
-        return uploadPromptPdf(file, stepId, userId);
+        return uploadPromptPdf(file, fileId, userId);
       })
       .then((uploaded) => {
         if (!uploaded) return;
-        onPatch({
-          stepPatch: {
-            id: stepId,
-            pdf: { name: file.name, path: uploaded.path, url: uploaded.url },
-          },
-        });
+        onPatch({ pdf: { name: file.name, path: uploaded.path, url: uploaded.url } });
       })
       .catch((error) => {
         console.warn('[prompt-desk] pdf upload failed', error?.message || error);
@@ -831,16 +925,16 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   async function extractPdf() {
-    if (!step.pdf?.name) return;
+    if (!prompt.pdf?.name) return;
     setPdfReading(true);
     setPdfError('');
     try {
       let images = pdfPagesRef.current;
       if (!images.length) {
-        const local = pdfFiles.get(step.id);
+        const local = pdfFiles.get(prompt.id);
         const data = local
           ? await local.arrayBuffer()
-          : (step.pdf?.url ? await fetchPdfBytesFromUrl(step.pdf.url) : null);
+          : (prompt.pdf?.url ? await fetchPdfBytesFromUrl(prompt.pdf.url) : null);
         if (!data) {
           setPdfError('Vuelve a elegir el PDF para leerlo.');
           return;
@@ -893,7 +987,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   function clearPdf() {
-    pdfFiles.delete(step.id);
+    pdfFiles.delete(prompt.id);
     setPdfError('');
     setPdfPages([]);
     setPdfPageCount(0);
@@ -901,7 +995,26 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setPdfStatus('idle');
     pdfPagesRef.current = [];
     setShowPdf(false);
-    patchStep({ pdf: null });
+    onPatch({ pdf: null });
+  }
+
+  function openBuiltPrompt() {
+    setSheetOpen(true);
+    setShowVideo(false);
+    setShowPdf(false);
+    setShowImage(Boolean(step.image));
+  }
+
+  function showIndexMedia() {
+    if (prompt.pdf?.name) {
+      setShowPdf(true);
+      setShowImage(false);
+      setShowVideo(false);
+    } else if (prompt.video?.embedSrc) {
+      setShowVideo(true);
+      setShowImage(false);
+      setShowPdf(false);
+    }
   }
 
   function saveStep() {
@@ -913,7 +1026,11 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   function goBack() {
-    if (index <= 0) return;
+    if (index <= 0) {
+      setSheetOpen(false);
+      showIndexMedia();
+      return;
+    }
     onPatch({ stepIndex: index - 1 });
   }
 
@@ -931,6 +1048,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   function deleteIndex() {
     if (steps.length <= 1) {
       onPatch({ steps: [blankStep(0)], stepIndex: 0 });
+      setSheetOpen(false);
+      showIndexMedia();
       return;
     }
     const nextSteps = steps.filter((_, itemIndex) => itemIndex !== index);
@@ -1002,23 +1121,27 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             aria-label="Nombre"
             onChange={(event) => onPatch({ name: event.target.value })}
           />
-          <div className="prompt-models" role="listbox" aria-label="Modelo">
-            {PROMPT_MODELS.map((model) => {
-              const selected = prompt.modelId === model.id;
-              return (
-                <button
-                  key={model.id}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  className={selected ? 'prompt-models__item is-selected' : 'prompt-models__item'}
-                  onClick={() => onPatch({ modelId: selected ? '' : model.id })}
-                >
-                  <img src={model.src} alt="" />
-                  <span>{model.label}</span>
-                </button>
-              );
-            })}
+          <div className="prompt-models">
+            <ModelPicker
+              modelId={prompt.modelId}
+              open={modelOpen}
+              infoOpen={modelInfo}
+              customDraft={customModel}
+              onToggle={() => {
+                setModelOpen((open) => !open);
+                setModelInfo(false);
+              }}
+              onToggleInfo={() => {
+                setModelInfo((open) => !open);
+                setModelOpen(false);
+              }}
+              onCustomDraft={setCustomModel}
+              onChoose={(modelId) => {
+                onPatch({ modelId });
+                setModelOpen(false);
+                setCustomModel('');
+              }}
+            />
             {showImage ? null : (
               <button
                 type="button"
@@ -1037,7 +1160,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <span>Agregar imagen</span>
               </button>
             )}
-            {showVideo ? null : (
+            {sheetOpen || showVideo ? null : (
               <button
                 type="button"
                 className="prompt-models__item"
@@ -1055,7 +1178,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <span>Embed video</span>
               </button>
             )}
-            {showPdf ? null : (
+            {sheetOpen || showPdf ? null : (
               <button
                 type="button"
                 className="prompt-models__item"
@@ -1074,6 +1197,19 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <span>Agregar PDF</span>
               </button>
             )}
+            <button
+              type="button"
+              className={sheetOpen ? 'prompt-models__item is-selected' : 'prompt-models__item'}
+              onClick={openBuiltPrompt}
+            >
+              <span className="prompt-models__glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M7 4h10v16H7z" />
+                  <path d="M10 8h4M10 12h4M10 16h3" />
+                </svg>
+              </span>
+              <span>Prompt</span>
+            </button>
             <button
               type="button"
               className={varsOpen ? 'prompt-models__item is-selected' : 'prompt-models__item'}
@@ -1096,7 +1232,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               <span>Comprimir</span>
             </button>
           </div>
-          <div className="prompt-panel__tools">
+          {sheetOpen ? <div className="prompt-panel__tools">
             <label className="prompt-format">
               <span className="sr-only">Formato</span>
               <select
@@ -1111,7 +1247,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 ))}
               </select>
             </label>
-          </div>
+          </div> : null}
         </div>
         {showImage ? (
           <div className="prompt-panel__stage">
@@ -1158,17 +1294,17 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             </label>
           </div>
         ) : null}
-        {showVideo ? (
+        {showVideo && !sheetOpen ? (
           <div className="prompt-panel__video">
-            {step.video?.embedSrc ? (
+            {prompt.video?.embedSrc ? (
               <iframe
                 ref={videoRef}
                 className="prompt-panel__player"
-                src={playbackSrc(step.video)}
+                src={playbackSrc(prompt.video)}
                 title="Video"
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowFullScreen
-                sandbox={step.video?.provider === 'instagram'
+                sandbox={prompt.video?.provider === 'instagram'
                   ? 'allow-scripts allow-same-origin allow-presentation'
                   : undefined}
               />
@@ -1192,7 +1328,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             )}
           </div>
         ) : null}
-        {showPdf ? (
+        {showPdf && !sheetOpen ? (
           <div className={`prompt-panel__pdf${pdfPages.length ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
               <>
@@ -1223,8 +1359,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               <p>Abriendo el PDF…</p>
             ) : (
               <label className="prompt-panel__pdf-pick">
-                <span>{step.pdf?.name || 'Elige un PDF'}</span>
-                {step.pdf?.name ? <span>Elige el PDF otra vez</span> : null}
+                <span>{prompt.pdf?.name || 'Elige un PDF'}</span>
+                {prompt.pdf?.name ? <span>Elige el PDF otra vez</span> : null}
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
@@ -1253,9 +1389,9 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             ) : null}
           </div>
         ) : null}
-        {showVideo ? (
+        {showVideo && !sheetOpen ? (
           <div className="prompt-panel__media-foot">
-            {step.video?.embedSrc && step.video?.provider !== 'instagram' ? (
+            {prompt.video?.embedSrc && prompt.video?.provider !== 'instagram' ? (
               <button
                 type="button"
                 className="prompt-video__pause"
@@ -1276,14 +1412,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             <button type="button" className="prompt-panel__remove" onClick={() => setShowVideo(false)}>
               Ocultar
             </button>
-            {step.video?.embedSrc ? (
+            {prompt.video?.embedSrc ? (
               <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
                 Quitar
               </button>
             ) : null}
           </div>
         ) : null}
-        {showPdf ? (
+        {showPdf && !sheetOpen ? (
           <div className="prompt-panel__media-foot">
             {pdfPages.length ? (
               <button
@@ -1299,13 +1435,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             <button type="button" className="prompt-panel__remove" onClick={() => setShowPdf(false)}>
               Ocultar
             </button>
-            {step.pdf?.name ? (
+            {prompt.pdf?.name ? (
               <button type="button" className="prompt-panel__remove" onClick={clearPdf}>
                 Quitar
               </button>
             ) : null}
           </div>
         ) : null}
+          {sheetOpen ? (
           <div className="prompt-sheet">
             <input
               className="prompt-sheet__title"
@@ -1352,25 +1489,30 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             </PromptBody>
             </div>
           </div>
+          ) : (
+          <div className="prompt-index" aria-label="Portada">
+            <div className="prompt-index__fan">
+              <span className="prompt-index__card" />
+              <span className="prompt-index__card prompt-index__card--front" />
+              <span className="prompt-index__card" />
+            </div>
+          </div>
+          )}
+          {sheetOpen ? (
           <div className="prompt-panel__foot">
-            {step.prompt.trim() ? (
-              <div className="prompt-panel__step-actions">
-                {step.promptSaved ? (
-                  <button type="button" onClick={editStep}>Editar</button>
-                ) : (
-                  <>
-                    <button type="button" onClick={saveStep}>Guardar</button>
-                    <button type="button" onClick={deleteIndex}>Eliminar</button>
-                  </>
-                )}
-              </div>
-            ) : null}
+            <div className="prompt-panel__step-actions">
+              {step.promptSaved ? (
+                <button type="button" onClick={editStep}>Editar</button>
+              ) : step.prompt.trim() ? (
+                <button type="button" onClick={saveStep}>Guardar</button>
+              ) : null}
+              <button type="button" onClick={deleteIndex}>Eliminar</button>
+            </div>
           <div className="prompt-steps">
             <button
               type="button"
               className="prompt-steps__arrow"
               aria-label="Paso anterior"
-              disabled={index <= 0}
               onClick={goBack}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1390,6 +1532,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             </button>
           </div>
           </div>
+          ) : null}
       </div>
       <VariableDeck
         open={varsOpen}
