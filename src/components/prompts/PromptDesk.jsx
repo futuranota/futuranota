@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
@@ -175,14 +175,61 @@ function readImageFile(file, onLoad) {
   reader.readAsDataURL(file);
 }
 
-function AccountRail() {
+const DESK_VIEWS = [
+  { id: 'home', label: 'Home', to: '/app' },
+  { id: 'settings', label: 'Settings', to: '/app/settings' },
+  { id: 'embed', label: 'Embed Html', to: '/app/embed' },
+];
+
+function viewFromPath(pathname) {
+  if (pathname.startsWith('/app/settings')) return 'settings';
+  if (pathname.startsWith('/app/embed')) return 'embed';
+  return 'home';
+}
+
+function SideIcon({ name }) {
+  if (name === 'settings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3.5v2.2M12 18.3v2.2M4.8 6.2l1.6 1.6M17.6 16.2l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.8 17.8l1.6-1.6M17.6 7.8l1.6-1.6" />
+      </svg>
+    );
+  }
+  if (name === 'embed') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9 8-4 4 4 4M15 8l4 4-4 4" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 10.5 12 4l8 6.5V20H4Z" />
+    </svg>
+  );
+}
+
+function DeskSidebar({ view }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [open, setOpen] = useState(true);
   const email = user?.email || '';
   const initial = (email[0] || 'F').toUpperCase();
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key.toLowerCase() !== 'b') return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      event.preventDefault();
+      setOpen((value) => !value);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   async function handleSignOut() {
     if (loggingOut) return;
@@ -198,20 +245,60 @@ function AccountRail() {
   }
 
   return (
-    <aside className="prompt-desk__rail" aria-label="Cuenta">
-      <div className="prompt-desk__account">
-        <span className="prompt-desk__avatar" aria-hidden="true">{initial}</span>
-        {email ? <span className="prompt-desk__email">{email}</span> : null}
+    <aside className={open ? 'prompt-desk__side' : 'prompt-desk__side prompt-desk__side--collapsed'} aria-label="Dashboard">
+      <div className="prompt-desk__side-top">
         <button
           type="button"
-          className="prompt-desk__signout"
-          onClick={() => { void handleSignOut(); }}
-          disabled={loggingOut}
+          className="prompt-desk__side-toggle"
+          aria-expanded={open}
+          aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
+          onClick={() => setOpen((value) => !value)}
         >
-          {loggingOut ? t('common.signingOut') : t('common.signOut')}
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 5h16M4 12h10M4 19h16" />
+          </svg>
         </button>
       </div>
+      <nav className="prompt-desk__side-nav">
+        {DESK_VIEWS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
+            aria-current={view === item.id ? 'page' : undefined}
+            title={item.label}
+            onClick={() => navigate(item.to)}
+          >
+            <SideIcon name={item.id} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="prompt-desk__account">
+        <span className="prompt-desk__avatar" aria-hidden="true">{initial}</span>
+        <span className="prompt-desk__account-copy">
+          {email ? <span className="prompt-desk__email">{email}</span> : null}
+          <button
+            type="button"
+            className="prompt-desk__signout"
+            onClick={() => { void handleSignOut(); }}
+            disabled={loggingOut}
+          >
+            {loggingOut ? t('common.signingOut') : t('common.signOut')}
+          </button>
+        </span>
+      </div>
     </aside>
+  );
+}
+
+function DeskPlaceholder({ title }) {
+  return (
+    <div className="prompt-desk__page">
+      <header className="prompt-desk__bar">
+        <h1 className="prompt-desk__mark">{title}</h1>
+      </header>
+    </div>
   );
 }
 
@@ -296,6 +383,8 @@ function saveMode(patch, beforePrompt) {
 }
 
 export default function PromptDesk() {
+  const location = useLocation();
+  const view = viewFromPath(location.pathname);
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -555,8 +644,12 @@ export default function PromptDesk() {
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
-      <AccountRail />
+      <DeskSidebar view={view} />
       <div className="prompt-desk__main">
+      {view === 'settings' ? <DeskPlaceholder title="Settings" /> : null}
+      {view === 'embed' ? <DeskPlaceholder title="Embed Html" /> : null}
+      {view === 'home' ? (
+      <>
       <header className="prompt-desk__bar">
         <p className="prompt-desk__mark">Futura Nota</p>
         <button type="button" className="prompt-desk__new" onClick={addCollection} disabled={!folders}>
@@ -596,6 +689,8 @@ export default function PromptDesk() {
           />
         ))}
       </div>
+      </>
+      ) : null}
 
       {activePrompt && !floating ? (
         <InstructionPanel
