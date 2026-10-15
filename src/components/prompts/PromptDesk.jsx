@@ -17,7 +17,7 @@ import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody, VariableDeck } from './PromptBody.jsx';
+import { PromptBody } from './PromptBody.jsx';
 import './prompt-desk.css';
 
 const pdfFiles = new Map();
@@ -59,13 +59,23 @@ function hasSavedPrompt(prompt) {
   return (prompt?.steps || []).some((item) => item.promptSaved && String(item.prompt || '').trim());
 }
 
+const DESCRIPTION_LINES = 3;
+
 function DescriptionField({ className, value, readOnly, onChange }) {
   const ref = useRef(null);
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
+    const view = node.ownerDocument.defaultView;
     node.style.height = 'auto';
-    node.style.height = `${node.scrollHeight}px`;
+    const style = view.getComputedStyle(node);
+    const line = parseFloat(style.lineHeight) || 17;
+    const padTop = parseFloat(style.paddingTop) || 0;
+    const max = Math.ceil(line * DESCRIPTION_LINES + padTop + 2);
+    const full = node.scrollHeight;
+    node.style.maxHeight = `${max}px`;
+    node.style.height = `${Math.min(full, max)}px`;
+    node.style.overflowY = full > max + 1 ? 'auto' : 'hidden';
   }, [value, readOnly]);
   return (
     <textarea
@@ -78,6 +88,34 @@ function DescriptionField({ className, value, readOnly, onChange }) {
       rows={2}
       onChange={(event) => onChange(event.target.value)}
     />
+  );
+}
+
+function DescriptionBlock({ className, value, readOnly, onChange }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={open ? 'prompt-desc' : 'prompt-desc prompt-desc--closed'}>
+      <button
+        type="button"
+        className="prompt-desc__toggle"
+        aria-expanded={open}
+        aria-label={open ? 'Ocultar descripción' : 'Mostrar descripción'}
+        title={open ? 'Ocultar descripción' : 'Mostrar descripción'}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 9.5 12 15.5 18 9.5" />
+        </svg>
+      </button>
+      {open ? (
+        <DescriptionField
+          className={className}
+          value={value}
+          readOnly={readOnly}
+          onChange={onChange}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -826,7 +864,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
   const [videoPaused, setVideoPaused] = useState(true);
-  const [varsOpen, setVarsOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelInfo, setModelInfo] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
@@ -1273,13 +1310,11 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 setModelOpen((open) => !open);
                 setModelInfo(false);
                 setFormatOpen(false);
-                setVarsOpen(false);
               }}
               onToggleInfo={() => {
                 setModelInfo((open) => !open);
                 setModelOpen(false);
                 setFormatOpen(false);
-                setVarsOpen(false);
               }}
               onCustomDraft={setCustomModel}
               onChange={(modelIds) => {
@@ -1357,24 +1392,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               </span>
               <span>Prompt</span>
             </button>
-            <button
-              type="button"
-              className={varsOpen ? 'prompt-models__item is-selected' : 'prompt-models__item'}
-              aria-expanded={varsOpen}
-              onClick={() => {
-                setVarsOpen((open) => !open);
-                setModelOpen(false);
-                setModelInfo(false);
-                setFormatOpen(false);
-              }}
-            >
-              <span className="prompt-models__glyph" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M8 7h11M8 12h11M8 17h11M5 7h.01M5 12h.01M5 17h.01" />
-                </svg>
-              </span>
-              <span>Variables</span>
-            </button>
             {sheetOpen ? (
               <button
                 type="button"
@@ -1384,7 +1401,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   setFormatOpen((open) => !open);
                   setModelOpen(false);
                   setModelInfo(false);
-                  setVarsOpen(false);
                 }}
               >
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
@@ -1435,14 +1451,6 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               })}
             </div>
           ) : null}
-          <VariableDeck
-            inline
-            open={varsOpen}
-            title={prompt.name}
-            variables={prompt.variables || []}
-            onChange={(variables) => onPatch({ variables })}
-            onClose={() => setVarsOpen(false)}
-          />
         </div>
         {showImage ? (
           <div className="prompt-panel__stage">
@@ -1646,7 +1654,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               aria-label="Title"
               onChange={(event) => patchStep({ title: event.target.value })}
             />
-            <DescriptionField
+            <DescriptionBlock
               className="prompt-sheet__description"
               value={step.description || ''}
               readOnly={Boolean(step.promptSaved)}
@@ -1759,7 +1767,6 @@ function FloatCard({ prompt, view, onPatch }) {
   const text = resolvePrompt(step.prompt, prompt.variables || []).trim();
   const canCopy = Boolean(step.promptSaved && text);
   const [copied, setCopied] = useState(false);
-  const [varsOpen, setVarsOpen] = useState(false);
 
   function patchFloatStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch, promptSaved: true } });
@@ -1818,22 +1825,12 @@ function FloatCard({ prompt, view, onPatch }) {
           aria-label="Title"
           onChange={(event) => patchStepTitle(event.target.value)}
         />
-        <DescriptionField
+        <DescriptionBlock
           className="prompt-float__description"
           value={step.description || ''}
           readOnly={Boolean(step.promptSaved)}
           onChange={(description) => onPatch({ stepPatch: { id: step.id, description, promptSaved: false } })}
         />
-        <div className="prompt-float__library">
-          <button
-            type="button"
-            className={varsOpen ? 'prompt-float__vars is-selected' : 'prompt-float__vars'}
-            aria-expanded={varsOpen}
-            onClick={() => setVarsOpen((open) => !open)}
-          >
-            Variables
-          </button>
-        </div>
         <div className="prompt-drawer">
           <PromptBody
             key={step.id}
@@ -1882,13 +1879,6 @@ function FloatCard({ prompt, view, onPatch }) {
           </svg>
         </button>
       </div>
-      <VariableDeck
-        open={varsOpen}
-        title={prompt.name}
-        variables={prompt.variables || []}
-        onChange={(variables) => onPatch({ variables })}
-        onClose={() => setVarsOpen(false)}
-      />
     </section>
   );
 }
@@ -1949,21 +1939,72 @@ const FLOAT_CSS = `
     outline: none;
   }
   .prompt-float__step::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-desc {
+    position: relative;
+    flex: none;
+    min-height: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .prompt-desc--closed {
+    display: flex;
+    justify-content: flex-end;
+    min-height: 32px;
+  }
+  .prompt-desc__toggle {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    z-index: 1;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.72);
+    cursor: pointer;
+  }
+  .prompt-desc--closed .prompt-desc__toggle {
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+  .prompt-desc__toggle svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .prompt-desc--closed .prompt-desc__toggle svg { transform: rotate(-90deg); }
   .prompt-float__description {
     flex: none;
     width: 100%;
     margin: 0;
     border: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: transparent;
     color: rgba(255, 255, 255, 0.86);
     font: inherit;
     font-size: 12px;
     line-height: 1.4;
-    padding: 8px 16px 10px;
+    padding: 8px 40px 4px 16px;
     resize: none;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     outline: none;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a2a #101010;
+  }
+  .prompt-float__description::-webkit-scrollbar { width: 8px; }
+  .prompt-float__description::-webkit-scrollbar-track { background: #101010; }
+  .prompt-float__description::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    background: #2a2a2a;
   }
   .prompt-float__description::placeholder { color: rgba(255, 255, 255, 0.38); }
   .prompt-body__editor[data-empty="true"]::before {
@@ -1976,18 +2017,21 @@ const FLOAT_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .prompt-body {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .prompt-body__frame {
     position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
+    overflow: hidden;
   }
   .prompt-body__editor {
     white-space: pre-wrap;
@@ -1998,22 +2042,6 @@ const FLOAT_CSS = `
     color: rgba(255, 255, 255, 0.38);
     pointer-events: none;
   }
-  .prompt-float__library {
-    position: relative;
-    flex: none;
-    padding: 8px 16px 0;
-  }
-  .prompt-float__vars {
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 999px;
-    background: transparent;
-    color: #fff;
-    font: inherit;
-    font-size: 13px;
-    padding: 6px 12px;
-    cursor: pointer;
-  }
-  .prompt-float__vars.is-selected { border-color: rgba(255, 255, 255, 0.72); }
   .prompt-library {
     position: absolute;
     z-index: 20;
@@ -2265,8 +2293,10 @@ const FLOAT_CSS = `
     outline: none;
   }
   .prompt-float__text {
+    flex: 1;
     width: 100%;
-    height: 100%;
+    min-height: 0;
+    height: auto;
     box-sizing: border-box;
     margin: 0;
     resize: none;
