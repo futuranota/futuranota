@@ -55,6 +55,32 @@ function stepTitleOf(step) {
   return typeof step.title === 'string' ? step.title : '';
 }
 
+function hasSavedPrompt(prompt) {
+  return (prompt?.steps || []).some((item) => item.promptSaved && String(item.prompt || '').trim());
+}
+
+function DescriptionField({ className, value, readOnly, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${node.scrollHeight}px`;
+  }, [value, readOnly]);
+  return (
+    <textarea
+      ref={ref}
+      className={className}
+      value={value}
+      placeholder="Brief description of the steps to follow"
+      aria-label="Brief description"
+      readOnly={readOnly}
+      rows={2}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
 function playbackSrc(video) {
   const src = normalizeEmbedSrcForPlayback(video?.embedSrc || '');
   if (!src) return '';
@@ -597,9 +623,7 @@ function ModelPicker({
   onChange,
 }) {
   const ids = Array.isArray(modelIds) ? modelIds : [];
-  function toggle(id) {
-    onChange(ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
-  }
+  const chosen = ids.length > 0;
   return (
     <div className="prompt-model">
       {ids.map((id) => {
@@ -611,7 +635,7 @@ function ModelPicker({
             type="button"
             className="prompt-models__item is-selected"
             aria-label={`Quitar ${label}`}
-            onClick={() => toggle(id)}
+            onClick={() => onChange(ids.filter((item) => item !== id))}
           >
             {known ? <img src={known.src} alt="" /> : (
               <span className="prompt-models__glyph" aria-hidden="true">
@@ -624,33 +648,33 @@ function ModelPicker({
           </button>
         );
       })}
-      <button type="button" className="prompt-models__item" aria-expanded={open} onClick={onToggle}>
-        <span className="prompt-models__glyph" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="7" />
-            <path d="M12 9v3l2 2" />
-          </svg>
-        </span>
-        <span>Select a model</span>
-      </button>
-      <button
-        type="button"
-        className="prompt-model__info"
-        aria-expanded={infoOpen}
-        aria-label="Where this prompt is pasted"
-        onClick={onToggleInfo}
-      >
-        i
-      </button>
+      {chosen ? null : (
+        <>
+          <button type="button" className="prompt-models__item" aria-expanded={open} onClick={onToggle}>
+            <span className="prompt-models__glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="7" />
+                <path d="M12 9v3l2 2" />
+              </svg>
+            </span>
+            <span>Select a model</span>
+          </button>
+          <button
+            type="button"
+            className="prompt-model__info"
+            aria-expanded={infoOpen}
+            aria-label="Where this prompt is pasted"
+            onClick={onToggleInfo}
+          >
+            i
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
-function ModelMenu({ modelIds, customDraft, onCustomDraft, onChange }) {
-  const ids = Array.isArray(modelIds) ? modelIds : [];
-  function toggle(id) {
-    onChange(ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
-  }
+function ModelMenu({ customDraft, onCustomDraft, onChange }) {
   return (
     <div className="prompt-drop prompt-model__menu" role="listbox" aria-label="Select a model">
       {PROMPT_MODELS.map((model) => (
@@ -658,9 +682,8 @@ function ModelMenu({ modelIds, customDraft, onCustomDraft, onChange }) {
           key={model.id}
           type="button"
           role="option"
-          aria-selected={ids.includes(model.id)}
-          className={ids.includes(model.id) ? 'prompt-drop__choice is-selected' : 'prompt-drop__choice'}
-          onClick={() => toggle(model.id)}
+          className="prompt-drop__choice"
+          onClick={() => onChange([model.id])}
         >
           <img src={model.src} alt="" />
           <span>{model.label}</span>
@@ -671,8 +694,8 @@ function ModelMenu({ modelIds, customDraft, onCustomDraft, onChange }) {
         onSubmit={(event) => {
           event.preventDefault();
           const name = customDraft.trim();
-          if (!name || ids.includes(name)) return;
-          onChange([...ids, name]);
+          if (!name) return;
+          onChange([name]);
         }}
       >
         <input
@@ -693,10 +716,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(() => hasSavedPrompt(prompt));
   const [showImage, setShowImage] = useState(() => Boolean(step.image) && !prompt.video?.embedSrc && !prompt.pdf?.name);
-  const [showVideo, setShowVideo] = useState(() => Boolean(prompt.video?.embedSrc));
-  const [showPdf, setShowPdf] = useState(() => Boolean(prompt.pdf?.name) && !prompt.video?.embedSrc && !step.image);
+  const [showVideo, setShowVideo] = useState(() => Boolean(prompt.video?.embedSrc) && !step.promptSaved);
+  const [showPdf, setShowPdf] = useState(() => Boolean(prompt.pdf?.name) && !prompt.video?.embedSrc && !step.promptSaved);
   const [pdfError, setPdfError] = useState('');
   const [pdfReading, setPdfReading] = useState(false);
   const [pdfPages, setPdfPages] = useState([]);
@@ -722,7 +745,9 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   useEffect(() => {
-    setSheetOpen(false);
+    const saved = hasSavedPrompt(prompt);
+    setSheetOpen(saved);
+    if (saved && index !== 0) onPatch({ stepIndex: 0 });
     setModelOpen(false);
     setModelInfo(false);
     setCustomModel('');
@@ -735,7 +760,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     setPdfPageIndex(0);
     setPdfStatus('idle');
     pdfPagesRef.current = [];
-    if (prompt.video?.embedSrc) {
+    const landing = (saved ? prompt.steps?.[0] : null) || step;
+    const hideMedia = Boolean(saved && landing?.promptSaved);
+    if (hideMedia) {
+      setShowVideo(false);
+      setShowPdf(false);
+      setShowImage(Boolean(landing?.image));
+    } else if (prompt.video?.embedSrc) {
       setShowVideo(true);
       setShowImage(false);
       setShowPdf(false);
@@ -762,9 +793,25 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }, [step.id]);
 
   useEffect(() => {
-    if (!sheetOpen || showVideo || showPdf) return;
-    setShowImage(Boolean(step.image));
-  }, [sheetOpen, step.id, step.image, showVideo, showPdf]);
+    if (!sheetOpen) return;
+    if (step.promptSaved) {
+      setShowPdf(false);
+      setShowVideo(false);
+      setShowImage(Boolean(step.image));
+      return;
+    }
+    if (prompt.video?.embedSrc) {
+      setShowVideo(true);
+      setShowPdf(false);
+      setShowImage(false);
+    } else if (prompt.pdf?.name) {
+      setShowPdf(true);
+      setShowVideo(false);
+      setShowImage(false);
+    }
+    // Only when the page changes. Saving hides the column in saveStep; the file keeps the PDF or video for the next page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.id]);
 
   useEffect(() => {
     if (!showPdf || !prompt.pdf?.name) {
@@ -1015,6 +1062,9 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   function saveStep() {
+    setShowPdf(false);
+    setShowVideo(false);
+    setShowImage(Boolean(step.image));
     patchStep({ promptSaved: true });
   }
 
@@ -1138,8 +1188,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               }}
               onCustomDraft={setCustomModel}
               onChange={(modelIds) => {
-                patchStep({ modelIds });
+                patchStep({ modelIds: modelIds.slice(0, 1) });
                 setCustomModel('');
+                setModelOpen(false);
+                setModelInfo(false);
               }}
             />
             {showImage ? null : (
@@ -1259,12 +1311,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           ) : null}
           {modelOpen ? (
             <ModelMenu
-              modelIds={step.modelIds}
               customDraft={customModel}
               onCustomDraft={setCustomModel}
               onChange={(modelIds) => {
-                patchStep({ modelIds });
+                patchStep({ modelIds: modelIds.slice(0, 1) });
                 setCustomModel('');
+                setModelOpen(false);
+                setModelInfo(false);
               }}
             />
           ) : null}
@@ -1498,21 +1551,18 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               aria-label="Title"
               onChange={(event) => patchStep({ title: event.target.value })}
             />
-            <textarea
+            <DescriptionField
               className="prompt-sheet__description"
               value={step.description || ''}
-              placeholder="Brief description of the steps to follow"
-              aria-label="Brief description"
               readOnly={Boolean(step.promptSaved)}
-              rows={2}
-              onChange={(event) => patchStep({ description: event.target.value, promptSaved: false })}
+              onChange={(description) => patchStep({ description, promptSaved: false })}
             />
             <div className="prompt-drawer">
             <PromptBody
               key={step.id}
               prompt={step.prompt}
               variables={prompt.variables || []}
-              placeholder="Describe the prompt to create or insert"
+              placeholder="Insert Prompt"
               readOnly={Boolean(step.promptSaved)}
               onCommit={commitBody}
               className={
@@ -1673,14 +1723,11 @@ function FloatCard({ prompt, view, onPatch }) {
           aria-label="Title"
           onChange={(event) => patchStepTitle(event.target.value)}
         />
-        <textarea
+        <DescriptionField
           className="prompt-float__description"
           value={step.description || ''}
-          placeholder="Brief description of the steps to follow"
-          aria-label="Brief description"
           readOnly={Boolean(step.promptSaved)}
-          rows={2}
-          onChange={(event) => onPatch({ stepPatch: { id: step.id, description: event.target.value, promptSaved: false } })}
+          onChange={(description) => onPatch({ stepPatch: { id: step.id, description, promptSaved: false } })}
         />
         <div className="prompt-float__library">
           <button
@@ -1697,7 +1744,7 @@ function FloatCard({ prompt, view, onPatch }) {
             key={step.id}
             prompt={step.prompt}
             variables={prompt.variables || []}
-            placeholder="Describe the prompt to create or insert"
+            placeholder="Insert Prompt"
             readOnly={Boolean(step.promptSaved)}
             onCommit={commitBody}
             className="prompt-float__text"
@@ -1816,10 +1863,11 @@ const FLOAT_CSS = `
     background: transparent;
     color: rgba(255, 255, 255, 0.86);
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.4;
     padding: 8px 16px 10px;
     resize: none;
+    overflow: hidden;
     outline: none;
   }
   .prompt-float__description::placeholder { color: rgba(255, 255, 255, 0.38); }
@@ -2139,10 +2187,15 @@ const FLOAT_CSS = `
     outline: none;
   }
   .prompt-float__text::placeholder { color: rgba(255, 255, 255, 0.38); }
-  .prompt-float__text::-webkit-scrollbar { width: 8px; }
+  .prompt-float__text {
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a2a #151515;
+  }
+  .prompt-float__text::-webkit-scrollbar { width: 8px; height: 8px; }
+  .prompt-float__text::-webkit-scrollbar-track { background: #151515; }
   .prompt-float__text::-webkit-scrollbar-thumb {
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.28);
+    background: #2a2a2a;
   }
   .prompt-copy {
     position: absolute;
