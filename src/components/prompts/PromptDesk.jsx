@@ -18,6 +18,7 @@ import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfTe
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
 import { PromptBody } from './PromptBody.jsx';
+import EmbedHtml from './EmbedHtml.jsx';
 import './prompt-desk.css';
 
 const pdfFiles = new Map();
@@ -685,7 +686,7 @@ export default function PromptDesk() {
       <DeskSidebar view={view} />
       <div className="prompt-desk__main">
       {view === 'settings' ? <DeskPlaceholder title="Settings" /> : null}
-      {view === 'embed' ? <DeskPlaceholder title="Embed Html" /> : null}
+      {view === 'embed' ? <EmbedHtml /> : null}
       {view === 'home' ? (
       <>
       <header className="prompt-desk__bar">

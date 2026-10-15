@@ -223,6 +223,341 @@
   z-index: 1;
 }
 
+.prompt-embed {
+  min-height: 100svh;
+}
+
+.prompt-embed__body {
+  display: flex;
+  justify-content: center;
+  padding: 28px 32px 48px;
+}
+
+.prompt-embed__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  width: min(960px, 100%);
+}
+
+.prompt-embed__bars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.prompt-embed__toolbar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 6px;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.prompt-embed__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.prompt-embed__icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.prompt-embed__icon:hover,
+.prompt-embed__icon.is-active {
+  background: rgba(20, 20, 22, 0.08);
+}
+
+.prompt-embed__icon[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.prompt-embed__view {
+  position: relative;
+}
+
+.prompt-embed__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 6;
+  width: 360px;
+  max-width: min(360px, 70vw);
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 12px;
+  background: #151515;
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.prompt-embed__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.04);
+  font-size: 13px;
+}
+
+.prompt-embed__tool input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.prompt-embed__action {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(20, 20, 22, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-embed__action:hover {
+  background: rgba(20, 20, 22, 0.04);
+}
+
+.prompt-embed__box {
+  box-sizing: border-box;
+  align-self: stretch;
+  width: 100%;
+  max-width: 960px;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.prompt-embed__text-wrap {
+  position: relative;
+}
+
+.prompt-embed__text {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 16px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+.prompt-embed__text[data-empty]::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.prompt-embed__text strong,
+.prompt-embed__text b {
+  font-weight: 700;
+}
+
+.prompt-embed__text em,
+.prompt-embed__text i {
+  font-style: italic;
+}
+
+.prompt-embed__text u {
+  text-decoration: underline;
+}
+
+.prompt-embed__text s,
+.prompt-embed__text strike {
+  text-decoration: line-through;
+}
+
+.prompt-embed__text mark {
+  background: #f4e7a3;
+  color: inherit;
+}
+
+.prompt-embed__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: #f4f1eb;
+}
+
+.prompt-embed__overlay-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(720px, 100%);
+  max-height: min(72vh, 640px);
+  padding: 28px;
+  border-radius: 0;
+  background: #151515;
+  color: #fff;
+}
+
+.prompt-embed__overlay-card h2 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.prompt-embed__overlay-card pre {
+  flex: 1;
+  min-height: 180px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 0;
+  background: #151515;
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.prompt-embed__overlay-card > button {
+  align-self: flex-start;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: #151515;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-embed__text.is-scroll {
+  max-height: 96px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.prompt-embed__text:not(.is-scroll) {
+  overflow: hidden;
+}
+
+.prompt-embed__fade {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32px;
+}
+
+.prompt-embed__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.prompt-embed__box button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: 500 13px/1 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.prompt-embed__box button svg {
+  display: block;
+  flex: none;
+}
+
+.prompt-embed__code {
+  width: 100%;
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 12px;
+  background: #151515;
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a #151515;
+}
+
+.prompt-embed__code::-webkit-scrollbar {
+  width: 8px;
+}
+
+.prompt-embed__code::-webkit-scrollbar-track {
+  background: #151515;
+}
+
+.prompt-embed__code::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 8px;
+}
+
 .prompt-desk__search {
   position: relative;
   z-index: 1;

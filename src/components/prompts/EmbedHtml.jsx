@@ -1,0 +1,474 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { copyToClipboard } from '../../lib/copyToClipboard.js';
+
+const DEFAULTS = {
+  background: '#ffffff',
+  color: '#000000',
+  button: '#f4f1eb',
+};
+
+const FORMATS = [
+  { id: 'bold', label: 'Bold', command: 'bold' },
+  { id: 'italic', label: 'Italic', command: 'italic' },
+  { id: 'underline', label: 'Underline', command: 'underline' },
+  { id: 'strike', label: 'Strikethrough', command: 'strikeThrough' },
+  { id: 'highlight', label: 'Highlight', command: 'highlight' },
+];
+
+const SCROLL_AT = 760;
+
+const COPY_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style="display:block;flex:none"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.16667 2.99935C5.16667 1.98683 5.98748 1.16602 7 1.16602H11.6667C12.6792 1.16602 13.5 1.98683 13.5 2.99935V10.3327C13.5 11.3452 12.6792 12.166 11.6667 12.166H7C5.98748 12.166 5.16667 11.3452 5.16667 10.3327V2.99935ZM7 2.16602C6.53976 2.16602 6.16667 2.53911 6.16667 2.99935V10.3327C6.16667 10.7929 6.53976 11.166 7 11.166H11.6667C12.1269 11.166 12.5 10.7929 12.5 10.3327V2.99935C12.5 2.53911 12.1269 2.16602 11.6667 2.16602H7ZM3 4.83268C3.27614 4.83268 3.5 5.05654 3.5 5.33268V12.9993C3.5 13.4596 3.8731 13.8327 4.33333 13.8327H9C9.27614 13.8327 9.5 14.0565 9.5 14.3327C9.5 14.6088 9.27614 14.8327 9 14.8327H4.33333C3.32081 14.8327 2.5 14.0119 2.5 12.9993V5.33268C2.5 5.05654 2.72386 4.83268 3 4.83268Z" fill="currentColor"></path></svg>';
+
+function hexColor(value, fallback) {
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value.toLowerCase() : fallback;
+}
+
+function readableOn(hex) {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const y = (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
+  return y > 150 ? '#151515' : '#ffffff';
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function promptCardStyles(background, color, button) {
+  const box = hexColor(background, DEFAULTS.background);
+  const ink = hexColor(color, DEFAULTS.color);
+  const fill = hexColor(button, DEFAULTS.button);
+  const buttonInk = readableOn(fill);
+  return { box, ink, fill, buttonInk };
+}
+
+function plainFrom(root) {
+  const parts = [];
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.nodeValue || '');
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.tagName === 'BR') {
+      parts.push('\n');
+      return;
+    }
+    const block = node.tagName === 'DIV' || node.tagName === 'P';
+    if (block && parts.length && !String(parts[parts.length - 1]).endsWith('\n')) parts.push('\n');
+    node.childNodes.forEach(walk);
+  }
+  root.childNodes.forEach(walk);
+  return parts.join('').replace(/\u200b/g, '').replace(/\n$/, '');
+}
+
+function serializeNode(node) {
+  if (node.nodeType === Node.TEXT_NODE) return escapeHtml((node.nodeValue || '').replace(/\u200b/g, ''));
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+  const tag = node.tagName;
+  if (tag === 'BR') return '<br>';
+  const inner = [...node.childNodes].map(serializeNode).join('');
+  const style = node.getAttribute('style') || '';
+  const bold = tag === 'B' || tag === 'STRONG' || /font-weight:\s*(bold|[6-9]00)/i.test(style);
+  const italic = tag === 'I' || tag === 'EM' || /font-style:\s*italic/i.test(style);
+  const underline = tag === 'U' || /text-decoration[^;]*underline/i.test(style);
+  const strike = tag === 'S' || tag === 'STRIKE' || tag === 'DEL' || /line-through/i.test(style);
+  const highlight = tag === 'MARK' || hasHighlight(style);
+  if (tag === 'DIV' || tag === 'P') return `${inner || '<br>'}<br>`;
+  let out = inner;
+  if (highlight) out = `<mark style="background:#f4e7a3;color:inherit">${out}</mark>`;
+  if (strike) out = `<s>${out}</s>`;
+  if (underline) out = `<u>${out}</u>`;
+  if (italic) out = `<em>${out}</em>`;
+  if (bold) out = `<strong>${out}</strong>`;
+  return out;
+}
+
+function serializeEditor(root) {
+  return [...root.childNodes].map(serializeNode).join('').replace(/(?:<br>)+$/, '');
+}
+
+function hasHighlight(style) {
+  return /background(?:-color)?:\s*(?!transparent\b|inherit\b|none\b|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\))/i.test(style);
+}
+
+function matchesKind(node, kind) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+  const tag = node.tagName;
+  const style = node.getAttribute('style') || '';
+  if (kind === 'bold') return tag === 'B' || tag === 'STRONG' || /font-weight:\s*(bold|[6-9]00)/i.test(style);
+  if (kind === 'italic') return tag === 'I' || tag === 'EM' || /font-style:\s*italic/i.test(style);
+  if (kind === 'underline') return tag === 'U' || /text-decoration[^;]*underline/i.test(style);
+  if (kind === 'strike') return tag === 'S' || tag === 'STRIKE' || tag === 'DEL' || /line-through/i.test(style);
+  if (kind === 'highlight') return tag === 'MARK' || hasHighlight(style);
+  return false;
+}
+
+function kindOf(command) {
+  if (command === 'strikeThrough') return 'strike';
+  return command;
+}
+
+function exitFormat(root, kind) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !root) return false;
+  const range = selection.getRangeAt(0);
+  if (!range.collapsed || !root.contains(range.startContainer)) return false;
+  let node = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  let target = null;
+  while (node && node !== root) {
+    if (matchesKind(node, kind)) target = node;
+    node = node.parentElement;
+  }
+  if (!target?.parentNode) return false;
+  if (range.startContainer.nodeType === Node.TEXT_NODE && target.contains(range.startContainer)) {
+    const offset = range.startOffset;
+    if (offset > 0 && offset < range.startContainer.length) range.startContainer.splitText(offset);
+  }
+  const after = document.createRange();
+  after.selectNodeContents(target);
+  after.setStart(range.startContainer, range.startOffset);
+  const fragment = after.extractContents();
+  const parent = target.parentNode;
+  const marker = document.createTextNode('');
+  let caretNode = marker;
+  let caretOffset = 0;
+  if (kind === 'highlight') {
+    const barrier = document.createElement('span');
+    barrier.setAttribute('data-fn-break', '');
+    barrier.appendChild(document.createTextNode('\u200b'));
+    caretNode = barrier.firstChild;
+    caretOffset = 1;
+    parent.insertBefore(barrier, target.nextSibling);
+  } else {
+    parent.insertBefore(marker, target.nextSibling);
+  }
+  if (fragment.childNodes.length) parent.insertBefore(fragment, (kind === 'highlight' ? caretNode.parentNode : marker).nextSibling);
+  if (!target.textContent) target.remove();
+  const next = document.createRange();
+  next.setStart(caretNode, caretOffset);
+  next.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(next);
+  return true;
+}
+
+function marksAtSelection(root) {
+  const found = { bold: false, italic: false, underline: false, strike: false, highlight: false };
+  const selection = window.getSelection();
+  if (!selection || !root || !selection.anchorNode || !root.contains(selection.anchorNode)) return found;
+  let node = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+    ? selection.anchorNode
+    : selection.anchorNode.parentElement;
+  while (node && node !== root) {
+    const tag = node.tagName;
+    const style = node.getAttribute?.('style') || '';
+    if (tag === 'B' || tag === 'STRONG' || /font-weight:\s*(bold|[6-9]00)/i.test(style)) found.bold = true;
+    if (tag === 'I' || tag === 'EM' || /font-style:\s*italic/i.test(style)) found.italic = true;
+    if (tag === 'U' || /underline/i.test(style)) found.underline = true;
+    if (tag === 'S' || tag === 'STRIKE' || /line-through/i.test(style)) found.strike = true;
+    if (tag === 'MARK' || hasHighlight(style)) found.highlight = true;
+    node = node.parentElement;
+  }
+  try {
+    if (document.queryCommandState('bold')) found.bold = true;
+    if (document.queryCommandState('italic')) found.italic = true;
+    if (document.queryCommandState('underline')) found.underline = true;
+    if (document.queryCommandState('strikeThrough')) found.strike = true;
+  } catch {
+    /* The caret is outside the prompt. */
+  }
+  return found;
+}
+
+function ToolIcon({ name }) {
+  const paths = {
+    bold: 'M7 5h6.2a3.4 3.4 0 0 1 0 6.8H7zM7 11.8h7.2a3.6 3.6 0 0 1 0 7.2H7z',
+    italic: 'M14 5h6M8 19h6M15 5 11 19',
+    underline: 'M7 4.5v7a5 5 0 0 0 10 0v-7M6 19.5h12',
+    strike: 'M5 12h14M8.2 7.2c.6-1.4 2-2.2 3.8-2.2 2.4 0 3.8 1.2 3.8 2.8 0 .7-.3 1.3-.8 1.8M8.4 16.8c.7 1.1 2 1.8 3.8 1.8 2.3 0 3.8-1.1 3.8-2.8',
+    highlight: 'M5 16.5 9.2 6l3.2 1.8L8.2 18.3zM14 8.2l3.6-1.6 2.2 3.2-3.6 1.6zM6 20h12',
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
+export function buildPromptEmbed({ text, markup = '', background, color, button }) {
+  const { box, ink, fill, buttonInk } = promptCardStyles(background, color, button);
+  const safe = escapeHtml(text);
+  const body = markup.trim() ? markup : safe;
+  const overflow = String(text).length > SCROLL_AT;
+  const textStyle = [
+    'white-space:pre-wrap',
+    'overflow-wrap:anywhere',
+    'font:16px/1.5 ui-sans-serif,system-ui,sans-serif',
+    overflow ? 'max-height:96px' : 'max-height:none',
+    overflow ? 'overflow-y:auto' : 'overflow:visible',
+  ].join(';');
+  const fade = overflow
+    ? `<div style="pointer-events:none;position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to top, ${box}, transparent)"></div>`
+    : '';
+  return `<div style="box-sizing:border-box;width:100%;max-width:960px;padding:20px;border-radius:12px;background:${box};color:${ink}">
+  <div style="position:relative">
+    <div style="${textStyle}">${body}</div>
+    ${fade}
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:16px">
+    <button type="button" data-fn-prompt="${safe}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border:1px solid ${buttonInk}33;border-radius:6px;background:${fill};color:${buttonInk};font:500 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap">${COPY_ICON}<span>Copy</span></button>
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.currentScript.previousElementSibling;
+  var button = box.querySelector("button");
+  var label = button.querySelector("span");
+  button.addEventListener("click", function () {
+    var text = button.getAttribute("data-fn-prompt") || "";
+    navigator.clipboard.writeText(text).then(function () {
+      var previous = label.textContent;
+      label.textContent = "Copied";
+      setTimeout(function () { label.textContent = previous; }, 1200);
+    });
+  });
+})();
+</script>`;
+}
+
+export default function EmbedHtml() {
+  const [text, setText] = useState('');
+  const [background, setBackground] = useState(DEFAULTS.background);
+  const [color, setColor] = useState(DEFAULTS.color);
+  const [button, setButton] = useState(DEFAULTS.button);
+  const [markup, setMarkup] = useState('');
+  const [active, setActive] = useState({ bold: false, italic: false, underline: false, strike: false, highlight: false });
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const editorRef = useRef(null);
+  const savedRange = useRef(null);
+  const html = useMemo(
+    () => buildPromptEmbed({ text, markup, background, color, button }),
+    [text, markup, background, color, button],
+  );
+  const card = promptCardStyles(background, color, button);
+  const overflow = text.length > SCROLL_AT;
+
+  function sync() {
+    const root = editorRef.current;
+    if (!root) return;
+    setText(plainFrom(root));
+    setMarkup(serializeEditor(root));
+    setActive(marksAtSelection(root));
+  }
+
+  function saveRange() {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editorRef.current) return;
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer)) return;
+    savedRange.current = range.cloneRange();
+  }
+
+  function restoreRange() {
+    const range = savedRange.current;
+    const root = editorRef.current;
+    if (!range || !root) return;
+    root.focus();
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function applyFormat(command) {
+    const root = editorRef.current;
+    restoreRange();
+    root?.focus();
+    const selection = window.getSelection();
+    const collapsed = !selection?.rangeCount || selection.getRangeAt(0).collapsed;
+    const kind = kindOf(command);
+    if (collapsed && root && marksAtSelection(root)[kind]) {
+      if (!exitFormat(root, kind)) {
+        document.execCommand('styleWithCSS', false, false);
+        document.execCommand(command === 'highlight' ? 'removeFormat' : command, false, null);
+      } else if (command !== 'highlight') {
+        document.execCommand('styleWithCSS', false, false);
+        try {
+          if (document.queryCommandState(command)) document.execCommand(command, false, null);
+        } catch {
+          /* The caret is already outside the mark. */
+        }
+      }
+    } else if (command === 'highlight') {
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('hiliteColor', false, '#f4e7a3');
+    } else {
+      document.execCommand('styleWithCSS', false, false);
+      document.execCommand(command, false, null);
+    }
+    sync();
+    saveRange();
+  }
+
+  function placeCaretAtStart(event) {
+    const root = editorRef.current;
+    if (!root || plainFrom(root).length) return;
+    event.preventDefault();
+    root.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(root, 0);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRange.current = range.cloneRange();
+  }
+
+  useEffect(() => {
+    function onSelection() {
+      const root = editorRef.current;
+      if (!root) return;
+      const selection = window.getSelection();
+      if (!selection?.anchorNode || !root.contains(selection.anchorNode)) return;
+      saveRange();
+      setActive(marksAtSelection(root));
+    }
+    document.addEventListener('selectionchange', onSelection);
+    return () => document.removeEventListener('selectionchange', onSelection);
+  }, []);
+
+  useEffect(() => {
+    if (!codeOpen) return undefined;
+    function onKey(event) {
+      if (event.key === 'Escape') setCodeOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [codeOpen]);
+
+  async function copyEmbed() {
+    const ok = await copyToClipboard(html);
+    if (!ok) return;
+    setCopiedEmbed(true);
+    window.setTimeout(() => setCopiedEmbed(false), 1200);
+  }
+
+  async function copyPrompt() {
+    const ok = await copyToClipboard(text);
+    if (!ok) return;
+    setCopiedPrompt(true);
+    window.setTimeout(() => setCopiedPrompt(false), 1200);
+  }
+
+  return (
+    <div className="prompt-desk__page prompt-embed">
+      <header className="prompt-desk__bar">
+        <h1 className="prompt-desk__mark">Embed Html</h1>
+      </header>
+      <div className="prompt-embed__body">
+        <div className="prompt-embed__stage">
+          <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
+            <div className="prompt-embed__text-wrap">
+              <div
+                ref={editorRef}
+                className={overflow ? 'prompt-embed__text is-scroll' : 'prompt-embed__text'}
+                contentEditable
+                role="textbox"
+                aria-label="Prompt"
+                aria-multiline="true"
+                data-placeholder="Insert Prompt"
+                data-empty={text.length ? undefined : ''}
+                onMouseDown={placeCaretAtStart}
+                onInput={sync}
+                onKeyUp={sync}
+                onMouseUp={() => { saveRange(); sync(); }}
+              />
+              {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
+            </div>
+            <div className="prompt-embed__actions">
+              <button
+                type="button"
+                style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
+                onClick={() => { void copyPrompt(); }}
+              >
+                <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
+                <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          </div>
+          <div className="prompt-embed__bars">
+          <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
+            {FORMATS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={active[item.id] ? 'prompt-embed__icon is-active' : 'prompt-embed__icon'}
+                aria-label={item.label}
+                aria-pressed={active[item.id]}
+                data-tip={item.label}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applyFormat(item.command);
+                }}
+              >
+                <ToolIcon name={item.id} />
+              </button>
+            ))}
+            <button type="button" className="prompt-embed__action" onClick={() => { void copyEmbed(); }}>
+              {copiedEmbed ? 'Copied' : 'Copy embed'}
+            </button>
+            <button
+              type="button"
+              className="prompt-embed__action"
+              aria-expanded={codeOpen}
+              onClick={() => setCodeOpen(true)}
+            >
+              View embed
+            </button>
+          </div>
+          <div className="prompt-embed__toolbar prompt-embed__colors" role="toolbar" aria-label="Colors">
+            <label className="prompt-embed__tool">
+              <span>Background</span>
+              <input type="color" value={background} aria-label="Background" onChange={(event) => setBackground(event.target.value)} />
+            </label>
+            <label className="prompt-embed__tool">
+              <span>Text</span>
+              <input type="color" value={color} aria-label="Text" onChange={(event) => setColor(event.target.value)} />
+            </label>
+            <label className="prompt-embed__tool">
+              <span>Button</span>
+              <input type="color" value={button} aria-label="Button" onChange={(event) => setButton(event.target.value)} />
+            </label>
+          </div>
+          </div>
+        </div>
+      </div>
+      {codeOpen ? (
+        <div
+          className="prompt-embed__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Embed code"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCodeOpen(false);
+          }}
+        >
+          <div className="prompt-embed__overlay-card">
+            <h2>Embed code</h2>
+            <pre>{html}</pre>
+            <button type="button" onClick={() => { void copyEmbed(); }}>
+              {copiedEmbed ? 'Copied' : 'Copy embed'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
