@@ -199,7 +199,7 @@ export async function extractTextFromPdfFile(file) {
  */
 export async function renderPdfPageImages(data, opts = {}) {
   const maxPages = opts.maxPages ?? 3;
-  const maxWidth = opts.maxWidth ?? 900;
+  const maxWidth = opts.maxWidth ?? 640;
   const pdfjs = await ensurePdfjs();
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   const pdf = await pdfjs.getDocument({
@@ -212,9 +212,10 @@ export async function renderPdfPageImages(data, opts = {}) {
   try {
     const shown = Math.min(pageCount, maxPages);
     for (let i = 1; i <= shown; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
       const page = await pdf.getPage(i);
       const base = page.getViewport({ scale: 1 });
-      const scale = Math.min(1.6, maxWidth / Math.max(base.width, 1));
+      const scale = Math.min(1.25, maxWidth / Math.max(base.width, 1));
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
