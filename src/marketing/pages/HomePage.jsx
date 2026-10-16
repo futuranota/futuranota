@@ -147,6 +147,7 @@ export function HomePage() {
 
       <footer className="plain-foot">
         <Link to={PATHS.privacy}>Privacy</Link>
+        <Link to={PATHS.termsOfService}>Terms of Service</Link>
         <span>Futura Nota</span>
         <Link to={authPath('signin')}>{t('marketing.logIn')}</Link>
         <Link to={authPath()}>{t('marketing.signUp')}</Link>

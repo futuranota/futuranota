@@ -250,10 +250,10 @@ export function AuthSignupCard({
               <span>
                 <label htmlFor="agreeToTerms">I agree to the </label>
                 <Link
-                  to={PATHS.terms}
+                  to={PATHS.termsOfService}
                   className="auth-split-form__link auth-split-form__link--inline"
                 >
-                  Terms &amp; Conditions
+                  Terms of Service
                 </Link>
               </span>
             </div>

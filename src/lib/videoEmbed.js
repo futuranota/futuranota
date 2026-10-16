@@ -203,7 +203,7 @@ export function parseVideoEmbedInput(raw) {
       videoId: "",
       embedSrc: "",
       rawInput: input,
-      error: "Solo YouTube, Vimeo e Instagram por ahora. Pega una URL o código embed válido.",
+      error: "Only YouTube, Vimeo, and Instagram for now. Paste a valid URL or embed code.",
     };
   }
 
@@ -213,7 +213,7 @@ export function parseVideoEmbedInput(raw) {
       videoId: "",
       embedSrc: "",
       rawInput: input,
-      error: "Dominio de embed no permitido.",
+      error: "Embed domain not allowed.",
     };
   }
 

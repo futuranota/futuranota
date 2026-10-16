@@ -871,11 +871,15 @@
   max-width: 100%;
   height: 100%;
   padding: 24px;
-  border: 2px dashed rgba(20, 20, 22, 0.45);
+  border: 2px dashed rgba(20, 20, 22, 0.18);
   border-radius: 14px;
   background: #fff;
   color: #1a1a1a;
   text-align: center;
+}
+
+.prompt-panel__pdf:hover {
+  border-color: rgba(20, 20, 22, 0.32);
 }
 
 .prompt-panel__pdf p {
@@ -886,11 +890,28 @@
 }
 
 .prompt-panel__pdf-pick {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
   width: 100%;
   height: 100%;
   cursor: pointer;
+}
+
+.prompt-panel__pdf-art {
+  width: min(280px, 72%);
+  height: auto;
+  object-fit: contain;
+}
+
+.prompt-panel__pdf-link {
+  color: rgba(20, 20, 22, 0.55);
+  font-size: 13px;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .prompt-panel__pdf-pick input {
@@ -953,12 +974,6 @@
 .prompt-panel__pdf-index button:disabled {
   opacity: 0.35;
   cursor: default;
-}
-
-.prompt-panel__pdf-pick span + span {
-  margin-top: 8px;
-  color: rgba(20, 20, 22, 0.62);
-  font-size: 13px;
 }
 
 .prompt-panel__pdf-note {
@@ -1099,45 +1114,67 @@
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  border: 2px dashed rgba(20, 20, 22, 0.45);
+  border: 2px dashed rgba(20, 20, 22, 0.18);
   border-radius: 14px;
   background: #fff;
 }
 
+.prompt-panel__video-form:hover {
+  border-color: rgba(20, 20, 22, 0.32);
+}
+
 .prompt-panel__player {
   border-style: solid;
+  border-color: rgba(20, 20, 22, 0.18);
 }
 
 .prompt-panel__video-form {
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 16px;
   padding: 24px;
 }
 
+.prompt-panel__video-art {
+  flex: none;
+  width: auto;
+  height: auto;
+  max-width: min(460px, 92%);
+  max-height: 280px;
+  object-fit: contain;
+}
+
 .prompt-panel__video-form input {
-  width: 100%;
+  width: min(420px, 88%);
   box-sizing: border-box;
   border: 0;
-  border-radius: 10px;
-  background: #fff;
+  border-bottom: 1px solid rgba(20, 20, 22, 0.16);
+  border-radius: 0;
+  background: transparent;
   color: #1a1a1a;
   font: inherit;
-  font-size: 14px;
-  padding: 12px 14px;
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 4px;
   outline: none;
 }
 
 .prompt-panel__video-form button {
-  align-self: flex-start;
-  border: 1px solid rgba(20, 20, 22, 0.16);
-  background: transparent;
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 16px;
+  border: 0;
   border-radius: 999px;
-  padding: 8px 14px;
+  background: #1a1a1a;
+  color: #fff;
   font: inherit;
   font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -1728,22 +1765,55 @@
   background: transparent;
   color: #704901;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
   padding: 8px 40px 4px 16px;
   resize: none;
   overflow: hidden;
   outline: none;
   box-sizing: border-box;
+  white-space: pre-wrap;
+  min-height: 2.8em;
 }
 
 .prompt-sheet__description::placeholder {
   color: rgba(112, 73, 1, 0.45);
 }
 
-.prompt-sheet__description[readonly] {
+.prompt-sheet__description[data-empty='true']::before {
+  content: attr(data-placeholder);
+  color: rgba(112, 73, 1, 0.45);
+}
+
+.prompt-sheet__description[contenteditable='false'] {
   cursor: default;
+}
+
+.prompt-body__editor strong,
+.prompt-sheet__description strong {
+  font-weight: 700;
+}
+
+.prompt-body__editor em,
+.prompt-sheet__description em {
+  font-style: italic;
+}
+
+.prompt-body__editor u,
+.prompt-sheet__description u {
+  text-decoration: underline;
+}
+
+.prompt-body__editor s,
+.prompt-sheet__description s {
+  text-decoration: line-through;
+}
+
+.prompt-body__editor mark,
+.prompt-sheet__description mark {
+  background: #f4e7a3;
+  color: inherit;
 }
 
 .prompt-sheet .prompt-drawer,
@@ -2429,4 +2499,48 @@
   .prompt-desk__account {
     margin-top: 12px;
   }
+}
+
+.prompt-focus-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #f4f1eb;
+}
+
+.prompt-formatbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 26px;
+  padding: 0 2px;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.06);
+}
+
+.prompt-formatbar__btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.prompt-formatbar__btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.prompt-formatbar__btn:hover,
+.prompt-formatbar__btn.is-active {
+  background: rgba(20, 20, 22, 0.1);
 }

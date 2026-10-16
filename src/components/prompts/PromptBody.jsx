@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { parsePrompt, resolvePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
 
@@ -16,6 +16,31 @@ function makeChip(doc, variable) {
   return span;
 }
 
+const MARKS = {
+  STRONG: 'strong',
+  B: 'strong',
+  EM: 'em',
+  I: 'em',
+  U: 'u',
+  S: 's',
+  STRIKE: 's',
+  MARK: 'mark',
+};
+
+function escapeHtml(value) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function styleMark(node) {
+  const style = node.getAttribute('style') || '';
+  if (/background/i.test(style)) return 'mark';
+  if (/font-weight:\s*(bold|[6-9]00)/i.test(style)) return 'strong';
+  if (/font-style:\s*italic/i.test(style)) return 'em';
+  if (/line-through/i.test(style)) return 's';
+  if (/underline/i.test(style)) return 'u';
+  return '';
+}
+
 function appendText(doc, parent, text) {
   const lines = text.split('\n');
   lines.forEach((line, index) => {
@@ -28,7 +53,7 @@ function readTemplate(root) {
   let out = '';
   const walk = (node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      out += node.textContent.replace(/\u00a0/g, ' ').replace(/\u200B/g, '');
+      out += escapeHtml(node.textContent.replace(/\u00a0/g, ' ').replace(/\u200B/g, ''));
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -40,6 +65,13 @@ function readTemplate(root) {
       out += '\n';
       return;
     }
+    const mark = MARKS[node.tagName] || (node.tagName === 'SPAN' ? styleMark(node) : '');
+    if (mark) {
+      out += `<${mark}>`;
+      for (const child of node.childNodes) walk(child);
+      out += `</${mark}>`;
+      return;
+    }
     if (node.tagName === 'DIV' || node.tagName === 'P') {
       if (out && !out.endsWith('\n')) out += '\n';
       for (const child of node.childNodes) walk(child);
@@ -49,6 +81,60 @@ function readTemplate(root) {
   };
   for (const child of root.childNodes) walk(child);
   return out;
+}
+
+export function readMarked(root) {
+  return root ? readTemplate(root) : '';
+}
+
+function hasMarks(source) {
+  return /<\/?(?:strong|em|u|s|mark)\b/i.test(source || '');
+}
+
+export function paintMarked(root, source, variables, { chips = true } = {}) {
+  const doc = root.ownerDocument;
+  const value = source || '';
+  root.replaceChildren();
+  const writeText = (parent, text) => {
+    const parts = chips ? parsePrompt(text) : [{ type: 'text', text }];
+    for (const part of parts) {
+      if (part.type === 'text') appendText(doc, parent, part.text);
+      else {
+        parent.appendChild(makeChip(
+          doc,
+          (variables || []).find((item) => item.id === part.id) || { id: part.id, name: '?', value: '' },
+        ));
+      }
+    }
+  };
+  if (!hasMarks(value)) {
+    writeText(root, value);
+    return;
+  }
+  const holder = doc.createElement('template');
+  holder.innerHTML = value.replace(/\n/g, '<br>');
+  const walk = (from, to) => {
+    for (const node of [...from.childNodes]) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        writeText(to, node.textContent);
+        continue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.tagName === 'BR') {
+        to.appendChild(doc.createElement('br'));
+        continue;
+      }
+      const mark = MARKS[node.tagName];
+      if (!mark) {
+        walk(node, to);
+        continue;
+      }
+      const el = doc.createElement(mark);
+      walk(node, el);
+      to.appendChild(el);
+    }
+  };
+  walk(holder.content, root);
 }
 
 function mentionAtCaret(root) {
@@ -87,9 +173,11 @@ export function PromptBody({
   spellCheck = true,
   readOnly = false,
   placeholder = '',
+  onEditFocus,
   children,
 }) {
   const editorRef = useRef(null);
+  const lockedRef = useRef(null);
   const localRef = useRef(null);
   const mentionRef = useRef(null);
   const nameRef = useRef(null);
@@ -112,20 +200,38 @@ export function PromptBody({
   function paintAll(source) {
     const root = editorRef.current;
     if (!root) return;
-    const doc = root.ownerDocument;
-    const parts = parsePrompt(source);
-    root.replaceChildren();
+    const plain = String(source || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '');
+    const parts = parsePrompt(plain);
     const empty = parts.length === 1 && parts[0].type === 'text' && !parts[0].text;
     if (empty) {
+      root.replaceChildren();
       root.dataset.empty = 'true';
       return;
     }
     delete root.dataset.empty;
-    for (const part of parts) {
-      if (part.type === 'text') appendText(doc, root, part.text);
-      else root.appendChild(makeChip(doc, list.find((item) => item.id === part.id) || { id: part.id, name: '?', value: '' }));
-    }
+    paintMarked(root, source, list);
   }
+
+  useLayoutEffect(() => {
+    if (!readOnly) return;
+    const root = lockedRef.current;
+    if (!root) return;
+    const plain = resolvePrompt(prompt, list).replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
+    if (!plain) {
+      root.replaceChildren();
+      root.dataset.empty = 'true';
+      return;
+    }
+    delete root.dataset.empty;
+    if (!hasMarks(prompt)) {
+      root.textContent = resolvePrompt(prompt, list);
+      return;
+    }
+    const shown = String(prompt || '').replace(/\{\{([^{}]+)\}\}/g, (_, id) => (
+      escapeHtml(fieldText(list.find((item) => item.id === id)))
+    ));
+    paintMarked(root, shown, [], { chips: false });
+  }, [readOnly, prompt, variables]);
 
   useEffect(() => {
     if (readOnly) {
@@ -283,15 +389,13 @@ export function PromptBody({
       <div className="prompt-body">
         <div className="prompt-body__frame">
           <div
+            ref={lockedRef}
             className={`${editorClass} prompt-body__editor--locked`}
             role="textbox"
             aria-readonly="true"
             aria-label="Prompt"
             data-placeholder={placeholder}
-            data-empty={resolvePrompt(prompt, list).trim() ? undefined : 'true'}
-          >
-            {resolvePrompt(prompt, list)}
-          </div>
+          />
           {children}
         </div>
       </div>
@@ -314,9 +418,14 @@ export function PromptBody({
             commitDom();
             syncMenu();
           }}
+          onFocus={() => onEditFocus?.(editorRef.current)}
           onKeyDown={onKeyDown}
+          onKeyUp={() => onEditFocus?.(editorRef.current)}
           onPaste={onPaste}
-          onMouseUp={syncMenu}
+          onMouseUp={() => {
+            syncMenu();
+            onEditFocus?.(editorRef.current);
+          }}
           suppressContentEditableWarning
         />
         {children}

@@ -18,7 +18,7 @@ import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody } from './PromptBody.jsx';
+import { PromptBody, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
 import './prompt-desk.css';
 
@@ -63,29 +63,99 @@ function stepTitleOf(step) {
   return typeof step.title === 'string' ? step.title : '';
 }
 
-function DescriptionField({ className, value, readOnly, onChange }) {
+function plainCopy(template, variables) {
+  return resolvePrompt(template, variables)
+    .replace(/<\/?(?:strong|em|u|s|mark)>/gi, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+const FORMAT_TOOLS = [
+  { id: 'bold', label: 'Bold', command: 'bold' },
+  { id: 'italic', label: 'Italic', command: 'italic' },
+  { id: 'underline', label: 'Underline', command: 'underline' },
+  { id: 'strike', label: 'Strikethrough', command: 'strikeThrough' },
+  { id: 'highlight', label: 'Highlight', command: 'highlight' },
+];
+
+function FormatIcon({ name }) {
+  const paths = {
+    bold: 'M7 5h6.2a3.4 3.4 0 0 1 0 6.8H7zM7 11.8h7.2a3.6 3.6 0 0 1 0 7.2H7z',
+    italic: 'M14 5h6M8 19h6M15 5 11 19',
+    underline: 'M7 4.5v7a5 5 0 0 0 10 0v-7M6 19.5h12',
+    strike: 'M5 12h14M8.2 7.2c.6-1.4 2-2.2 3.8-2.2 2.4 0 3.8 1.2 3.8 2.8 0 .7-.3 1.3-.8 1.8M8.4 16.8c.7 1.1 2 1.8 3.8 1.8 2.3 0 3.8-1.1 3.8-2.8',
+    highlight: 'M5 16.5 9.2 6l3.2 1.8L8.2 18.3zM14 8.2l3.6-1.6 2.2 3.2-3.6 1.6zM6 20h12',
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
+function FormatBar({ active, onApply }) {
+  return (
+    <div className="prompt-formatbar" role="toolbar" aria-label="Text format">
+      {FORMAT_TOOLS.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className={active?.[item.command] ? 'prompt-formatbar__btn is-active' : 'prompt-formatbar__btn'}
+          aria-label={item.label}
+          aria-pressed={Boolean(active?.[item.command])}
+          title={item.label}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            onApply(item.command);
+          }}
+        >
+          <FormatIcon name={item.id} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DescriptionField({ className, value, readOnly, onChange, onEditFocus }) {
   const ref = useRef(null);
+  const local = useRef(null);
   useEffect(() => {
     const node = ref.current;
-    if (!node) return;
-    node.style.height = 'auto';
-    node.style.height = `${node.scrollHeight}px`;
-  }, [value, readOnly]);
+    if (!node || local.current === value) return;
+    local.current = value;
+    paintMarked(node, value, [], { chips: false });
+    if (node.textContent.trim()) delete node.dataset.empty;
+    else node.dataset.empty = 'true';
+  }, [value]);
   return (
-    <textarea
+    <div
       ref={ref}
       className={className}
-      value={value}
-      placeholder="Brief description of the steps to follow"
+      contentEditable={readOnly ? 'false' : 'true'}
+      role="textbox"
+      aria-multiline="true"
+      aria-readonly={readOnly || undefined}
       aria-label="Brief description"
-      readOnly={readOnly}
-      rows={2}
-      onChange={(event) => onChange(event.target.value)}
+      data-placeholder="Brief description of the steps to follow"
+      spellCheck
+      suppressContentEditableWarning
+      onInput={() => {
+        const next = readMarked(ref.current);
+        local.current = next;
+        if (ref.current.textContent.trim()) delete ref.current.dataset.empty;
+        else ref.current.dataset.empty = 'true';
+        onChange(next);
+      }}
+      onFocus={() => onEditFocus?.(ref.current)}
+      onMouseUp={() => onEditFocus?.(ref.current)}
+      onKeyUp={() => onEditFocus?.(ref.current)}
     />
   );
 }
 
-function DescriptionBlock({ className, value, readOnly, onChange }) {
+function DescriptionBlock({ className, value, readOnly, onChange, onEditFocus }) {
   const [open, setOpen] = useState(true);
   return (
     <div className={open ? 'prompt-desc' : 'prompt-desc prompt-desc--closed'}>
@@ -107,6 +177,7 @@ function DescriptionBlock({ className, value, readOnly, onChange }) {
           value={value}
           readOnly={readOnly}
           onChange={onChange}
+          onEditFocus={onEditFocus}
         />
       ) : null}
     </div>
@@ -747,10 +818,11 @@ export default function PromptDesk() {
       </>
       ) : null}
 
-      {activePrompt && !floating ? (
+      {activePrompt ? (
         <InstructionPanel
           prompt={activePrompt.prompt}
           compact={compact}
+          parked={floating}
           onPatch={patchPrompt}
           onCompact={() => { void openFloat(); }}
           onExpand={() => setCompact(false)}
@@ -850,9 +922,9 @@ function ModelMenu({ customDraft, onCustomDraft, onChange }) {
   );
 }
 
-function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClose }) {
+function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpand, onClose }) {
   const { steps, index, step } = stepAt(prompt);
-  const copiedText = resolvePrompt(step.prompt, prompt.variables || []).trim();
+  const copiedText = plainCopy(step.prompt, prompt.variables || []);
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
@@ -875,6 +947,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   const [formatOpen, setFormatOpen] = useState(false);
   const [customModel, setCustomModel] = useState('');
   const videoRef = useRef(null);
+  const sheetWasOpen = useRef(false);
+  const editRoot = useRef(null);
+  const editRange = useRef(null);
+  const [formatOn, setFormatOn] = useState({});
   const showSide = showImage || showVideo || showPdf;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.length;
@@ -912,6 +988,18 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   useEffect(() => {
     if (!sheetOpen) return;
+    if ((prompt.pdf?.name || prompt.video?.embedSrc) && steps.some((item) => item.image)) {
+      if (prompt.pdf?.name) {
+        setShowPdf(true);
+        setShowVideo(false);
+        setShowImage(false);
+      } else {
+        setShowVideo(true);
+        setShowPdf(false);
+        setShowImage(false);
+      }
+      return;
+    }
     if (step.promptSaved) {
       setShowPdf(false);
       setShowVideo(false);
@@ -984,7 +1072,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         if (cancel) return;
         if (!rendered.images.length) {
           setPdfStatus('missing');
-          setPdfError('No se pudo mostrar el PDF.');
+          setPdfError('Couldn’t display the PDF.');
           return;
         }
         pdfPagesRef.current = rendered.images;
@@ -995,7 +1083,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         console.warn('[prompt-desk] pdf preview failed', error?.message || error);
         if (!cancel) {
           setPdfStatus('missing');
-          setPdfError('No se pudo abrir el PDF guardado.');
+          setPdfError('Couldn’t open the saved PDF.');
         }
       }
     })();
@@ -1035,7 +1123,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   function saveVideo(raw) {
     const parsed = parseVideoEmbedInput(raw);
     if (parsed.error || !parsed.embedSrc) {
-      setVideoError(parsed.error || 'Pega un enlace de YouTube, Vimeo o Instagram.');
+      setVideoError(parsed.error || 'Paste a YouTube, Vimeo, or Instagram link.');
       return;
     }
     setVideoError('');
@@ -1079,7 +1167,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     if (!file) return;
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!isPdf) {
-      setPdfError('Elige un archivo PDF.');
+      setPdfError('Choose a PDF file.');
       return;
     }
     const fileId = prompt.id;
@@ -1103,7 +1191,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           ? await local.arrayBuffer()
           : (prompt.pdf?.url ? await fetchPdfBytesFromUrl(prompt.pdf.url) : null);
         if (!data) {
-          setPdfError('Vuelve a elegir el PDF para leerlo.');
+          setPdfError('Choose the PDF again to read it.');
           return;
         }
         const rendered = await renderPdfPageImages(data);
@@ -1113,7 +1201,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
         setPdfPageCount(rendered.pageCount);
       }
       if (!images.length) {
-        setPdfError('No se pudo mostrar el PDF.');
+        setPdfError('Couldn’t display the PDF.');
         return;
       }
       const account = useAuthStore.getState().user;
@@ -1136,7 +1224,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       }
       const text = parts.join('\n\n');
       if (!text) {
-        setPdfError('Groq no encontró texto en estas páginas.');
+        setPdfError('Groq didn’t find text on these pages.');
         return;
       }
       const current = step.prompt.trim();
@@ -1146,8 +1234,8 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
       });
     } catch (error) {
       console.warn('[prompt-desk] pdf read failed', error?.message || error);
-      const message = error instanceof Error ? error.message : 'No se pudo leer el PDF.';
-      setPdfError(message.length > 180 ? 'No se pudo leer el PDF.' : message);
+      const message = error instanceof Error ? error.message : 'Couldn’t read the PDF.';
+      setPdfError(message.length > 180 ? 'Couldn’t read the PDF.' : message);
     } finally {
       setPdfReading(false);
     }
@@ -1167,6 +1255,10 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   function openBuiltPrompt() {
     setSheetOpen(true);
+    if ((prompt.pdf?.name || prompt.video?.embedSrc) && steps.some((item) => item.image)) {
+      showIndexMedia();
+      return;
+    }
     if (step.image) {
       setShowImage(true);
       setShowVideo(false);
@@ -1187,9 +1279,13 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   function saveStep() {
-    setShowPdf(false);
-    setShowVideo(false);
-    setShowImage(Boolean(step.image));
+    if ((prompt.pdf?.name || prompt.video?.embedSrc) && steps.some((item) => item.image)) {
+      showIndexMedia();
+    } else {
+      setShowPdf(false);
+      setShowVideo(false);
+      setShowImage(Boolean(step.image));
+    }
     patchStep({ promptSaved: true });
   }
 
@@ -1250,6 +1346,71 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
     patchStep({ prompt: nextPrompt, promptSaved: false });
   }
 
+  function trackEdit(root) {
+    if (!root) return;
+    editRoot.current = root;
+    const doc = root.ownerDocument;
+    const selection = doc.getSelection();
+    if (selection?.rangeCount) {
+      const range = selection.getRangeAt(0);
+      if (root.contains(range.commonAncestorContainer)) editRange.current = range.cloneRange();
+    }
+    let node = selection?.anchorNode || null;
+    if (node && node.nodeType !== Node.ELEMENT_NODE) node = node.parentElement;
+    let highlight = false;
+    while (node && node !== root) {
+      const style = node.getAttribute?.('style') || '';
+      if (node.tagName === 'MARK' || /background/i.test(style)) highlight = true;
+      node = node.parentElement;
+    }
+    try {
+      setFormatOn({
+        bold: doc.queryCommandState('bold'),
+        italic: doc.queryCommandState('italic'),
+        underline: doc.queryCommandState('underline'),
+        strikeThrough: doc.queryCommandState('strikeThrough'),
+        highlight,
+      });
+    } catch {
+      setFormatOn({ highlight });
+    }
+  }
+
+  function applyTextFormat(command) {
+    const root = editRoot.current;
+    if (!root || root.getAttribute('contenteditable') === 'false') return;
+    const doc = root.ownerDocument;
+    root.focus();
+    const selection = doc.getSelection();
+    if (editRange.current) {
+      selection.removeAllRanges();
+      try {
+        selection.addRange(editRange.current);
+      } catch {
+        /* The stored range belongs to a field that was replaced. */
+      }
+    }
+    if (command === 'highlight') {
+      doc.execCommand('styleWithCSS', false, true);
+      doc.execCommand('hiliteColor', false, '#f4e7a3');
+    } else {
+      doc.execCommand('styleWithCSS', false, false);
+      doc.execCommand(command, false, null);
+    }
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+    trackEdit(root);
+  }
+
+  function compress() {
+    sheetWasOpen.current = sheetOpen;
+    onCompact();
+  }
+
+  function expand() {
+    if (sheetWasOpen.current) setSheetOpen(true);
+    onExpand();
+  }
+
   async function copyPrompt() {
     if (!canCopy) return;
     const ok = await copyToClipboard(copiedText);
@@ -1260,7 +1421,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
 
   if (compact) {
     return (
-      <button type="button" className="prompt-chip" onClick={onExpand}>
+      <button type="button" className="prompt-chip" onClick={expand} aria-label="Expandir">
         {chipImage ? (
           <img className="prompt-chip__img" src={chipImage} alt="" />
         ) : (
@@ -1275,8 +1436,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
   }
 
   return (
+    <>
+    {sheetOpen && !parked ? <div className="prompt-focus-scrim" aria-hidden="true" /> : null}
     <section
-      className={showSide ? 'prompt-panel prompt-panel--wide' : 'prompt-panel'}
+      hidden={parked}
+      className={[
+        'prompt-panel',
+        showSide ? 'prompt-panel--wide' : '',
+      ].filter(Boolean).join(' ')}
       aria-label="Prompt"
       onPaste={(event) => {
         if (!sheetOpen) return;
@@ -1315,7 +1482,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
             />
             ) : null}
             {sheetOpen ? (
-            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={onCompact}>
+            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={compress}>
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
@@ -1337,32 +1504,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
               </button>
             ) : null}
-            {sheetOpen ? (
-              <button type="button" className="prompt-models__item" onClick={goHome}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 10.5 12 4l8 6.5V20H4Z" />
-                  </svg>
-                </span>
-                <span>Home</span>
-              </button>
-            ) : (
-            <button
-              type="button"
-              className={['prompt-models__item', promptCount ? 'is-counted' : ''].filter(Boolean).join(' ')}
-              onClick={openBuiltPrompt}
-            >
-              <span className="prompt-models__glyph" aria-hidden="true">
-                {promptCount ? promptCount : (
-                  <svg viewBox="0 0 24 24">
-                    <path d="M7 4h10v16H7z" />
-                    <path d="M10 8h4M10 12h4M10 16h3" />
-                  </svg>
-                )}
-              </span>
-              <span>Prompt</span>
-            </button>
-            )}
+            {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
             {sheetOpen && !showImage ? (
               <button
                 type="button"
@@ -1415,17 +1557,43 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                     <path d="M14 3v5h5" />
                   </svg>
                 </span>
-                <span>Agregar PDF</span>
+                <span>Add PDF</span>
               </button>
             )}
             {sheetOpen ? null : (
-            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={onCompact}>
+            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={compress}>
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
                 </svg>
               </span>
               <span>Comprimir</span>
+            </button>
+            )}
+            {sheetOpen ? (
+              <button type="button" className="prompt-models__item" onClick={goHome}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 10.5 12 4l8 6.5V20H4Z" />
+                  </svg>
+                </span>
+                <span>Home</span>
+              </button>
+            ) : (
+            <button
+              type="button"
+              className={['prompt-models__item', promptCount ? 'is-counted' : ''].filter(Boolean).join(' ')}
+              onClick={openBuiltPrompt}
+            >
+              <span className="prompt-models__glyph" aria-hidden="true">
+                {promptCount ? promptCount : (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M7 4h10v16H7z" />
+                    <path d="M10 8h4M10 12h4M10 16h3" />
+                  </svg>
+                )}
+              </span>
+              <span>Prompt</span>
             </button>
             )}
           </div>
@@ -1532,13 +1700,14 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   saveVideo(videoDraft);
                 }}
               >
+                <img className="prompt-panel__video-art" src="/Embed%20code.png" alt="" />
                 <input
                   value={videoDraft}
-                  placeholder="Pega un enlace de YouTube, Vimeo o Instagram"
-                  aria-label="Enlace del video"
+                  placeholder="Paste a YouTube, Vimeo, or Instagram link"
+                  aria-label="Video link"
                   onChange={(event) => setVideoDraft(event.target.value)}
                 />
-                <button type="submit">Incrustar</button>
+                <button type="submit">Embed</button>
                 {videoError ? <p role="alert">{videoError}</p> : null}
               </form>
             )}
@@ -1554,7 +1723,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 <div className="prompt-panel__pdf-index">
                   <button
                     type="button"
-                    aria-label="Página anterior del PDF"
+                    aria-label="Previous PDF page"
                     disabled={pdfPageIndex <= 0}
                     onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
                   >
@@ -1563,7 +1732,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   <span>{`${Math.min(pdfPageIndex, pdfPages.length - 1) + 1} / ${pdfPages.length}`}</span>
                   <button
                     type="button"
-                    aria-label="Página siguiente del PDF"
+                    aria-label="Next PDF page"
                     disabled={pdfPageIndex >= pdfPages.length - 1}
                     onClick={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
                   >
@@ -1572,11 +1741,11 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 </div>
               </>
             ) : pdfStatus === 'loading' ? (
-              <p>Abriendo el PDF…</p>
+              <p>Opening the PDF…</p>
             ) : (
               <label className="prompt-panel__pdf-pick">
-                <span>{prompt.pdf?.name || 'Elige un PDF'}</span>
-                {prompt.pdf?.name ? <span>Elige el PDF otra vez</span> : null}
+                <img className="prompt-panel__pdf-art" src="/Pdf%20File.svg" alt="" />
+                <span className="prompt-panel__pdf-link">{prompt.pdf?.name || 'Choose a PDF'}</span>
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
@@ -1621,7 +1790,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               </button>
             ) : null}
             <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
-              Quitar
+              Remove
             </button>
           </div>
         ) : null}
@@ -1634,12 +1803,12 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 disabled={pdfReading}
                 onClick={() => { void extractPdf(); }}
               >
-                {pdfReading ? 'Leyendo…' : 'Extraer datos'}
+                {pdfReading ? 'Reading…' : 'Extract data'}
               </button>
             ) : null}
             {pdfError ? <p role="alert">{pdfError}</p> : null}
             <button type="button" className="prompt-panel__remove" onClick={clearPdf}>
-              Quitar
+              Remove
             </button>
           </div>
         ) : null}
@@ -1657,6 +1826,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               value={step.description || ''}
               readOnly={Boolean(step.promptSaved)}
               onChange={(description) => patchStep({ description, promptSaved: false })}
+              onEditFocus={trackEdit}
             />
             <div className="prompt-drawer">
             <PromptBody
@@ -1672,6 +1842,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                   : 'prompt-panel__body'
               }
               spellCheck={!step.format || step.format === 'text'}
+              onEditFocus={trackEdit}
             >
             {canCopy ? (
               <button
@@ -1696,7 +1867,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
               onClick={openBuiltPrompt}
             >
               {[steps[index - 1] || null, step, steps[index + 1] || null].map((page, place) => {
-                const text = page ? resolvePrompt(page.prompt, prompt.variables || []).trim() : '';
+                const text = page ? plainCopy(page.prompt, prompt.variables || []) : '';
                 return (
                   <span
                     key={page?.id || `empty-${place}`}
@@ -1773,6 +1944,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
           ) : null}
       </div>
     </section>
+    </>
   );
 }
 

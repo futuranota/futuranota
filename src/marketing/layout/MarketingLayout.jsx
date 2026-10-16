@@ -15,7 +15,7 @@ const DEFAULT_THEME = { accent: 'terracotta', texture: 'on' };
 export function MarketingLayout() {
   const { hash, pathname } = useLocation();
   const home = pathname === PATHS.home;
-  const privacy = pathname === PATHS.privacy;
+  const doc = pathname === PATHS.privacy || pathname === PATHS.termsOfService;
 
   useEffect(() => {
     applyMarketingTheme(DEFAULT_THEME);
@@ -35,7 +35,7 @@ export function MarketingLayout() {
   return (
     <SiteTinaProvider>
       <div className={
-        privacy
+        doc
           ? 'marketing-shell marketing-shell--privacy'
           : home
             ? 'marketing-shell marketing-shell--home'
@@ -46,7 +46,7 @@ export function MarketingLayout() {
         <main>
           <Outlet />
         </main>
-        {home || privacy ? null : <Footer />}
+        {home || doc ? null : <Footer />}
       </div>
     </SiteTinaProvider>
   );
