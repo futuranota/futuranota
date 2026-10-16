@@ -59,6 +59,49 @@ function blankStep() {
   };
 }
 
+function pdfReadError(error) {
+  const message = error instanceof Error ? error.message : 'Couldn’t read the PDF.';
+  const json = message.match(/\{[\s\S]*\}$/);
+  if (json) {
+    try {
+      const parsed = JSON.parse(json[0]);
+      if (parsed?.error) return String(parsed.error);
+    } catch {
+      /* The body was not JSON. */
+    }
+  }
+  return message.length > 280 ? `${message.slice(0, 280)}…` : message;
+}
+
+function retryWaitMs(error, attempt) {
+  const message = error instanceof Error ? error.message : '';
+  const wait = message.match(/try again in ([0-9.]+)s/i);
+  if (wait) return Math.min(60000, Math.ceil(Number(wait[1]) * 1000) + 800);
+  return [20000, 45000, 60000][attempt] || 60000;
+}
+
+function shrinkPdfImage(dataUrl) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxEdge = 720;
+      const scale = Math.min(1, maxEdge / Math.max(image.width, image.height, 1));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(dataUrl);
+        return;
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
 function stepTitleOf(step) {
   return typeof step.title === 'string' ? step.title : '';
 }
@@ -155,31 +198,33 @@ function DescriptionField({ className, value, readOnly, onChange, onEditFocus })
   );
 }
 
-function DescriptionBlock({ className, value, readOnly, onChange, onEditFocus }) {
-  const [open, setOpen] = useState(true);
+function SheetFaces({ face, onFace }) {
   return (
-    <div className={open ? 'prompt-desc' : 'prompt-desc prompt-desc--closed'}>
+    <div className="prompt-sheet__faces" role="tablist" aria-label="Prompt pages">
       <button
         type="button"
-        className="prompt-desc__toggle"
-        aria-expanded={open}
-        aria-label={open ? 'Ocultar descripción' : 'Mostrar descripción'}
-        title={open ? 'Ocultar descripción' : 'Mostrar descripción'}
-        onClick={() => setOpen((current) => !current)}
+        role="tab"
+        aria-selected={face === 0}
+        onClick={() => onFace(0)}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6 9.5 12 15.5 18 9.5" />
-        </svg>
+        Description
       </button>
-      {open ? (
-        <DescriptionField
-          className={className}
-          value={value}
-          readOnly={readOnly}
-          onChange={onChange}
-          onEditFocus={onEditFocus}
-        />
-      ) : null}
+      <span aria-hidden="true">\</span>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={face === 1}
+        onClick={() => onFace(1)}
+      >
+        Prompt
+      </button>
+      <button
+        type="button"
+        className="prompt-sheet__next"
+        onClick={() => onFace(face === 0 ? 1 : 0)}
+      >
+        Next
+      </button>
     </div>
   );
 }
@@ -951,6 +996,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const editRoot = useRef(null);
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
+  const [sheetFace, setSheetFace] = useState(1);
   const showSide = showImage || showVideo || showPdf;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.length;
@@ -1205,37 +1251,73 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         return;
       }
       const account = useAuthStore.getState().user;
-      const parts = [];
-      for (let start = 0; start < images.length; start += 3) {
-        const pages = images.slice(start, start + 3).map((image, offset) => ({
-          index: start + offset + 1,
-          image,
-        }));
-        const result = await apiClient(API_ROUTES.promptPdfRead, {
-          method: 'POST',
-          body: JSON.stringify({
-            pages,
-            userId: account?.id,
-            userEmail: account?.email,
-          }),
+      let title = step.title || '';
+      let description = step.description || '';
+      let promptText = step.prompt || '';
+      let found = false;
+      for (let index = 0; index < images.length; index += 1) {
+        const pass = index === 0 ? 'read' : 'continue';
+        const image = await shrinkPdfImage(images[index]);
+        let result;
+        try {
+          for (let attempt = 0; ; attempt += 1) {
+            try {
+              result = await apiClient(API_ROUTES.promptPdfRead, {
+                method: 'POST',
+                body: JSON.stringify({
+                  pages: [{ index: index + 1, image }],
+                  pass,
+                  userId: account?.id,
+                  userEmail: account?.email,
+                }),
+              });
+              break;
+            } catch (error) {
+              const message = error instanceof Error ? error.message : '';
+              if (!message.includes('429') || attempt >= 3) throw error;
+              setPdfError('Groq is busy. Waiting to read this page…');
+              await new Promise((resolve) => setTimeout(resolve, retryWaitMs(error, attempt)));
+            }
+          }
+        } catch (error) {
+          console.warn('[prompt-desk] pdf read failed', error?.message || error);
+          setPdfError(pdfReadError(error));
+          return;
+        }
+        setPdfError('');
+        const nextTitle = String(result?.title || '').trim();
+        const nextDescription = String(result?.description || '').trim();
+        const nextPrompt = String(result?.prompt || '').trim();
+        let changed = false;
+        if (pass === 'read' && nextTitle) {
+          title = nextTitle;
+          changed = true;
+        }
+        if (nextDescription) {
+          description = description.trim() && pass !== 'read'
+            ? `${description.replace(/\s+$/g, '')}\n\n${nextDescription}`
+            : nextDescription;
+          changed = true;
+        }
+        if (nextPrompt) {
+          promptText = promptText.trim()
+            ? `${promptText.replace(/\s+$/g, '')}\n\n${nextPrompt}`
+            : nextPrompt;
+          changed = true;
+        }
+        if (!changed) continue;
+        found = true;
+        patchStep({
+          title,
+          description,
+          prompt: promptText,
+          promptSaved: false,
         });
-        const piece = String(result?.text || '').trim();
-        if (piece) parts.push(piece);
       }
-      const text = parts.join('\n\n');
-      if (!text) {
-        setPdfError('Groq didn’t find text on these pages.');
-        return;
-      }
-      const current = step.prompt.trim();
-      patchStep({
-        prompt: current ? `${current}\n\n${text}` : text,
-        promptSaved: false,
-      });
+      if (!found) setPdfError('Groq didn’t find text on these pages.');
     } catch (error) {
       console.warn('[prompt-desk] pdf read failed', error?.message || error);
-      const message = error instanceof Error ? error.message : 'Couldn’t read the PDF.';
-      setPdfError(message.length > 180 ? 'Couldn’t read the PDF.' : message);
+      setPdfError(pdfReadError(error));
     } finally {
       setPdfReading(false);
     }
@@ -1821,13 +1903,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               aria-label="Title"
               onChange={(event) => patchStep({ title: event.target.value })}
             />
-            <DescriptionBlock
-              className="prompt-sheet__description"
-              value={step.description || ''}
-              readOnly={Boolean(step.promptSaved)}
-              onChange={(description) => patchStep({ description, promptSaved: false })}
-              onEditFocus={trackEdit}
-            />
+            <SheetFaces face={sheetFace} onFace={setSheetFace} />
+            {sheetFace === 0 ? (
+              <DescriptionField
+                className="prompt-sheet__description"
+                value={step.description || ''}
+                readOnly={Boolean(step.promptSaved)}
+                onChange={(description) => patchStep({ description, promptSaved: false })}
+                onEditFocus={trackEdit}
+              />
+            ) : (
             <div className="prompt-drawer">
             <PromptBody
               key={step.id}
@@ -1857,6 +1942,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             ) : null}
             </PromptBody>
             </div>
+            )}
           </div>
           ) : (
           <div className="prompt-index">
@@ -2514,7 +2600,7 @@ const FLOAT_CSS = `
     color: #111;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1.45;
     outline: none;
   }

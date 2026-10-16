@@ -35,8 +35,59 @@ function normalizeUsage(usage) {
   };
 }
 
+const READ_INSTRUCTION = `Lee esta página antes de decidir. No uses el tamaño de la letra como regla. A veces no hay título, a veces no hay descripción, y a veces el prompt es el único bloque.
+
+Devuelve solo un objeto JSON con las claves "title", "description" y "prompt". Cada valor es un string. Si esa parte no está, usa "".
+
+- title: la línea corta que abre la hoja, aunque sea pequeña. Suele empezar con un número o un paso, como "01 / CREAR LA HOJA", "Paso 01", "#1" o "1-". Si la palabra Prompt solo nombra una sección, no es el título. Si no hay esa línea, "".
+- description: la explicación de quien comparte el PDF. Incluye la frase grande que está debajo del título, la explicación corta que la sigue, y los rótulos que explican la foto aunque estén a un lado, en vertical, como "01 ROSTRO" o "02 FRENTE". No es el prompt. Si no hay, "".
+- prompt: el bloque bajo la palabra Prompt, cuando esa palabra está. Si no está, el bloque de texto más grande. Cópialo tal cual, con sus párrafos. Si no lo reconoces, "".
+
+Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra en ningún campo. Un rótulo que explica la hoja sí entra en description.
+
+No transcribas la página entera. No escribas nada fuera del JSON.`;
+
+const CONTINUE_INSTRUCTION = `Esta página sigue al PDF que ya leíste. Devuelve solo un objeto JSON {"title":"","description":"","prompt":""}.
+
+title va siempre vacío.
+
+description: solo si esta página agrega explicación, instrucciones o rótulos de la hoja que no son el prompt. Si no agrega nada de eso, "".
+
+prompt: copia el prompt que continúa en esta página, tal cual y con sus párrafos. Si la página lo nombra Prompt, usa ese bloque. Si no lo nombra, usa el bloque de texto más grande solo cuando sea la continuación del prompt. Si no continúa, "".
+
+Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra. No escribas nada fuera del JSON.`;
+
+function fieldText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function parsePdfFields(raw) {
+  const cleaned = String(raw || "")
+    .replace(/<think>[\s\S]*?<\/think>/g, "")
+    .trim();
+  if (!cleaned) return { title: "", description: "", prompt: "" };
+  const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const source = (fenced ? fenced[1] : cleaned).trim();
+  const start = source.indexOf("{");
+  const end = source.lastIndexOf("}");
+  if (start === -1 || end <= start) {
+    throw new Error("Groq didn’t return the PDF fields.");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(source.slice(start, end + 1));
+  } catch {
+    throw new Error("Groq didn’t return the PDF fields.");
+  }
+  return {
+    title: fieldText(parsed?.title),
+    description: fieldText(parsed?.description),
+    prompt: fieldText(parsed?.prompt),
+  };
+}
+
 /**
- * @param {{ pages?: { index?: number, image?: string }[], images?: string[], userId?: string, userEmail?: string }} body
+ * @param {{ pages?: { index?: number, image?: string }[], images?: string[], pass?: string, userId?: string, userEmail?: string }} body
  */
 export async function processPromptPdfRead(body) {
   const listed = Array.isArray(body.pages)
@@ -73,7 +124,7 @@ export async function processPromptPdfRead(body) {
         content: [
           {
             type: "text",
-            text: "Transcribe el texto visible de cada página. Antes del texto de cada imagen escribe una línea \"Página N\" con el número que te indico. Conserva los párrafos. Si la página no tiene texto, deja solo ese encabezado.",
+            text: body.pass === "continue" ? CONTINUE_INSTRUCTION : READ_INSTRUCTION,
           },
           ...pages.flatMap((page) => ([
             { type: "text", text: `Página ${page.index}` },
@@ -90,10 +141,8 @@ export async function processPromptPdfRead(body) {
     return { status: response.status, body: { error: message } };
   }
 
-  const text = String(payload?.choices?.[0]?.message?.content || "")
-    .replace(/<think>[\s\S]*?<\/think>/g, "")
-    .trim();
   const usage = normalizeUsage(payload?.usage);
+  const pass = body.pass === "continue" ? "continue" : "read";
   void logApiUsageEvent({
     userId: typeof body.userId === "string" ? body.userId : undefined,
     userEmail: typeof body.userEmail === "string" ? body.userEmail : undefined,
@@ -104,13 +153,22 @@ export async function processPromptPdfRead(body) {
     outputTokens: usage?.outputTokens,
     model: VISION_MODEL,
     billed: true,
-    meta: { pages: pages.length, indexes: pages.map((page) => page.index) },
+    meta: { pages: pages.length, indexes: pages.map((page) => page.index), pass },
   });
 
-  if (!text) {
-    return { status: 200, body: { text: "" } };
+  let fields;
+  try {
+    fields = parsePdfFields(payload?.choices?.[0]?.message?.content || "");
+  } catch (err) {
+    return {
+      status: 422,
+      body: { error: err instanceof Error ? err.message : "Groq didn’t return the PDF fields." },
+    };
   }
-  return { status: 200, body: { text } };
+  if (pass === "continue") {
+    fields = { title: "", description: fields.description, prompt: fields.prompt };
+  }
+  return { status: 200, body: fields };
 }
 
 export function createPromptPdfMiddleware() {
