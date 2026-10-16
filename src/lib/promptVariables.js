@@ -28,6 +28,15 @@ export function resolvePrompt(template, variables) {
   return (template || '').replace(TOKEN, (_, id) => variableLabel(byId.get(id)));
 }
 
+export function dropUnknownTokens(template, variables) {
+  const ids = new Set((variables || []).map((item) => item.id));
+  const next = String(template || '').replace(/\{\{([^{}]+)\}\}/g, (token, id) => (
+    ids.has(id) ? token : ''
+  ));
+  if (!next.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim()) return '';
+  return next;
+}
+
 export function normalizeVariables(value) {
   if (!Array.isArray(value)) return [];
   return value

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { parsePrompt, resolvePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
+import { dropUnknownTokens, parsePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
 
 function fieldText(variable) {
   if (!variable) return '[?]';
@@ -134,10 +134,9 @@ export function paintMarked(root, source, variables, { chips = true } = {}) {
     for (const part of parts) {
       if (part.type === 'text') appendText(doc, parent, part.text);
       else {
-        parent.appendChild(makeChip(
-          doc,
-          (variables || []).find((item) => item.id === part.id) || { id: part.id, name: '?', value: '' },
-        ));
+        const variable = (variables || []).find((item) => item.id === part.id);
+        if (!variable) continue;
+        parent.appendChild(makeChip(doc, variable));
       }
     }
   };
@@ -250,22 +249,22 @@ export function PromptBody({
     if (!readOnly) return;
     const root = lockedRef.current;
     if (!root) return;
-    const plain = resolvePrompt(prompt, list).replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
+    const source = dropUnknownTokens(prompt, list);
+    const plain = source.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
     if (!plain) {
       root.replaceChildren();
       root.dataset.empty = 'true';
       return;
     }
     delete root.dataset.empty;
-    if (!hasMarks(prompt)) {
-      root.textContent = resolvePrompt(prompt, list);
-      return;
-    }
-    const shown = String(prompt || '').replace(/\{\{([^{}]+)\}\}/g, (_, id) => (
-      escapeHtml(fieldText(list.find((item) => item.id === id)))
-    ));
-    paintMarked(root, shown, [], { chips: false });
+    paintMarked(root, source, list);
   }, [readOnly, prompt, variables]);
+
+  useEffect(() => {
+    const cleaned = dropUnknownTokens(prompt, list);
+    if (cleaned === String(prompt || '')) return;
+    onCommit({ prompt: cleaned, keepSaved: true });
+  }, [prompt, list, readOnly]);
 
   useEffect(() => {
     if (readOnly) {
@@ -371,6 +370,32 @@ export function PromptBody({
   }
 
   function onKeyDown(event) {
+    if (!menu && (event.key === 'Backspace' || event.key === 'Delete')) {
+      const root = editorRef.current;
+      const doc = root?.ownerDocument;
+      const selection = doc?.getSelection();
+      if (root && selection?.isCollapsed && selection.rangeCount) {
+        const range = selection.getRangeAt(0);
+        const node = range.startContainer;
+        const chip = event.key === 'Backspace'
+          ? (node.nodeType === Node.TEXT_NODE && range.startOffset === 0
+            ? node.previousSibling
+            : node.nodeType === Node.ELEMENT_NODE
+              ? node.childNodes[range.startOffset - 1]
+              : null)
+          : (node.nodeType === Node.TEXT_NODE && range.startOffset === node.textContent.length
+            ? node.nextSibling
+            : node.nodeType === Node.ELEMENT_NODE
+              ? node.childNodes[range.startOffset]
+              : null);
+        if (chip?.dataset?.varId) {
+          event.preventDefault();
+          chip.remove();
+          commitDom();
+          return;
+        }
+      }
+    }
     if (!menu) return;
     const items = options();
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -576,112 +601,206 @@ function fixedHost(root) {
 
 export function VariableDeck({ open, title, variables, onChange, onClose, inline = false }) {
   const list = variables || [];
-  const [expanded, setExpanded] = useState({});
-  const [adding, setAdding] = useState(false);
   const [draftName, setDraftName] = useState('');
-  const addRef = useRef(null);
-  const skipAddBlur = useRef(false);
+  const [draftValue, setDraftValue] = useState('');
+  const [renamingId, setRenamingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editValue, setEditValue] = useState('');
+  const nameRef = useRef(null);
+  const editRef = useRef(null);
+  const editNameRef = useRef('');
+  const editValueRef = useRef('');
 
   useEffect(() => {
-    if (adding) addRef.current?.focus();
-  }, [adding]);
+    if (renamingId) editRef.current?.focus();
+  }, [renamingId]);
+
+  function pushProduct() {
+    const name = draftName.trim();
+    if (!name) {
+      nameRef.current?.focus();
+      return;
+    }
+    const existing = list.find((item) => item.name.toLowerCase() === name.toLowerCase());
+    const id = existing?.id || crypto.randomUUID();
+    const next = existing
+      ? list.map((item) => (item.id === id ? { ...item, value: draftValue } : item))
+      : [...list, { id, name, value: draftValue }];
+    onChange(next);
+    setDraftName('');
+    setDraftValue('');
+    nameRef.current?.focus();
+  }
+
+  function removeName(id) {
+    onChange(list.filter((item) => item.id !== id));
+    if (renamingId === id) {
+      setRenamingId(null);
+      setEditName('');
+      setEditValue('');
+    }
+  }
+
+  function startRename(variable) {
+    editNameRef.current = variable.name;
+    editValueRef.current = variable.value;
+    setRenamingId(variable.id);
+    setEditName(variable.name);
+    setEditValue(variable.value);
+  }
+
+  function commitRename(id) {
+    const current = list.find((item) => item.id === id);
+    if (!current) return;
+    const typed = editNameRef.current.trim();
+    const name = typed || current.name;
+    const taken = list.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase());
+    const nextName = taken ? current.name : name;
+    onChange(list.map((item) => (
+      item.id === id
+        ? { ...item, name: nextName, value: editValueRef.current }
+        : item
+    )));
+    setRenamingId(null);
+    setEditName('');
+    setEditValue('');
+    editNameRef.current = '';
+    editValueRef.current = '';
+  }
 
   if (!open) return null;
 
-  function confirmAdd() {
-    if (skipAddBlur.current) {
-      skipAddBlur.current = false;
-      return;
-    }
-    const trimmed = draftName.trim();
-    setAdding(false);
-    setDraftName('');
-    if (!trimmed) return;
-    const existing = list.find((item) => item.name.toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-      setExpanded((current) => ({ ...current, [existing.id]: true }));
-      return;
-    }
-    onChange([{ id: crypto.randomUUID(), name: trimmed, value: '' }, ...list]);
-  }
-
-  function rename(id, name) {
-    const taken = list.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase());
-    if (taken) return;
-    onChange(list.map((item) => (item.id === id ? { ...item, name } : item)));
-  }
-
   const library = (
     <>
-        <header className={inline ? 'prompt-vars__head' : 'prompt-library__head'}>
-          <div>
-            <p>Variables</p>
-            <h2>{title || 'This file'}</h2>
-          </div>
-          <div className="prompt-library__actions">
-            <button
-              type="button"
-              className="prompt-library__add"
-              aria-label="Add variable"
-              onClick={() => {
-                setDraftName('');
-                setAdding(true);
-              }}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 6v12M6 12h12" />
-              </svg>
-            </button>
-            <button type="button" className="prompt-library__close" onClick={onClose} aria-label="Close">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          </div>
-        </header>
-        <p className="prompt-library__info">Type “@” in the text area to call or create a variable.</p>
-        <div className="prompt-library__list">
-          {adding ? (
+      <header className={inline ? 'prompt-vars__head' : 'prompt-library__head'}>
+        <div>
+          <p>Variables</p>
+          <h2>{title || 'This file'}</h2>
+        </div>
+        <button type="button" className="prompt-library__close" onClick={onClose} aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </header>
+      <div className="prompt-library__fields">
+        <div className="prompt-library__field">
+          <div className="prompt-library__label-row">
             <input
-              ref={addRef}
-              className="prompt-library__name"
+              id="prompt-variable-name"
+              ref={nameRef}
+              className="prompt-library__name-input"
               value={draftName}
-              placeholder="Name"
+              size={Math.max((draftName || 'Variable name').length, 1)}
+              placeholder="Variable name"
               aria-label="Variable name"
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  event.currentTarget.blur();
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  skipAddBlur.current = true;
-                  setAdding(false);
-                  setDraftName('');
+                  pushProduct();
                 }
               }}
-              onBlur={confirmAdd}
             />
-          ) : null}
-          {list.length ? list.map((variable) => (
-            <VariableRow
-              key={variable.id}
-              variable={variable}
-              expanded={Boolean(expanded[variable.id])}
-              onToggle={() => setExpanded((current) => ({
-                ...current,
-                [variable.id]: !current[variable.id],
-              }))}
-              onValue={(value) => onChange(list.map((item) => (
-                item.id === variable.id ? { ...item, value } : item
-              )))}
-              onRename={(name) => rename(variable.id, name)}
-            />
-          )) : !adding ? (
-            <p className="prompt-library__empty">No variables yet.</p>
-          ) : null}
+            <button type="button" className="prompt-library__rename" aria-label="Edit variable name" onClick={() => nameRef.current?.focus()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                <path d="M13 7l4 4" />
+              </svg>
+            </button>
+            <button type="button" className="prompt-library__queue" onClick={pushProduct}>
+              Queue
+            </button>
+          </div>
+          <textarea
+            rows={2}
+            value={draftValue}
+            placeholder={draftName.trim() ? `[ ${draftName.trim()} ]` : ''}
+            aria-label="Product"
+            onChange={(event) => setDraftValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                pushProduct();
+              }
+            }}
+          />
         </div>
+        {list.map((variable) => {
+          const editing = renamingId === variable.id;
+          return (
+            <div
+              key={variable.id}
+              className="prompt-library__field"
+            >
+              <div className="prompt-library__label-row">
+                <input
+                  ref={editing ? editRef : null}
+                  className="prompt-library__name-input"
+                  value={editing ? editName : variable.name}
+                  readOnly={!editing}
+                  size={Math.max(((editing ? editName : variable.name) || 'Variable name').length, 1)}
+                  placeholder="Variable name"
+                  aria-label="Variable name"
+                  onChange={(event) => {
+                    editNameRef.current = event.target.value;
+                    setEditName(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!editing) return;
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      commitRename(variable.id);
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setRenamingId(null);
+                      setEditName('');
+                      setEditValue('');
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className={editing ? 'prompt-library__queue' : 'prompt-library__rename'}
+                  aria-label={editing ? 'Guardar' : `Edit ${variable.name}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => (editing ? commitRename(variable.id) : startRename(variable))}
+                >
+                  {editing ? 'Guardar' : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                      <path d="M13 7l4 4" />
+                    </svg>
+                  )}
+                </button>
+                {list.length ? (
+                  <button type="button" className="prompt-library__remove" aria-label={`Remove ${variable.name}`} onClick={() => removeName(variable.id)}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 7h16" />
+                      <path d="M9 7V5h6v2" />
+                      <path d="M7 7l1 13h8l1-13" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg>
+                  </button>
+                ) : null}
+              </div>
+              <textarea
+                rows={2}
+                readOnly={!editing}
+                value={editing ? editValue : variable.value}
+                placeholder={`[ ${variable.name} ]`}
+                aria-label={variable.name}
+                onChange={(event) => {
+                  editValueRef.current = event.target.value;
+                  setEditValue(event.target.value);
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <p className="prompt-library__info">Queue stores the product. Type @ in the prompt to place it.</p>
     </>
   );
 
@@ -706,90 +825,6 @@ export function VariableDeck({ open, title, variables, onChange, onClose, inline
       <div className="prompt-library__page">
         {library}
       </div>
-    </div>
-  );
-}
-
-function VariableRow({ variable, expanded, onToggle, onValue, onRename }) {
-  const fieldRef = useRef(null);
-  const nameRef = useRef(null);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(variable.name);
-  const skipBlur = useRef(false);
-  useEffect(() => {
-    const node = fieldRef.current;
-    if (!node) return;
-    node.style.height = 'auto';
-    node.style.height = `${node.scrollHeight}px`;
-  }, [expanded, variable.value]);
-  useEffect(() => {
-    if (editing) nameRef.current?.select();
-  }, [editing]);
-  function commitName() {
-    if (skipBlur.current) {
-      skipBlur.current = false;
-      return;
-    }
-    const next = draft.trim();
-    setEditing(false);
-    if (!next || next === variable.name) return;
-    onRename(next);
-  }
-  return (
-    <div className="prompt-library__item">
-      {editing ? (
-        <input
-          ref={nameRef}
-          className="prompt-library__name"
-          value={draft}
-          aria-label="Variable name"
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commitName}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              skipBlur.current = true;
-              setDraft(variable.name);
-              setEditing(false);
-            }
-          }}
-        />
-      ) : (
-        <div className="prompt-library__row">
-          <button type="button" aria-expanded={expanded} onClick={onToggle}>
-            {variable.name}
-          </button>
-          <button
-            type="button"
-            className="prompt-library__rename"
-            aria-label={`Rename ${variable.name}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              setDraft(variable.name);
-              setEditing(true);
-            }}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 20h4L18 10l-4-4L4 16v4z" />
-              <path d="M13 7l4 4" />
-            </svg>
-          </button>
-        </div>
-      )}
-      {expanded ? (
-        <textarea
-          ref={fieldRef}
-          rows={1}
-          value={variable.value}
-          placeholder={variable.name}
-          aria-label={variable.name}
-          onChange={(event) => onValue(event.target.value)}
-        />
-      ) : null}
     </div>
   );
 }

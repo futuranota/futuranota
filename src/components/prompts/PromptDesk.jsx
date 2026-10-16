@@ -18,7 +18,7 @@ import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody, paintMarked, readMarked } from './PromptBody.jsx';
+import { PromptBody, VariableDeck, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
 import './prompt-desk.css';
 
@@ -1122,6 +1122,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [videoPaused, setVideoPaused] = useState(true);
   const [modelOpen, setModelOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [varsOpen, setVarsOpen] = useState(false);
   const [customModel, setCustomModel] = useState('');
   const videoRef = useRef(null);
   const sheetWasOpen = useRef(false);
@@ -1579,7 +1580,11 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     });
   }
 
-  function commitBody({ prompt: nextPrompt, variables }) {
+  function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
+    if (keepSaved) {
+      patchStep({ prompt: nextPrompt });
+      return;
+    }
     if (variables && nextPrompt != null) {
       onPatch({
         variables,
@@ -1795,6 +1800,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   </svg>
                 </span>
                 <span>Home</span>
+              </button>
+            ) : null}
+            {sheetOpen ? (
+              <button type="button" className="prompt-models__item" onClick={() => setVarsOpen(true)}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M7 7h4M7 12h10M7 17h7" />
+                  </svg>
+                </span>
+                <span>Variables</span>
               </button>
             ) : null}
             {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
@@ -2241,6 +2256,13 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           </div>
           ) : null}
       </div>
+      <VariableDeck
+        open={varsOpen}
+        title={prompt.name}
+        variables={prompt.variables || []}
+        onChange={(variables) => onPatch({ variables })}
+        onClose={() => setVarsOpen(false)}
+      />
     </section>
     </>
   );
@@ -2293,15 +2315,15 @@ function FloatCard({ prompt, view, onPatch }) {
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
 
-  function patchFloatStep(patch) {
-    onPatch({ stepPatch: { id: step.id, ...patch, promptSaved: true } });
-  }
-
-  function commitBody({ prompt: nextPrompt, variables }) {
+  function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
+    if (keepSaved) {
+      onPatch({ stepPatch: { id: step.id, prompt: nextPrompt } });
+      return;
+    }
     if (variables && nextPrompt != null) {
       onPatch({
         variables,
-        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: true },
+        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false },
       });
       return;
     }
@@ -2309,7 +2331,19 @@ function FloatCard({ prompt, view, onPatch }) {
       onPatch({ variables });
       return;
     }
-    patchFloatStep({ prompt: nextPrompt });
+    onPatch({ stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false } });
+  }
+
+  function saveAllPrompts() {
+    onPatch({
+      steps: steps.map((item) => (
+        promptHasText(item.prompt) ? { ...item, promptSaved: true } : item
+      )),
+    });
+  }
+
+  function editFloatStep() {
+    onPatch({ stepPatch: { id: step.id, promptSaved: false } });
   }
 
   function goBack() {
@@ -2401,6 +2435,15 @@ function FloatCard({ prompt, view, onPatch }) {
         </div>
       </div>
       <div className="prompt-steps">
+        {steps.some((item) => !item.promptSaved && promptHasText(item.prompt)) ? (
+          <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
+            Guardar
+          </button>
+        ) : step.promptSaved ? (
+          <button type="button" className="prompt-steps__save" onClick={editFloatStep}>
+            Editar
+          </button>
+        ) : null}
         <button
           type="button"
           className="prompt-steps__arrow"
@@ -2932,10 +2975,29 @@ const FLOAT_CSS = `
     cursor: pointer;
   }
   .prompt-steps {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 14px;
+    min-height: 46px;
+  }
+  .prompt-steps__save {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 36px;
+    margin: 0;
+    padding: 0 14px;
+    border: 1px solid rgba(20, 20, 22, 0.16);
+    border-radius: 999px;
+    color: #111;
+    background: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
   }
   .prompt-steps__arrow {
     width: 46px;
