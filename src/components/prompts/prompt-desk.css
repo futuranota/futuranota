@@ -614,12 +614,19 @@
   cursor: pointer;
 }
 
-.prompt-panel,
-.prompt-chip {
-  --surface-base: #151515;
-  --text-primary: #fff;
+.prompt-panel {
+  --surface-base: #fff;
+  --text-primary: #1a1a1a;
   color: var(--text-primary);
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.prompt-chip {
+  --surface-base: rgba(255, 255, 255, 0.42);
+  --text-primary: #111;
+  color: var(--text-primary);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 650;
 }
 
 .prompt-panel {
@@ -654,7 +661,7 @@
   width: 100%;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
 }
 
@@ -666,7 +673,7 @@
 
 .prompt-panel__name::placeholder,
 .prompt-panel__body::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(20, 20, 22, 0.38);
 }
 
 .prompt-panel__actions {
@@ -676,9 +683,10 @@
 }
 
 .prompt-panel__actions button {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   background: transparent;
-  color: inherit;
+  color: #111;
+  font-weight: 650;
   border-radius: 999px;
   padding: 8px 14px;
   cursor: pointer;
@@ -699,14 +707,10 @@
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 50%;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 8px 18px rgba(0, 0, 0, 0.28);
+  color: #1a1a1a;
+  background: #fff;
   cursor: pointer;
 }
 
@@ -883,10 +887,10 @@
   max-width: 100%;
   height: 100%;
   padding: 24px;
-  border: 2px dashed rgba(255, 255, 255, 0.34);
+  border: 2px dashed rgba(20, 20, 22, 0.45);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  background: #fff;
+  color: #1a1a1a;
   text-align: center;
 }
 
@@ -945,17 +949,17 @@
   justify-content: center;
   gap: 14px;
   margin-top: 8px;
-  color: #fff;
+  color: #1a1a1a;
   font-size: 13px;
 }
 
 .prompt-panel__pdf-index button {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 50%;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 18px;
   line-height: 1;
@@ -969,13 +973,13 @@
 
 .prompt-panel__pdf-pick span + span {
   margin-top: 8px;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(20, 20, 22, 0.62);
   font-size: 13px;
 }
 
 .prompt-panel__pdf-note {
   margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(20, 20, 22, 0.62);
   font-size: 12px;
   text-align: center;
 }
@@ -991,7 +995,7 @@
   align-self: center;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(20, 20, 22, 0.72);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -999,7 +1003,7 @@
 }
 
 .prompt-panel__remove:hover {
-  color: #fff;
+  color: #1a1a1a;
 }
 
 .prompt-panel__image,
@@ -1008,19 +1012,28 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
-  border: 2px dashed rgba(255, 255, 255, 0.34);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #fff;
+}
+
+.prompt-panel__image {
+  border: 2px dashed rgba(20, 20, 22, 0.45);
+}
+
+.prompt-sheet {
+  border: 2px dashed rgba(20, 20, 22, 0.45);
+  background: transparent;
+  color: #1a1a1a;
 }
 
 .prompt-panel__image.is-dragging {
-  border-color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(20, 20, 22, 0.72);
+  background: #fff;
 }
 
 .prompt-sheet:hover,
 .prompt-sheet:focus-within {
-  border-color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(20, 20, 22, 0.72);
 }
 
 .prompt-panel__image {
@@ -1028,7 +1041,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(20, 20, 22, 0.55);
   cursor: pointer;
 }
 
@@ -1048,9 +1061,9 @@
   height: 56px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(20, 20, 22, 0.18);
   border-radius: 50%;
-  color: #fff;
+  color: #1a1a1a;
 }
 
 .prompt-panel__drop-icon svg {
@@ -1064,13 +1077,13 @@
 }
 
 .prompt-panel__drop-title {
-  color: #fff;
+  color: #1a1a1a;
   font-size: 15px;
   line-height: 1.35;
 }
 
 .prompt-panel__drop-hint {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(20, 20, 22, 0.5);
   font-size: 13px;
 }
 
@@ -1102,9 +1115,9 @@
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  border: 2px dashed rgba(255, 255, 255, 0.34);
+  border: 2px dashed rgba(20, 20, 22, 0.45);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #fff;
 }
 
 .prompt-panel__player {
@@ -1124,8 +1137,8 @@
   box-sizing: border-box;
   border: 0;
   border-radius: 10px;
-  background: #101010;
-  color: #fff;
+  background: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 14px;
   padding: 12px 14px;
@@ -1134,7 +1147,7 @@
 
 .prompt-panel__video-form button {
   align-self: flex-start;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   background: transparent;
   color: inherit;
   border-radius: 999px;
@@ -1157,9 +1170,9 @@
   align-items: center;
   min-height: 52px;
   padding: 8px 14px;
-  border: 2px dashed rgba(255, 255, 255, 0.34);
+  border: 2px dashed rgba(20, 20, 22, 0.45);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #fff;
 }
 
 .prompt-video__pause {
@@ -1169,14 +1182,10 @@
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 50%;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 8px 18px rgba(0, 0, 0, 0.28);
+  color: #1a1a1a;
+  background: #fff;
   cursor: pointer;
 }
 
@@ -1198,10 +1207,10 @@
   grid-column: 3;
   justify-self: start;
   margin-left: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(20, 20, 22, 0.22);
   border-radius: 999px;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 13px;
   line-height: 1;
@@ -1227,14 +1236,22 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(20, 20, 22, 0.14);
   background: transparent;
-  color: inherit;
+  color: #111;
   border-radius: 999px;
   padding: 4px 12px 4px 4px;
   font: inherit;
   font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
+}
+
+.prompt-models__item--compact {
+  font-weight: 700;
+  color: #111;
+  border-color: rgba(20, 20, 22, 0.32);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .prompt-models__item img,
@@ -1272,8 +1289,8 @@
 }
 
 .prompt-models__item.is-selected {
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(20, 20, 22, 0.45);
+  background: rgba(20, 20, 22, 0.06);
 }
 
 .prompt-model {
@@ -1287,10 +1304,10 @@
 .prompt-model__info {
   width: 28px;
   height: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 50%;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 13px;
   line-height: 1;
@@ -1308,7 +1325,7 @@
 
 .prompt-drop__note {
   margin: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(20, 20, 22, 0.62);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1323,7 +1340,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   box-shadow: none;
 }
 
@@ -1378,10 +1395,10 @@
 .prompt-model__custom input {
   flex: 1;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 999px;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 13px;
   padding: 6px 10px;
@@ -1390,7 +1407,7 @@
 .prompt-model__custom button {
   border: 0;
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -1406,7 +1423,7 @@
 .prompt-panel__tools button,
 .prompt-format__btn,
 .prompt-drop__choice {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   background: transparent;
   color: inherit;
   border-radius: 999px;
@@ -1420,7 +1437,8 @@
   padding: 2px 8px;
   font-size: 12px;
   line-height: 1.2;
-  color: rgba(255, 255, 255, 0.78);
+  font-weight: 650;
+  color: #111;
 }
 
 .prompt-drop__choice {
@@ -1430,8 +1448,8 @@
 
 .prompt-drop__choice.is-selected,
 .prompt-format__btn.is-selected {
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(20, 20, 22, 0.45);
+  background: rgba(20, 20, 22, 0.06);
 }
 
 .prompt-drop__choice {
@@ -1467,7 +1485,7 @@
 .prompt-vars__head p {
   margin: 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(20, 20, 22, 0.62);
 }
 
 .prompt-vars h2 {
@@ -1498,6 +1516,25 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+.prompt-sheet:has(.prompt-desc--closed) {
+  background: rgba(255, 255, 255, 0.28);
+  border: 2px dashed rgba(20, 20, 22, 0.45);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+}
+
+.prompt-sheet:has(.prompt-desc--closed):hover,
+.prompt-sheet:has(.prompt-desc--closed):focus-within {
+  border-color: rgba(20, 20, 22, 0.72);
+}
+
+.prompt-sheet:has(.prompt-desc--closed) .prompt-panel__body,
+.prompt-sheet:has(.prompt-desc--closed) .prompt-body__editor {
+  background: #fff;
+  color: #111;
+  border-radius: 12px;
 }
 
 .prompt-index {
@@ -1552,9 +1589,9 @@
   width: 100%;
   margin: 0;
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(20, 20, 22, 0.08);
   background: transparent;
-  color: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 18px;
   font-weight: 560;
@@ -1564,20 +1601,22 @@
 }
 
 .prompt-sheet__title::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(20, 20, 22, 0.38);
 }
 
 .prompt-desc {
   position: relative;
   flex: none;
   min-height: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(20, 20, 22, 0.08);
 }
 
 .prompt-desc--closed {
   display: flex;
   justify-content: flex-end;
-  min-height: 32px;
+  min-height: 0;
+  border-bottom: 0;
+  background: transparent;
 }
 
 .prompt-desc__toggle {
@@ -1593,7 +1632,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(20, 20, 22, 0.72);
   cursor: pointer;
 }
 
@@ -1623,35 +1662,19 @@
   margin: 0;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.86);
+  color: #1a1a1a;
   font: inherit;
   font-size: 12px;
   line-height: 1.4;
   padding: 8px 40px 4px 16px;
   resize: none;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   outline: none;
   box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: #2a2a2a #151515;
-}
-
-.prompt-sheet__description::-webkit-scrollbar {
-  width: 8px;
-}
-
-.prompt-sheet__description::-webkit-scrollbar-track {
-  background: #151515;
-}
-
-.prompt-sheet__description::-webkit-scrollbar-thumb {
-  background: #2a2a2a;
-  border-radius: 8px;
 }
 
 .prompt-sheet__description::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(20, 20, 22, 0.38);
 }
 
 .prompt-sheet__description[readonly] {
@@ -1688,18 +1711,18 @@
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 8px;
-  background: #333333;
-  color: rgba(255, 255, 255, 0.95);
+  background: #fff;
+  color: #1a1a1a;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
 
 .prompt-copy:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: #3d3d3d;
+  border-color: rgba(20, 20, 22, 0.32);
+  background: #f4f1eb;
 }
 
 .prompt-panel__body {
@@ -1714,10 +1737,12 @@
   border-radius: 0;
   padding: 16px 48px 16px 16px;
   background: transparent;
+  color: #111;
+  font-size: 18px;
   line-height: 1.45;
   outline: none;
   scrollbar-width: thin;
-  scrollbar-color: #2a2a2a #151515;
+  scrollbar-color: rgba(20, 20, 22, 0.28) #fff;
 }
 
 .prompt-panel__body::-webkit-scrollbar,
@@ -1728,18 +1753,20 @@
 
 .prompt-panel__body::-webkit-scrollbar-track,
 .prompt-body__editor::-webkit-scrollbar-track {
-  background: #151515;
+  background: #fff;
 }
 
 .prompt-panel__body::-webkit-scrollbar-thumb,
 .prompt-body__editor::-webkit-scrollbar-thumb {
-  background: #2a2a2a;
+  background: rgba(20, 20, 22, 0.28);
   border-radius: 8px;
 }
 
+.prompt-body__editor.prompt-panel__body--code,
 .prompt-panel__body--code {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
+  line-height: 1.45;
 }
 
 .prompt-body {
@@ -1759,11 +1786,17 @@
 .prompt-body__editor {
   white-space: pre-wrap;
   word-break: break-word;
+  font-size: 18px;
+  line-height: 1.45;
+  background: transparent;
+  color: #111;
 }
 
-.prompt-body__editor[data-empty="true"]::before {
+.prompt-body__editor[data-empty="true"]::before,
+.prompt-body__editor[data-empty]::before {
   content: attr(data-placeholder);
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(20, 20, 22, 0.38);
+  pointer-events: none;
 }
 
 .prompt-body__editor--locked {
@@ -1773,7 +1806,7 @@
 
 .prompt-body__editor[data-empty]::before {
   content: attr(data-placeholder);
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(20, 20, 22, 0.38);
   pointer-events: none;
 }
 
@@ -2140,15 +2173,16 @@
 .prompt-panel__step-actions button {
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.62);
+  color: #111;
   font: inherit;
   font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
   padding: 0;
 }
 
 .prompt-panel__step-actions button:hover {
-  color: #fff;
+  color: #1a1a1a;
 }
 
 .prompt-steps {
@@ -2169,21 +2203,18 @@
   height: 36px;
   margin: 0;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 999px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 8px 18px rgba(0, 0, 0, 0.28);
+  color: #111;
+  background: #fff;
   font: inherit;
   font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
 }
 
 .prompt-steps__home:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: #f4f1eb;
 }
 
 .prompt-steps__arrow {
@@ -2192,14 +2223,10 @@
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(20, 20, 22, 0.16);
   border-radius: 50%;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(1.4);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 8px 18px rgba(0, 0, 0, 0.28);
+  color: #1a1a1a;
+  background: #fff;
   cursor: pointer;
 }
 
@@ -2223,7 +2250,7 @@
   text-align: center;
   font-size: 13px;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(20, 20, 22, 0.62);
 }
 
 .prompt-chip {
@@ -2236,12 +2263,14 @@
   gap: 12px;
   align-items: center;
   padding: 10px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 16px;
-  background: var(--surface-base);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
 }
 
 .prompt-chip__img {
@@ -2250,7 +2279,7 @@
   flex: none;
   border-radius: 10px;
   object-fit: cover;
-  background: #101010;
+  background: #f4f1eb;
 }
 
 .prompt-chip__copy {
@@ -2270,7 +2299,7 @@
 
 .prompt-chip__snippet {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(20, 20, 22, 0.62);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

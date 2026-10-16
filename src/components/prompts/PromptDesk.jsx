@@ -60,23 +60,13 @@ function hasSavedPrompt(prompt) {
   return (prompt?.steps || []).some((item) => item.promptSaved && String(item.prompt || '').trim());
 }
 
-const DESCRIPTION_LINES = 3;
-
 function DescriptionField({ className, value, readOnly, onChange }) {
   const ref = useRef(null);
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    const view = node.ownerDocument.defaultView;
     node.style.height = 'auto';
-    const style = view.getComputedStyle(node);
-    const line = parseFloat(style.lineHeight) || 17;
-    const padTop = parseFloat(style.paddingTop) || 0;
-    const max = Math.ceil(line * DESCRIPTION_LINES + padTop + 2);
-    const full = node.scrollHeight;
-    node.style.maxHeight = `${max}px`;
-    node.style.height = `${Math.min(full, max)}px`;
-    node.style.overflowY = full > max + 1 ? 'auto' : 'hidden';
+    node.style.height = `${node.scrollHeight}px`;
   }, [value, readOnly]);
   return (
     <textarea
@@ -1413,7 +1403,7 @@ function InstructionPanel({ prompt, compact, onPatch, onCompact, onExpand, onClo
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
               </button>
             ) : null}
-            <button type="button" className="prompt-models__item" onClick={onCompact}>
+            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={onCompact}>
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
@@ -1840,12 +1830,6 @@ function FloatCard({ prompt, view, onPatch }) {
           aria-label="Title"
           onChange={(event) => patchStepTitle(event.target.value)}
         />
-        <DescriptionBlock
-          className="prompt-float__description"
-          value={step.description || ''}
-          readOnly={Boolean(step.promptSaved)}
-          onChange={(description) => onPatch({ stepPatch: { id: step.id, description, promptSaved: false } })}
-        />
         <div className="prompt-drawer">
           <PromptBody
             key={step.id}
@@ -1905,11 +1889,11 @@ const FLOAT_CSS = `
     overflow: hidden;
   }
   body {
-    --surface-base: #151515;
-    --text-primary: #fff;
-    background: var(--surface-base);
-    color: #fff;
-    color-scheme: dark;
+    --surface-base: transparent;
+    --text-primary: #1a1a1a;
+    background: transparent;
+    color: #1a1a1a;
+    color-scheme: light;
   }
   .prompt-float {
     position: relative;
@@ -1921,8 +1905,10 @@ const FLOAT_CSS = `
     gap: 12px;
     padding: 12px;
     overflow: hidden;
-    background: var(--surface-base);
-    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    color: #1a1a1a;
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
   .prompt-float__sheet {
@@ -1930,22 +1916,22 @@ const FLOAT_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
+    border: 2px dashed rgba(20, 20, 22, 0.45);
     border-radius: 14px;
-    background: #101010;
+    background: #fff;
     overflow: hidden;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   }
   .prompt-float__sheet:focus-within {
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+    border-color: rgba(20, 20, 22, 0.72);
   }
   .prompt-float__step {
     flex: none;
     width: 100%;
     margin: 0;
     border: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(20, 20, 22, 0.08);
     background: transparent;
-    color: #fff;
+    color: #1a1a1a;
     font: inherit;
     font-size: 18px;
     font-weight: 560;
@@ -1953,7 +1939,7 @@ const FLOAT_CSS = `
     padding: 14px 16px 12px;
     outline: none;
   }
-  .prompt-float__step::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-float__step::placeholder { color: rgba(20, 20, 22, 0.38); }
   .prompt-desc {
     position: relative;
     flex: none;
@@ -2319,23 +2305,27 @@ const FLOAT_CSS = `
     border: 0;
     border-radius: 0;
     padding: 16px 48px 16px 16px;
-    background: transparent;
-    color: #fff;
+    background: #fff;
+    color: #111;
     font: inherit;
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1.45;
     outline: none;
   }
-  .prompt-float__text::placeholder { color: rgba(255, 255, 255, 0.38); }
+  .prompt-float__text::placeholder { color: rgba(20, 20, 22, 0.38); }
+  .prompt-body__editor[data-empty="true"]::before,
+  .prompt-body__editor[data-empty]::before {
+    color: rgba(20, 20, 22, 0.38);
+  }
   .prompt-float__text {
     scrollbar-width: thin;
-    scrollbar-color: #2a2a2a #151515;
+    scrollbar-color: rgba(20, 20, 22, 0.28) #fff;
   }
   .prompt-float__text::-webkit-scrollbar { width: 8px; height: 8px; }
-  .prompt-float__text::-webkit-scrollbar-track { background: #151515; }
+  .prompt-float__text::-webkit-scrollbar-track { background: #fff; }
   .prompt-float__text::-webkit-scrollbar-thumb {
     border-radius: 8px;
-    background: #2a2a2a;
+    background: rgba(20, 20, 22, 0.28);
   }
   .prompt-copy {
     position: absolute;
@@ -2346,11 +2336,12 @@ const FLOAT_CSS = `
     height: 32px;
     margin: 0;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(20, 20, 22, 0.16);
     border-radius: 8px;
-    background: #333333;
-    color: rgba(255, 255, 255, 0.95);
+    background: #fff;
+    color: #111;
     font-size: 14px;
+    font-weight: 650;
     line-height: 1;
     cursor: pointer;
   }
@@ -2366,11 +2357,11 @@ const FLOAT_CSS = `
     display: grid;
     place-items: center;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.32);
+    border: 1px solid rgba(20, 20, 22, 0.16);
     border-radius: 50%;
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 18px rgba(0, 0, 0, 0.28);
+    color: #111;
+    background: #fff;
+    font-weight: 650;
     cursor: pointer;
   }
   .prompt-steps__arrow svg {
@@ -2388,6 +2379,7 @@ const FLOAT_CSS = `
     text-align: center;
     font-size: 13px;
     letter-spacing: 0.04em;
-    color: rgba(255, 255, 255, 0.78);
+    color: #111;
+    font-weight: 650;
   }
 `;
