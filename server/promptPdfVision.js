@@ -47,6 +47,8 @@ Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra en nin
 
 En description y en prompt, copia el énfasis que se ve en la página. Envuelve solo la frase marcada, con una de estas etiquetas y sin atributos: <strong> negrita, <em> itálica, <u> subrayado, <s> tachado, <mark> resaltado. El title va siempre sin etiquetas. No marques una frase solo porque la letra es más grande. No uses markdown ni otras etiquetas. Si el texto es normal, déjalo sin marcas.
 
+Si el prompt trae un hueco entre marcas, cópialo tal cual, con una o con dos: {add this producto}, {{add this producto}}, [add this producto] o [[add this producto]]. No lo completes, no lo quites y no lo conviertas en texto normal. El texto de adentro es el nombre de una variable.
+
 No transcribas la página entera. No escribas nada fuera del JSON.`;
 
 const CONTINUE_INSTRUCTION = `Esta página sigue al PDF que ya leíste. Devuelve solo un objeto JSON {"title":"","description":"","prompt":""}.
@@ -58,6 +60,8 @@ description: solo si esta página agrega explicación, instrucciones o rótulos 
 prompt: copia el prompt que continúa en esta página, tal cual y con sus párrafos. Si la página lo nombra Prompt, usa ese bloque. Si no lo nombra, usa el bloque de texto más grande solo cuando sea la continuación del prompt. Si no continúa, "".
 
 En description y en prompt, copia el énfasis que se ve en la página. Envuelve solo la frase marcada, con una de estas etiquetas y sin atributos: <strong> negrita, <em> itálica, <u> subrayado, <s> tachado, <mark> resaltado. No marques una frase solo porque la letra es más grande. No uses markdown ni otras etiquetas. Si el texto es normal, déjalo sin marcas.
+
+Si el prompt trae un hueco entre marcas, cópialo tal cual, con una o con dos: {add this producto}, {{add this producto}}, [add this producto] o [[add this producto]]. No lo completes, no lo quites y no lo conviertas en texto normal. El texto de adentro es el nombre de una variable.
 
 Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra. No escribas nada fuera del JSON.`;
 

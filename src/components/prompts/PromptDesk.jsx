@@ -12,7 +12,7 @@ import {
 } from '../../lib/promptDeskSync.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
-import { resolvePrompt } from '../../lib/promptVariables.js';
+import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
@@ -1379,6 +1379,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       let title = step.title || '';
       let description = step.description || '';
       let promptText = step.prompt || '';
+      let variables = [...(prompt.variables || [])];
       let found = false;
       for (let index = 0; index < images.length; index += 1) {
         const pass = index === 0 ? 'read' : 'continue';
@@ -1425,18 +1426,24 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           changed = true;
         }
         if (nextPrompt) {
+          const lifted = liftPromptPlaceholders(nextPrompt, variables);
+          variables = lifted.variables;
           promptText = promptText.trim()
-            ? `${promptText.replace(/\s+$/g, '')}\n\n${nextPrompt}`
-            : nextPrompt;
+            ? `${promptText.replace(/\s+$/g, '')}\n\n${lifted.prompt}`
+            : lifted.prompt;
           changed = true;
         }
         if (!changed) continue;
         found = true;
-        patchStep({
-          title,
-          description,
-          prompt: promptText,
-          promptSaved: false,
+        onPatch({
+          variables,
+          stepPatch: {
+            id: step.id,
+            title,
+            description,
+            prompt: promptText,
+            promptSaved: false,
+          },
         });
       }
       if (!found) setPdfError('Groq didn’t find text on these pages.');
