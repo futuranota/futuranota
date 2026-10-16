@@ -77,8 +77,11 @@ export function foldersFromRows(collections, files, steps) {
         modelId: file.model_id || '',
         variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
-        pdf: null,
+        pdf: file.pdf_name
+          ? { name: file.pdf_name, path: file.pdf_path || '', url: promptImageUrl(file.pdf_path || '') }
+          : null,
         video: null,
+        assets: assetsFromRow(file.assets),
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
           .map((row) => {
@@ -99,6 +102,30 @@ export async function loadPromptDesk(userId) {
   if (files.error) throw files.error;
   if (steps.error) throw steps.error;
   return foldersFromRows(collections.data, files.data, steps.data);
+}
+
+function assetsFromRow(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && item.id && item.path)
+    .map((item) => ({
+      id: String(item.id),
+      name: String(item.name || 'Image'),
+      kind: item.kind === 'svg' ? 'svg' : 'image',
+      path: String(item.path),
+      url: promptImageUrl(item.path),
+    }));
+}
+
+function assetRows(assets) {
+  return (assets || [])
+    .filter((item) => item && item.id && item.path)
+    .map((item) => ({
+      id: String(item.id),
+      name: String(item.name || 'Image'),
+      kind: item.kind === 'svg' ? 'svg' : 'image',
+      path: String(item.path),
+    }));
 }
 
 function collectionRow(folder, userId, position) {
@@ -124,6 +151,9 @@ function fileRow(prompt, userId, collectionId, position) {
     model_id: prompt.modelId || '',
     variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
+    pdf_name: prompt.pdf?.name || null,
+    pdf_path: prompt.pdf?.path || null,
+    assets: assetRows(prompt.assets),
     position,
     updated_at: new Date().toISOString(),
   };
@@ -164,6 +194,10 @@ function imagePaths(folders) {
   const paths = new Set();
   for (const folder of folders || []) {
     for (const prompt of folder.prompts || []) {
+      if (prompt.pdf?.path) paths.add(prompt.pdf.path);
+      for (const asset of prompt.assets || []) {
+        if (asset.path) paths.add(asset.path);
+      }
       for (const step of prompt.steps || []) {
         if (step.imagePath) paths.add(step.imagePath);
       }
@@ -209,6 +243,44 @@ export async function savePromptDesk(userId, folders, previous) {
     const { error } = await supabase.storage.from(BUCKET).remove(removed);
     if (error) console.warn('[prompt-desk] image remove failed', error.message);
   }
+}
+
+export async function uploadPromptAsset(file, fileId, userId) {
+  const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+  if (isSvg) {
+    const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.svg`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+      contentType: 'image/svg+xml',
+      upsert: false,
+      cacheControl: '3600',
+    });
+    if (error) throw error;
+    return {
+      name: file.name || 'image.svg',
+      kind: 'svg',
+      path,
+      url: promptImageUrl(path),
+      file,
+    };
+  }
+  const converted = await convertFileToWebpData(file);
+  if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
+  const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.webp`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
+    contentType: 'image/webp',
+    upsert: false,
+    cacheControl: '3600',
+  });
+  if (error) throw error;
+  const stem = (file.name || 'image').replace(/\.[^.]+$/, '');
+  const name = `${stem}.webp`;
+  return {
+    name,
+    kind: 'image',
+    path,
+    url: promptImageUrl(path),
+    file: new File([converted.blob], name, { type: 'image/webp' }),
+  };
 }
 
 export async function uploadPromptImage(file, stepId, userId) {

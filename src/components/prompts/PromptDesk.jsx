@@ -9,6 +9,7 @@ import {
   loadPromptDesk,
   savePromptDesk,
   uploadPromptImage,
+  uploadPromptPdf,
 } from '../../lib/promptDeskSync.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
@@ -254,6 +255,7 @@ function blankPrompt() {
     stepIndex: 0,
     pdf: null,
     video: null,
+    assets: [],
     steps: [blankStep()],
   };
 }
@@ -498,7 +500,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -1000,6 +1002,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const showSide = showImage || showVideo || showPdf;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.length;
+  const imageCount = steps.filter((item) => item.image).length;
+  const imageHold = useRef(false);
   const homeLogo = PROMPT_MODELS.find((model) => model.id === (step.modelIds || [])[0]) || null;
 
   function patchStep(patch) {
@@ -1021,6 +1025,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfPageIndex(0);
     setPdfStatus('idle');
     pdfPagesRef.current = [];
+    imageHold.current = false;
     setShowImage(false);
     setShowVideo(false);
     setShowPdf(false);
@@ -1033,7 +1038,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   }, [step.id]);
 
   useEffect(() => {
-    if (!sheetOpen) return;
+    if (!sheetOpen || imageHold.current) return;
     if ((prompt.pdf?.name || prompt.video?.embedSrc) && steps.some((item) => item.image)) {
       if (prompt.pdf?.name) {
         setShowPdf(true);
@@ -1223,6 +1228,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setShowImage(false);
     setShowVideo(false);
     onPatch({ pdf: { name: file.name, path: '', url: '' } });
+    currentPromptUserId()
+      .then((userId) => (userId ? uploadPromptPdf(file, fileId, userId) : null))
+      .then((uploaded) => {
+        if (!uploaded) return;
+        onPatch({ pdf: { name: file.name, path: uploaded.path, url: uploaded.url } });
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] pdf upload failed', error?.message || error);
+        setPdfError('Couldn’t save the PDF.');
+      });
   }
 
   async function extractPdf() {
@@ -1335,7 +1350,30 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     onPatch({ pdf: null });
   }
 
+  function hideImage() {
+    imageHold.current = false;
+    setShowImage(false);
+    if (prompt.pdf?.name) {
+      setShowPdf(true);
+      setShowVideo(false);
+    } else if (prompt.video?.embedSrc) {
+      setShowVideo(true);
+      setShowPdf(false);
+    }
+  }
+
+  function revealImage() {
+    const target = step.image ? index : steps.findIndex((item) => item.image);
+    if (target < 0) return;
+    imageHold.current = true;
+    if (target !== index) onPatch({ stepIndex: target });
+    setShowImage(true);
+    setShowVideo(false);
+    setShowPdf(false);
+  }
+
   function openBuiltPrompt() {
+    imageHold.current = false;
     setSheetOpen(true);
     if ((prompt.pdf?.name || prompt.video?.embedSrc) && steps.some((item) => item.image)) {
       showIndexMedia();
@@ -1349,6 +1387,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   }
 
   function showIndexMedia() {
+    imageHold.current = false;
     if (prompt.pdf?.name) {
       setShowPdf(true);
       setShowImage(false);
@@ -1385,10 +1424,12 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   function goBack() {
     if (index <= 0) return;
+    imageHold.current = false;
     onPatch({ stepIndex: index - 1 });
   }
 
   function goForward() {
+    imageHold.current = false;
     if (index < steps.length - 1) {
       onPatch({ stepIndex: index + 1 });
       return;
@@ -1530,7 +1571,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       onPaste={(event) => {
         if (!sheetOpen) return;
         const item = [...event.clipboardData.items].find((entry) => entry.type.startsWith('image/'));
-        if (item) takeImage(item.getAsFile());
+        if (!item) return;
+        event.preventDefault();
+        takeImage(item.getAsFile());
       }}
     >
       <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
@@ -1587,7 +1630,20 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               </button>
             ) : null}
             {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
-            {sheetOpen && !showImage ? (
+            {sheetOpen && showImage && step.image ? (
+              <button type="button" className="prompt-models__item" onClick={hideImage}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M3 3l18 18" />
+                    <path d="M10.6 10.7A3 3 0 0 0 12 16a3 3 0 0 0 2.2-1" />
+                    <path d="M9.9 5.2A11 11 0 0 1 12 5c5 0 8.5 4.2 9.5 7a18 18 0 0 1-2.4 3.4" />
+                    <path d="M6.1 6.2C4 7.7 2.6 9.8 2 12c.8 2 4.2 6.5 9.2 7a12 12 0 0 0 4.2-1" />
+                  </svg>
+                </span>
+                <span>Ocultar</span>
+              </button>
+            ) : null}
+            {sheetOpen && !step.image && !showImage ? (
               <button
                 type="button"
                 className="prompt-models__item"
@@ -1603,6 +1659,12 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   </svg>
                 </span>
                 <span>Agregar imagen</span>
+              </button>
+            ) : null}
+            {sheetOpen && imageCount > 0 && !(showImage && step.image) ? (
+              <button type="button" className="prompt-models__item is-counted" onClick={revealImage}>
+                <span className="prompt-models__glyph" aria-hidden="true">{imageCount}</span>
+                <span>imagen</span>
               </button>
             ) : null}
             {sheetOpen || showVideo ? null : (
@@ -1837,20 +1899,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             )}
           </div>
         ) : null}
-        {sheetOpen && showImage && step.image ? (
-          <div className="prompt-panel__media-foot">
-            <button
-              type="button"
-              className="prompt-panel__remove"
-              onClick={() => {
-                setShowImage(true);
-                patchStep({ image: '', imagePath: '' });
-              }}
-            >
-              Quitar
-            </button>
-          </div>
-        ) : null}
         {showVideo && prompt.video?.embedSrc ? (
           <div className="prompt-panel__media-foot">
             {prompt.video?.provider !== 'instagram' ? (
@@ -1945,6 +1993,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             )}
           </div>
           ) : (
+          <div className="prompt-home">
           <div className="prompt-index">
             <button
               type="button"
@@ -1990,6 +2039,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 </button>
               ) : null}
             </div>
+          </div>
           </div>
           )}
           {sheetOpen ? (
