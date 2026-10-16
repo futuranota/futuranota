@@ -1,3 +1,21 @@
+export async function copyRichText(plain, html) {
+  if (!plain) return false;
+  try {
+    if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+          "text/html": new Blob([html || plain], { type: "text/html" }),
+        }),
+      ]);
+      return true;
+    }
+  } catch {
+    // Fall through to plain text when the page cannot write both formats.
+  }
+  return copyToClipboard(plain);
+}
+
 export async function copyToClipboard(text) {
   if (!text) return false;
   try {

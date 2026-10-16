@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
-import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import { copyRichText } from '../../lib/copyToClipboard.js';
 import {
   currentPromptUserId,
   loadPromptDesk,
@@ -118,6 +118,27 @@ function plainCopy(template, variables) {
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .trim();
+}
+
+function richCopy(template, variables) {
+  const resolved = resolvePrompt(template, variables);
+  const kept = [];
+  const text = resolved.replace(/<\/?(strong|em|u|s|mark)>/gi, (tag) => {
+    const name = tag.replace(/<\/?|>/g, '').toLowerCase();
+    const token = `\u0000${kept.length}\u0000`;
+    kept.push(tag.startsWith('</') ? `</${name}>` : `<${name}>`);
+    return token;
+  });
+  return `<!DOCTYPE html><html><body>${text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\u0000(\d+)\u0000/g, (_, index) => kept[Number(index)] || '')
+    .replace(/\n/g, '<br>')}</body></html>`;
+}
+
+function promptHasText(value) {
+  return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim());
 }
 
 const FORMAT_TOOLS = [
@@ -738,6 +759,14 @@ export default function PromptDesk() {
   }
 
   function closePanel() {
+    const prompt = activePrompt?.prompt;
+    if (prompt?.pdf || (prompt?.steps || []).some((step) => step.pdfPage != null)) {
+      pdfFiles.delete(prompt.id);
+      patchPrompt({
+        pdf: null,
+        steps: (prompt.steps || []).map((step) => ({ ...step, pdfPage: null })),
+      });
+    }
     setActive(null);
     setCompact(false);
     closeFloat();
@@ -1140,34 +1169,22 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   useEffect(() => {
     if (!sheetOpen || imageHold.current) return;
-    if ((prompt.pdf?.name || prompt.video?.embedSrc) && stepHasImage(step)) {
-      if (prompt.pdf?.name) {
-        setShowPdf(true);
-        setShowVideo(false);
-        setShowImage(false);
-      } else {
-        setShowVideo(true);
-        setShowPdf(false);
-        setShowImage(false);
-      }
-      return;
-    }
-    if (step.promptSaved) {
-      setShowPdf(false);
+    if (prompt.pdf?.name) {
+      setShowPdf(true);
       setShowVideo(false);
-      setShowImage(stepHasImage(step));
+      setShowImage(false);
       return;
     }
     if (prompt.video?.embedSrc) {
       setShowVideo(true);
       setShowPdf(false);
       setShowImage(false);
-    } else if (prompt.pdf?.name) {
-      setShowPdf(true);
-      setShowVideo(false);
-      setShowImage(false);
+      return;
     }
-    // Only when the page changes. Saving hides the column in saveStep; the file keeps the PDF or video for the next page.
+    setShowPdf(false);
+    setShowVideo(false);
+    setShowImage(stepHasImage(step));
+    // The PDF stays beside the prompt until the file is closed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
@@ -1509,15 +1526,12 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     }
   }
 
-  function saveStep() {
-    if ((prompt.pdf?.name || prompt.video?.embedSrc) && stepHasImage(step)) {
-      showIndexMedia();
-    } else {
-      setShowPdf(false);
-      setShowVideo(false);
-      setShowImage(stepHasImage(step));
-    }
-    patchStep({ promptSaved: true });
+  function saveAllPrompts() {
+    onPatch({
+      steps: steps.map((item) => (
+        promptHasText(item.prompt) ? { ...item, promptSaved: true } : item
+      )),
+    });
   }
 
   function editStep() {
@@ -1640,7 +1654,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   async function copyPrompt() {
     if (!canCopy) return;
-    const ok = await copyToClipboard(copiedText);
+    const ok = await copyRichText(copiedText, richCopy(step.prompt, prompt.variables || []));
     if (!ok) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
@@ -2182,12 +2196,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               {stepHasImage(step) ? (
                 <button type="button" onClick={removePageImage}>Remover</button>
               ) : null}
-              {!step.promptSaved && step.prompt.trim() ? (
-                <button type="button" onClick={saveStep}>Guardar</button>
-              ) : null}
               <button type="button" onClick={deleteIndex}>Eliminar</button>
             </div>
           <div className="prompt-steps">
+            {steps.some((item) => !item.promptSaved && promptHasText(item.prompt)) ? (
+              <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
+                Guardar
+              </button>
+            ) : null}
             <button
               type="button"
               className="prompt-steps__arrow"
@@ -2219,16 +2235,30 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   );
 }
 
-async function copyInView(text, view) {
-  if (!text) return false;
+async function copyInView(plain, html, view) {
+  if (!plain) return false;
   try {
-    await view.navigator.clipboard.writeText(text);
+    const Item = view.ClipboardItem;
+    if (view.navigator.clipboard?.write && typeof Item !== 'undefined') {
+      await view.navigator.clipboard.write([
+        new Item({
+          'text/plain': new view.Blob([plain], { type: 'text/plain' }),
+          'text/html': new view.Blob([html || plain], { type: 'text/html' }),
+        }),
+      ]);
+      return true;
+    }
+  } catch {
+    // The compact window falls back to plain text.
+  }
+  try {
+    await view.navigator.clipboard.writeText(plain);
     return true;
   } catch {
     try {
       const doc = view.document;
       const textarea = doc.createElement('textarea');
-      textarea.value = text;
+      textarea.value = plain;
       textarea.setAttribute('readonly', '');
       textarea.style.position = 'fixed';
       textarea.style.left = '-9999px';
@@ -2245,8 +2275,8 @@ async function copyInView(text, view) {
 
 function FloatCard({ prompt, view, onPatch }) {
   const { steps, index, step } = stepAt(prompt);
-  const text = resolvePrompt(step.prompt, prompt.variables || []).trim();
-  const canCopy = Boolean(step.promptSaved && text);
+  const plain = plainCopy(step.prompt, prompt.variables || []);
+  const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
 
@@ -2291,7 +2321,7 @@ function FloatCard({ prompt, view, onPatch }) {
 
   async function copyPrompt() {
     if (!canCopy) return;
-    const ok = await copyInView(text, view);
+    const ok = await copyInView(plain, richCopy(step.prompt, prompt.variables || []), view);
     if (!ok) return;
     setCopied(true);
     view.setTimeout(() => setCopied(false), 1200);

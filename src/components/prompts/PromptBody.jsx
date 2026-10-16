@@ -49,6 +49,40 @@ function appendText(doc, parent, text) {
   });
 }
 
+const PASTE_MARKS = {
+  STRONG: 'strong',
+  B: 'strong',
+  EM: 'em',
+  I: 'em',
+  U: 'u',
+  S: 's',
+  STRIKE: 's',
+  MARK: 'mark',
+};
+
+function appendClipboard(doc, parent, node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    if (node.textContent) parent.appendChild(doc.createTextNode(node.textContent));
+    return;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  if (node.tagName === 'BR') {
+    parent.appendChild(doc.createElement('br'));
+    return;
+  }
+  const mark = PASTE_MARKS[node.tagName];
+  if (mark) {
+    const el = doc.createElement(mark);
+    for (const child of node.childNodes) appendClipboard(doc, el, child);
+    parent.appendChild(el);
+    return;
+  }
+  if (node.tagName === 'DIV' || node.tagName === 'P' || node.tagName === 'LI') {
+    if (parent.childNodes.length) parent.appendChild(doc.createElement('br'));
+  }
+  for (const child of node.childNodes) appendClipboard(doc, parent, child);
+}
+
 function readTemplate(root) {
   let out = '';
   const walk = (node) => {
@@ -363,17 +397,37 @@ export function PromptBody({
 
   function onPaste(event) {
     event.preventDefault();
-    const text = event.clipboardData.getData('text/plain');
-    if (!text) return;
+    const html = event.clipboardData.getData('text/html');
+    const plain = event.clipboardData.getData('text/plain');
+    if (!html && !plain) return;
     const root = editorRef.current;
     const doc = root.ownerDocument;
     const selection = doc.getSelection();
     if (!selection || !selection.rangeCount) return;
     const range = selection.getRangeAt(0);
     range.deleteContents();
-    const node = doc.createTextNode(text);
-    range.insertNode(node);
-    placeCaret(doc, node, node.textContent.length);
+    const fragment = doc.createDocumentFragment();
+    if (html && /<(strong|em|u|s|mark|b|i)\b/i.test(html)) {
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      for (const child of parsed.body.childNodes) appendClipboard(doc, fragment, child);
+    }
+    if (!fragment.childNodes.length && plain) {
+      plain.split('\n').forEach((line, index) => {
+        if (index) fragment.appendChild(doc.createElement('br'));
+        if (line) fragment.appendChild(doc.createTextNode(line));
+      });
+    }
+    if (!fragment.childNodes.length) return;
+    const last = fragment.lastChild;
+    range.insertNode(fragment);
+    if (last?.nodeType === Node.TEXT_NODE) placeCaret(doc, last, last.textContent.length);
+    else if (last?.isConnected) {
+      const next = doc.createRange();
+      next.setStartAfter(last);
+      next.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(next);
+    }
     commitDom();
     syncMenu();
   }

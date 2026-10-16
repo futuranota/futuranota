@@ -1884,9 +1884,9 @@
   background: transparent;
   color: #704901;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.45;
   padding: 16px;
   resize: none;
   overflow: auto;
@@ -2458,6 +2458,28 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
+}
+
+.prompt-steps__save {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid rgba(20, 20, 22, 0.16);
+  border-radius: 999px;
+  color: #111;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.prompt-steps__save:hover {
+  background: #f4f1eb;
 }
 
 .prompt-steps__home {

@@ -45,6 +45,8 @@ Devuelve solo un objeto JSON con las claves "title", "description" y "prompt". C
 
 Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra en ningún campo. Un rótulo que explica la hoja sí entra en description.
 
+En description y en prompt, copia el énfasis que se ve en la página. Envuelve solo la frase marcada, con una de estas etiquetas y sin atributos: <strong> negrita, <em> itálica, <u> subrayado, <s> tachado, <mark> resaltado. El title va siempre sin etiquetas. No marques una frase solo porque la letra es más grande. No uses markdown ni otras etiquetas. Si el texto es normal, déjalo sin marcas.
+
 No transcribas la página entera. No escribas nada fuera del JSON.`;
 
 const CONTINUE_INSTRUCTION = `Esta página sigue al PDF que ya leíste. Devuelve solo un objeto JSON {"title":"","description":"","prompt":""}.
@@ -55,10 +57,43 @@ description: solo si esta página agrega explicación, instrucciones o rótulos 
 
 prompt: copia el prompt que continúa en esta página, tal cual y con sus párrafos. Si la página lo nombra Prompt, usa ese bloque. Si no lo nombra, usa el bloque de texto más grande solo cuando sea la continuación del prompt. Si no continúa, "".
 
+En description y en prompt, copia el énfasis que se ve en la página. Envuelve solo la frase marcada, con una de estas etiquetas y sin atributos: <strong> negrita, <em> itálica, <u> subrayado, <s> tachado, <mark> resaltado. No marques una frase solo porque la letra es más grande. No uses markdown ni otras etiquetas. Si el texto es normal, déjalo sin marcas.
+
 Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra. No escribas nada fuera del JSON.`;
 
-function fieldText(value) {
-  return typeof value === "string" ? value.trim() : "";
+const MARK_NAMES = {
+  strong: "strong",
+  b: "strong",
+  em: "em",
+  i: "em",
+  u: "u",
+  s: "s",
+  strike: "s",
+  del: "s",
+  mark: "mark",
+};
+
+function keepMarks(value) {
+  let text = typeof value === "string" ? value : "";
+  text = text.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  text = text.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  const kept = [];
+  text = text.replace(/<\/?(strong|em|u|s|mark|b|i|strike|del)\b[^>]*>/gi, (tag) => {
+    const name = tag.match(/<\/?([a-z0-9]+)/i)?.[1]?.toLowerCase();
+    const mapped = MARK_NAMES[name];
+    if (!mapped) return "";
+    const token = `\u0000${kept.length}\u0000`;
+    kept.push(tag.startsWith("</") ? `</${mapped}>` : `<${mapped}>`);
+    return token;
+  });
+  text = text.replace(/<[^>]*>/g, "");
+  text = text.replace(/\u0000(\d+)\u0000/g, (_, index) => kept[Number(index)] || "");
+  text = text.replace(/<(strong|em|u|s|mark)>\s*<\/\1>/gi, "");
+  return text.trim();
+}
+
+function plainField(value) {
+  return keepMarks(value).replace(/<\/?(?:strong|em|u|s|mark)>/gi, "").trim();
 }
 
 export function parsePdfFields(raw) {
@@ -80,9 +115,9 @@ export function parsePdfFields(raw) {
     throw new Error("Groq didn’t return the PDF fields.");
   }
   return {
-    title: fieldText(parsed?.title),
-    description: fieldText(parsed?.description),
-    prompt: fieldText(parsed?.prompt),
+    title: plainField(parsed?.title),
+    description: keepMarks(parsed?.description),
+    prompt: keepMarks(parsed?.prompt),
   };
 }
 
