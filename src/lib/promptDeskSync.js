@@ -5,9 +5,11 @@ import { supabase } from './supabaseClient.js';
 const BUCKET = 'prompt-images';
 
 export async function currentPromptUserId() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return data?.user?.id || null;
+  const first = await supabase.auth.getUser();
+  if (!first.error && first.data?.user?.id) return first.data.user.id;
+  const refreshed = await supabase.auth.refreshSession();
+  if (refreshed.error) throw first.error || refreshed.error;
+  return refreshed.data?.session?.user?.id || null;
 }
 
 export function promptImageUrl(path) {
@@ -212,10 +214,10 @@ export async function savePromptDesk(userId, folders, previous) {
 export async function uploadPromptImage(file, stepId, userId) {
   const converted = await convertFileToWebpData(file);
   if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
-  const path = `${userId}/${stepId}.webp`;
+  const path = `${userId}/${stepId}/${crypto.randomUUID()}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',
-    upsert: true,
+    upsert: false,
     cacheControl: '3600',
   });
   if (error) throw error;
