@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
-import { authPath } from '../lib/paths.js';
+import { PATHS, authPath } from '../lib/paths.js';
 
 const CARDS = [
   {
@@ -146,6 +146,7 @@ export function HomePage() {
       </section>
 
       <footer className="plain-foot">
+        <Link to={PATHS.privacy}>Privacy</Link>
         <span>Futura Nota</span>
         <Link to={authPath('signin')}>{t('marketing.logIn')}</Link>
         <Link to={authPath()}>{t('marketing.signUp')}</Link>

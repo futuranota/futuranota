@@ -17,9 +17,9 @@ export function Nav() {
   const navLinks = site.nav.links;
   const { t } = useI18n();
 
-  if (pathname === PATHS.home) {
+  if (pathname === PATHS.home || pathname === PATHS.privacy) {
     return (
-      <header className="nav nav--plain" data-screen-label="nav">
+      <header className={pathname === PATHS.privacy ? 'nav nav--plain nav--doc' : 'nav nav--plain'} data-screen-label="nav">
         <div className="nav__inner container">
           <Link to={PATHS.home} className="plain-nav__brand" aria-label="Futura Nota home">
             <img src="/navbar.svg" alt="" className="plain-nav__logo" />

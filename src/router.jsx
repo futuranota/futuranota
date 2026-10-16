@@ -9,6 +9,7 @@ import { WelcomePage } from './marketing/pages/WelcomePage.jsx';
 import { ForgotPasswordPage } from './marketing/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './marketing/pages/ResetPasswordPage.jsx';
 import { TermsPage } from './marketing/pages/TermsPage.jsx';
+import { PrivacyPage } from './marketing/pages/PrivacyPage.jsx';
 import { AuthCallbackPage } from './pages/AuthCallbackPage.jsx';
 import { AdminPage } from './admin/AdminPage.jsx';
 import { PlansPage } from './pages/PlansPage.jsx';
@@ -95,6 +96,7 @@ export default function AppRouter() {
           <Route index element={<HomePage />} />
           <Route path="horizon" element={<HorizonPage />} />
           <Route path="how" element={<HowPage />} />
+          <Route path="privacidad" element={<PrivacyPage />} />
           <Route path="marketplace" element={<Navigate to="/horizon" replace />} />
         </Route>
 

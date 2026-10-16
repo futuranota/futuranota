@@ -15,6 +15,7 @@ const DEFAULT_THEME = { accent: 'terracotta', texture: 'on' };
 export function MarketingLayout() {
   const { hash, pathname } = useLocation();
   const home = pathname === PATHS.home;
+  const privacy = pathname === PATHS.privacy;
 
   useEffect(() => {
     applyMarketingTheme(DEFAULT_THEME);
@@ -33,13 +34,19 @@ export function MarketingLayout() {
 
   return (
     <SiteTinaProvider>
-      <div className={home ? 'marketing-shell marketing-shell--home' : 'marketing-shell'}>
+      <div className={
+        privacy
+          ? 'marketing-shell marketing-shell--privacy'
+          : home
+            ? 'marketing-shell marketing-shell--home'
+            : 'marketing-shell'
+      }>
         <div className="canvas-bg" />
         <Nav />
         <main>
           <Outlet />
         </main>
-        {home ? null : <Footer />}
+        {home || privacy ? null : <Footer />}
       </div>
     </SiteTinaProvider>
   );

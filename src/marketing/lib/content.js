@@ -84,4 +84,5 @@ export const FOOTER_SECTION_SLUGS = {
   Horizon: 'horizon',
   'How it works': 'how',
   Terms: 'terms',
+  Privacy: 'privacy',
 };

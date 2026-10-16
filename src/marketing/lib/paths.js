@@ -13,6 +13,7 @@ export const PATHS = {
   app: '/app',
   admin: '/panel',
   terms: '/signup/terms',
+  privacy: '/privacidad',
 };
 
 /** @param {string} token */
