@@ -202,7 +202,7 @@ export function PromptBody({
     if (!root) return;
     const plain = String(source || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '');
     const parts = parsePrompt(plain);
-    const empty = parts.length === 1 && parts[0].type === 'text' && !parts[0].text;
+    const empty = !plain.trim() || (parts.length === 1 && parts[0].type === 'text' && !parts[0].text.trim());
     if (empty) {
       root.replaceChildren();
       root.dataset.empty = 'true';
@@ -276,10 +276,12 @@ export function PromptBody({
     const root = editorRef.current;
     if (!root) return;
     const template = readTemplate(root);
-    localRef.current = template;
-    if (template) delete root.dataset.empty;
-    else root.dataset.empty = 'true';
-    onCommit(nextVariables ? { prompt: template, variables: nextVariables } : { prompt: template });
+    const blank = !template.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
+    localRef.current = blank ? '' : template;
+    if (blank) root.dataset.empty = 'true';
+    else delete root.dataset.empty;
+    const prompt = blank ? '' : template;
+    onCommit(nextVariables ? { prompt, variables: nextVariables } : { prompt });
   }
 
   function insertVariable(id, mention, nextVariables) {

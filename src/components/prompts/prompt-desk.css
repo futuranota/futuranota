@@ -986,6 +986,30 @@
   cursor: default;
 }
 
+.prompt-panel__media-foot .prompt-pdf__meta {
+  margin: 0;
+  max-width: 280px;
+  color: rgba(61, 59, 59, 0.45);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
+}
+
+.prompt-panel__pdf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.prompt-panel__pdf-actions .prompt-video__extract {
+  margin-left: 0;
+  grid-column: auto;
+}
+
 .prompt-panel__pdf-note {
   margin: 10px 0 0;
   color: rgba(20, 20, 22, 0.62);
@@ -997,6 +1021,37 @@
   margin: 0;
   color: #ffb4b4;
   font-size: 12px;
+  text-align: center;
+}
+
+.prompt-pdf__remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: #f6d0d0;
+  color: #8a2a2a;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.prompt-pdf__remove:hover {
+  background: #f0bcbc;
+}
+
+.prompt-panel__media-foot .prompt-pdf__note {
+  margin: 0;
+  max-width: 420px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ececec;
+  color: #3d3b3b;
+  font-size: 12px;
+  line-height: 1.45;
   text-align: center;
 }
 
@@ -1998,8 +2053,10 @@
 .prompt-body__editor[data-empty="true"]::before,
 .prompt-body__editor[data-empty]::before {
   content: attr(data-placeholder);
+  display: block;
   color: rgba(20, 20, 22, 0.38);
   pointer-events: none;
+  white-space: pre-wrap;
 }
 
 .prompt-body__editor--locked {
@@ -2373,7 +2430,8 @@
   gap: 18px;
 }
 
-.prompt-panel__step-actions button {
+.prompt-panel__step-actions button,
+.prompt-panel__step-file {
   border: 0;
   background: transparent;
   color: #111;
@@ -2382,6 +2440,10 @@
   font-weight: 650;
   cursor: pointer;
   padding: 0;
+}
+
+.prompt-panel__step-file input {
+  display: none;
 }
 
 .prompt-panel__step-actions button:hover {
@@ -2425,6 +2487,11 @@
   color: #111;
   font-size: 13px;
   font-weight: 700;
+}
+
+.prompt-models__item.is-counted.is-empty .prompt-models__glyph {
+  background: #c8c8c8;
+  color: #3d3b3b;
 }
 
 .prompt-steps__arrow {

@@ -28,6 +28,7 @@ function stepFromRow(row) {
     prompt: row.prompt || '',
     image: promptImageUrl(imagePath),
     imagePath,
+    pdfPage: null,
     video: row.video_embed_src
       ? {
         rawInput: row.video_raw_input || '',
@@ -77,9 +78,7 @@ export function foldersFromRows(collections, files, steps) {
         modelId: file.model_id || '',
         variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
-        pdf: file.pdf_name
-          ? { name: file.pdf_name, path: file.pdf_path || '', url: promptImageUrl(file.pdf_path || '') }
-          : null,
+        pdf: null,
         video: null,
         assets: assetsFromRow(file.assets),
         steps: (stepsByFile.get(file.id) || [])
@@ -151,8 +150,8 @@ function fileRow(prompt, userId, collectionId, position) {
     model_id: prompt.modelId || '',
     variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
-    pdf_name: prompt.pdf?.name || null,
-    pdf_path: prompt.pdf?.path || null,
+    pdf_name: null,
+    pdf_path: null,
     assets: assetRows(prompt.assets),
     position,
     updated_at: new Date().toISOString(),
@@ -172,6 +171,7 @@ function stepRow(step, userId, fileId, position) {
     model_ids: Array.isArray(step.modelIds) ? step.modelIds : [],
     prompt_saved: Boolean(step.promptSaved),
     image_path: step.imagePath || null,
+    pdf_page: null,
     video_provider: null,
     video_id: null,
     video_raw_input: null,
