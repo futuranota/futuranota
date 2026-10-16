@@ -2589,11 +2589,31 @@
 }
 
 .prompt-chip__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #111;
   font-size: 15px;
   font-weight: 560;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.prompt-chip__model {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  object-fit: contain;
+}
+
+svg.prompt-chip__model {
+  fill: none;
+  stroke: #1a1a1a;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .prompt-chip__snippet {

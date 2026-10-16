@@ -1051,7 +1051,7 @@ function ModelPicker({
               <path d="M12 9v3l2 2" />
             </svg>
           </span>
-          <span>Select a model</span>
+          <span>Select model</span>
           <span className="prompt-models__tip" role="tooltip">
             Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
           </span>
@@ -1558,6 +1558,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       onPatch({ stepIndex: index + 1 });
       return;
     }
+    if (!promptHasText(step.prompt)) return;
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -1669,7 +1670,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           <span className="prompt-chip__img prompt-chip__img--empty" aria-hidden="true" />
         )}
         <span className="prompt-chip__copy">
-          <span className="prompt-chip__name">{prompt.name || 'Untitled'}</span>
+          <span className="prompt-chip__name">
+            {homeLogo ? <img className="prompt-chip__model" src={homeLogo.src} alt="" /> : (
+              <svg className="prompt-chip__model" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" />
+                <path d="M12 9v3l2 2" />
+              </svg>
+            )}
+            {prompt.name || 'Untitled'}
+          </span>
           <span className="prompt-chip__snippet">{snippet}</span>
         </span>
       </button>
@@ -1725,16 +1734,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             />
             ) : null}
             {sheetOpen ? (
-            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={compress}>
-              <span className="prompt-models__glyph" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
-                </svg>
-              </span>
-              <span>Comprimir</span>
-            </button>
-            ) : null}
-            {sheetOpen ? (
               <button
                 type="button"
                 className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
@@ -1747,7 +1746,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
               </button>
             ) : null}
-            {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
+            {sheetOpen ? (
+            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={compress}>
+              <span className="prompt-models__glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
+                </svg>
+              </span>
+              <span>Compress</span>
+            </button>
+            ) : null}
             {sheetOpen && showImage && stepHasImage(step) ? (
               <button type="button" className="prompt-models__item" onClick={hideImage}>
                 <span className="prompt-models__glyph" aria-hidden="true">
@@ -1758,7 +1766,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     <path d="M6.1 6.2C4 7.7 2.6 9.8 2 12c.8 2 4.2 6.5 9.2 7a12 12 0 0 0 4.2-1" />
                   </svg>
                 </span>
-                <span>Ocultar</span>
+                <span>Hide</span>
               </button>
             ) : null}
             {sheetOpen && !stepHasImage(step) && !showImage ? (
@@ -1776,9 +1784,20 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     <path d="M12 5v14M5 12h14" />
                   </svg>
                 </span>
-                <span>Agregar imagen</span>
+                <span>Add image</span>
               </button>
             ) : null}
+            {sheetOpen ? (
+              <button type="button" className="prompt-models__item" onClick={goHome}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 10.5 12 4l8 6.5V20H4Z" />
+                  </svg>
+                </span>
+                <span>Home</span>
+              </button>
+            ) : null}
+            {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
             {sheetOpen && !(showImage && stepHasImage(step)) ? (
               <button
                 type="button"
@@ -1786,7 +1805,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 onClick={revealImage}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">{pageImageCount}</span>
-                <span>imagen</span>
+                <span>image</span>
               </button>
             ) : null}
             {sheetOpen || showVideo ? null : (
@@ -1833,19 +1852,10 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
                 </svg>
               </span>
-              <span>Comprimir</span>
+              <span>Compress</span>
             </button>
             )}
-            {sheetOpen ? (
-              <button type="button" className="prompt-models__item" onClick={goHome}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 10.5 12 4l8 6.5V20H4Z" />
-                  </svg>
-                </span>
-                <span>Home</span>
-              </button>
-            ) : (
+            {sheetOpen ? null : (
             <button
               type="button"
               className={promptCount ? 'prompt-models__item is-counted' : 'prompt-models__item is-counted is-empty'}
@@ -2066,7 +2076,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     {pdfReading ? 'Reading…' : 'Extract data'}
                   </button>
                   <button type="button" className="prompt-video__extract" onClick={placePdfPage}>
-                    {stepHasImage(step) ? 'Reemplazar' : 'Agregar como imagen'}
+                    {stepHasImage(step) ? 'Replace' : 'Add as image'}
                   </button>
                 </>
               ) : null}
@@ -2219,7 +2229,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             <button
               type="button"
               className="prompt-steps__arrow"
-              aria-label="Paso siguiente"
+              aria-label="Next prompt"
+              disabled={index >= steps.length - 1 && !promptHasText(step.prompt)}
               onClick={goForward}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2279,6 +2290,8 @@ function FloatCard({ prompt, view, onPatch }) {
   const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const floatModelName = (step.modelIds || [])[0] || '';
+  const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
 
   function patchFloatStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch, promptSaved: true } });
@@ -2309,6 +2322,7 @@ function FloatCard({ prompt, view, onPatch }) {
       onPatch({ stepIndex: index + 1 });
       return;
     }
+    if (!promptHasText(step.prompt)) return;
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -2331,6 +2345,14 @@ function FloatCard({ prompt, view, onPatch }) {
     <section className="prompt-float" aria-label="Prompt flotante">
       <div className="prompt-float__sheet">
         <div className="prompt-float__head">
+        <span className="prompt-float__model" title={floatModel?.label || floatModelName || 'Select model'}>
+          {floatModel ? <img src={floatModel.src} alt="" /> : (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <path d="M12 9v3l2 2" />
+            </svg>
+          )}
+        </span>
         <input
           className="prompt-float__step"
           value={stepTitleOf(step, index)}
@@ -2394,7 +2416,8 @@ function FloatCard({ prompt, view, onPatch }) {
         <button
           type="button"
           className="prompt-steps__arrow"
-          aria-label="Paso siguiente"
+          aria-label="Next prompt"
+          disabled={index >= steps.length - 1 && !promptHasText(step.prompt)}
           onClick={goForward}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2449,6 +2472,28 @@ const FLOAT_CSS = `
     border-color: rgba(20, 20, 22, 0.72);
   }
   .prompt-float__head { position: relative; flex: none; }
+  .prompt-float__model {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+  }
+  .prompt-float__model img,
+  .prompt-float__model svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+  .prompt-float__model svg {
+    fill: none;
+    stroke: #1a1a1a;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .prompt-float__step {
     flex: none;
     width: 100%;
@@ -2461,7 +2506,7 @@ const FLOAT_CSS = `
     font-size: 18px;
     font-weight: 560;
     letter-spacing: -0.02em;
-    padding: 14px 132px 12px 16px;
+    padding: 14px 132px 12px 42px;
     outline: none;
   }
   .prompt-float__instructions {
