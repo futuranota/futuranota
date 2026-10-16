@@ -2340,8 +2340,9 @@ const FLOAT_CSS = `
     padding: 16px 48px 16px 16px;
     background: #fff;
     color: #111;
-    font: inherit;
-    font-size: 18px;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
     line-height: 1.45;
     outline: none;
   }

@@ -1726,10 +1726,11 @@
   margin: 0;
   border: 0;
   background: transparent;
-  color: #1a1a1a;
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.4;
+  color: #704901;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
   padding: 8px 40px 4px 16px;
   resize: none;
   overflow: hidden;
@@ -1738,7 +1739,7 @@
 }
 
 .prompt-sheet__description::placeholder {
-  color: rgba(20, 20, 22, 0.38);
+  color: rgba(112, 73, 1, 0.45);
 }
 
 .prompt-sheet__description[readonly] {
@@ -1802,7 +1803,9 @@
   padding: 16px 48px 16px 16px;
   background: transparent;
   color: #111;
-  font-size: 18px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.45;
   outline: none;
   scrollbar-width: thin;
@@ -1830,6 +1833,7 @@
 .prompt-panel__body--code {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
+  font-weight: 400;
   line-height: 1.45;
 }
 
@@ -1850,7 +1854,9 @@
 .prompt-body__editor {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 18px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.45;
   background: transparent;
   color: #111;
