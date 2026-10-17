@@ -36,6 +36,7 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.16.0",
     "stripe": "^22.3.0",
+    "tesseract.js": "^7.0.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

@@ -138,11 +138,49 @@ async function ensurePdfjs() {
   return pdfjs;
 }
 
+const PROMPT_HEADING = /^(?:prompt|el prompt)\s*:?\s*$/i;
+
 /**
- * @param {ArrayBuffer|Uint8Array} data
- * @returns {Promise<{ text: string, pageCount: number, empty: boolean }>}
+ * Split a pasted PDF body on a Prompt heading.
+ * Without that line, the whole body is the prompt and the description stays empty.
+ * @param {unknown} text
+ * @returns {{ description: string, prompt: string }}
  */
-export async function extractTextFromPdfData(data) {
+export function splitPastedPdfText(text) {
+  const body = normalizePdfExtractedText(text);
+  if (!body) return { description: "", prompt: "" };
+  const lines = body.split("\n");
+  const index = lines.findIndex((line) => PROMPT_HEADING.test(line.trim()));
+  if (index === -1) return { description: "", prompt: body };
+  const description = normalizePdfExtractedText(lines.slice(0, index).join("\n"));
+  const prompt = normalizePdfExtractedText(lines.slice(index + 1).join("\n"));
+  if (!prompt) return { description: "", prompt: body };
+  return { description, prompt };
+}
+
+/**
+ * Join per-page extracts, skipping blanks, then split description from prompt.
+ * @param {unknown} pages
+ * @returns {{ description: string, prompt: string }}
+ */
+export function pastePdfPageTexts(pages) {
+  const text = normalizePdfExtractedText(
+    (Array.isArray(pages) ? pages : [])
+      .map((page) => normalizePdfExtractedText(page))
+      .filter(Boolean)
+      .join("\n\n"),
+  );
+  return splitPastedPdfText(text);
+}
+
+/**
+ * Text layer of each page. Empty string means the page is a picture and needs OCR.
+ * @param {ArrayBuffer|Uint8Array} data
+ * @param {{ maxPages?: number }} [opts]
+ * @returns {Promise<{ pages: string[], pageCount: number }>}
+ */
+export async function extractPdfPageTexts(data, opts = {}) {
+  const maxPages = opts.maxPages ?? Infinity;
   const pdfjs = await ensurePdfjs();
   const bytes = data instanceof Uint8Array
     ? data
@@ -159,22 +197,34 @@ export async function extractTextFromPdfData(data) {
   /** @type {string[]} */
   const pages = [];
 
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
-    const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent();
-    pages.push(textItemsToPageText(content?.items));
-  }
-
   try {
-    await pdf.destroy();
-  } catch {
-    // ignore
+    const shown = Math.min(pdf.numPages, maxPages);
+    for (let pageNum = 1; pageNum <= shown; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      pages.push(normalizePdfExtractedText(textItemsToPageText(content?.items)));
+    }
+  } finally {
+    try {
+      await pdf.destroy();
+    } catch {
+      // ignore
+    }
   }
 
+  return { pages, pageCount: pdf.numPages };
+}
+
+/**
+ * @param {ArrayBuffer|Uint8Array} data
+ * @returns {Promise<{ text: string, pageCount: number, empty: boolean }>}
+ */
+export async function extractTextFromPdfData(data) {
+  const { pages, pageCount } = await extractPdfPageTexts(data);
   const text = normalizePdfExtractedText(pages.join("\n\n"));
   return {
     text,
-    pageCount: pdf.numPages,
+    pageCount,
     empty: !text,
   };
 }
@@ -191,8 +241,8 @@ export async function extractTextFromPdfFile(file) {
 }
 
 /**
- * Paint PDF pages as JPEG data URLs. The panel shows these pictures;
- * Extraer datos sends the same pictures to Groq.
+ * Paint PDF pages as JPEG data URLs. The panel shows these pictures.
+ * Extract data reads the text layer (or OCRs a blank page). Mejorar con IA sends the pictures to Groq.
  * @param {ArrayBuffer|Uint8Array} data
  * @param {{ maxPages?: number, maxWidth?: number, onPage?: (snapshot: { images: string[], pageCount: number, index: number }) => void }} [opts]
  * @returns {Promise<{ images: string[], pageCount: number }>}

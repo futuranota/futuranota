@@ -5,6 +5,8 @@ import {
   isPdfLibraryAttachment,
   mergePdfTextIntoWritingBlocks,
   normalizePdfExtractedText,
+  pastePdfPageTexts,
+  splitPastedPdfText,
   textItemsToPageText,
   writingTextAreasAreEmpty,
 } from "./importPdfText.js";
@@ -12,6 +14,38 @@ import {
   createEmptyTextBlock,
   createInlineH1Block,
 } from "./nodeInlineContent.js";
+
+describe("splitPastedPdfText", () => {
+  it("keeps a body without a Prompt heading as the prompt", () => {
+    expect(splitPastedPdfText("Crea la hoja\ncon luz suave")).toEqual({
+      description: "",
+      prompt: "Crea la hoja\ncon luz suave",
+    });
+  });
+
+  it("splits description and prompt on the heading", () => {
+    expect(splitPastedPdfText("01 / CREAR LA HOJA\nExplica el encuadre\n\nPrompt\n{add this producto}")).toEqual({
+      description: "01 / CREAR LA HOJA\nExplica el encuadre",
+      prompt: "{add this producto}",
+    });
+  });
+
+  it("keeps the body when the heading has nothing after it", () => {
+    expect(splitPastedPdfText("Solo esto\nPrompt")).toEqual({
+      description: "",
+      prompt: "Solo esto\nPrompt",
+    });
+  });
+});
+
+describe("pastePdfPageTexts", () => {
+  it("skips blank pages and joins the rest", () => {
+    expect(pastePdfPageTexts(["", "Hola", "Prompt\nSigue"])).toEqual({
+      description: "Hola",
+      prompt: "Sigue",
+    });
+  });
+});
 
 describe("normalizePdfExtractedText", () => {
   it("collapses noisy whitespace", () => {

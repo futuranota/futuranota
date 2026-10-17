@@ -15,7 +15,14 @@ import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/vi
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
-import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
+import {
+  extractPdfPageTexts,
+  fetchPdfBytesFromUrl,
+  normalizePdfExtractedText,
+  pastePdfPageTexts,
+  renderPdfPageImages,
+} from '../../lib/importPdfText.js';
+import { ocrPdfPageImages } from '../../lib/ocrPdfPage.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
 import { PromptBody, VariableDeck, applyTitleShortcut, paintMarked, readMarked } from './PromptBody.jsx';
@@ -1171,6 +1178,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [showPdf, setShowPdf] = useState(false);
   const [pdfError, setPdfError] = useState('');
   const [pdfReading, setPdfReading] = useState(false);
+  const [pdfImproving, setPdfImproving] = useState(false);
+  const [pdfPasted, setPdfPasted] = useState(false);
   const [pdfPages, setPdfPages] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
@@ -1211,6 +1220,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setVideoError('');
     setVideoPaused(true);
     setPdfError('');
+    setPdfPasted(false);
     setPdfPages([]);
     setPdfPageCount(0);
     setPdfPageIndex(0);
@@ -1404,40 +1414,96 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     const fileId = prompt.id;
     pdfFiles.set(fileId, file);
     setPdfError('');
+    setPdfPasted(false);
     setShowPdf(true);
     setShowImage(false);
     setShowVideo(false);
     onPatch({ pdf: { name: file.name, path: '', url: '' } });
   }
 
+  async function pdfBytes() {
+    const local = pdfFiles.get(prompt.id);
+    if (local) return local.arrayBuffer();
+    if (prompt.pdf?.url) return fetchPdfBytesFromUrl(prompt.pdf.url);
+    return null;
+  }
+
+  async function ensurePdfImages() {
+    let images = pdfPagesRef.current;
+    if (images.length) return images;
+    const data = await pdfBytes();
+    if (!data) return null;
+    const rendered = await renderPdfPageImages(data);
+    images = rendered.images;
+    pdfPagesRef.current = images;
+    setPdfPages(images);
+    setPdfPageCount(rendered.pageCount);
+    return images;
+  }
+
   async function extractPdf() {
-    if (!prompt.pdf?.name) return;
+    if (!prompt.pdf?.name || pdfImproving) return;
     setPdfReading(true);
     setPdfError('');
     try {
-      let images = pdfPagesRef.current;
-      if (!images.length) {
-        const local = pdfFiles.get(prompt.id);
-        const data = local
-          ? await local.arrayBuffer()
-          : (prompt.pdf?.url ? await fetchPdfBytesFromUrl(prompt.pdf.url) : null);
-        if (!data) {
-          setPdfError('Choose the PDF again to read it.');
-          return;
-        }
-        const rendered = await renderPdfPageImages(data);
-        images = rendered.images;
-        pdfPagesRef.current = images;
-        setPdfPages(images);
-        setPdfPageCount(rendered.pageCount);
+      const data = await pdfBytes();
+      if (!data) {
+        setPdfError('Choose the PDF again to read it.');
+        return;
       }
-      if (!images.length) {
+      const images = await ensurePdfImages();
+      if (!images?.length) {
+        setPdfError('Couldn’t display the PDF.');
+        return;
+      }
+      const extracted = await extractPdfPageTexts(data, { maxPages: images.length });
+      const texts = images.map((_, index) => extracted.pages[index] || '');
+      const missing = texts
+        .map((text, index) => (text ? -1 : index))
+        .filter((index) => index >= 0);
+      if (missing.length) {
+        const recognized = await ocrPdfPageImages(missing.map((index) => images[index]));
+        missing.forEach((pageIndex, index) => {
+          texts[pageIndex] = normalizePdfExtractedText(recognized[index] || '');
+        });
+      }
+      const fields = pastePdfPageTexts(texts);
+      if (!fields.prompt && !fields.description) {
+        setPdfError('Couldn’t find text on these pages.');
+        return;
+      }
+      const lifted = liftPromptPlaceholders(fields.prompt, prompt.variables || []);
+      onPatch({
+        variables: lifted.variables,
+        stepPatch: {
+          id: step.id,
+          description: fields.description,
+          prompt: lifted.prompt,
+          promptSaved: false,
+        },
+      });
+      setPdfPasted(true);
+    } catch (error) {
+      console.warn('[prompt-desk] pdf text failed', error?.message || error);
+      setPdfError(pdfReadError(error));
+    } finally {
+      setPdfReading(false);
+    }
+  }
+
+  async function improvePdf() {
+    if (!prompt.pdf?.name || !pdfPasted || pdfReading) return;
+    setPdfImproving(true);
+    setPdfError('');
+    try {
+      const images = await ensurePdfImages();
+      if (!images?.length) {
         setPdfError('Couldn’t display the PDF.');
         return;
       }
       const account = useAuthStore.getState().user;
-      let description = step.description || '';
-      let promptText = step.prompt || '';
+      let description = '';
+      let promptText = '';
       let variables = [...(prompt.variables || [])];
       let found = false;
       for (let index = 0; index < images.length; index += 1) {
@@ -1465,7 +1531,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             }
           }
         } catch (error) {
-          console.warn('[prompt-desk] pdf read failed', error?.message || error);
+          console.warn('[prompt-desk] pdf improve failed', error?.message || error);
           setPdfError(pdfReadError(error));
           return;
         }
@@ -1501,16 +1567,17 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       }
       if (!found) setPdfError('Groq didn’t find text on these pages.');
     } catch (error) {
-      console.warn('[prompt-desk] pdf read failed', error?.message || error);
+      console.warn('[prompt-desk] pdf improve failed', error?.message || error);
       setPdfError(pdfReadError(error));
     } finally {
-      setPdfReading(false);
+      setPdfImproving(false);
     }
   }
 
   function clearPdf() {
     pdfFiles.delete(prompt.id);
     setPdfError('');
+    setPdfPasted(false);
     setPdfPages([]);
     setPdfPageCount(0);
     setPdfPageIndex(0);
@@ -2159,11 +2226,21 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   <button
                     type="button"
                     className="prompt-video__extract"
-                    disabled={pdfReading}
+                    disabled={pdfReading || pdfImproving}
                     onClick={() => { void extractPdf(); }}
                   >
                     {pdfReading ? 'Reading…' : 'Extract data'}
                   </button>
+                  {pdfPasted ? (
+                    <button
+                      type="button"
+                      className="prompt-video__extract"
+                      disabled={pdfReading || pdfImproving}
+                      onClick={() => { void improvePdf(); }}
+                    >
+                      {pdfImproving ? 'Mejorando…' : 'Mejorar con IA'}
+                    </button>
+                  ) : null}
                   <button type="button" className="prompt-video__extract" onClick={placePdfPage}>
                     {stepHasImage(step) ? 'Replace' : 'Add as image'}
                   </button>
