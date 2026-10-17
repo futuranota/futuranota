@@ -107,10 +107,6 @@ function stepHasImage(step) {
   return Boolean(step?.image) || Number.isInteger(step?.pdfPage);
 }
 
-function stepTitleOf(step) {
-  return typeof step.title === 'string' ? step.title : '';
-}
-
 function plainCopy(template, variables) {
   return resolvePrompt(template, variables)
     .replace(/<\/?(?:strong|em|u|s|mark)>/gi, '')
@@ -139,6 +135,10 @@ function richCopy(template, variables) {
 
 function promptHasText(value) {
   return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim());
+}
+
+function stepHasDraft(item) {
+  return promptHasText(item?.prompt) || promptHasText(item?.description);
 }
 
 const FORMAT_TOOLS = [
@@ -1376,7 +1376,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         return;
       }
       const account = useAuthStore.getState().user;
-      let title = step.title || '';
       let description = step.description || '';
       let promptText = step.prompt || '';
       let variables = [...(prompt.variables || [])];
@@ -1411,14 +1410,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           return;
         }
         setPdfError('');
-        const nextTitle = String(result?.title || '').trim();
         const nextDescription = String(result?.description || '').trim();
         const nextPrompt = String(result?.prompt || '').trim();
         let changed = false;
-        if (pass === 'read' && nextTitle) {
-          title = nextTitle;
-          changed = true;
-        }
         if (nextDescription) {
           description = description.trim() && pass !== 'read'
             ? `${description.replace(/\s+$/g, '')}\n\n${nextDescription}`
@@ -1439,7 +1433,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           variables,
           stepPatch: {
             id: step.id,
-            title,
             description,
             prompt: promptText,
             promptSaved: false,
@@ -1537,7 +1530,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   function saveAllPrompts() {
     onPatch({
       steps: steps.map((item) => (
-        promptHasText(item.prompt) ? { ...item, promptSaved: true } : item
+        stepHasDraft(item) ? { ...item, promptSaved: true } : item
       )),
     });
   }
@@ -1689,7 +1682,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 <path d="M12 9v3l2 2" />
               </svg>
             )}
-            {prompt.name || 'Untitled'}
+            <span className="prompt-chip__label">{prompt.name || 'Untitled'}</span>
           </span>
           <span className="prompt-chip__snippet">{snippet}</span>
         </span>
@@ -1722,12 +1715,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       </button>
       <div className={showSide ? 'prompt-panel__split prompt-panel__split--side' : 'prompt-panel__split prompt-panel__split--prompt'}>
         <div className="prompt-panel__editor-tools">
-          <input
+          <textarea
             className="prompt-panel__name"
             value={prompt.name}
             placeholder="Nombre"
             aria-label="Nombre"
+            rows={1}
             onChange={(event) => onPatch({ name: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.preventDefault();
+            }}
           />
           <div className="prompt-models">
             {sheetOpen ? (
@@ -2007,6 +2004,10 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   onChange={(event) => setVideoDraft(event.target.value)}
                 />
                 <button type="submit">Embed</button>
+                <button type="button" className="prompt-pdf__remove" onClick={removeVideo}>
+                  <span aria-hidden="true">×</span>
+                  Remove
+                </button>
                 {videoError ? <p role="alert">{videoError}</p> : null}
               </form>
             )}
@@ -2042,15 +2043,21 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             ) : pdfStatus === 'loading' ? (
               <p>Opening the PDF…</p>
             ) : (
-              <label className="prompt-panel__pdf-pick">
-                <img className="prompt-panel__pdf-art" src="/Pdf%20File.svg" alt="" />
-                <span className="prompt-panel__pdf-link">{prompt.pdf?.name || 'Choose a PDF'}</span>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(event) => takePdf(event.target.files?.[0])}
-                />
-              </label>
+              <div className="prompt-panel__pdf-empty">
+                <label className="prompt-panel__pdf-pick">
+                  <img className="prompt-panel__pdf-art" src="/Pdf%20File.svg" alt="" />
+                  <span className="prompt-panel__pdf-link">{prompt.pdf?.name || 'Choose a PDF'}</span>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(event) => takePdf(event.target.files?.[0])}
+                  />
+                </label>
+                <button type="button" className="prompt-pdf__remove" onClick={clearPdf}>
+                  <span aria-hidden="true">×</span>
+                  Remove
+                </button>
+              </div>
             )}
           </div>
         ) : null}
@@ -2109,12 +2116,16 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         ) : null}
           {sheetOpen ? (
           <div className="prompt-sheet">
-            <input
+            <textarea
               className="prompt-sheet__title"
-              value={stepTitleOf(step, index)}
+              value={prompt.name}
               placeholder="Title"
               aria-label="Title"
-              onChange={(event) => patchStep({ title: event.target.value })}
+              rows={1}
+              onChange={(event) => onPatch({ name: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.preventDefault();
+              }}
             />
             <SheetFaces face={sheetFace} onFace={setSheetFace} />
             {sheetFace === 0 ? (
@@ -2231,7 +2242,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <button type="button" onClick={deleteIndex}>Eliminar</button>
             </div>
           <div className="prompt-steps">
-            {steps.some((item) => !item.promptSaved && promptHasText(item.prompt)) ? (
+            {steps.some((item) => !item.promptSaved && stepHasDraft(item)) ? (
               <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
                 Guardar
               </button>
@@ -2344,7 +2355,7 @@ function FloatCard({ prompt, view, onPatch }) {
   function saveAllPrompts() {
     onPatch({
       steps: steps.map((item) => (
-        promptHasText(item.prompt) ? { ...item, promptSaved: true } : item
+        stepHasDraft(item) ? { ...item, promptSaved: true } : item
       )),
     });
   }
@@ -2370,10 +2381,6 @@ function FloatCard({ prompt, view, onPatch }) {
     });
   }
 
-  function patchStepTitle(title) {
-    onPatch({ stepPatch: { id: step.id, title } });
-  }
-
   async function copyPrompt() {
     if (!canCopy) return;
     const ok = await copyInView(plain, richCopy(step.prompt, prompt.variables || []), view);
@@ -2394,12 +2401,16 @@ function FloatCard({ prompt, view, onPatch }) {
             </svg>
           )}
         </span>
-        <input
+        <textarea
           className="prompt-float__step"
-          value={stepTitleOf(step, index)}
+          value={prompt.name}
           placeholder="Title"
           aria-label="Title"
-          onChange={(event) => patchStepTitle(event.target.value)}
+          rows={1}
+          onChange={(event) => onPatch({ name: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault();
+          }}
         />
         <button
           type="button"
@@ -2442,7 +2453,7 @@ function FloatCard({ prompt, view, onPatch }) {
         </div>
       </div>
       <div className="prompt-steps">
-        {steps.some((item) => !item.promptSaved && promptHasText(item.prompt)) ? (
+        {steps.some((item) => !item.promptSaved && stepHasDraft(item)) ? (
           <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
             Guardar
           </button>
@@ -2547,6 +2558,7 @@ const FLOAT_CSS = `
   .prompt-float__step {
     flex: none;
     width: 100%;
+    box-sizing: border-box;
     margin: 0;
     border: 0;
     border-bottom: 1px solid rgba(20, 20, 22, 0.08);
@@ -2556,7 +2568,12 @@ const FLOAT_CSS = `
     font-size: 18px;
     font-weight: 560;
     letter-spacing: -0.02em;
+    line-height: 1.3;
     padding: 14px 132px 12px 42px;
+    resize: none;
+    overflow: hidden;
+    field-sizing: content;
+    max-height: calc(1.3em * 2 + 26px);
     outline: none;
   }
   .prompt-float__instructions {
