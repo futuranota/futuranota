@@ -4,24 +4,12 @@ import { useI18n } from '../../i18n/useI18n.js';
 import { PATHS, authPath } from '../lib/paths.js';
 
 const CARDS = [
-  {
-    title: 'One page per prompt',
-    body: 'Each file holds its own pages. Prompt 01, Prompt 02, and the next one when you need it.',
-  },
-  {
-    title: 'Image or video beside it',
-    body: 'Keep a picture, or a YouTube, Vimeo, or Instagram link, next to the text.',
-  },
-  {
-    title: 'Copy it when it is ready',
-    body: 'Save the page, then copy the description into ChatGPT, Claude, or Grok.',
-  },
+  { src: '/landing%20cards/quick%20prompt%20creation.svg', alt: 'Quick prompt creation' },
+  { src: '/landing%20cards/prompt%20dashboard.svg', alt: 'Prompt dashboard' },
+  { src: '/landing%20cards/embed%20text.svg', alt: 'Embed text' },
+  { src: '/landing%20cards/color%20customization.svg', alt: 'Color customization' },
+  { src: '/landing%20cards/use%20it%20your%20way.svg', alt: 'Use it your way' },
 ];
-
-const FREE_CARDS = Array.from({ length: 9 }, (_, index) => ({
-  title: `Placeholder ${String(index + 1).padStart(2, '0')}`,
-  body: 'Short line for this card.',
-}));
 
 const SPLITS = [
   { media: 'panel', flip: false, action: true },
@@ -90,25 +78,12 @@ export function HomePage() {
         </p>
         <Link to={authPath()} className="plain-signup">{t('marketing.signUp')}</Link>
       </section>
-      <section className="plain-home__cards" aria-label="What you can do">
-        {CARDS.map((card) => (
-          <article key={card.title} className="plain-home__card">
-            <h2>{card.title}</h2>
-            <p>{card.body}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="plain-free" aria-label="Included">
-        <h2>Included</h2>
-        <p>A short line under the title.</p>
-        <div className="plain-free__grid">
-          {FREE_CARDS.map((card) => (
-            <article key={card.title} className="plain-free__card">
-              <span className="plain-free__icon" aria-hidden="true" />
-              <h3>{card.title}</h3>
-              <p>{card.body}</p>
-            </article>
+      <section className="plain-features" aria-label="What you can do">
+        <h2>Discover Everything Futura Nota Can Do</h2>
+        <p>Explore all the features that make Futura the perfect tool you need for your IA era.</p>
+        <div className="plain-home__cards">
+          {CARDS.map((card) => (
+            <img key={card.src} className="plain-home__card" src={card.src} alt={card.alt} />
           ))}
         </div>
       </section>

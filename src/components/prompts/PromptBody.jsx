@@ -278,6 +278,7 @@ export function PromptBody({
   readOnly = false,
   placeholder = '',
   onEditFocus,
+  onUrlPaste,
   children,
 }) {
   const editorRef = useRef(null);
@@ -531,6 +532,8 @@ export function PromptBody({
     }
     commitDom();
     syncMenu();
+    const href = String(plain || '').match(/https?:\/\/[^\s<>"']+/i);
+    if (href) onUrlPaste?.(href[0].replace(/[.,;:!?)]+$/g, ''));
   }
 
   useEffect(() => {

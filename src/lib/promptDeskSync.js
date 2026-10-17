@@ -80,6 +80,8 @@ export function foldersFromRows(collections, files, steps) {
         stepIndex: Number(file.step_index) || 0,
         pdf: null,
         video: null,
+        referenceUrl: typeof file.reference_url === 'string' ? file.reference_url : '',
+        referenceName: typeof file.reference_name === 'string' ? file.reference_name : '',
         assets: assetsFromRow(file.assets),
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
@@ -152,6 +154,8 @@ function fileRow(prompt, userId, collectionId, position) {
     step_index: Number(prompt.stepIndex) || 0,
     pdf_name: null,
     pdf_path: null,
+    reference_url: typeof prompt.referenceUrl === 'string' ? prompt.referenceUrl : '',
+    reference_name: typeof prompt.referenceName === 'string' ? prompt.referenceName : '',
     assets: assetRows(prompt.assets),
     position,
     updated_at: new Date().toISOString(),
@@ -225,7 +229,11 @@ export async function savePromptDesk(userId, folders, previous) {
     if (error) throw error;
   }
   if (files.length) {
-    const { error } = await supabase.from('prompt_files').upsert(files, { onConflict: 'id' });
+    let { error } = await supabase.from('prompt_files').upsert(files, { onConflict: 'id' });
+    if (error && /reference_url|reference_name/i.test(error.message || '')) {
+      const slim = files.map(({ reference_url, reference_name, ...row }) => row);
+      ({ error } = await supabase.from('prompt_files').upsert(slim, { onConflict: 'id' }));
+    }
     if (error) throw error;
   }
   if (steps.length) {

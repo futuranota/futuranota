@@ -99,6 +99,32 @@
   background: rgba(20, 20, 22, 0.06);
 }
 
+.prompt-url-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: inherit;
+  font-size: 12px;
+}
+
+.prompt-url-offer p {
+  margin: 0;
+}
+
+.prompt-url-offer button {
+  border: 1px solid rgba(20, 20, 22, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
 .prompt-desk__side-link.is-current {
   background: rgba(20, 20, 22, 0.08);
   font-weight: 600;
@@ -976,7 +1002,7 @@
 
 .prompt-panel__pdf--pages {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   justify-items: center;
   overflow: hidden;
@@ -1364,6 +1390,7 @@
   align-items: center;
   gap: 8px;
 }
+
 
 .prompt-models__item {
   position: relative;
@@ -2300,6 +2327,40 @@
 }
 
 .prompt-library__remove svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.prompt-library__url-box {
+  position: relative;
+}
+
+.prompt-library__field .prompt-library__url-box--copy textarea {
+  padding-right: 48px;
+}
+
+.prompt-library__url-copy {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(20, 20, 22, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.prompt-library__url-copy svg {
   width: 14px;
   height: 14px;
   fill: none;

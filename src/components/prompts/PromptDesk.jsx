@@ -89,28 +89,6 @@ function retryWaitMs(error, attempt) {
   return [20000, 45000, 60000][attempt] || 60000;
 }
 
-function shrinkPdfImage(dataUrl) {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => {
-      const maxEdge = 720;
-      const scale = Math.min(1, maxEdge / Math.max(image.width, image.height, 1));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext('2d');
-      if (!context) {
-        resolve(dataUrl);
-        return;
-      }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
-    };
-    image.onerror = () => resolve(dataUrl);
-    image.src = dataUrl;
-  });
-}
-
 function stepHasImage(step) {
   return Boolean(step?.image) || Number.isInteger(step?.pdfPage);
 }
@@ -291,7 +269,7 @@ function FormatBar({ active, onApply }) {
   );
 }
 
-function DescriptionField({ className, value, readOnly, onChange, onEditFocus }) {
+function DescriptionField({ className, value, readOnly, onChange, onEditFocus, onUrlPaste }) {
   const ref = useRef(null);
   const local = useRef(null);
   useEffect(() => {
@@ -335,6 +313,10 @@ function DescriptionField({ className, value, readOnly, onChange, onEditFocus })
         selection.addRange(range);
       }}
       onMouseUp={() => onEditFocus?.(ref.current)}
+      onPaste={(event) => {
+        const href = firstHttpUrl(event.clipboardData?.getData('text/plain'));
+        if (href) onUrlPaste?.(href);
+      }}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || event.shiftKey || readOnly) return;
         if (!applyTitleShortcut(ref.current)) return;
@@ -428,6 +410,8 @@ function blankPrompt() {
     stepIndex: 0,
     pdf: null,
     video: null,
+    referenceUrl: '',
+    referenceName: '',
     assets: [],
     steps: [blankStep()],
   };
@@ -535,6 +519,12 @@ function SideIcon({ name }) {
       <path d="M4 10.5 12 4l8 6.5V20H4Z" />
     </svg>
   );
+}
+
+function firstHttpUrl(text) {
+  const match = String(text || '').match(/https?:\/\/[^\s<>"']+/i);
+  if (!match) return '';
+  return match[0].replace(/[.,;:!?)]+$/g, '');
 }
 
 function DeskSidebar({ view, settingsPane }) {
@@ -687,7 +677,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -1014,7 +1004,10 @@ export default function PromptDesk() {
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
-      <DeskSidebar view={view} settingsPane={settingsPane} />
+      <DeskSidebar
+        view={view}
+        settingsPane={settingsPane}
+      />
       <div className="prompt-desk__main">
       {view === 'settings' ? <StorageSettings /> : null}
       {view === 'embed' ? <EmbedHtml /> : null}
@@ -1180,6 +1173,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [pdfReading, setPdfReading] = useState(false);
   const [pdfImproving, setPdfImproving] = useState(false);
   const [pdfPasted, setPdfPasted] = useState(false);
+  const [urlOffer, setUrlOffer] = useState('');
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [urlName, setUrlName] = useState('');
+  const [urlDraft, setUrlDraft] = useState('');
+  const [urlEditing, setUrlEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [urlCopied, setUrlCopied] = useState(false);
+  const urlFieldRef = useRef(null);
   const [pdfPages, setPdfPages] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
@@ -1210,6 +1212,18 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     onPatch({ stepPatch: { id: step.id, ...patch } });
   }
 
+  async function copyHref(href) {
+    const text = String(href || '').trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setUrlCopied(true);
+      window.setTimeout(() => setUrlCopied(false), 1200);
+    } catch {
+      setUrlCopied(false);
+    }
+  }
+
   useEffect(() => {
     setSheetOpen(false);
     if (index !== 0) onPatch({ stepIndex: 0 });
@@ -1221,6 +1235,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setVideoPaused(true);
     setPdfError('');
     setPdfPasted(false);
+    setUrlOffer('');
+    setUrlOpen(false);
+    setUrlName('');
+    setUrlDraft('');
+    setUrlEditing(false);
+    setEditName('');
+    setEditUrl('');
+    setUrlCopied(false);
     setPdfPages([]);
     setPdfPageCount(0);
     setPdfPageIndex(0);
@@ -1492,80 +1514,56 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   }
 
   async function improvePdf() {
-    if (!prompt.pdf?.name || !pdfPasted || pdfReading) return;
+    if (!pdfPasted || pdfReading) return;
+    const pastedDescription = String(step.description || '').trim();
+    const pastedPrompt = String(step.prompt || '').trim();
+    if (!pastedDescription && !pastedPrompt) {
+      setPdfError('Paste the text before improving it.');
+      return;
+    }
     setPdfImproving(true);
     setPdfError('');
     try {
-      const images = await ensurePdfImages();
-      if (!images?.length) {
-        setPdfError('Couldn’t display the PDF.');
+      const account = useAuthStore.getState().user;
+      let result;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          result = await apiClient(API_ROUTES.promptPdfRead, {
+            method: 'POST',
+            body: JSON.stringify({
+              pass: 'improve',
+              description: pastedDescription,
+              prompt: pastedPrompt,
+              userId: account?.id,
+              userEmail: account?.email,
+            }),
+          });
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (!message.includes('429') || attempt >= 3) throw error;
+          setPdfError('Groq is busy. Waiting to improve the text…');
+          await new Promise((resolve) => setTimeout(resolve, retryWaitMs(error, attempt)));
+        }
+      }
+      const nextDescription = String(result?.description || '').trim();
+      const nextPrompt = String(result?.prompt || '').trim();
+      if (!nextDescription && !nextPrompt) {
+        setPdfError('Groq didn’t find text to improve.');
         return;
       }
-      const account = useAuthStore.getState().user;
-      let description = '';
-      let promptText = '';
-      let variables = [...(prompt.variables || [])];
-      let found = false;
-      for (let index = 0; index < images.length; index += 1) {
-        const pass = index === 0 ? 'read' : 'continue';
-        const image = await shrinkPdfImage(images[index]);
-        let result;
-        try {
-          for (let attempt = 0; ; attempt += 1) {
-            try {
-              result = await apiClient(API_ROUTES.promptPdfRead, {
-                method: 'POST',
-                body: JSON.stringify({
-                  pages: [{ index: index + 1, image }],
-                  pass,
-                  userId: account?.id,
-                  userEmail: account?.email,
-                }),
-              });
-              break;
-            } catch (error) {
-              const message = error instanceof Error ? error.message : '';
-              if (!message.includes('429') || attempt >= 3) throw error;
-              setPdfError('Groq is busy. Waiting to read this page…');
-              await new Promise((resolve) => setTimeout(resolve, retryWaitMs(error, attempt)));
-            }
-          }
-        } catch (error) {
-          console.warn('[prompt-desk] pdf improve failed', error?.message || error);
-          setPdfError(pdfReadError(error));
-          return;
-        }
-        setPdfError('');
-        const nextDescription = String(result?.description || '').trim();
-        const nextPrompt = String(result?.prompt || '').trim();
-        let changed = false;
-        if (nextDescription) {
-          description = description.trim() && pass !== 'read'
-            ? `${description.replace(/\s+$/g, '')}\n\n${nextDescription}`
-            : nextDescription;
-          changed = true;
-        }
-        if (nextPrompt) {
-          const lifted = liftPromptPlaceholders(nextPrompt, variables);
-          variables = lifted.variables;
-          promptText = promptText.trim()
-            ? `${promptText.replace(/\s+$/g, '')}\n\n${lifted.prompt}`
-            : lifted.prompt;
-          changed = true;
-        }
-        if (!changed) continue;
-        found = true;
-        onPatch({
-          variables,
-          stepPatch: {
-            id: step.id,
-            description,
-            prompt: promptText,
-            promptSaved: false,
-          },
-        });
-      }
-      if (!found) setPdfError('Groq didn’t find text on these pages.');
+      const lifted = liftPromptPlaceholders(nextPrompt, prompt.variables || []);
+      const title = String(result?.title || '').trim();
+      onPatch({
+        ...(title && !String(prompt.name || '').trim() ? { name: title } : {}),
+        variables: lifted.variables,
+        stepPatch: {
+          id: step.id,
+          description: nextDescription,
+          prompt: lifted.prompt,
+          promptSaved: false,
+        },
+      });
     } catch (error) {
       console.warn('[prompt-desk] pdf improve failed', error?.message || error);
       setPdfError(pdfReadError(error));
@@ -1785,6 +1783,19 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     onExpand();
   }
 
+  function commitReference(name, href) {
+    const nextUrl = String(href || '').trim();
+    if (!nextUrl) return false;
+    onPatch({
+      referenceName: String(name || '').trim(),
+      referenceUrl: nextUrl,
+    });
+    setUrlName('');
+    setUrlDraft('');
+    setUrlEditing(false);
+    return true;
+  }
+
   async function copyPrompt() {
     if (!canCopy) return;
     const ok = await copyRichText(copiedText, richCopy(step.prompt, prompt.variables || []));
@@ -1853,6 +1864,21 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               if (event.key === 'Enter') event.preventDefault();
             }}
           />
+          {urlOffer ? (
+            <div className="prompt-url-offer" role="status">
+              <p>Guardar este link en Url?</p>
+              <button
+                type="button"
+                onClick={() => {
+                  onPatch({ referenceUrl: urlOffer });
+                  setUrlOffer('');
+                }}
+              >
+                Guardar
+              </button>
+              <button type="button" onClick={() => setUrlOffer('')}>No</button>
+            </div>
+          ) : null}
           <div className="prompt-models">
             {sheetOpen ? (
             <ModelPicker
@@ -2011,6 +2037,27 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
+            {sheetOpen ? null : (
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={() => {
+                  setUrlName('');
+                  setUrlDraft('');
+                  setUrlEditing(false);
+                  setUrlCopied(false);
+                  setUrlOpen(true);
+                }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M10 13a5 5 0 0 0 7.1.7l2.1-2.1a5 5 0 0 0-7.1-7.1L10.8 5.8" />
+                    <path d="M14 11a5 5 0 0 0-7.1-.7l-2.1 2.1a5 5 0 0 0 7.1 7.1l1.3-1.3" />
+                  </svg>
+                </span>
+                <span>URL</span>
+              </button>
+            )}
           </div>
           {sheetOpen && modelOpen ? (
             <ModelMenu
@@ -2147,25 +2194,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 <div className="prompt-panel__pdf-pages">
                   <img src={pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)]} alt="" />
                 </div>
-                <div className="prompt-panel__pdf-index">
-                  <button
-                    type="button"
-                    aria-label="Previous PDF page"
-                    disabled={pdfPageIndex <= 0}
-                    onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
-                  >
-                    ‹
-                  </button>
-                  <span>{`${Math.min(pdfPageIndex, pdfPages.length - 1) + 1} / ${pdfPages.length}`}</span>
-                  <button
-                    type="button"
-                    aria-label="Next PDF page"
-                    disabled={pdfPageIndex >= pdfPages.length - 1}
-                    onClick={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
-                  >
-                    ›
-                  </button>
-                </div>
               </>
             ) : pdfStatus === 'loading' ? (
               <p>Opening the PDF…</p>
@@ -2216,6 +2244,27 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         {showPdf && prompt.pdf?.name ? (
           <div className="prompt-panel__media-foot">
             <p className="prompt-pdf__meta">{prompt.pdf.name}</p>
+            {pdfPages.length ? (
+              <div className="prompt-panel__pdf-index">
+                <button
+                  type="button"
+                  aria-label="Previous PDF page"
+                  disabled={pdfPageIndex <= 0}
+                  onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
+                >
+                  ‹
+                </button>
+                <span>{`${Math.min(pdfPageIndex, pdfPages.length - 1) + 1} / ${pdfPages.length}`}</span>
+                <button
+                  type="button"
+                  aria-label="Next PDF page"
+                  disabled={pdfPageIndex >= pdfPages.length - 1}
+                  onClick={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
+                >
+                  ›
+                </button>
+              </div>
+            ) : null}
             <div className="prompt-panel__pdf-actions">
               <button type="button" className="prompt-pdf__remove" onClick={clearPdf}>
                 <span aria-hidden="true">×</span>
@@ -2272,6 +2321,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 readOnly={Boolean(step.promptSaved)}
                 onChange={(description) => patchStep({ description, promptSaved: false })}
                 onEditFocus={trackEdit}
+                onUrlPaste={setUrlOffer}
               />
             ) : (
             <div className="prompt-drawer">
@@ -2282,6 +2332,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               placeholder="Create or Insert Prompt"
               readOnly={Boolean(step.promptSaved)}
               onCommit={commitBody}
+              onUrlPaste={setUrlOffer}
               className={
                 step.format && step.format !== 'text'
                   ? 'prompt-panel__body prompt-panel__body--code'
@@ -2418,6 +2469,189 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         onChange={(variables) => onPatch({ variables })}
         onClose={() => setVarsOpen(false)}
       />
+      {urlOpen ? (
+        <div
+          className="prompt-library"
+          role="dialog"
+          aria-modal="true"
+          aria-label="URL"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            setUrlOpen(false);
+          }}
+        >
+          <div className="prompt-library__page">
+            <header className="prompt-library__head">
+              <div>
+                <p>URL</p>
+                <h2>{prompt.name || 'This file'}</h2>
+              </div>
+              <button type="button" className="prompt-library__close" onClick={() => setUrlOpen(false)} aria-label="Close">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </header>
+            <div className="prompt-library__fields">
+              {prompt.referenceUrl ? null : (
+              <div className="prompt-library__field">
+                <div className="prompt-library__label-row">
+                  <input
+                    ref={urlFieldRef}
+                    className="prompt-library__name-input"
+                    value={urlName}
+                    size={Math.max((urlName || 'Descripción').length, 1)}
+                    placeholder="Descripción"
+                    aria-label="Descripción del producto"
+                    spellCheck={false}
+                    autoFocus
+                    onChange={(event) => setUrlName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitReference(urlName, urlDraft);
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        setUrlOpen(false);
+                      }
+                    }}
+                  />
+                  <button type="button" className="prompt-library__rename" aria-label="Editar descripción" onClick={() => urlFieldRef.current?.focus()}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                      <path d="M13 7l4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="prompt-library__queue"
+                    onClick={() => {
+                      if (!commitReference(urlName, urlDraft)) urlFieldRef.current?.focus();
+                    }}
+                  >
+                    Guardar
+                  </button>
+                </div>
+                <textarea
+                  rows={2}
+                  value={urlDraft}
+                  placeholder="https://"
+                  aria-label="URL de referencia"
+                  spellCheck={false}
+                  onChange={(event) => setUrlDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      commitReference(urlName, urlDraft);
+                    }
+                  }}
+                />
+              </div>
+              )}
+              {prompt.referenceUrl ? (
+                <div className="prompt-library__field">
+                  <div className="prompt-library__label-row">
+                    <input
+                      className="prompt-library__name-input"
+                      value={urlEditing ? editName : (prompt.referenceName || '')}
+                      readOnly={!urlEditing}
+                      size={Math.max(((urlEditing ? editName : prompt.referenceName) || 'Descripción').length, 1)}
+                      placeholder="Descripción"
+                      aria-label="Descripción del producto"
+                      spellCheck={false}
+                      onChange={(event) => setEditName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (!urlEditing) return;
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          if (commitReference(editName, editUrl)) return;
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          setUrlEditing(false);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={urlEditing ? 'prompt-library__queue' : 'prompt-library__rename'}
+                      aria-label={urlEditing ? 'Guardar' : 'Editar URL'}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        if (!urlEditing) {
+                          setEditName(prompt.referenceName || '');
+                          setEditUrl(prompt.referenceUrl || '');
+                          setUrlEditing(true);
+                          return;
+                        }
+                        commitReference(editName, editUrl);
+                      }}
+                    >
+                      {urlEditing ? 'Guardar' : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                          <path d="M13 7l4 4" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="prompt-library__remove"
+                      aria-label="Borrar URL"
+                      onClick={() => {
+                        onPatch({ referenceName: '', referenceUrl: '' });
+                        setEditName('');
+                        setEditUrl('');
+                        setUrlEditing(false);
+                        setUrlCopied(false);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 7h16" />
+                        <path d="M9 7V5h6v2" />
+                        <path d="M7 7l1 13h8l1-13" />
+                        <path d="M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className={urlEditing ? 'prompt-library__url-box' : 'prompt-library__url-box prompt-library__url-box--copy'}>
+                    <textarea
+                      rows={2}
+                      readOnly={!urlEditing}
+                      value={urlEditing ? editUrl : prompt.referenceUrl}
+                      placeholder="https://"
+                      aria-label="URL de referencia"
+                      spellCheck={false}
+                      onChange={(event) => setEditUrl(event.target.value)}
+                    />
+                    {urlEditing ? null : (
+                      <button
+                        type="button"
+                        className="prompt-library__url-copy"
+                        aria-label={urlCopied ? 'Copiado' : 'Copiar'}
+                        title={urlCopied ? 'Copiado' : 'Copiar'}
+                        onClick={() => { void copyHref(prompt.referenceUrl); }}
+                      >
+                        {urlCopied ? (
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12.5 9.5 17 19 7" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="9" y="9" width="11" height="11" rx="2" />
+                            <path d="M5 15V5a2 2 0 0 1 2-2h8" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
     </>
   );
@@ -2467,6 +2701,7 @@ function FloatCard({ prompt, view, onPatch }) {
   const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [urlOffer, setUrlOffer] = useState('');
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
   const titleRef = useRef(null);
@@ -2566,6 +2801,21 @@ function FloatCard({ prompt, view, onPatch }) {
           {showInstructions ? 'See prompt' : 'See instructions'}
         </button>
         </div>
+        {urlOffer ? (
+          <div className="prompt-url-offer" role="status">
+            <p>Guardar este link en Url?</p>
+            <button
+              type="button"
+              onClick={() => {
+                onPatch({ referenceUrl: urlOffer });
+                setUrlOffer('');
+              }}
+            >
+              Guardar
+            </button>
+            <button type="button" onClick={() => setUrlOffer('')}>No</button>
+          </div>
+        ) : null}
         <div className="prompt-drawer">
           {showInstructions ? (
             <FloatInstructions value={step.description || ''} />
@@ -2577,6 +2827,7 @@ function FloatCard({ prompt, view, onPatch }) {
             placeholder="Create or Insert Prompt"
             readOnly={Boolean(step.promptSaved)}
             onCommit={commitBody}
+            onUrlPaste={setUrlOffer}
             className="prompt-float__text"
           >
           {canCopy ? (
@@ -2742,6 +2993,27 @@ const FLOAT_CSS = `
     white-space: nowrap;
   }
   .prompt-float__instructions-body { white-space: pre-wrap; }
+  .prompt-url-offer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 12px 8px;
+    color: #1a1a1a;
+    font-size: 12px;
+  }
+  .prompt-url-offer p { margin: 0; }
+  .prompt-url-offer button {
+    border: 1px solid rgba(20, 20, 22, 0.22);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
   .prompt-float__step::placeholder { color: rgba(20, 20, 22, 0.38); }
   .prompt-desc {
     position: relative;

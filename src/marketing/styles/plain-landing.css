@@ -103,31 +103,26 @@ body.marketing-body:has(.marketing-shell--home) {
 
 .plain-home__cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  max-width: 920px;
-  margin: 0 auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 32px;
+  width: min(1560px, calc(100vw - 64px));
+  margin-left: calc(50% - min(780px, 50vw - 32px));
 }
 
 .plain-home__card {
+  display: block;
+  grid-column: span 2;
+  width: 100%;
+  height: auto;
   margin: 0;
-  padding: 22px 20px;
-  border: 1px solid rgba(28, 25, 23, 0.08);
-  border-radius: 16px;
-  background: #fff;
 }
 
-.plain-home__card h2 {
-  margin: 0 0 8px;
-  font-size: 16px;
-  letter-spacing: -0.02em;
+.plain-home__card:nth-child(4) {
+  grid-column: 2 / span 2;
 }
 
-.plain-home__card p {
-  margin: 0;
-  color: #6f6a64;
-  font-size: 14.5px;
-  line-height: 1.45;
+.plain-home__card:nth-child(5) {
+  grid-column: 4 / span 2;
 }
 
 .plain-support {
@@ -205,12 +200,12 @@ body.marketing-body:has(.marketing-shell--home) {
   line-height: 1.4;
 }
 
-.plain-free {
-  padding: 96px 0 8px;
+.plain-features {
+  padding: 48px 0 8px;
   text-align: center;
 }
 
-.plain-free h2,
+.plain-features h2,
 .plain-more h2,
 .plain-close h2,
 .plain-split__copy h2 {
@@ -219,26 +214,23 @@ body.marketing-body:has(.marketing-shell--home) {
   letter-spacing: -0.03em;
 }
 
-.plain-free h2,
+.plain-features h2,
 .plain-more h2 {
   font-size: clamp(32px, 4vw, 44px);
 }
 
-.plain-free > p {
-  margin: 10px 0 0;
+.plain-features > p {
+  max-width: 42ch;
+  margin: 12px auto 0;
   color: #6f6a64;
-  font-size: 16px;
+  font-size: 18px;
+  line-height: 1.5;
 }
 
-.plain-free__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 36px;
-  text-align: left;
+.plain-features .plain-home__cards {
+  margin-top: 40px;
 }
 
-.plain-free__card,
 .plain-more__pill {
   margin: 0;
   padding: 20px 18px 22px;
@@ -256,18 +248,10 @@ body.marketing-body:has(.marketing-shell--home) {
   background: #efeae2;
 }
 
-.plain-free__card h3,
 .plain-more__pill h3 {
   margin: 0;
   font-size: 16px;
   letter-spacing: -0.02em;
-}
-
-.plain-free__card p {
-  margin: 6px 0 0;
-  color: #6f6a64;
-  font-size: 14.5px;
-  line-height: 1.45;
 }
 
 .plain-splits {
@@ -523,10 +507,22 @@ body.marketing-body:has(.marketing-shell--privacy) {
   }
 
   .plain-home__cards,
-  .plain-free__grid,
   .plain-more__row,
   .plain-split {
     grid-template-columns: 1fr;
+  }
+
+  .plain-home__cards {
+    width: 100%;
+    margin-left: 0;
+    gap: 16px;
+  }
+
+  .plain-home__card,
+  .plain-home__card:nth-child(4),
+  .plain-home__card:nth-child(5) {
+    grid-column: auto;
+    width: 100%;
   }
 
   .plain-split {

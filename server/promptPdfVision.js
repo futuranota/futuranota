@@ -65,6 +65,95 @@ Si el prompt trae un hueco entre marcas, cópialo tal cual, con una o con dos: {
 
 Un nombre pintado dentro del dibujo, un logo o una marca de agua no entra. No escribas nada fuera del JSON.`;
 
+const IMPROVE_INSTRUCTION = `Te paso texto ya pegado, no una página ni un PDF. Ordénalo. No inventes frases ni completes huecos.
+
+Devuelve solo un objeto JSON con las claves "title", "description" y "prompt". Cada valor es un string. Si esa parte no está, usa "".
+
+- title: la línea corta que abre el texto, como "01 / CREAR LA HOJA", "Paso 01", "#1" o "1-". Si la palabra Prompt solo nombra una sección, no es el título. Si no hay esa línea, "". El title va sin etiquetas.
+- description: la explicación que está antes del prompt. Si no hay, "".
+- prompt: el bloque bajo la palabra Prompt, cuando esa palabra está. Si no está, el bloque de texto más grande. Cópialo con sus párrafos. Conserva los tokens {{...}} tal cual.
+
+Si el prompt trae un hueco entre marcas, cópialo tal cual, con una o con dos: {add this producto}, {{add this producto}}, [add this producto] o [[add this producto]]. No lo completes, no lo quites y no lo conviertas en texto normal.
+
+Resalta en amarillo cada ficha, envolviéndola solo a ella con <mark> y sin atributos:
+- la que empieza con #
+- la que empieza con http o https
+- la que contiene un @ entre el texto
+No marques la frase entera.
+
+Pon en negrita, con <strong> y sin atributos:
+- cada oración que empiece o termine con ?
+- cada palabra escrita toda en mayúsculas
+- cada palabra que contenga un número
+Una mayúscula sola al inicio de la oración no va en negrita. El title va sin <mark> y sin <strong>. No uses markdown ni otras etiquetas. No escribas nada fuera del JSON.`;
+
+const FICHA = /(?<![\w@#/])(?:https?:\/\/[^\s<]+|https?[^\s<]+|#[^\s<]+|[^\s<]*@[^\s<]+)/gi;
+
+/**
+ * Yellow highlight for fichas: leading #, leading http/https, or a token that contains @.
+ * Skips text already inside <mark> and {{variable}} tokens.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function highlightFichas(value) {
+  const text = typeof value === "string" ? value : "";
+  const parts = text.split(/(<mark>[\s\S]*?<\/mark>|\{\{[\s\S]*?\}\})/gi);
+  return parts.map((part) => {
+    if (/^<mark>/i.test(part) || part.startsWith("{{")) return part;
+    return part.replace(FICHA, (token) => {
+      const core = token.replace(/[.,;:!?)]+$/g, "");
+      const rest = token.slice(core.length);
+      if (!core || core === "#" || core === "@") return token;
+      return `<mark>${core}</mark>${rest}`;
+    });
+  }).join("");
+}
+
+const PASTED_ATOM = /(<strong>[\s\S]*?<\/strong>|<mark>[\s\S]*?<\/mark>|\{\{[\s\S]*?\}\})/gi;
+
+function isQuestionSentence(sentence) {
+  const plain = sentence.replace(/<[^>]+>/g, "").trim();
+  return plain.startsWith("?") || plain.endsWith("?");
+}
+
+function boldWord(word) {
+  const core = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  if (!core) return word;
+  const letters = core.match(/\p{L}/gu) || [];
+  const allCaps = letters.length >= 2 && letters.every((ch) => ch === ch.toUpperCase() && ch !== ch.toLowerCase());
+  if (!allCaps && !/\d/.test(core)) return word;
+  const at = word.indexOf(core);
+  return `${word.slice(0, at)}<strong>${core}</strong>${word.slice(at + core.length)}`;
+}
+
+/**
+ * Bold a question sentence, an all-caps word, or a word that contains a digit.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function emphasizePastedText(value) {
+  const text = typeof value === "string" ? value : "";
+  const bits = text.split(/((?<=[.!?])\s+|\n+)/);
+  return bits.map((bit) => {
+    if (!bit || /^\s+$/.test(bit)) return bit;
+    if (isQuestionSentence(bit)) {
+      if (/^<strong>[\s\S]*<\/strong>$/i.test(bit.trim())) return bit;
+      return `<strong>${bit}</strong>`;
+    }
+    return bit.split(PASTED_ATOM).map((part) => {
+      if (!part || part.startsWith("{{") || /^<strong>/i.test(part)) return part;
+      if (/^<mark>/i.test(part)) {
+        const inner = part.replace(/<\/?mark>/gi, "");
+        const letters = inner.match(/\p{L}/gu) || [];
+        const allCaps = letters.length >= 2 && letters.every((ch) => ch === ch.toUpperCase() && ch !== ch.toLowerCase());
+        if (allCaps || /\d/.test(inner)) return `<strong>${part}</strong>`;
+        return part;
+      }
+      return part.split(/(\s+)/).map((word) => (/^\s+$/.test(word) ? word : boldWord(word))).join("");
+    }).join("");
+  }).join("");
+}
+
 const MARK_NAMES = {
   strong: "strong",
   b: "strong",
@@ -126,9 +215,11 @@ export function parsePdfFields(raw) {
 }
 
 /**
- * @param {{ pages?: { index?: number, image?: string }[], images?: string[], pass?: string, userId?: string, userEmail?: string }} body
+ * @param {{ pages?: { index?: number, image?: string }[], images?: string[], pass?: string, description?: string, prompt?: string, text?: string, userId?: string, userEmail?: string }} body
  */
 export async function processPromptPdfRead(body) {
+  if (body.pass === "improve") return processPromptImprove(body);
+
   const listed = Array.isArray(body.pages)
     ? body.pages
     : (Array.isArray(body.images) ? body.images.map((image, index) => ({ index: index + 1, image })) : []);
@@ -208,6 +299,84 @@ export async function processPromptPdfRead(body) {
     fields = { title: "", description: fields.description, prompt: fields.prompt };
   }
   return { status: 200, body: fields };
+}
+
+/**
+ * Order pasted text. No page image.
+ * @param {{ description?: string, prompt?: string, text?: string, userId?: string, userEmail?: string }} body
+ */
+async function processPromptImprove(body) {
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  const fallback = typeof body.text === "string" ? body.text.trim() : "";
+  const pasted = [
+    description ? `Descripción:\n${description}` : "",
+    prompt ? `Prompt:\n${prompt}` : "",
+    !description && !prompt && fallback ? fallback : "",
+  ].filter(Boolean).join("\n\n").slice(0, 12000);
+  if (!pasted) {
+    return { status: 400, body: { error: "No hay texto pegado para mejorar." } };
+  }
+
+  const apiKey = process.env.GROQ_API_KEY || process.env.Groq_Api_key;
+  if (!apiKey) {
+    return { status: 503, body: { error: "GROQ_API_KEY is not set" } };
+  }
+
+  const response = await fetch(GROQ_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      temperature: 0,
+      max_completion_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: `${IMPROVE_INSTRUCTION}\n\nTEXTO PEGADO:\n${pasted}`,
+      }],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = payload?.error?.message || `Groq improve failed (${response.status})`;
+    return { status: response.status, body: { error: message } };
+  }
+
+  const usage = normalizeUsage(payload?.usage);
+  void logApiUsageEvent({
+    userId: typeof body.userId === "string" ? body.userId : undefined,
+    userEmail: typeof body.userEmail === "string" ? body.userEmail : undefined,
+    provider: "groq",
+    endpoint: "prompts/read",
+    routeLabel: "Prompt improve",
+    inputTokens: usage?.inputTokens,
+    outputTokens: usage?.outputTokens,
+    model: VISION_MODEL,
+    billed: true,
+    meta: { pass: "improve", chars: pasted.length },
+  });
+
+  let fields;
+  try {
+    fields = parsePdfFields(payload?.choices?.[0]?.message?.content || "");
+  } catch (err) {
+    return {
+      status: 422,
+      body: { error: err instanceof Error ? err.message : "Groq didn’t return the PDF fields." },
+    };
+  }
+  return {
+    status: 200,
+    body: {
+      title: fields.title,
+      description: emphasizePastedText(highlightFichas(fields.description)),
+      prompt: emphasizePastedText(highlightFichas(fields.prompt)),
+    },
+  };
 }
 
 export function createPromptPdfMiddleware() {
