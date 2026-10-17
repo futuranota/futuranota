@@ -3057,11 +3057,16 @@ const FLOAT_CSS = `
     content: attr(data-placeholder);
     color: rgba(112, 73, 1, 0.45);
   }
-  .prompt-float__instructions-body strong { font-weight: 700; }
-  .prompt-float__instructions-body em { font-style: italic; }
-  .prompt-float__instructions-body u { text-decoration: underline; }
-  .prompt-float__instructions-body s { text-decoration: line-through; }
-  .prompt-float__instructions-body mark { background: #f4e7a3; color: inherit; }
+  .prompt-float__instructions-body strong,
+  .prompt-body__editor strong { font-weight: 700; }
+  .prompt-float__instructions-body em,
+  .prompt-body__editor em { font-style: italic; }
+  .prompt-float__instructions-body u,
+  .prompt-body__editor u { text-decoration: underline; }
+  .prompt-float__instructions-body s,
+  .prompt-body__editor s { text-decoration: line-through; }
+  .prompt-float__instructions-body mark,
+  .prompt-body__editor mark { background: #f4e7a3; color: inherit; }
   .prompt-body__editor[data-empty="true"]::before,
   .prompt-body__editor[data-empty]::before {
     color: rgba(20, 20, 22, 0.38);

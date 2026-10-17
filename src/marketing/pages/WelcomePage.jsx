@@ -120,8 +120,6 @@ export function WelcomePage() {
           markPendingProCheckout(billing);
         }
         await signUp(form.email, form.password, {
-          first_name: form.firstName,
-          last_name: form.lastName,
           plan: selectedPlan?.id ?? 'free',
           ...(billing ? { billing } : {}),
         }, checkoutQuery);

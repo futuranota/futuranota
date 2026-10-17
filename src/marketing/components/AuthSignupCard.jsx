@@ -12,33 +12,8 @@ export const AUTH_BRAND_ASSET_SRC = 'https://i.ibb.co/dJxBbFks/brandasset.png';
  */
 export const AUTH_CARD_SLOT_IMAGE = '';
 
-function IconArrowLeft() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconEye({ off = false }) {
-  if (off) {
-    return (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M10.58 10.58A2 2 0 0 0 12 15a2 2 0 0 0 1.42-.58M9.88 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 7-1.02 2.28-2.77 4.2-4.97 5.32M6.06 6.06A10.8 10.8 0 0 0 3 11c1.73 3.89 6 7 11 7 1.05 0 2.06-.14 3-.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 /**
- * Split signup / sign-in card with brand visual + optional image slot.
+ * Centered sign-up / sign-in card. Same handlers as the previous split card.
  */
 export function AuthSignupCard({
   mode = 'signup',
@@ -53,21 +28,14 @@ export function AuthSignupCard({
   selectedPlan = null,
 }) {
   const isSignup = mode === 'signup';
-  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
-    agreeToTerms: false,
   });
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
@@ -76,217 +44,107 @@ export function AuthSignupCard({
   };
 
   return (
-    <div className="auth-split-card card">
-      <aside className="auth-split-visual" aria-hidden={false}>
-        <div className="auth-split-visual__primary">
-          <Link to={PATHS.home} className="auth-split-visual__back" aria-label="Back to home">
-            <IconArrowLeft />
+    <div className="auth-simple card">
+      <Link to={PATHS.home} className="auth-simple__brand" aria-label="Futura Nota">
+        <img src="/favicon.svg" alt="" width="26" height="24" />
+        <span className="auth-simple__name">Futura Nota</span>
+      </Link>
+
+      {isSignup && selectedPlan ? (
+        <div className="auth-simple__plan">
+          Plan selected: <strong>{selectedPlan.label}</strong> ({selectedPlan.priceLabel})
+          <Link to={`${PATHS.home}#pricing`} className="auth-simple__plan-link">
+            Change
           </Link>
-          <img src={AUTH_BRAND_ASSET_SRC} alt="" className="auth-split-visual__img" />
         </div>
+      ) : null}
 
-        <div className="auth-split-visual__slot">
-          {AUTH_CARD_SLOT_IMAGE ? (
-            <img
-              src={AUTH_CARD_SLOT_IMAGE}
-              alt=""
-              className="auth-split-visual__slot-img"
-            />
-          ) : (
-            <div className="auth-split-visual__slot-placeholder" aria-hidden="true" />
-          )}
-        </div>
-      </aside>
+      <form className="auth-simple__form" onSubmit={handleSubmit}>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="Email"
+          aria-label="Email"
+          autoComplete="email"
+          className="auth-simple__input"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Password"
+          aria-label="Password"
+          autoComplete={isSignup ? 'new-password' : 'current-password'}
+          className="auth-simple__input"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
 
-      <div className="auth-split-form">
-        <Link to={PATHS.home} className="auth-split-form__back auth-split-form__back--mobile mono-sm">
-          <IconArrowLeft />
-          Back
-        </Link>
+        {!isSignup ? (
+          <Link to={PATHS.forgotPassword} className="auth-simple__forgot">
+            Forgot password?
+          </Link>
+        ) : null}
 
-        <div className="auth-split-form__tabs" role="tablist" aria-label="Sign up or sign in">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={isSignup}
-            className={`auth-split-form__tab${isSignup ? ' is-active' : ''}`}
-            onClick={() => onModeChange?.('signup')}
-          >
-            Create account
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!isSignup}
-            className={`auth-split-form__tab${!isSignup ? ' is-active' : ''}`}
-            onClick={() => onModeChange?.('signin')}
-          >
-            Log in
-          </button>
-        </div>
-
-        <div className="auth-split-form__head">
-          <h1 className="auth-split-form__title">
-            {isSignup ? 'Create an Account' : 'Welcome back'}
-          </h1>
-        </div>
-
-        {isSignup && selectedPlan ? (
-          <div className="auth-split-plan-chip">
-            Plan selected: <strong>{selectedPlan.label}</strong> ({selectedPlan.priceLabel})
-            <Link to={`${PATHS.home}#pricing`} className="auth-split-form__link auth-split-form__link--inline">
-              Change
-            </Link>
+        {errorMessage ? (
+          <div className="auth-simple__error" role="alert">
+            {errorMessage}
+            {onRetryCheckout ? (
+              <button
+                type="button"
+                className="auth-simple__retry"
+                onClick={onRetryCheckout}
+                disabled={loading}
+              >
+                {retryLabel}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
         <button
-          type="button"
-          className="auth-split-google"
-          onClick={onGoogleSignIn}
+          type="submit"
+          className={`auth-simple__submit${loading ? ' is-loading' : ''}`}
           disabled={loading}
+          aria-busy={loading}
         >
-          <GoogleIcon />
-          Continue with Google
+          {loading
+            ? (loadingLabel || 'Loading…')
+            : (isSignup ? 'Create an account' : 'Log in')}
         </button>
+      </form>
 
-        <div className="auth-split-or">
-          <span className="auth-split-or__label">or with email</span>
-        </div>
+      <button
+        type="button"
+        className="auth-simple__google"
+        onClick={onGoogleSignIn}
+        disabled={loading}
+      >
+        <GoogleIcon />
+        {isSignup ? 'Sign up with Google' : 'Sign in with Google'}
+      </button>
 
-        <form className="auth-split-form__fields" onSubmit={handleSubmit}>
-          {isSignup ? (
-            <div className="auth-split-form__row">
-              <label className="auth-split-field" htmlFor="firstName">
-                <span className="auth-split-field__label">First Name</span>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  placeholder="John"
-                  autoComplete="given-name"
-                  className="auth-split-input"
-                  value={form.firstName}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
-              <label className="auth-split-field" htmlFor="lastName">
-                <span className="auth-split-field__label">Last Name</span>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  autoComplete="family-name"
-                  className="auth-split-input"
-                  value={form.lastName}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
-            </div>
-          ) : null}
+      <p className="auth-simple__switch">
+        {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+        <button
+          type="button"
+          onClick={() => onModeChange?.(isSignup ? 'signin' : 'signup')}
+        >
+          {isSignup ? 'Login' : 'Sign up'}
+        </button>
+      </p>
 
-          <label className="auth-split-field" htmlFor="email">
-            <span className="auth-split-field__label">Email Address</span>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="you@studio.com"
-              autoComplete="email"
-              className="auth-split-input"
-              value={form.email}
-              onChange={handleChange}
-              required={isSignup}
-            />
-          </label>
-
-          <label className="auth-split-field" htmlFor="password">
-            <span className="auth-split-field__label">Password</span>
-            <div className="auth-split-input-wrap">
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Password"
-                autoComplete={isSignup ? 'new-password' : 'current-password'}
-                className="auth-split-input auth-split-input--password"
-                value={form.password}
-                onChange={handleChange}
-                required={isSignup}
-              />
-              <button
-                type="button"
-                className="auth-split-input__toggle"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                <IconEye off={showPassword} />
-              </button>
-            </div>
-          </label>
-
-          {!isSignup ? (
-            <Link
-              to={PATHS.forgotPassword}
-              className="auth-split-form__link auth-split-form__link--inline auth-split-form__forgot"
-            >
-              Forgot password?
-            </Link>
-          ) : null}
-
-          {isSignup ? (
-            <div className="auth-split-terms">
-              <input
-                id="agreeToTerms"
-                name="agreeToTerms"
-                type="checkbox"
-                checked={form.agreeToTerms}
-                onChange={handleChange}
-                required
-              />
-              <span>
-                <label htmlFor="agreeToTerms">I agree to the </label>
-                <Link
-                  to={PATHS.termsOfService}
-                  className="auth-split-form__link auth-split-form__link--inline"
-                >
-                  Terms of Service
-                </Link>
-              </span>
-            </div>
-          ) : null}
-
-          {errorMessage ? (
-            <div className="auth-split-form__error" role="alert">
-              {errorMessage}
-              {onRetryCheckout ? (
-                <button
-                  type="button"
-                  className="auth-split-form__retry"
-                  onClick={onRetryCheckout}
-                  disabled={loading}
-                >
-                  {retryLabel}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            className={`btn btn-primary auth-split-submit${loading ? ' is-loading' : ''}`}
-            disabled={loading}
-            aria-busy={loading}
-          >
-            {loading
-              ? (loadingLabel || 'Loading…')
-              : (isSignup ? 'Sign up' : 'Sign in')}
-          </button>
-        </form>
-      </div>
+      {isSignup ? (
+        <p className="auth-simple__terms">
+          By continuing you agree to the{' '}
+          <Link to={PATHS.termsOfService}>Terms of Service</Link>
+        </p>
+      ) : null}
     </div>
   );
 }
