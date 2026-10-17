@@ -18,8 +18,9 @@ import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import { fetchPdfBytesFromUrl, renderPdfPageImages } from '../../lib/importPdfText.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody, VariableDeck, paintMarked, readMarked } from './PromptBody.jsx';
+import { PromptBody, VariableDeck, applyTitleShortcut, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
+import StorageDistrict, { storageDemoRoot } from './StorageDistrict.jsx';
 import './prompt-desk.css';
 
 const pdfFiles = new Map();
@@ -109,7 +110,7 @@ function stepHasImage(step) {
 
 function plainCopy(template, variables) {
   return resolvePrompt(template, variables)
-    .replace(/<\/?(?:strong|em|u|s|mark)>/gi, '')
+    .replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
@@ -119,7 +120,7 @@ function plainCopy(template, variables) {
 function richCopy(template, variables) {
   const resolved = resolvePrompt(template, variables);
   const kept = [];
-  const text = resolved.replace(/<\/?(strong|em|u|s|mark)>/gi, (tag) => {
+  const text = resolved.replace(/<\/?(strong|em|u|s|mark|h1)>/gi, (tag) => {
     const name = tag.replace(/<\/?|>/g, '').toLowerCase();
     const token = `\u0000${kept.length}\u0000`;
     kept.push(tag.startsWith('</') ? `</${name}>` : `<${name}>`);
@@ -134,7 +135,7 @@ function richCopy(template, variables) {
 }
 
 function promptHasText(value) {
-  return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim());
+  return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim());
 }
 
 function stepHasDraft(item) {
@@ -313,9 +314,53 @@ function DescriptionField({ className, value, readOnly, onChange, onEditFocus })
         else ref.current.dataset.empty = 'true';
         onChange(next);
       }}
-      onFocus={() => onEditFocus?.(ref.current)}
+      onFocus={() => {
+        onEditFocus?.(ref.current);
+        const node = ref.current;
+        if (!node || node.textContent.trim()) return;
+        const doc = node.ownerDocument;
+        const selection = doc.getSelection();
+        if (!selection) return;
+        const range = doc.createRange();
+        range.setStart(node, 0);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }}
       onMouseUp={() => onEditFocus?.(ref.current)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' || event.shiftKey || readOnly) return;
+        if (!applyTitleShortcut(ref.current)) return;
+        event.preventDefault();
+        const next = readMarked(ref.current);
+        local.current = next;
+        if (ref.current.textContent.trim()) delete ref.current.dataset.empty;
+        else ref.current.dataset.empty = 'true';
+        onChange(next);
+      }}
       onKeyUp={() => onEditFocus?.(ref.current)}
+    />
+  );
+}
+
+function FloatInstructions({ value }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (!String(value || '').trim()) {
+      node.replaceChildren();
+      node.dataset.empty = 'true';
+      return;
+    }
+    delete node.dataset.empty;
+    paintMarked(node, value, [], { chips: false });
+  }, [value]);
+  return (
+    <div
+      ref={ref}
+      className="prompt-float__text prompt-float__instructions-body"
+      data-placeholder="No instructions yet."
     />
   );
 }
@@ -448,8 +493,12 @@ function readImageFile(file, onLoad) {
 
 const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
-  { id: 'settings', label: 'Settings', to: '/app/settings' },
+  { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
   { id: 'embed', label: 'Embed Html', to: '/app/embed' },
+];
+
+const SETTINGS_PANES = [
+  { id: 'storage', label: 'Storage', to: '/app/settings/storage' },
 ];
 
 function viewFromPath(pathname) {
@@ -481,7 +530,7 @@ function SideIcon({ name }) {
   );
 }
 
-function DeskSidebar({ view }) {
+function DeskSidebar({ view, settingsPane }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -532,17 +581,29 @@ function DeskSidebar({ view }) {
       </div>
       <nav className="prompt-desk__side-nav">
         {DESK_VIEWS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
-            aria-current={view === item.id ? 'page' : undefined}
-            title={item.label}
-            onClick={() => navigate(item.to)}
-          >
-            <SideIcon name={item.id} />
-            <span>{item.label}</span>
-          </button>
+          <div key={item.id}>
+            <button
+              type="button"
+              className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
+              aria-current={view === item.id ? 'page' : undefined}
+              title={item.label}
+              onClick={() => navigate(item.to)}
+            >
+              <SideIcon name={item.id} />
+              <span>{item.label}</span>
+            </button>
+            {item.id === 'settings' && open ? SETTINGS_PANES.map((pane) => (
+              <button
+                key={pane.id}
+                type="button"
+                className={settingsPane === pane.id ? 'prompt-desk__side-sublink is-current' : 'prompt-desk__side-sublink'}
+                aria-current={settingsPane === pane.id ? 'page' : undefined}
+                onClick={() => navigate(pane.to)}
+              >
+                {pane.label}
+              </button>
+            )) : null}
+          </div>
         ))}
       </nav>
       <div className="prompt-desk__account">
@@ -563,12 +624,10 @@ function DeskSidebar({ view }) {
   );
 }
 
-function DeskPlaceholder({ title }) {
+function StorageSettings() {
   return (
-    <div className="prompt-desk__page">
-      <header className="prompt-desk__bar">
-        <h1 className="prompt-desk__mark">{title}</h1>
-      </header>
+    <div className="prompt-desk__storage">
+      <StorageDistrict root={storageDemoRoot} capacityBytes={64_000_000_000} title="Storage" />
     </div>
   );
 }
@@ -657,6 +716,7 @@ function saveMode(patch, beforePrompt) {
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
+  const settingsPane = location.pathname.startsWith('/app/settings') ? 'storage' : null;
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -947,9 +1007,9 @@ export default function PromptDesk() {
   return (
     <div className="prompt-desk">
       <div className="prompt-desk__dots" aria-hidden="true" />
-      <DeskSidebar view={view} />
+      <DeskSidebar view={view} settingsPane={settingsPane} />
       <div className="prompt-desk__main">
-      {view === 'settings' ? <DeskPlaceholder title="Settings" /> : null}
+      {view === 'settings' ? <StorageSettings /> : null}
       {view === 'embed' ? <EmbedHtml /> : null}
       {view === 'home' ? (
       <>
@@ -1559,7 +1619,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       onPatch({ stepIndex: index + 1 });
       return;
     }
-    if (!promptHasText(step.prompt)) return;
+    if (!stepHasDraft(step)) return;
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -2263,7 +2323,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               type="button"
               className="prompt-steps__arrow"
               aria-label="Next prompt"
-              disabled={index >= steps.length - 1 && !promptHasText(step.prompt)}
+              disabled={index >= steps.length - 1 && !stepHasDraft(step)}
               onClick={goForward}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2382,7 +2442,7 @@ function FloatCard({ prompt, view, onPatch }) {
       onPatch({ stepIndex: index + 1 });
       return;
     }
-    if (!promptHasText(step.prompt)) return;
+    if (!stepHasDraft(step)) return;
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -2431,11 +2491,7 @@ function FloatCard({ prompt, view, onPatch }) {
         </div>
         <div className="prompt-drawer">
           {showInstructions ? (
-            <div className="prompt-float__text prompt-float__instructions-body">
-              {step.description?.trim()
-                ? step.description.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '')
-                : 'No instructions yet.'}
-            </div>
+            <FloatInstructions value={step.description || ''} />
           ) : (
           <PromptBody
             key={step.id}
@@ -2487,7 +2543,7 @@ function FloatCard({ prompt, view, onPatch }) {
           type="button"
           className="prompt-steps__arrow"
           aria-label="Next prompt"
-          disabled={index >= steps.length - 1 && !promptHasText(step.prompt)}
+          disabled={index >= steps.length - 1 && !stepHasDraft(step)}
           onClick={goForward}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2689,6 +2745,15 @@ const FLOAT_CSS = `
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  .prompt-float__text h1,
+  .prompt-body__editor h1 {
+    display: block;
+    margin: 0.35em 0 0.15em;
+    font-size: 22px;
+    font-weight: 650;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
   }
   .prompt-body {
     flex: 1;
@@ -2984,6 +3049,19 @@ const FLOAT_CSS = `
     outline: none;
   }
   .prompt-float__text::placeholder { color: rgba(20, 20, 22, 0.38); }
+  .prompt-float__text.prompt-float__instructions-body {
+    color: #704901;
+    white-space: pre-wrap;
+  }
+  .prompt-float__instructions-body[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    color: rgba(112, 73, 1, 0.45);
+  }
+  .prompt-float__instructions-body strong { font-weight: 700; }
+  .prompt-float__instructions-body em { font-style: italic; }
+  .prompt-float__instructions-body u { text-decoration: underline; }
+  .prompt-float__instructions-body s { text-decoration: line-through; }
+  .prompt-float__instructions-body mark { background: #f4e7a3; color: inherit; }
   .prompt-body__editor[data-empty="true"]::before,
   .prompt-body__editor[data-empty]::before {
     color: rgba(20, 20, 22, 0.38);

@@ -25,6 +25,7 @@ const MARKS = {
   S: 's',
   STRIKE: 's',
   MARK: 'mark',
+  H1: 'h1',
 };
 
 function escapeHtml(value) {
@@ -58,6 +59,7 @@ const PASTE_MARKS = {
   S: 's',
   STRIKE: 's',
   MARK: 'mark',
+  H1: 'h1',
 };
 
 function appendClipboard(doc, parent, node) {
@@ -122,7 +124,7 @@ export function readMarked(root) {
 }
 
 function hasMarks(source) {
-  return /<\/?(?:strong|em|u|s|mark)\b/i.test(source || '');
+  return /<\/?(?:strong|em|u|s|mark|h1)\b/i.test(source || '');
 }
 
 export function paintMarked(root, source, variables, { chips = true } = {}) {
@@ -198,6 +200,75 @@ function placeCaret(doc, node, offset) {
   selection.addRange(range);
 }
 
+const TITLE_LINE = /^\s*(?:#|\/title|title)\s+(.+)$/i;
+
+function lineBeforeCaret(root, caretNode, caretOffset) {
+  let line = '';
+  const nodes = [];
+  let passed = false;
+  const visit = (node) => {
+    if (passed || !node) return;
+    if (node === caretNode && node.nodeType === Node.TEXT_NODE) {
+      line += node.textContent.slice(0, caretOffset);
+      nodes.push(node);
+      passed = true;
+      return;
+    }
+    if (node === caretNode && node.nodeType === Node.ELEMENT_NODE) {
+      [...node.childNodes].slice(0, caretOffset).forEach(visit);
+      passed = true;
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      line += node.textContent;
+      nodes.push(node);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.tagName === 'BR' || node.tagName === 'H1') {
+      line = '';
+      nodes.length = 0;
+      return;
+    }
+    if (node.dataset?.varId) {
+      line += node.textContent;
+      nodes.push(node);
+      return;
+    }
+    [...node.childNodes].forEach(visit);
+  };
+  [...root.childNodes].forEach(visit);
+  return { line, nodes: nodes.filter((node) => node.isConnected) };
+}
+
+export function applyTitleShortcut(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  if (!root || !selection?.isCollapsed || !selection.rangeCount) return false;
+  const caret = selection.getRangeAt(0);
+  if (!root.contains(caret.startContainer)) return false;
+  let host = caret.startContainer;
+  if (host.nodeType === Node.TEXT_NODE) host = host.parentElement;
+  if (host?.closest?.('h1')) return false;
+  const found = lineBeforeCaret(root, caret.startContainer, caret.startOffset);
+  const match = found.line.match(TITLE_LINE);
+  const title = match?.[1]?.replace(/\s+/g, ' ').trim();
+  if (!title || !found.nodes.length) return false;
+  const h1 = doc.createElement('h1');
+  h1.textContent = title;
+  const br = doc.createElement('br');
+  const first = found.nodes[0];
+  if (!first.parentNode) return false;
+  first.parentNode.insertBefore(h1, first);
+  first.parentNode.insertBefore(br, first);
+  found.nodes.forEach((node) => node.remove());
+  const slot = doc.createTextNode('');
+  if (br.nextSibling) br.parentNode.insertBefore(slot, br.nextSibling);
+  else br.parentNode.appendChild(slot);
+  placeCaret(doc, slot, 0);
+  return true;
+}
+
 export function PromptBody({
   prompt,
   variables,
@@ -233,7 +304,7 @@ export function PromptBody({
   function paintAll(source) {
     const root = editorRef.current;
     if (!root) return;
-    const plain = String(source || '').replace(/<\/?(?:strong|em|u|s|mark)>/gi, '');
+    const plain = String(source || '').replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '');
     const parts = parsePrompt(plain);
     const empty = !plain.trim() || (parts.length === 1 && parts[0].type === 'text' && !parts[0].text.trim());
     if (empty) {
@@ -250,7 +321,7 @@ export function PromptBody({
     const root = lockedRef.current;
     if (!root) return;
     const source = dropUnknownTokens(prompt, list);
-    const plain = source.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
+    const plain = source.replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim();
     if (!plain) {
       root.replaceChildren();
       root.dataset.empty = 'true';
@@ -309,7 +380,7 @@ export function PromptBody({
     const root = editorRef.current;
     if (!root) return;
     const template = readTemplate(root);
-    const blank = !template.replace(/<\/?(?:strong|em|u|s|mark)>/gi, '').trim();
+    const blank = !template.replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim();
     localRef.current = blank ? '' : template;
     if (blank) root.dataset.empty = 'true';
     else delete root.dataset.empty;
@@ -396,6 +467,11 @@ export function PromptBody({
         }
       }
     }
+    if (!menu && event.key === 'Enter' && !event.shiftKey && applyTitleShortcut(editorRef.current)) {
+      event.preventDefault();
+      commitDom();
+      return;
+    }
     if (!menu) return;
     const items = options();
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -432,7 +508,7 @@ export function PromptBody({
     const range = selection.getRangeAt(0);
     range.deleteContents();
     const fragment = doc.createDocumentFragment();
-    if (html && /<(strong|em|u|s|mark|b|i)\b/i.test(html)) {
+    if (html && /<(strong|em|u|s|mark|h1|b|i)\b/i.test(html)) {
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       for (const child of parsed.body.childNodes) appendClipboard(doc, fragment, child);
     }
