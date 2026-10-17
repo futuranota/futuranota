@@ -2857,10 +2857,7 @@
 
 .prompt-chip__label {
   min-width: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   line-height: 1.25;
 }
 

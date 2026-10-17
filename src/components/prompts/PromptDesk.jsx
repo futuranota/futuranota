@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
@@ -2332,6 +2332,14 @@ function FloatCard({ prompt, view, onPatch }) {
   const [showInstructions, setShowInstructions] = useState(false);
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
+  const titleRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const node = titleRef.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${node.scrollHeight}px`;
+  }, [prompt.name]);
 
   function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
     if (keepSaved) {
@@ -2402,6 +2410,7 @@ function FloatCard({ prompt, view, onPatch }) {
           )}
         </span>
         <textarea
+          ref={titleRef}
           className="prompt-float__step"
           value={prompt.name}
           placeholder="Title"
@@ -2527,18 +2536,26 @@ const FLOAT_CSS = `
     border: 2px dashed rgba(20, 20, 22, 0.45);
     border-radius: 14px;
     background: #fff;
-    overflow: hidden;
+    overflow: auto;
   }
   .prompt-float__sheet:focus-within {
     border-color: rgba(20, 20, 22, 0.72);
   }
-  .prompt-float__head { position: relative; flex: none; }
+  .prompt-float__head {
+    position: relative;
+    flex: none;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 14px 12px 12px;
+    border-bottom: 1px solid rgba(20, 20, 22, 0.08);
+  }
   .prompt-float__model {
-    position: absolute;
-    top: 12px;
-    left: 12px;
+    position: static;
     width: 22px;
     height: 22px;
+    margin-top: 1px;
     display: grid;
     place-items: center;
   }
@@ -2558,28 +2575,28 @@ const FLOAT_CSS = `
   .prompt-float__step {
     flex: none;
     width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     margin: 0;
     border: 0;
-    border-bottom: 1px solid rgba(20, 20, 22, 0.08);
     background: transparent;
     color: #1a1a1a;
     font: inherit;
     font-size: 18px;
     font-weight: 560;
     letter-spacing: -0.02em;
-    line-height: 1.3;
-    padding: 14px 132px 12px 42px;
+    line-height: 1.35;
+    padding: 0;
     resize: none;
     overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     field-sizing: content;
-    max-height: calc(1.3em * 2 + 26px);
     outline: none;
   }
   .prompt-float__instructions {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    position: static;
+    margin-top: 1px;
     border: 0;
     border-radius: 999px;
     background: #f4f1eb;
@@ -2589,6 +2606,7 @@ const FLOAT_CSS = `
     line-height: 1;
     padding: 7px 10px;
     cursor: pointer;
+    white-space: nowrap;
   }
   .prompt-float__instructions-body { white-space: pre-wrap; }
   .prompt-float__step::placeholder { color: rgba(20, 20, 22, 0.38); }
@@ -2666,8 +2684,8 @@ const FLOAT_CSS = `
   }
   .prompt-drawer {
     position: relative;
-    flex: 1;
-    min-height: 0;
+    flex: 1 0 140px;
+    min-height: 140px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
