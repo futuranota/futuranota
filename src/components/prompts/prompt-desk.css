@@ -1962,6 +1962,13 @@
   color: #1a1a1a;
 }
 
+.prompt-pdf-sheet__foot {
+  display: flex;
+  justify-content: center;
+  flex: none;
+  padding: 4px 12px 14px;
+}
+
 .prompt-pdf-sheet__page {
   flex: 1;
   min-height: 0;

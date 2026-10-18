@@ -1472,6 +1472,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [pdfPick, setPdfPick] = useState([]);
   const [pdfStatus, setPdfStatus] = useState('idle');
   const [pdfScan, setPdfScan] = useState('');
+  const [keptTranscript, setKeptTranscript] = useState('');
   const [pdfScanReading, setPdfScanReading] = useState(false);
   const [organizeAsk, setOrganizeAsk] = useState(null);
   const [organizeLater, setOrganizeLater] = useState(false);
@@ -1487,6 +1488,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [pdfPromptLeaving, setPdfPromptLeaving] = useState(false);
   const pdfPagesRef = useRef([]);
   const pdfLoadedName = useRef('');
+  const pdfSheetRef = useRef(null);
+  const textPanelKept = useRef(false);
   const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
@@ -1500,10 +1503,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
   const [sheetFace, setSheetFace] = useState(1);
+  const rightText = String(keptTranscript || pdfScan || '').trim();
   const showPdfPreview = showPdf && !pdfFolded;
-  const pdfTranscriptWide = Boolean(
-    showPdf && pdfFolded && prompt.pdf?.name && pdfScan.trim() && !showImage && !showVideo,
-  );
+  const pdfTranscriptWide = Boolean(pdfFolded && rightText && !showImage && !showVideo);
   const showSide = showImage || showVideo || showPdfPreview;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.filter((item) => item.promptSaved).length;
@@ -1554,12 +1556,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfPageIndex(0);
     setPdfStatus('idle');
     setPdfScan('');
+    setKeptTranscript('');
     setPdfScanReading(false);
     setPdfFolded(false);
     setPdfPlain('');
     setPdfSaving(false);
     pdfPagesRef.current = [];
     pdfLoadedName.current = '';
+    textPanelKept.current = false;
     imageHold.current = false;
     sideHold.current = false;
     setShowImage(false);
@@ -1624,7 +1628,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       setPdfPageIndex(0);
       pdfPagesRef.current = [];
       setPdfStatus('idle');
-      setPdfScan('');
+      if (!textPanelKept.current) setPdfScan('');
       setPdfScanReading(false);
       setPdfPlain('');
       pdfLoadedName.current = '';
@@ -1640,9 +1644,13 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfPlain('');
     if (pdfLoadedName.current !== name) {
       pdfLoadedName.current = name;
-      setPdfScan('');
-      setPdfFolded(false);
-      setPdfAsk(prompt.pdf?.path ? 'kept' : 'ask');
+      if (textPanelKept.current) {
+        setPdfFolded(true);
+      } else {
+        setPdfScan('');
+        setPdfFolded(false);
+        setPdfAsk(prompt.pdf?.path ? 'kept' : 'ask');
+      }
     }
     const kind = prompt.pdf?.kind || promptDocumentKind(name);
     const storedPath = prompt.pdf?.path || '';
@@ -1880,11 +1888,24 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfScan(beautifyPastedText(pdfScan));
   }
 
+  function rightPanelText() {
+    const fromState = String(keptTranscript || pdfScan || '').trim();
+    if (fromState) return fromState;
+    const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
+    return String(node?.textContent || '').replace(/\u00a0/g, ' ').trim();
+  }
+
   function foldPdfPreview() {
-    if (pdfScan.trim()) {
+    const text = rightPanelText();
+    if (text) {
+      textPanelKept.current = true;
+      setKeptTranscript(text);
+      setPdfScan(text);
       setPdfFolded(true);
       return;
     }
+    textPanelKept.current = false;
+    setKeptTranscript('');
     deletePdf();
   }
 
@@ -2096,6 +2117,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   function deletePdf() {
     pdfFiles.delete(prompt.id);
+    textPanelKept.current = false;
+    setKeptTranscript('');
     setPdfError('');
     setPdfPasted(false);
     setPdfPages([]);
@@ -3214,8 +3237,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             </div>
             )}
           </div>
-          ) : showPdf && prompt.pdf?.name ? (
-          <div className="prompt-pdf-sheet">
+          ) : ((showPdf && prompt.pdf?.name) || (pdfFolded && rightText)) ? (
+          <div className="prompt-pdf-sheet" ref={pdfSheetRef}>
             {showPdfPreview ? (
               <button type="button" className="prompt-pdf-sheet__remove" onClick={foldPdfPreview}>
                 Remove
@@ -3223,11 +3246,20 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             ) : null}
             <DescriptionField
               className="prompt-pdf-sheet__page scroll-match-bg"
-              value={pdfScan}
+              value={keptTranscript || pdfScan}
               label="Documento"
               placeholder={pdfScanReading ? 'Reading the PDF…' : ''}
-              onChange={setPdfScan}
+              onChange={(next) => {
+                setPdfScan(next);
+                setKeptTranscript(next);
+                textPanelKept.current = Boolean(String(next || '').trim());
+              }}
             />
+            <div className="prompt-pdf-sheet__foot">
+              <button type="button" className="prompt-panel__remove" onClick={foldPdfPreview}>
+                Remove
+              </button>
+            </div>
           </div>
           ) : (
           <div className="prompt-home">
