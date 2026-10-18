@@ -9,6 +9,7 @@ export const APIFY_USD_PER_CU = 0.2;
 export const GROQ_MODEL_PRICES = {
   "llama-3.1-8b-instant": { inputPerMTok: 0.75, outputPerMTok: 1.5 },
   "llama-3.3-70b-versatile": { inputPerMTok: 1.05, outputPerMTok: 2.1 },
+  "openai/gpt-oss-20b": { inputPerMTok: 0.075, outputPerMTok: 0.3 },
 };
 
 const DEFAULT_GROQ_PRICE = GROQ_MODEL_PRICES["llama-3.3-70b-versatile"];

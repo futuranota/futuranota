@@ -26,6 +26,7 @@ Storage / general API consumption = long-term priority → **E** (Apify run stat
 
 - `llama-3.1-8b-instant`: in **0.75**, out **1.50**
 - `llama-3.3-70b-versatile`: in **1.05**, out **2.10**
+- `openai/gpt-oss-20b`: in **0.075**, out **0.30**
 
 **Apify:** **$0.20 / CU**; prefer `usageTotalUsd` else `computeUnits * 0.20`. Default actor `apidojo~tweet-scraper`.
 

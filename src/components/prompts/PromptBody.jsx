@@ -166,6 +166,10 @@ export function paintMarked(root, source, variables, { chips = true } = {}) {
       }
       const el = doc.createElement(mark);
       walk(node, el);
+      if (mark === 'h1' && !el.textContent.replace(/\u00a0/g, ' ').trim()) {
+        el.dataset.empty = 'true';
+        el.appendChild(doc.createTextNode(''));
+      }
       to.appendChild(el);
     }
   };
@@ -241,6 +245,184 @@ function lineBeforeCaret(root, caretNode, caretOffset) {
   return { line, nodes: nodes.filter((node) => node.isConnected) };
 }
 
+function titleHost(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  if (!root || !selection?.rangeCount) return null;
+  const caret = selection.getRangeAt(0);
+  if (!root.contains(caret.startContainer)) return null;
+  let host = caret.startContainer;
+  if (host.nodeType === Node.TEXT_NODE) host = host.parentElement;
+  const h1 = host?.closest?.('h1');
+  if (!h1 || !root.contains(h1)) return null;
+  return h1;
+}
+
+export function syncTitleEmpty(root) {
+  if (!root) return;
+  root.querySelectorAll('h1').forEach((h1) => {
+    if (h1.textContent.replace(/\u00a0/g, ' ').trim()) delete h1.dataset.empty;
+    else h1.dataset.empty = 'true';
+  });
+}
+
+export function armHashTitle(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  if (!root || !selection?.isCollapsed || !selection.rangeCount) return false;
+  const caret = selection.getRangeAt(0);
+  if (!root.contains(caret.startContainer)) return false;
+  let host = caret.startContainer;
+  if (host.nodeType === Node.TEXT_NODE) host = host.parentElement;
+  if (host?.closest?.('h1')) return false;
+  const found = lineBeforeCaret(root, caret.startContainer, caret.startOffset);
+  const hashNode = caret.startContainer.nodeType === Node.TEXT_NODE
+    && caret.startOffset === caret.startContainer.textContent.length
+    && /^\s*#\s*$/.test(caret.startContainer.textContent.replace(/\u00a0/g, ' '))
+    ? caret.startContainer
+    : null;
+  const nodes = /^\s*#\s*$/.test(found.line) && found.nodes.length
+    ? found.nodes
+    : (hashNode ? [hashNode] : []);
+  if (!nodes.length) return false;
+  const h1 = doc.createElement('h1');
+  h1.dataset.empty = 'true';
+  const text = doc.createTextNode('');
+  h1.appendChild(text);
+  const first = nodes[0];
+  if (!first.parentNode) return false;
+  first.parentNode.insertBefore(h1, first);
+  nodes.forEach((node) => node.remove());
+  placeCaret(doc, text, 0);
+  return true;
+}
+
+export function dismissEmptyTitle(root) {
+  const doc = root?.ownerDocument;
+  const h1 = titleHost(root);
+  if (!doc || !h1 || h1.textContent.replace(/\u00a0/g, ' ').trim()) return false;
+  const parent = h1.parentNode;
+  if (!parent) return false;
+  const slot = doc.createTextNode('');
+  parent.insertBefore(slot, h1);
+  h1.remove();
+  placeCaret(doc, slot, 0);
+  return true;
+}
+
+function caretAtTitleStart(h1, caret) {
+  if (!h1.contains(caret.startContainer) && caret.startContainer !== h1) return false;
+  if (caret.startContainer === h1) return caret.startOffset === 0;
+  if (caret.startContainer.nodeType !== Node.TEXT_NODE || caret.startOffset !== 0) return false;
+  let prev = caret.startContainer.previousSibling;
+  while (prev) {
+    if (prev.textContent?.replace(/\u00a0/g, ' ').trim()) return false;
+    prev = prev.previousSibling;
+  }
+  return true;
+}
+
+function titleAfter(node) {
+  let next = node?.nextSibling;
+  while (next && next.nodeType === Node.TEXT_NODE && !next.textContent) next = next.nextSibling;
+  if (next?.tagName === 'H1') return { br: null, h1: next };
+  if (next?.tagName !== 'BR') return null;
+  let after = next.nextSibling;
+  while (after && after.nodeType === Node.TEXT_NODE && !after.textContent) after = after.nextSibling;
+  if (after?.tagName === 'H1') return { br: next, h1: after };
+  return null;
+}
+
+function placeAfterTitle(doc, h1) {
+  const parent = h1.parentNode;
+  if (!parent) return;
+  let next = h1.nextSibling;
+  while (next && next.nodeType === Node.TEXT_NODE && !next.textContent) next = next.nextSibling;
+  if (next?.nodeType === Node.TEXT_NODE) {
+    placeCaret(doc, next, 0);
+    return;
+  }
+  const slot = doc.createTextNode('');
+  parent.insertBefore(slot, next?.tagName === 'BR' ? next : h1.nextSibling);
+  placeCaret(doc, slot, 0);
+}
+
+export function leaveTitle(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  const h1 = titleHost(root);
+  if (!doc || !selection?.rangeCount || !h1 || !h1.textContent.replace(/\u00a0/g, ' ').trim()) return false;
+  const caret = selection.getRangeAt(0);
+  if (caretAtTitleStart(h1, caret)) {
+    const slot = doc.createTextNode('');
+    const br = doc.createElement('br');
+    h1.parentNode.insertBefore(slot, h1);
+    h1.parentNode.insertBefore(br, h1);
+    placeCaret(doc, slot, 0);
+    return true;
+  }
+  placeAfterTitle(doc, h1);
+  return true;
+}
+
+export function breakBeforeTitle(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  if (!doc || !selection?.isCollapsed || !selection.rangeCount) return false;
+  const caret = selection.getRangeAt(0);
+  const node = caret.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE || titleHost(root)) return false;
+  if (!titleAfter(node)) return false;
+  const rest = node.splitText(caret.startOffset);
+  const br = doc.createElement('br');
+  node.parentNode.insertBefore(br, rest);
+  placeCaret(doc, rest, 0);
+  return true;
+}
+
+export function dropLineBelowTitle(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  if (!doc || !selection?.isCollapsed || !selection.rangeCount) return false;
+  const caret = selection.getRangeAt(0);
+  const node = caret.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE || caret.startOffset !== node.textContent.length) return false;
+  const found = titleAfter(node);
+  if (!found) return false;
+  const text = node.textContent;
+  node.remove();
+  if (found.br) found.br.remove();
+  placeAfterTitle(doc, found.h1);
+  const placed = doc.getSelection()?.getRangeAt(0)?.startContainer;
+  if (placed?.nodeType === Node.TEXT_NODE) {
+    placed.textContent = text + placed.textContent;
+    placeCaret(doc, placed, text.length);
+  }
+  return true;
+}
+
+export function stepOutOfTitle(root) {
+  const doc = root?.ownerDocument;
+  const selection = doc?.getSelection();
+  const h1 = titleHost(root);
+  if (!doc || !selection?.rangeCount || !h1) return false;
+  const caret = selection.getRangeAt(0);
+  if (!caretAtTitleStart(h1, caret)) return false;
+  let prev = h1.previousSibling;
+  while (prev && prev.nodeType === Node.TEXT_NODE && !prev.textContent) prev = prev.previousSibling;
+  if (prev?.tagName === 'BR') {
+    const line = prev.previousSibling;
+    if (line?.nodeType === Node.TEXT_NODE) placeCaret(doc, line, line.textContent.length);
+    else prev.remove();
+    return true;
+  }
+  if (prev?.nodeType === Node.TEXT_NODE) {
+    placeCaret(doc, prev, prev.textContent.length);
+    return true;
+  }
+  return false;
+}
+
 export function applyTitleShortcut(root) {
   const doc = root?.ownerDocument;
   const selection = doc?.getSelection();
@@ -307,7 +489,8 @@ export function PromptBody({
     if (!root) return;
     const plain = String(source || '').replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '');
     const parts = parsePrompt(plain);
-    const empty = !plain.trim() || (parts.length === 1 && parts[0].type === 'text' && !parts[0].text.trim());
+    const empty = !plain.trim() && !/<h1\b/i.test(String(source || ''))
+      || (parts.length === 1 && parts[0].type === 'text' && !parts[0].text.trim() && !/<h1\b/i.test(String(source || '')));
     if (empty) {
       root.replaceChildren();
       root.dataset.empty = 'true';
@@ -315,6 +498,7 @@ export function PromptBody({
     }
     delete root.dataset.empty;
     paintMarked(root, source, list);
+    syncTitleEmpty(root);
   }
 
   useLayoutEffect(() => {
@@ -381,9 +565,11 @@ export function PromptBody({
     const root = editorRef.current;
     if (!root) return;
     const template = readTemplate(root);
-    const blank = !template.replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim();
+    const hasTitle = Boolean(root.querySelector('h1'));
+    const blank = !template.replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim() && !hasTitle;
+    const leftFirstLine = Boolean(root.querySelector('br, h1, div, p')) || (root.textContent || '').includes('\n');
     localRef.current = blank ? '' : template;
-    if (blank) root.dataset.empty = 'true';
+    if (blank && !leftFirstLine) root.dataset.empty = 'true';
     else delete root.dataset.empty;
     const prompt = blank ? '' : template;
     onCommit(nextVariables ? { prompt, variables: nextVariables } : { prompt });
@@ -466,12 +652,30 @@ export function PromptBody({
           commitDom();
           return;
         }
+        if (event.key === 'Backspace' && stepOutOfTitle(root)) {
+          event.preventDefault();
+          commitDom();
+          return;
+        }
+        if (event.key === 'Delete' && dropLineBelowTitle(root)) {
+          event.preventDefault();
+          commitDom();
+          return;
+        }
       }
     }
-    if (!menu && event.key === 'Enter' && !event.shiftKey && applyTitleShortcut(editorRef.current)) {
+    if (!menu && event.key === ' ' && armHashTitle(editorRef.current)) {
       event.preventDefault();
       commitDom();
       return;
+    }
+    if (!menu && event.key === 'Enter' && !event.shiftKey) {
+      const root = editorRef.current;
+      if (dismissEmptyTitle(root) || breakBeforeTitle(root) || leaveTitle(root)) {
+        event.preventDefault();
+        commitDom();
+        return;
+      }
     }
     if (!menu) return;
     const items = options();
@@ -575,6 +779,7 @@ export function PromptBody({
           data-placeholder={placeholder}
           spellCheck={spellCheck}
           onInput={() => {
+            syncTitleEmpty(editorRef.current);
             commitDom();
             syncMenu();
           }}

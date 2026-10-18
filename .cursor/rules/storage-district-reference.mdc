@@ -11,4 +11,4 @@ Live in the prompt desk: Settings subsection **Storage** at `/app/settings/stora
 - Original paste: `.cursor/saved/storage-district/StorageDistrict.original.tsx`
 - Demo tree: `storageDemoRoot` in the JSX file (placeholder names and bytes)
 
-The page uses the demo tree until real storage usage is measured. Do not add `lucide-react` or `@/` aliases. The card surface is `var(--surface-base)`.
+The desk background stays beige. The storage sheet is white (`#fff`). Do not add `lucide-react` or `@/` aliases. Demo bytes and folder names are placeholders.

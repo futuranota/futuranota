@@ -2,6 +2,7 @@ import { logApiUsageEvent } from "./management/logApiUsage.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || "qwen/qwen3.8-27b";
+const IMPROVE_MODEL = process.env.GROQ_IMPROVE_MODEL || "openai/gpt-oss-20b";
 const MAX_IMAGES = 3;
 
 function readJsonBody(req) {
@@ -330,9 +331,12 @@ async function processPromptImprove(body) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: VISION_MODEL,
+      model: IMPROVE_MODEL,
       temperature: 0,
       max_completion_tokens: 4096,
+      reasoning_effort: "low",
+      reasoning_format: "hidden",
+      response_format: { type: "json_object" },
       messages: [{
         role: "user",
         content: `${IMPROVE_INSTRUCTION}\n\nTEXTO PEGADO:\n${pasted}`,
@@ -355,7 +359,7 @@ async function processPromptImprove(body) {
     routeLabel: "Prompt improve",
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
-    model: VISION_MODEL,
+    model: IMPROVE_MODEL,
     billed: true,
     meta: { pass: "improve", chars: pasted.length },
   });

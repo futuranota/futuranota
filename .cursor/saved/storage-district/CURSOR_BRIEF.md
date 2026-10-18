@@ -1,6 +1,6 @@
 # Storage District — visual reference
 
-**Status:** live in the prompt desk at `/app/settings/storage`. The page still uses the demo tree.
+**Status:** live at `/app/settings/storage`. Desk background stays beige. The sheet is white. Demo tree until live usage is measured.
 **Date:** 2026-10-16
 **Source:** user-provided `StorageDistrict` paste. Exact copy: component + demo.
 
@@ -13,6 +13,6 @@ Navigable storage map. A folder tree (`StorageNode`) renders as isometric blocks
 
 ## Where it lives
 
-The port is `src/components/prompts/StorageDistrict.jsx` with `storage-district.css`. Settings in the desk sidebar opens `/app/settings/storage`.
+The port is mounted from `src/components/prompts/StorageDistrict.jsx` on the beige desk. The sheet itself is white.
 
 Icons are inline SVG. The card surface is `var(--surface-base)`. Demo names and byte sizes stay placeholders until live storage usage is measured.

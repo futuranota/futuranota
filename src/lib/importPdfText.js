@@ -242,7 +242,7 @@ export async function extractTextFromPdfFile(file) {
 
 /**
  * Paint PDF pages as JPEG data URLs. The panel shows these pictures.
- * Extract data reads the text layer (or OCRs a blank page). Mejorar con IA sends the pictures to Groq.
+ * Extract data reads the text layer (or OCRs a blank page). Mejorar con IA sends that text to Groq.
  * @param {ArrayBuffer|Uint8Array} data
  * @param {{ maxPages?: number, maxWidth?: number, onPage?: (snapshot: { images: string[], pageCount: number, index: number }) => void }} [opts]
  * @returns {Promise<{ images: string[], pageCount: number }>}

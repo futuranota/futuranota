@@ -1,5 +1,5 @@
 .storage-district {
-  --sd-surface: var(--surface-base);
+  --sd-surface: #fff;
   --sd-ink: var(--text-primary);
   --sd-muted: #686868;
   --sd-border: #e8e8e8;

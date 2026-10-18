@@ -12,6 +12,13 @@ export async function currentPromptUserId() {
   return refreshed.data?.session?.user?.id || null;
 }
 
+export function promptDocumentKind(name) {
+  const lower = String(name || '').toLowerCase();
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'md';
+  if (lower.endsWith('.txt')) return 'txt';
+  return 'pdf';
+}
+
 export function promptImageUrl(path) {
   if (!path) return '';
   if (path.startsWith('http') || path.startsWith('data:')) return path;
@@ -78,7 +85,14 @@ export function foldersFromRows(collections, files, steps) {
         modelId: file.model_id || '',
         variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
-        pdf: null,
+        pdf: file.pdf_name
+          ? {
+            name: file.pdf_name,
+            path: file.pdf_path || '',
+            url: promptImageUrl(file.pdf_path || ''),
+            kind: promptDocumentKind(file.pdf_name),
+          }
+          : null,
         video: null,
         referenceUrl: typeof file.reference_url === 'string' ? file.reference_url : '',
         referenceName: typeof file.reference_name === 'string' ? file.reference_name : '',
@@ -152,8 +166,8 @@ function fileRow(prompt, userId, collectionId, position) {
     model_id: prompt.modelId || '',
     variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
-    pdf_name: null,
-    pdf_path: null,
+    pdf_name: prompt.pdf?.path ? (prompt.pdf.name || null) : null,
+    pdf_path: prompt.pdf?.path || null,
     reference_url: typeof prompt.referenceUrl === 'string' ? prompt.referenceUrl : '',
     reference_name: typeof prompt.referenceName === 'string' ? prompt.referenceName : '',
     assets: assetRows(prompt.assets),
@@ -229,10 +243,19 @@ export async function savePromptDesk(userId, folders, previous) {
     if (error) throw error;
   }
   if (files.length) {
-    let { error } = await supabase.from('prompt_files').upsert(files, { onConflict: 'id' });
-    if (error && /reference_url|reference_name/i.test(error.message || '')) {
-      const slim = files.map(({ reference_url, reference_name, ...row }) => row);
-      ({ error } = await supabase.from('prompt_files').upsert(slim, { onConflict: 'id' }));
+    let rows = files;
+    let { error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' });
+    if (error && /reference_url|reference_name|pdf_name|pdf_path/i.test(error.message || '')) {
+      const message = error.message || '';
+      rows = rows.map((row) => {
+        const next = { ...row };
+        if (/reference_url/i.test(message)) delete next.reference_url;
+        if (/reference_name/i.test(message)) delete next.reference_name;
+        if (/pdf_name/i.test(message)) delete next.pdf_name;
+        if (/pdf_path/i.test(message)) delete next.pdf_path;
+        return next;
+      });
+      ({ error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' }));
     }
     if (error) throw error;
   }
@@ -304,13 +327,39 @@ export async function uploadPromptImage(file, stepId, userId) {
   return { path, url: promptImageUrl(path) };
 }
 
+export async function downloadPromptDocument(path) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  if (error || !data) throw error || new Error('missing');
+  return data.arrayBuffer();
+}
+
 export async function uploadPromptPdf(file, stepId, userId) {
-  const path = `${userId}/${stepId}.pdf`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: 'application/pdf',
-    upsert: true,
-    cacheControl: '3600',
-  });
-  if (error) throw error;
-  return { path, url: promptImageUrl(path) };
+  return uploadPromptDocument(file, stepId, userId);
+}
+
+export async function uploadPromptDocument(file, fileId, userId) {
+  const kind = promptDocumentKind(file?.name);
+  const ext = kind === 'md' ? 'md' : kind === 'txt' ? 'txt' : 'pdf';
+  const path = `${userId}/${fileId}.${ext}`;
+  const bytes = await file.arrayBuffer();
+  const types = kind === 'pdf'
+    ? ['application/pdf', 'application/octet-stream', 'image/webp']
+    : ['text/plain', 'text/markdown', 'application/octet-stream', 'application/pdf', 'image/webp'];
+  let lastError = null;
+  for (const type of types) {
+    const body = new Blob([bytes], { type });
+    const { error } = await supabase.storage.from(BUCKET).upload(path, body, {
+      contentType: type,
+      upsert: true,
+      cacheControl: '3600',
+    });
+    if (!error) return { path, url: promptImageUrl(path) };
+    lastError = error;
+    if (!/mime|content type|invalidmime/i.test(error.message || '')) break;
+  }
+  const message = lastError?.message || 'Couldn’t save the document.';
+  if (/bucket not found|nosuchbucket/i.test(message)) {
+    throw new Error('The storage bucket prompt-images is not available for this file.');
+  }
+  throw new Error(message);
 }
