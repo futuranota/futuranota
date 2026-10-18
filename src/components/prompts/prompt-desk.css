@@ -890,6 +890,7 @@
 .prompt-panel__split--transcript > .prompt-panel__editor-tools {
   grid-column: 1;
   grid-row: 1;
+  z-index: 4;
 }
 
 .prompt-panel__split--transcript > .prompt-pdf-sheet {

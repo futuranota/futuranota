@@ -1,6 +1,6 @@
 import { paintReviewHighlights } from "./promptStructure.js";
 import { liftPromptPlaceholders } from "./promptVariables.js";
-import { repairPromptText } from "./promptTextRepair.js";
+import { repairPromptText, repairSplitAccents } from "./promptTextRepair.js";
 
 const FICHA = /(?<![\w@#/])(?:https?:\/\/[^\s<]+|https?[^\s<]+|#[^\s<]+|[^\s<]*@[^\s<]+)/gi;
 
@@ -98,6 +98,55 @@ function paintMarks(value) {
  */
 export function beautifyPastedText(value) {
   return paintReviewHighlights(paintMarks(repairPromptText(value)));
+}
+
+const HOME_ATOM = /(<mark>[\s\S]*?<\/mark>|<strong>[\s\S]*?<\/strong>)/gi;
+const PROMPT_LABEL = /\bprompt\s*\d+\b/gi;
+const PAGE_LABEL = /\b(?:p[aá]gina|page)\s+\d+\b/gi;
+
+function repairPdfBreaks(value) {
+  let text = repairSplitAccents(value);
+  text = text.replace(/(?<=\p{Ll}) fi (?=\p{L})/gu, "fi");
+  text = text.replace(/fi (?=\p{Ll})/gu, "fi");
+  text = text.replace(/(?<=\p{Ll}) fl (?=\p{L})/gu, "fl");
+  text = text.replace(/fl (?=\p{Ll})/gu, "fl");
+  return text;
+}
+
+function mapHomePlain(value, paint) {
+  HOME_ATOM.lastIndex = 0;
+  return String(value ?? "").split(HOME_ATOM).map((part) => {
+    if (/^<mark>/i.test(part) || /^<strong>/i.test(part)) return part;
+    return paint(part);
+  }).join("");
+}
+
+function spaceBeforePrompt(part) {
+  return part.replace(PROMPT_LABEL, (token, offset, whole) => {
+    const before = whole.slice(0, offset);
+    if (!before.trim()) return token;
+    if (/\n[ \t]*\n[ \t]*$/.test(before)) return token;
+    if (/\n[ \t]*$/.test(before)) return `\n${token}`;
+    return `\n\n${token}`;
+  });
+}
+
+function markHomeLabels(part) {
+  return part
+    .replace(PROMPT_LABEL, (token) => `<mark>${token}</mark>`)
+    .replace(PAGE_LABEL, (token) => `<strong>${token}</strong>`);
+}
+
+/**
+ * Home-file pass. Repairs split accents, leaves a blank line before each
+ * Prompt 01 / Prompt01 label, highlights that label, and bolds página 01.
+ * Does not build bullets or variables.
+ * @param {unknown} value
+ */
+export function prepareFileHomeText(value) {
+  const repaired = repairPdfBreaks(value);
+  const spaced = mapHomePlain(repaired, spaceBeforePrompt);
+  return mapHomePlain(spaced, markHomeLabels);
 }
 
 export function beautifyPromptFields(description, prompt, variables) {

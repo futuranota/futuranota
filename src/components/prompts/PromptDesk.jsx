@@ -28,7 +28,7 @@ import {
 import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
-import { beautifyPastedText, beautifyPromptFields } from '../../lib/promptBeautify.js';
+import { beautifyPastedText, beautifyPromptFields, prepareFileHomeText } from '../../lib/promptBeautify.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import {
@@ -1890,6 +1890,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfScan(beautifyPastedText(pdfScan));
   }
 
+  function prepareHomeFile() {
+    const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
+    const live = node ? readMarked(node) : '';
+    const next = prepareFileHomeText(live || keptTranscript || pdfScan);
+    textPanelKept.current = Boolean(String(next || '').trim());
+    setPdfScan(next);
+    setKeptTranscript(next);
+  }
+
   function rightPanelText() {
     const fromState = String(keptTranscript || pdfScan || '').trim();
     if (fromState) return fromState;
@@ -2762,6 +2771,20 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
+            {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={prepareHomeFile}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 7h16M4 12h10M4 17h13" />
+                  </svg>
+                </span>
+                <span>Arreglar texto</span>
+              </button>
+            ) : null}
             {!sheetOpen && pdfScan.trim() ? (
               <button
                 type="button"

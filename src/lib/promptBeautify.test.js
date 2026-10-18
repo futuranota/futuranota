@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beautifyPastedText, beautifyPromptFields } from "./promptBeautify.js";
+import { beautifyPastedText, beautifyPromptFields, prepareFileHomeText } from "./promptBeautify.js";
 
 describe("beautifyPromptFields", () => {
   it("creates variables only from the prompt and leaves instruction placeholders as text", () => {
@@ -59,6 +59,36 @@ describe("beautifyPromptFields", () => {
     expect(result.prompt).toContain("<strong>TITULO</strong>");
     expect(result.prompt).toContain("<strong>2</strong>");
     expect(result.variables).toEqual([]);
+  });
+});
+
+describe("prepareFileHomeText", () => {
+  it("repairs split text, spaces prompt labels, highlights them, and bolds pages", () => {
+    const painted = prepareFileHomeText("Intro l ó gica\nPrompt 01 cuerpo\nPrompt02 más\nPágina 01\npagina 2");
+    expect(painted).toContain("lógica");
+    expect(painted).toContain("\n\n<mark>Prompt 01</mark>");
+    expect(painted).toContain("\n\n<mark>Prompt02</mark>");
+    expect(painted).toContain("<strong>Página 01</strong>");
+    expect(painted).toContain("<strong>pagina 2</strong>");
+    expect(painted).not.toContain("<ul>");
+    expect(painted).not.toContain("{{");
+  });
+
+  it("joins fi ligatures without gluing a real word like fiesta", () => {
+    const painted = prepareFileHomeText("La guía de fi nitiva del tráfi co y la fiesta\nBene fi cios\n--- PAGE 1 ---");
+    expect(painted).toContain("definitiva");
+    expect(painted).toContain("tráfico");
+    expect(painted).toContain("Beneficios");
+    expect(painted).toContain("la fiesta");
+    expect(painted).toContain("<strong>PAGE 1</strong>");
+  });
+
+  it("leaves prompting unmarked and stays the same on a second pass", () => {
+    const once = prepareFileHomeText("prompting y Prompt 03");
+    expect(once).toContain("prompting");
+    expect(once).not.toContain("<mark>prompt</mark>");
+    expect(once).toContain("<mark>Prompt 03</mark>");
+    expect(prepareFileHomeText(once)).toBe(once);
   });
 });
 
