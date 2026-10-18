@@ -50,7 +50,7 @@ import {
 import { ocrPdfPageImages } from '../../lib/ocrPdfPage.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody, VariableDeck, applyTitleShortcut, paintMarked, readMarked } from './PromptBody.jsx';
+import { PromptBody, VariableDeck, applyBulletPoint, applyTitleShortcut, caretInBullet, continueBullet, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
 import StorageDistrict from './StorageDistrict.jsx';
 import './prompt-desk.css';
@@ -155,6 +155,9 @@ function stepHasImage(step) {
 
 function plainCopy(template, variables) {
   return resolvePrompt(template, variables)
+    .replace(/<li>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/?ul>/gi, '')
     .replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -165,7 +168,7 @@ function plainCopy(template, variables) {
 function richCopy(template, variables) {
   const resolved = resolvePrompt(template, variables);
   const kept = [];
-  const text = resolved.replace(/<\/?(strong|em|u|s|mark|h1)>/gi, (tag) => {
+  const text = resolved.replace(/<\/?(strong|em|u|s|mark|h1|ul|li)>/gi, (tag) => {
     const name = tag.replace(/<\/?|>/g, '').toLowerCase();
     const token = `\u0000${kept.length}\u0000`;
     kept.push(tag.startsWith('</') ? `</${name}>` : `<${name}>`);
@@ -180,7 +183,7 @@ function richCopy(template, variables) {
 }
 
 function promptHasText(value) {
-  return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark|h1)>/gi, '').trim());
+  return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark|h1|ul|li)>/gi, '').trim());
 }
 
 function stepHasDraft(item) {
@@ -241,6 +244,7 @@ const FORMAT_TOOLS = [
   { id: 'underline', label: 'Underline', command: 'underline' },
   { id: 'strike', label: 'Strikethrough', command: 'strikeThrough' },
   { id: 'highlight', label: 'Highlight', command: 'highlight' },
+  { id: 'bullet', label: 'Bullet point', command: 'bullet' },
 ];
 
 function FormatIcon({ name }) {
@@ -250,6 +254,7 @@ function FormatIcon({ name }) {
     underline: 'M7 4.5v7a5 5 0 0 0 10 0v-7M6 19.5h12',
     strike: 'M5 12h14M8.2 7.2c.6-1.4 2-2.2 3.8-2.2 2.4 0 3.8 1.2 3.8 2.8 0 .7-.3 1.3-.8 1.8M8.4 16.8c.7 1.1 2 1.8 3.8 1.8 2.3 0 3.8-1.1 3.8-2.8',
     highlight: 'M5 16.5 9.2 6l3.2 1.8L8.2 18.3zM14 8.2l3.6-1.6 2.2 3.2-3.6 1.6zM6 20h12',
+    bullet: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
   };
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -426,7 +431,17 @@ function DescriptionField({ className, value, readOnly, onChange, onEditFocus, o
         if (href) onUrlPaste?.(href);
       }}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter' || event.shiftKey || readOnly) return;
+        if (readOnly) return;
+        if (event.key !== 'Enter' || event.shiftKey) return;
+        if (continueBullet(ref.current)) {
+          event.preventDefault();
+          const next = readMarked(ref.current);
+          local.current = next;
+          if (ref.current.textContent.trim()) delete ref.current.dataset.empty;
+          else ref.current.dataset.empty = 'true';
+          onChange(next);
+          return;
+        }
         if (!applyTitleShortcut(ref.current)) return;
         event.preventDefault();
         const next = readMarked(ref.current);
@@ -2280,6 +2295,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         underline: doc.queryCommandState('underline'),
         strikeThrough: doc.queryCommandState('strikeThrough'),
         highlight,
+        bullet: caretInBullet(root),
       });
     } catch {
       setFormatOn({ highlight });
@@ -2300,7 +2316,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         /* The stored range belongs to a field that was replaced. */
       }
     }
-    toggleTextFormat(root, command);
+    if (command === 'bullet') applyBulletPoint(root);
+    else toggleTextFormat(root, command);
     root.dispatchEvent(new Event('input', { bubbles: true }));
     trackEdit(root);
   }

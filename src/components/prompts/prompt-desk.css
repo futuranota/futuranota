@@ -2221,6 +2221,20 @@
   cursor: default;
 }
 
+.prompt-body__editor ul,
+.prompt-sheet__description ul,
+.prompt-float__text ul {
+  margin: 0.25em 0;
+  padding-left: 1.3em;
+  list-style: disc;
+}
+
+.prompt-body__editor li,
+.prompt-sheet__description li,
+.prompt-float__text li {
+  display: list-item;
+}
+
 .prompt-body__editor h1,
 .prompt-sheet__description h1,
 .prompt-float__text h1 {

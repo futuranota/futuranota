@@ -26,6 +26,8 @@ const MARKS = {
   STRIKE: 's',
   MARK: 'mark',
   H1: 'h1',
+  UL: 'ul',
+  LI: 'li',
 };
 
 function escapeHtml(value) {
@@ -60,6 +62,8 @@ const PASTE_MARKS = {
   STRIKE: 's',
   MARK: 'mark',
   H1: 'h1',
+  UL: 'ul',
+  LI: 'li',
 };
 
 function appendClipboard(doc, parent, node) {
@@ -124,7 +128,90 @@ export function readMarked(root) {
 }
 
 function hasMarks(source) {
-  return /<\/?(?:strong|em|u|s|mark|h1)\b/i.test(source || '');
+  return /<\/?(?:strong|em|u|s|mark|h1|ul|li)\b/i.test(source || '');
+}
+
+function currentListItem(root) {
+  const selection = root?.ownerDocument?.getSelection();
+  if (!root || !selection?.rangeCount || !root.contains(selection.anchorNode)) return null;
+  let node = selection.anchorNode;
+  if (node.nodeType !== Node.ELEMENT_NODE) node = node.parentElement;
+  const item = node?.closest?.('li');
+  if (!item || !root.contains(item)) return null;
+  return item;
+}
+
+function itemIsEmpty(item) {
+  return !item?.textContent.replace(/\u00a0/g, ' ').replace(/\u200B/g, '').trim()
+    && !item?.querySelector?.('[data-var-id]');
+}
+
+function focusItem(doc, item) {
+  if (!item) return;
+  if (itemIsEmpty(item)) item.replaceChildren(doc.createTextNode(''));
+  const text = item.firstChild?.nodeType === Node.TEXT_NODE ? item.firstChild : item;
+  placeCaret(doc, text, 0);
+}
+
+export function caretInBullet(root) {
+  return Boolean(currentListItem(root));
+}
+
+export function applyBulletPoint(root) {
+  if (!root) return false;
+  const doc = root.ownerDocument;
+  if (currentListItem(root)) return true;
+  doc.execCommand('styleWithCSS', false, false);
+  doc.execCommand('insertUnorderedList', false, null);
+  let item = currentListItem(root);
+  if (!item) {
+    const list = doc.createElement('ul');
+    item = doc.createElement('li');
+    item.appendChild(doc.createTextNode(''));
+    list.appendChild(item);
+    root.appendChild(list);
+  }
+  focusItem(doc, item);
+  return true;
+}
+
+export function continueBullet(root) {
+  const item = currentListItem(root);
+  const list = item?.parentElement;
+  if (!item || list?.tagName !== 'UL' || !root.contains(list)) return false;
+  if (itemIsEmpty(item)) return releaseBullet(root);
+  const doc = root.ownerDocument;
+  const selection = doc.getSelection();
+  const range = selection.getRangeAt(0);
+  const next = doc.createElement('li');
+  if (item.contains(range.startContainer) || range.startContainer === item) {
+    const tail = doc.createRange();
+    tail.selectNodeContents(item);
+    tail.setStart(range.startContainer, range.startOffset);
+    const rest = tail.extractContents();
+    if (rest.textContent.replace(/\u00a0/g, ' ').trim() || rest.querySelector?.('[data-var-id]')) {
+      next.appendChild(rest);
+    }
+  }
+  if (!next.firstChild) next.appendChild(doc.createTextNode(''));
+  if (item.nextSibling) list.insertBefore(next, item.nextSibling);
+  else list.appendChild(next);
+  if (itemIsEmpty(item)) item.replaceChildren(doc.createTextNode(''));
+  focusItem(doc, next);
+  return true;
+}
+
+export function releaseBullet(root) {
+  const item = currentListItem(root);
+  const list = item?.parentElement;
+  if (!item || list?.tagName !== 'UL' || !itemIsEmpty(item)) return false;
+  const doc = root.ownerDocument;
+  const text = doc.createTextNode('');
+  item.remove();
+  if (!list.querySelector('li')) list.replaceWith(text);
+  else list.after(text);
+  placeCaret(doc, text, 0);
+  return true;
 }
 
 export function paintMarked(root, source, variables, { chips = true } = {}) {
@@ -671,7 +758,7 @@ export function PromptBody({
     }
     if (!menu && event.key === 'Enter' && !event.shiftKey) {
       const root = editorRef.current;
-      if (dismissEmptyTitle(root) || breakBeforeTitle(root) || leaveTitle(root)) {
+      if (continueBullet(root) || dismissEmptyTitle(root) || breakBeforeTitle(root) || leaveTitle(root)) {
         event.preventDefault();
         commitDom();
         return;

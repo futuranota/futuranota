@@ -67,8 +67,19 @@ export function emphasizePastedText(value) {
   }).join("");
 }
 
+const KEPT_BLOCK = /(<h1>[\s\S]*?<\/h1>|<ul>[\s\S]*?<\/ul>)/gi;
+
 function paintMarks(value) {
-  return emphasizePastedText(highlightFichas(value));
+  const text = typeof value === "string" ? value : "";
+  const paint = (part) => emphasizePastedText(highlightFichas(part));
+  KEPT_BLOCK.lastIndex = 0;
+  return text.split(KEPT_BLOCK).map((part) => {
+    if (/^<h1>/i.test(part)) return part;
+    if (/^<ul>/i.test(part)) {
+      return part.replace(/<li>([\s\S]*?)<\/li>/gi, (_, inner) => `<li>${paint(inner)}</li>`);
+    }
+    return paint(part);
+  }).join("");
 }
 
 /**
