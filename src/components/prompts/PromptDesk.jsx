@@ -1505,7 +1505,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [sheetFace, setSheetFace] = useState(1);
   const rightText = String(keptTranscript || pdfScan || '').trim();
   const showPdfPreview = showPdf && !pdfFolded;
-  const pdfTranscriptWide = Boolean(pdfFolded && rightText && !showImage && !showVideo);
+  const pdfTranscriptWide = Boolean(
+    !sheetOpen && pdfFolded && rightText && !showImage && !showVideo,
+  );
   const showSide = showImage || showVideo || showPdfPreview;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.filter((item) => item.promptSaved).length;
@@ -3256,7 +3258,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               }}
             />
             <div className="prompt-pdf-sheet__foot">
-              <button type="button" className="prompt-panel__remove" onClick={foldPdfPreview}>
+              <button type="button" className="prompt-panel__remove" onClick={deletePdf}>
                 Remove
               </button>
             </div>
