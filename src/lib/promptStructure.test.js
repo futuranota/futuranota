@@ -3,9 +3,13 @@ import {
   applyMarks,
   joinPdfPageTexts,
   joinParagraphs,
+  markAssistanceText,
+  markCardsFromTranscript,
   numberTranscriptParagraphs,
+  paintReviewHighlights,
   parseStructurePayload,
   prepareSheetFields,
+  readAssistanceMarkers,
   validateStructure,
 } from "./promptStructure.js";
 
@@ -28,6 +32,11 @@ describe("numberTranscriptParagraphs", () => {
   it("uses the current text, not an older extract", () => {
     const { map } = numberTranscriptParagraphs("Texto editado en la hoja");
     expect([...map.values()]).toEqual(["Texto editado en la hoja"]);
+  });
+
+  it("starts a new paragraph at the pasteable block", () => {
+    const { map } = numberTranscriptParagraphs("Prompt 1: Encargo\nActúa como un editor");
+    expect([...map.values()]).toEqual(["Prompt 1: Encargo", "Actúa como un editor"]);
   });
 });
 
@@ -96,6 +105,63 @@ describe("validateStructure", () => {
       "none",
       "gemini",
     ]);
+  });
+});
+
+describe("markAssistanceText", () => {
+  it("marks instruction and prompt with the original words", () => {
+    const map = new Map([
+      ["1", "Explica el encuadre"],
+      ["2", "Usa luz suave"],
+    ]);
+    expect(markAssistanceText([{ instruction: ["1"], prompt: ["2"] }], map)).toBe(
+      [
+        "<strong>--//Página 01 · Instrucción//--</strong>",
+        "Explica el encuadre",
+        "<strong>--//terminado//--</strong>",
+        "<strong>--//Página 01 · Prompt//--</strong>",
+        "Usa luz suave",
+        "<strong>--//terminado//--</strong>",
+      ].join("\n"),
+    );
+  });
+});
+
+describe("review markers", () => {
+  const guide = [
+    "Prompt 1: Conexión",
+    "Plataforma Objetivo: Claude",
+    "La Magia del Modelo",
+    "Actúa como un estratega",
+    "Instrucciones:",
+    "1. Redacta el anuncio",
+    "Prompt 2: Destructor",
+    "Plataforma Objetivo: GPT-4o",
+    "Actúa como un especialista e-commerce",
+    "Futura Nota — Guía de Implementación Página 2 de 2",
+  ].join("\n");
+
+  it("splits each Prompt N card and drops the footer", () => {
+    const marked = markCardsFromTranscript(guide);
+    expect(marked).toContain("<strong>--//Página 01 · Instrucción//--</strong>");
+    expect(marked).toContain("<strong>--//Página 02 · Prompt//--</strong>");
+    expect(marked).not.toContain("Página 2 de 2");
+    const sheets = readAssistanceMarkers(marked);
+    expect(sheets).toHaveLength(2);
+    expect(sheets[0].instruction).toContain("Plataforma Objetivo: Claude");
+    expect(sheets[0].instruction).not.toContain("Actúa como");
+    expect(sheets[0].prompt).toContain("Actúa como un estratega");
+    expect(sheets[0].prompt).toContain("1. Redacta el anuncio");
+    expect(sheets[1].prompt).toContain("e-commerce");
+  });
+
+  it("highlights only the prompt slice in yellow", () => {
+    const painted = paintReviewHighlights("Prompt: Conexión\nPágina 01\nPlataforma Objetivo\nprompting");
+    expect(painted).toBe("<mark>Prompt</mark>: Conexión\nPágina 01\nPlataforma Objetivo\n<mark>prompt</mark>ing");
+    expect(paintReviewHighlights(painted)).toBe(painted);
+    expect(paintReviewHighlights('<mark>@canal</mark> Prompt:')).toBe(
+      '<mark>@canal</mark> <mark>Prompt</mark>:',
+    );
   });
 });
 

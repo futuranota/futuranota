@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beautifyPromptFields } from "./promptBeautify.js";
+import { beautifyPastedText, beautifyPromptFields } from "./promptBeautify.js";
 
 describe("beautifyPromptFields", () => {
   it("creates variables only from the prompt and leaves instruction placeholders as text", () => {
@@ -40,11 +40,35 @@ describe("beautifyPromptFields", () => {
     expect(result.prompt.endsWith("</ul>")).toBe(true);
   });
 
+  it("joins split accents and turns numbered or dashed lines into bullets", () => {
+    const result = beautifyPromptFields(
+      "1. garant í as\n2. env í os",
+      "Una estructura l ó gica\n- primera\n- segunda",
+      [],
+    );
+    expect(result.description).toBe("<ul><li>garantías</li><li>envíos</li></ul>");
+    expect(result.prompt).toContain("Una estructura lógica");
+    expect(result.prompt).toContain("<ul><li>primera</li><li>segunda</li></ul>");
+    const inline = beautifyPromptFields("", "Cierre e-commerce - garantías", []);
+    expect(inline.prompt).toContain("Cierre e-commerce\n<ul><li>garantías</li></ul>");
+  });
+
   it("bolds a question, a caps word, and a word with a number in both fields", () => {
     const result = beautifyPromptFields("¿Listo?", "TITULO paso 2", []);
     expect(result.description).toBe("<strong>¿Listo?</strong>");
     expect(result.prompt).toContain("<strong>TITULO</strong>");
     expect(result.prompt).toContain("<strong>2</strong>");
     expect(result.variables).toEqual([]);
+  });
+});
+
+describe("beautifyPastedText", () => {
+  it("marks the pasted block and highlights the word prompt", () => {
+    const painted = beautifyPastedText("Prompt: mira @canal y TITULO\n1. Redacta");
+    expect(painted).toContain("<mark>Prompt</mark>:");
+    expect(painted).toContain("<mark>@canal</mark>");
+    expect(painted).toContain("<strong>TITULO</strong>");
+    expect(painted).toContain("<ul><li>Redacta</li></ul>");
+    expect(painted).not.toContain("{{");
   });
 });

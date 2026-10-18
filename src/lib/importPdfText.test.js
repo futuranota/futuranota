@@ -51,6 +51,18 @@ describe("normalizePdfExtractedText", () => {
   it("collapses noisy whitespace", () => {
     expect(normalizePdfExtractedText("  a \n\n\n b  \t\n")).toBe("a\n\nb");
   });
+
+  it("moves a spaced dash onto the next line and keeps a hyphen inside a word", () => {
+    expect(normalizePdfExtractedText("calidad - envíos y e-commerce GPT-4o")).toBe(
+      "calidad\n- envíos y e-commerce GPT-4o",
+    );
+  });
+
+  it("joins a letter split from its accent", () => {
+    expect(normalizePdfExtractedText(
+      "Proporciona una estructura l ó gica. Garant í as y env í os.",
+    )).toBe("Proporciona una estructura lógica. Garantías y envíos.");
+  });
 });
 
 describe("textItemsToPageText", () => {

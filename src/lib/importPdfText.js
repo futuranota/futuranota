@@ -3,6 +3,7 @@
  * Reverse of exportDocToPdf (text layer only — scanned/image PDFs return empty).
  */
 
+import { breakBeforeDash, repairSplitAccents } from "./promptTextRepair.js";
 import {
   createEmptyTextBlock,
   ensureNodeWritingTail,
@@ -48,7 +49,7 @@ export function textItemsToPageText(items) {
  * @param {unknown} text
  */
 export function normalizePdfExtractedText(text) {
-  return String(text ?? "")
+  const cleaned = String(text ?? "")
     .replace(/\r\n?/g, "\n")
     .replace(/\u00a0/g, " ")
     .split("\n")
@@ -56,6 +57,7 @@ export function normalizePdfExtractedText(text) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return breakBeforeDash(repairSplitAccents(cleaned));
 }
 
 /**

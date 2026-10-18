@@ -1,4 +1,6 @@
+import { paintReviewHighlights } from "./promptStructure.js";
 import { liftPromptPlaceholders } from "./promptVariables.js";
+import { repairPromptText } from "./promptTextRepair.js";
 
 const FICHA = /(?<![\w@#/])(?:https?:\/\/[^\s<]+|https?[^\s<]+|#[^\s<]+|[^\s<]*@[^\s<]+)/gi;
 
@@ -89,10 +91,19 @@ function paintMarks(value) {
  * @param {unknown} prompt
  * @param {object[]} variables
  */
+/**
+ * Same marks as embellecer, on one pasted block, plus a yellow highlight on "prompt".
+ * Does not create variables.
+ * @param {unknown} value
+ */
+export function beautifyPastedText(value) {
+  return paintReviewHighlights(paintMarks(repairPromptText(value)));
+}
+
 export function beautifyPromptFields(description, prompt, variables) {
-  const lifted = liftPromptPlaceholders(prompt, variables || []);
+  const lifted = liftPromptPlaceholders(repairPromptText(prompt), variables || []);
   return {
-    description: paintMarks(description),
+    description: paintMarks(repairPromptText(description)),
     prompt: paintMarks(lifted.prompt),
     variables: lifted.variables,
   };

@@ -107,7 +107,10 @@ function readTemplate(root) {
     }
     const mark = MARKS[node.tagName] || (node.tagName === 'SPAN' ? styleMark(node) : '');
     if (mark) {
-      out += `<${mark}>`;
+      const open = mark === 'mark' && node.classList.contains('is-platform')
+        ? '<mark class="is-platform">'
+        : `<${mark}>`;
+      out += open;
       for (const child of node.childNodes) walk(child);
       out += `</${mark}>`;
       return;
@@ -252,6 +255,9 @@ export function paintMarked(root, source, variables, { chips = true } = {}) {
         continue;
       }
       const el = doc.createElement(mark);
+      if (mark === 'mark' && /\bis-platform\b/.test(node.getAttribute('class') || '')) {
+        el.classList.add('is-platform');
+      }
       walk(node, el);
       if (mark === 'h1' && !el.textContent.replace(/\u00a0/g, ' ').trim()) {
         el.dataset.empty = 'true';

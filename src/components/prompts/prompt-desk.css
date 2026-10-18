@@ -861,13 +861,13 @@
   flex: none;
 }
 
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__editor-tools {
+.prompt-panel__split--side > .prompt-panel__editor-tools {
   grid-column: 2;
   grid-row: 1;
 }
 
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-sheet,
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-index {
+.prompt-panel__split--side > .prompt-sheet,
+.prompt-panel__split--side > .prompt-index {
   grid-column: 2;
   grid-row: 2;
 }
@@ -877,6 +877,28 @@
   grid-row: 2;
 }
 
+.prompt-panel__split--prompt > .prompt-pdf-sheet {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+}
+
+.prompt-panel__split--transcript {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.prompt-panel__split--transcript > .prompt-panel__editor-tools {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.prompt-panel__split--transcript > .prompt-pdf-sheet {
+  grid-column: 1;
+  grid-row: 2 / span 2;
+  width: 100%;
+  align-self: stretch;
+}
+
 .prompt-panel__stage {
   grid-column: 1;
   grid-row: 1 / span 2;
@@ -884,12 +906,12 @@
   height: 100%;
 }
 
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-home {
+.prompt-panel__split--side > .prompt-home {
   grid-column: 2;
   grid-row: 2;
 }
 
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-pdf-sheet {
+.prompt-panel__split--side > .prompt-pdf-sheet {
   grid-column: 2;
   grid-row: 2 / span 2;
   align-self: stretch;
@@ -900,8 +922,8 @@
   grid-row: 2;
 }
 
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__video,
-.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__pdf {
+.prompt-panel__split--side > .prompt-panel__video,
+.prompt-panel__split--side > .prompt-panel__pdf {
   grid-column: 1;
   grid-row: 1 / span 2;
   align-self: stretch;
@@ -1918,10 +1940,26 @@
   min-height: 0;
   height: 100%;
   display: flex;
+  flex-direction: column;
   background: var(--surface-base);
   border: 1px solid rgba(20, 20, 22, 0.12);
   border-radius: 14px;
   overflow: hidden;
+}
+
+.prompt-pdf-sheet__remove {
+  align-self: flex-end;
+  margin: 8px 12px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(20, 20, 22, 0.72);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-pdf-sheet__remove:hover {
+  color: #1a1a1a;
 }
 
 .prompt-pdf-sheet__page {
@@ -1930,8 +1968,9 @@
   width: 100%;
   margin: 0;
   border: 0;
-  resize: none;
   outline: none;
+  overflow: auto;
+  white-space: pre-wrap;
   background: var(--surface-base);
   color: var(--text-primary);
   font: inherit;
@@ -1942,8 +1981,23 @@
   --scroll-thumb: rgba(20, 20, 22, 0.18);
 }
 
-.prompt-pdf-sheet__page::placeholder {
+.prompt-pdf-sheet__page strong {
+  font-weight: 700;
+}
+
+.prompt-pdf-sheet__page mark {
+  background: #f4e7a3;
+  color: inherit;
+}
+
+.prompt-pdf-sheet__page mark.is-platform {
+  background: #9ec5f0;
+}
+
+.prompt-pdf-sheet__page[data-empty='true']::before {
+  content: attr(data-placeholder);
   color: rgba(20, 20, 22, 0.38);
+  pointer-events: none;
 }
 
 .prompt-home .prompt-index {

@@ -28,15 +28,15 @@ import {
 import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
-import { beautifyPromptFields } from '../../lib/promptBeautify.js';
+import { beautifyPastedText, beautifyPromptFields } from '../../lib/promptBeautify.js';
+import { organizePlainLists } from '../../lib/promptTextRepair.js';
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import {
   joinParagraphs,
   joinPdfPageTexts,
-  numberTranscriptParagraphs,
   prepareSheetFields,
-  previewParagraphs,
-  validateStructure,
+  readAssistanceMarkers,
+  transcriptHasMarkers,
 } from '../../lib/promptStructure.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
@@ -382,7 +382,16 @@ function FormatBar({ active, onApply }) {
   );
 }
 
-function DescriptionField({ className, value, readOnly, onChange, onEditFocus, onUrlPaste }) {
+function DescriptionField({
+  className,
+  value,
+  readOnly,
+  onChange,
+  onEditFocus,
+  onUrlPaste,
+  label = "Brief description",
+  placeholder = "Brief description of the steps to follow",
+}) {
   const ref = useRef(null);
   const local = useRef(null);
   useEffect(() => {
@@ -401,8 +410,8 @@ function DescriptionField({ className, value, readOnly, onChange, onEditFocus, o
       role="textbox"
       aria-multiline="true"
       aria-readonly={readOnly || undefined}
-      aria-label="Brief description"
-      data-placeholder="Brief description of the steps to follow"
+      aria-label={label}
+      data-placeholder={placeholder}
       spellCheck
       suppressContentEditableWarning
       onInput={() => {
@@ -854,6 +863,15 @@ function saveMode(patch, beforePrompt) {
         || JSON.stringify(prev.pdf || null) !== JSON.stringify(step.pdf || null);
     });
     if (structural) return 'now';
+    const committedText = patch.steps.some((step) => {
+      const prev = (beforePrompt.steps || []).find((item) => item.id === step.id);
+      if (!step.promptSaved) return false;
+      if (!prev) return true;
+      return prev.prompt !== step.prompt
+        || prev.description !== step.description
+        || prev.promptSaved !== step.promptSaved;
+    });
+    if (committedText) return 'now';
   }
   if (patch.stepPatch) {
     const fields = { ...patch.stepPatch };
@@ -867,7 +885,7 @@ function saveMode(patch, beforePrompt) {
       return 'now';
     }
   }
-  return 'debounce';
+  return 'skip';
 }
 
 export default function PromptDesk() {
@@ -888,6 +906,7 @@ export default function PromptDesk() {
   const saveTimerRef = useRef(0);
   const savingRef = useRef(null);
   const queuedRef = useRef(null);
+  const committedRef = useRef({ steps: {}, files: {} });
 
   const activePrompt = useMemo(() => {
     if (!active || !folders) return null;
@@ -897,8 +916,92 @@ export default function PromptDesk() {
     return { folder, prompt };
   }, [folders, active]);
 
+  function seedCommitted(folders) {
+    const steps = {};
+    const files = {};
+    (folders || []).forEach((folder) => {
+      (folder.prompts || []).forEach((prompt) => {
+        files[prompt.id] = {
+          name: prompt.name || '',
+          variables: (prompt.variables || []).map((item) => ({ ...item })),
+          referenceUrl: prompt.referenceUrl || '',
+          referenceName: prompt.referenceName || '',
+        };
+        (prompt.steps || []).forEach((step) => {
+          steps[step.id] = {
+            prompt: step.promptSaved ? (step.prompt || '') : '',
+            description: step.promptSaved ? (step.description || '') : '',
+          };
+        });
+      });
+    });
+    committedRef.current = { steps, files };
+  }
+
+  function rememberSaved(folders) {
+    const committed = committedRef.current || { steps: {}, files: {} };
+    (folders || []).forEach((folder) => {
+      (folder.prompts || []).forEach((prompt) => {
+        let dirty = false;
+        (prompt.steps || []).forEach((step) => {
+          const saved = committed.steps[step.id] || { prompt: '', description: '' };
+          if (step.promptSaved) {
+            committed.steps[step.id] = {
+              prompt: step.prompt || '',
+              description: step.description || '',
+            };
+            return;
+          }
+          if ((step.prompt || '') !== saved.prompt || (step.description || '') !== saved.description) dirty = true;
+        });
+        if (!dirty) {
+          committed.files[prompt.id] = {
+            name: prompt.name || '',
+            variables: (prompt.variables || []).map((item) => ({ ...item })),
+            referenceUrl: prompt.referenceUrl || '',
+            referenceName: prompt.referenceName || '',
+          };
+        }
+      });
+    });
+    committedRef.current = committed;
+  }
+
+  function foldersForStorage(folders) {
+    const committed = committedRef.current;
+    if (!committed) return folders;
+    return (folders || []).map((folder) => ({
+      ...folder,
+      prompts: (folder.prompts || []).map((prompt) => {
+        const file = committed.files[prompt.id];
+        let revertFile = false;
+        const steps = (prompt.steps || []).map((step) => {
+          const saved = committed.steps[step.id] || { prompt: '', description: '' };
+          const draftPrompt = step.prompt || '';
+          const draftDescription = step.description || '';
+          if (!step.promptSaved && (draftPrompt !== saved.prompt || draftDescription !== saved.description)) {
+            revertFile = true;
+            return { ...step, prompt: saved.prompt, description: saved.description };
+          }
+          return step;
+        });
+        if (!revertFile || !file) return { ...prompt, steps };
+        return {
+          ...prompt,
+          name: file.name,
+          variables: file.variables,
+          referenceUrl: file.referenceUrl,
+          referenceName: file.referenceName,
+          steps,
+        };
+      }),
+    }));
+  }
+
   function queueSave(next, mode) {
-    queuedRef.current = next;
+    if (mode === 'skip') return Promise.resolve();
+    rememberSaved(next);
+    queuedRef.current = foldersForStorage(next);
     window.clearTimeout(saveTimerRef.current);
     if (mode === 'now') return flushSave();
     saveTimerRef.current = window.setTimeout(() => { void flushSave(); }, 350);
@@ -962,7 +1065,7 @@ export default function PromptDesk() {
     )), 'now');
   }
 
-  function patchPrompt(patch) {
+  function patchPrompt(patch, mode) {
     if (!active) return;
     const before = (foldersRef.current || [])
       .find((folder) => folder.id === active.folderId)
@@ -986,11 +1089,12 @@ export default function PromptDesk() {
           return { ...prompt, ...patch };
         }),
       };
-    }), saveMode(patch, before));
+    }), mode || saveMode(patch, before));
   }
 
   function closePanel() {
-    const prompt = activePrompt?.prompt;
+    const folder = (foldersRef.current || []).find((item) => item.id === active?.folderId);
+    const prompt = folder?.prompts.find((item) => item.id === active?.promptId);
     const savedFile = Boolean(prompt?.pdf?.path);
     if (!savedFile && (prompt?.pdf || (prompt?.steps || []).some((step) => step.pdfPage != null))) {
       pdfFiles.delete(prompt.id);
@@ -1100,6 +1204,7 @@ export default function PromptDesk() {
         const next = loaded.length ? loaded : [blankFolder(0)];
         foldersRef.current = next;
         savedRef.current = loaded;
+        seedCommitted(next);
         setFolders(next);
       } catch (error) {
         console.warn('[prompt-desk] load failed', error?.message || error);
@@ -1346,6 +1451,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [showImage, setShowImage] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
+  const [pdfFolded, setPdfFolded] = useState(false);
   const [pdfError, setPdfError] = useState('');
   const [limitNote, setLimitNote] = useState('');
   const [pdfReading, setPdfReading] = useState(false);
@@ -1374,7 +1480,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const organizeMap = useRef(new Map());
   const organizeSheets = useRef([]);
   const organizeMode = useRef('replace');
-  const organizeLock = useRef(false);
   const [pdfPlain, setPdfPlain] = useState('');
   const [pdfSaving, setPdfSaving] = useState(false);
   const [pdfAsk, setPdfAsk] = useState('ask');
@@ -1395,13 +1500,18 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
   const [sheetFace, setSheetFace] = useState(1);
-  const showSide = showImage || showVideo || showPdf;
+  const showPdfPreview = showPdf && !pdfFolded;
+  const pdfTranscriptWide = Boolean(
+    showPdf && pdfFolded && prompt.pdf?.name && pdfScan.trim() && !showImage && !showVideo,
+  );
+  const showSide = showImage || showVideo || showPdfPreview;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.filter((item) => item.promptSaved).length;
   const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
   const sideHold = useRef(false);
   const savedStepsRef = useRef({});
+  const savedPromptRef = useRef(null);
   const homeLogo = PROMPT_MODELS.find((model) => model.id === (step.modelIds || [])[0]) || null;
   const pdfPickCount = pdfPick.filter(Boolean).length;
 
@@ -1445,6 +1555,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfStatus('idle');
     setPdfScan('');
     setPdfScanReading(false);
+    setPdfFolded(false);
     setPdfPlain('');
     setPdfSaving(false);
     pdfPagesRef.current = [];
@@ -1455,6 +1566,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setShowVideo(false);
     setShowPdf(false);
     setHomeSaveAsk(false);
+    savedPromptRef.current = null;
+    savedStepsRef.current = {};
   }, [prompt.id]);
 
   useEffect(() => {
@@ -1467,7 +1580,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       };
     }
     savedStepsRef.current = next;
-  }, [steps]);
+    if (!promptNeedsSave(prompt, step)) {
+      savedPromptRef.current = {
+        name: prompt.name || '',
+        variables: (prompt.variables || []).map((item) => ({ ...item })),
+        referenceUrl: prompt.referenceUrl || '',
+        referenceName: prompt.referenceName || '',
+      };
+    }
+  }, [steps, prompt, step]);
 
   useEffect(() => {
     setModelOpen(false);
@@ -1520,6 +1641,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     if (pdfLoadedName.current !== name) {
       pdfLoadedName.current = name;
       setPdfScan('');
+      setPdfFolded(false);
       setPdfAsk(prompt.pdf?.path ? 'kept' : 'ask');
     }
     const kind = prompt.pdf?.kind || promptDocumentKind(name);
@@ -1738,7 +1860,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     if (sheetOpen && !stepHasDraft(step)) {
       setPdfScan(text);
       setSheetFace(1);
-      patchStep({ prompt: text, promptSaved: false });
+      patchStep({ prompt: organizePlainLists(text), promptSaved: false });
       return;
     }
     showTranscript(text);
@@ -1753,74 +1875,53 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   function beginOrganize() {
     setOrganizeError('');
-    void runOrganize(steps.some(stepHasDraft) ? 'append' : 'replace');
+    setOrganizeAsk(null);
+    setOrganizePreview(null);
+    setPdfScan(beautifyPastedText(pdfScan));
   }
 
-  async function runOrganize(mode) {
-    if (organizeLock.current) return;
-    organizeLock.current = true;
-    organizeMode.current = mode;
-    const numbered = numberTranscriptParagraphs(pdfScan);
-    if (!numbered.ids.length) {
-      organizeLock.current = false;
-      setOrganizeError('No pude organizarlo automáticamente');
+  function foldPdfPreview() {
+    if (pdfScan.trim()) {
+      setPdfFolded(true);
+      return;
+    }
+    deletePdf();
+  }
+
+  function placeReviewedMarkers() {
+    const sheets = readAssistanceMarkers(pdfScan);
+    if (!sheets.length) {
+      setOrganizeError('No encontré marcadores para colocar.');
       setOrganizeAsk('error');
       setOrganizeLater(true);
       return;
     }
-    organizeMap.current = numbered.map;
-    const allowed = await freeToolAllowed();
-    if (!allowed.ok) {
-      organizeLock.current = false;
-      setOrganizeError(allowed.message);
+    const mode = steps.some(stepHasDraft) ? 'append' : 'replace';
+    const built = sheets.map((sheet) => ({
+      ...blankStep(),
+      description: sheet.instruction,
+      prompt: sheet.prompt,
+      promptSaved: false,
+    }));
+    const combined = mode === 'append' ? [...steps, ...built] : built;
+    const maxPages = promptLimits(plan).maxPagesPerFile;
+    const stepsNext = combined.slice(0, maxPages);
+    if (stepsNext.length === steps.length && mode === 'append' && combined.length > steps.length) {
+      setOrganizeError(PROMPT_LIMIT_COPY.page);
       setOrganizeAsk('error');
-      setOrganizeLater(true);
       return;
     }
-    setOrganizeAsk('busy');
+    if (combined.length > stepsNext.length) setLimitNote(PROMPT_LIMIT_COPY.page);
+    onPatch({
+      steps: stepsNext,
+      stepIndex: mode === 'append' ? steps.length : 0,
+    });
+    setOrganizeAsk(null);
     setOrganizePreview(null);
-    try {
-      const account = useAuthStore.getState().user;
-      const allowedModels = PROMPT_MODELS.map((model) => model.id);
-      const result = await promptApi({
-        pass: 'structure',
-        text: numbered.numbered,
-        ids: numbered.ids,
-        allowedModels,
-        userId: account?.id,
-        userEmail: account?.email,
-      });
-      const checked = validateStructure(
-        { sheets: result?.sheets, extra: result?.extra },
-        numbered.ids,
-        allowedModels,
-      );
-      if (!result?.ok || !checked.ok) {
-        setOrganizeError('No pude organizarlo automáticamente');
-        setOrganizeAsk('error');
-        setOrganizeLater(true);
-        return;
-      }
-      organizeSheets.current = checked.sheets;
-      setOrganizePreview(checked.sheets.map((sheet) => ({
-        model: sheet.model,
-        label: sheet.model === 'none'
-          ? 'Por defecto'
-          : (PROMPT_MODELS.find((model) => model.id === sheet.model)?.label || 'Por defecto'),
-        snippet: previewParagraphs(sheet.prompt, numbered.map),
-      })));
-      setOrganizeAsk('preview');
-    } catch (error) {
-      console.warn('[prompt-desk] structure failed', error?.message || error);
-      const message = pdfReadError(error);
-      setOrganizeError(message.includes('llamadas') || message.includes('Sign in')
-        ? message
-        : 'No pude organizarlo automáticamente');
-      setOrganizeAsk('error');
-      setOrganizeLater(true);
-    } finally {
-      organizeLock.current = false;
-    }
+    setOrganizeError('');
+    setOrganizeLater(true);
+    setSheetFace(sheets.some((sheet) => sheet.instruction.trim()) ? 0 : 1);
+    setSheetOpen(true);
   }
 
   function acceptOrganize() {
@@ -2003,6 +2104,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfStatus('idle');
     setPdfScan('');
     setPdfScanReading(false);
+    setPdfFolded(false);
     setPdfPlain('');
     setPdfSaving(false);
     setPdfAsk('ask');
@@ -2166,7 +2268,32 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     showIndexMedia();
   }
 
+  function textIsDirty() {
+    for (const item of steps) {
+      const prev = savedStepsRef.current[item.id];
+      const promptText = item.prompt || '';
+      const description = item.description || '';
+      if (!prev) {
+        if (promptHasText(promptText) || promptHasText(description)) return true;
+        continue;
+      }
+      if (promptText !== prev.prompt || description !== prev.description) return true;
+    }
+    const file = savedPromptRef.current;
+    if (file && (prompt.name || '') !== file.name) return true;
+    return false;
+  }
+
+  function requestClose() {
+    if (textIsDirty()) {
+      setHomeSaveAsk('close');
+      return;
+    }
+    onClose();
+  }
+
   function discardCreated() {
+    const leaving = homeSaveAsk === 'close';
     const saved = savedStepsRef.current;
     const restored = steps.map((item) => {
       if (item.promptSaved) return item;
@@ -2186,16 +2313,28 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       return stepHasWork(item);
     });
     const nextSteps = restored.length ? restored : [blankStep()];
+    const file = savedPromptRef.current;
     onPatch({
+      ...(file ? {
+        name: file.name,
+        variables: file.variables,
+        referenceUrl: file.referenceUrl,
+        referenceName: file.referenceName,
+      } : {}),
       steps: nextSteps,
       stepIndex: Math.min(index, nextSteps.length - 1),
-    });
+    }, 'now');
+    if (leaving) {
+      setHomeSaveAsk(false);
+      onClose();
+      return;
+    }
     finishHome();
   }
 
   function goHome() {
-    if (promptNeedsSave(prompt, step)) {
-      setHomeSaveAsk(true);
+    if (textIsDirty()) {
+      setHomeSaveAsk('home');
       return;
     }
     finishHome();
@@ -2384,7 +2523,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       hidden={parked}
       className={[
         'prompt-panel',
-        showSide ? 'prompt-panel--wide' : '',
+        showSide || pdfTranscriptWide ? 'prompt-panel--wide' : '',
       ].filter(Boolean).join(' ')}
       aria-label="Prompt"
       onPaste={(event) => {
@@ -2395,12 +2534,18 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         takeImage(item.getAsFile());
       }}
     >
-      <button type="button" className="prompt-panel__close" onClick={onClose} aria-label="Cerrar">
+      <button type="button" className="prompt-panel__close" onClick={requestClose} aria-label="Cerrar">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 6l12 12M18 6 6 18" />
         </svg>
       </button>
-      <div className={showSide ? 'prompt-panel__split prompt-panel__split--side' : 'prompt-panel__split prompt-panel__split--prompt'}>
+      <div className={
+        showSide
+          ? 'prompt-panel__split prompt-panel__split--side'
+          : pdfTranscriptWide
+            ? 'prompt-panel__split prompt-panel__split--transcript'
+            : 'prompt-panel__split prompt-panel__split--prompt'
+      }>
         <div className="prompt-panel__editor-tools">
           <textarea
             className="prompt-panel__name"
@@ -2561,12 +2706,13 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 <span>Embed video</span>
               </button>
             )}
-            {sheetOpen || (showPdf && !prompt.pdf?.path) ? null : (
+            {sheetOpen || (showPdfPreview && !prompt.pdf?.path) ? null : (
               <button
                 type="button"
                 className={prompt.pdf?.path ? 'prompt-models__item is-counted' : 'prompt-models__item'}
                 onClick={() => {
                   sideHold.current = false;
+                  setPdfFolded(false);
                   setShowPdf(true);
                   setShowImage(false);
                   setShowVideo(false);
@@ -2591,15 +2737,36 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
-            {!sheetOpen && organizeLater && !organizeAsk && pdfScan.trim() ? (
-              <button type="button" className="prompt-models__item" onClick={beginOrganize}>
+            {!sheetOpen && pdfScan.trim() ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                disabled={organizeAsk === 'busy'}
+                onClick={beginOrganize}
+              >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M12 3.5 13.4 8l4.6 1.2-4.6 1.3L12 15l-1.4-4.5L6 9.2 10.6 8Z" />
                     <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
                   </svg>
                 </span>
-                <span>Organizar con IA</span>
+                <span>Organizar & embellecer</span>
+              </button>
+            ) : null}
+            {!sheetOpen && transcriptHasMarkers(pdfScan) ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                disabled={organizeAsk === 'busy'}
+                onClick={placeReviewedMarkers}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 6h11M8 12h11M8 18h11" />
+                    <path d="M4 6h.01M4 12h.01M4 18h.01" />
+                  </svg>
+                </span>
+                <span>Colocar en prompts</span>
               </button>
             ) : null}
             {sheetOpen ? null : (
@@ -2633,6 +2800,11 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     type="button"
                     onClick={() => {
                       saveAllPrompts();
+                      if (homeSaveAsk === 'close') {
+                        setHomeSaveAsk(false);
+                        onClose();
+                        return;
+                      }
                       finishHome();
                     }}
                   >
@@ -2646,7 +2818,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           ) : null}
           {!parked && organizeAsk ? createPortal(
             <div className="prompt-home-save-layer">
-              <div className="prompt-organize" role="dialog" aria-label="Organizar con IA">
+              <div className="prompt-organize" role="dialog" aria-label="Assistance AI">
                 {organizeAsk === 'skill' ? (
                   <>
                     <p>¿Es este documento una habilidad a organizar?</p>
@@ -2665,7 +2837,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     </div>
                   </>
                 ) : null}
-                {organizeAsk === 'busy' ? <p>Organizando…</p> : null}
+                {organizeAsk === 'busy' ? <p>Marcando instrucción y prompt…</p> : null}
                 {organizeAsk === 'preview' ? (
                   <>
                     <p>{`Encontré ${organizePreview?.length || 0} páginas`}</p>
@@ -2821,7 +2993,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             )}
           </div>
         ) : null}
-        {showPdf ? (
+        {showPdfPreview ? (
           <div className={`prompt-panel__pdf${pdfPages.length || pdfPlain ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
               <div className="prompt-panel__pdf-pages">
@@ -2931,7 +3103,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             </button>
           </div>
         ) : null}
-        {showPdf && prompt.pdf?.name ? (
+        {showPdfPreview && prompt.pdf?.name ? (
           <div className="prompt-panel__media-foot">
             <p className="prompt-pdf__meta">{prompt.pdf.name}</p>
             {pdfPages.length ? (
@@ -2974,8 +3146,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             ) : null}
             <button
               type="button"
-              className={prompt.pdf?.path ? 'prompt-panel__remove is-danger' : 'prompt-panel__remove'}
-              onClick={deletePdf}
+              className={prompt.pdf?.path && !pdfScan.trim() ? 'prompt-panel__remove is-danger' : 'prompt-panel__remove'}
+              onClick={foldPdfPreview}
             >
               Remove
             </button>
@@ -3044,12 +3216,17 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           </div>
           ) : showPdf && prompt.pdf?.name ? (
           <div className="prompt-pdf-sheet">
-            <textarea
+            {showPdfPreview ? (
+              <button type="button" className="prompt-pdf-sheet__remove" onClick={foldPdfPreview}>
+                Remove
+              </button>
+            ) : null}
+            <DescriptionField
               className="prompt-pdf-sheet__page scroll-match-bg"
               value={pdfScan}
-              aria-label="Documento"
+              label="Documento"
               placeholder={pdfScanReading ? 'Reading the PDF…' : ''}
-              onChange={(event) => setPdfScan(event.target.value)}
+              onChange={setPdfScan}
             />
           </div>
           ) : (

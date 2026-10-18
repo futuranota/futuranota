@@ -39,7 +39,7 @@ export function joinPdfPageTexts(pages) {
 }
 
 function startsSection(line) {
-  return /^(?:prompt|pr0mpt|paso\b|step\b|\d{1,2}\s*[/.)-])/i.test(line);
+  return /^(?:prompt|pr0mpt|paso\b|step\b|actúa como|actua como|you are\b|\d{1,2}\s*[/.)-])/i.test(line);
 }
 
 /**
@@ -185,6 +185,169 @@ export function joinParagraphs(ids, map) {
     .map((id) => map.get(String(id)) || "")
     .filter(Boolean)
     .join("\n\n");
+}
+
+/**
+ * Mark the original paragraphs so the user can check instruction vs prompt.
+ * The title is not included. Marker lines are not part of the text.
+ * @param {{ instruction?: string[], prompt?: string[] }[]} sheets
+ * @param {Map<string, string>} map
+ */
+export function markAssistanceText(sheets, map) {
+  return (sheets || []).map((sheet, index) => {
+    const page = String(index + 1).padStart(2, "0");
+    const instruction = joinParagraphs(sheet.instruction, map);
+    const prompt = joinParagraphs(sheet.prompt, map);
+    const instructionMark = `<strong>--//Página ${page} · Instrucción//--</strong>`;
+    const promptMark = `<strong>--//Página ${page} · Prompt//--</strong>`;
+    const done = "<strong>--//terminado//--</strong>";
+    return [
+      instructionMark,
+      instruction,
+      done,
+      promptMark,
+      prompt,
+      done,
+    ].join("\n");
+  }).join("\n\n");
+}
+
+const CARD_LINE = /^prompt\s+\d+\b/i;
+const PASTE_LINE = /^(?:actúa como|actua como|you are)\b/i;
+const FOOTER_LINE = /p[aá]gina\s+\d+\s+de\s+\d+|gu[ií]a de implementaci[oó]n/i;
+
+function stripTags(value) {
+  return String(value ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?[^>]+>/g, "");
+}
+
+/**
+ * Text Groq should read: no review marks and no marker lines.
+ * @param {unknown} text
+ */
+export function plainForStructure(text) {
+  return stripTags(text)
+    .replace(/^--\/\/.*\/\/--$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Yellow highlight on every slice that contains "prompt", including "Prompt:".
+ * @param {unknown} text
+ */
+export function paintReviewHighlights(text) {
+  const source = String(text ?? "");
+  return source.split(/(<mark\b[^>]*>[\s\S]*?<\/mark>|<strong>[\s\S]*?<\/strong>)/gi).map((part) => {
+    if (/^<mark\b/i.test(part)) return part;
+    if (/^<strong>/i.test(part)) {
+      const inner = part.slice(8, -9);
+      return `<strong>${inner.replace(/prompt/gi, (found) => `<mark>${found}</mark>`)}</strong>`;
+    }
+    return part.replace(/prompt/gi, (found) => `<mark>${found}</mark>`);
+  }).join("");
+}
+
+/**
+ * Split a guide into cards when "Prompt N" holds a description
+ * and a pasteable block that starts with "Actúa como" or "You are".
+ * @param {unknown} text
+ */
+export function markCardsFromTranscript(text) {
+  const plain = plainForStructure(text).replace(/\r\n/g, "\n");
+  const cards = [];
+  let card = null;
+  const ensure = () => {
+    if (card) return;
+    card = { instruction: [], prompt: [], paste: false };
+    cards.push(card);
+  };
+  for (const raw of plain.split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      if (!card) continue;
+      (card.paste ? card.prompt : card.instruction).push("");
+      continue;
+    }
+    if (FOOTER_LINE.test(line) && line.length < 120) continue;
+    if (CARD_LINE.test(line)) {
+      card = { instruction: [line], prompt: [], paste: false };
+      cards.push(card);
+      continue;
+    }
+    ensure();
+    if (!card.paste && PASTE_LINE.test(line)) card.paste = true;
+    (card.paste ? card.prompt : card.instruction).push(line);
+  }
+  const ready = cards.filter((item) => item.prompt.some((line) => line.trim()));
+  return ready.map((item, index) => {
+    const page = String(index + 1).padStart(2, "0");
+    const instruction = item.instruction.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    const prompt = item.prompt.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    const done = "<strong>--//terminado//--</strong>";
+    return [
+      `<strong>--//Página ${page} · Instrucción//--</strong>`,
+      instruction,
+      done,
+      `<strong>--//Página ${page} · Prompt//--</strong>`,
+      prompt,
+      done,
+    ].join("\n");
+  }).join("\n\n");
+}
+
+/**
+ * @param {unknown} text
+ */
+export function transcriptHasMarkers(text) {
+  return /--\/\/[^/\n]*p[aá]gina\s+\d+/i.test(stripTags(text));
+}
+
+/**
+ * Read reviewed markers into instruction and prompt text, without marker lines or highlights.
+ * @param {unknown} text
+ * @returns {{ instruction: string, prompt: string }[]}
+ */
+export function readAssistanceMarkers(text) {
+  const lines = stripTags(text).replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let current = null;
+  const flush = () => {
+    if (!current) return;
+    blocks.push({
+      page: current.page,
+      kind: current.kind,
+      text: current.lines.join("\n").trim(),
+    });
+    current = null;
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    const marker = line.match(/^--\/\/\s*(.+?)\s*\/\/--$/);
+    if (marker) {
+      const label = marker[1];
+      if (/terminado/i.test(label)) {
+        flush();
+        continue;
+      }
+      const page = label.match(/p[aá]gina\s+(\d+)/i);
+      const kind = /prompt/i.test(label) ? "prompt" : /instrucci[oó]n/i.test(label) ? "instruction" : "";
+      if (page && kind) {
+        flush();
+        current = { page: String(Number(page[1])), kind, lines: [] };
+        continue;
+      }
+    }
+    if (current) current.lines.push(raw);
+  }
+  flush();
+  const pages = new Map();
+  for (const block of blocks) {
+    if (!pages.has(block.page)) pages.set(block.page, { instruction: "", prompt: "" });
+    pages.get(block.page)[block.kind] = block.text;
+  }
+  return [...pages.values()].filter((sheet) => sheet.instruction || sheet.prompt);
 }
 
 /**

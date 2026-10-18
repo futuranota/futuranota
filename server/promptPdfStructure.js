@@ -13,15 +13,15 @@ Return ONLY valid JSON with this shape:
 {"sheets":[{"instruction":[ids],"prompt":[ids],"model":"one of: {{ALLOWED_MODELS}}, none"}],"extra":[ids]}
 
 Rules:
-1. One sheet per prompt. If a step has two prompts (Prompt A and Prompt B), make two sheets.
-2. A prompt can be cut by a page break. If a paragraph ends mid-sentence and the next one continues it, put BOTH in the same prompt list, in order.
-3. instruction = step headings ("Paso 01", "01 / ..."), explanations, bullet steps, tips and questions to the reader. Keep the heading first.
-4. prompt = the block after the word "Prompt" (the OCR may misspell it, like "Pr0mpt"), or the main block meant to be pasted into an AI.
-5. extra (top level, not per sheet) = emails, @handles, hashtags, websites, page numbers, footers, logos, watermarks.
-6. model = the AI the instruction of that step explicitly tells the user to use. If it does not say so, or it is unclear, use "none". Never guess.
+1. One sheet per prompt card. A heading such as "Prompt 1", "Prompt 2", "Prompt A" or "Prompt B" starts its own sheet. Three cards on a page mean three sheets.
+2. A prompt can be cut by a page break. If a paragraph ends mid-sentence and the next one continues it, put BOTH in the same list, in order.
+3. instruction = the card title, the target platform, and the short expectation for the reader (for example "La Magia del Modelo & Expectativa"). Stop before the block the reader will paste into another model.
+4. prompt = that pasteable block. It often starts with "Actúa como" or "You are". Numbered steps inside it, including a line that says "Instrucciones:", stay in the prompt. Do not leave prompt empty when that block exists. The words "Prompt 1" are the card title, not the start of this block.
+5. extra (top level, not per sheet) = emails, @handles, hashtags, websites, page numbers, footers ("Página 2 de 2"), logos, watermarks. A footer is neither instruction nor prompt.
+6. model = the AI the card explicitly recommends. If it names more than one, or it is unclear, use "none". Never guess.
 7. Every paragraph id appears exactly once across all lists.
 8. Placeholders like [text], {text} and {{text}} belong to the prompt. Never change them.
-9. If unsure whether a paragraph is prompt or instruction, choose instruction.`;
+9. When a card has both a description and a pasteable block, split them. If there is no pasteable block, choose instruction.`;
 
 function structureSystem(allowedModels) {
   const list = (allowedModels || []).map((id) => String(id).trim()).filter(Boolean);
