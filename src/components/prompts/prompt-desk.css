@@ -1066,7 +1066,65 @@
   cursor: default;
 }
 
+.prompt-panel__pdf-pages {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.prompt-pdf__sheet {
+  position: relative;
+  display: inline-grid;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.prompt-pdf__sheet img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.prompt-pdf__mark {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(20, 20, 22, 0.16);
+  cursor: pointer;
+}
+
+.prompt-pdf__mark input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #008AF5;
+  cursor: pointer;
+}
+
+.prompt-panel__split:not(.prompt-panel__split--prompt) > .prompt-panel__pdf.prompt-panel__pdf--pages {
+  overflow: hidden;
+}
+
 .prompt-panel__pdf--pages .prompt-panel__pdf-pages {
+  overflow: auto;
   padding-top: 48px;
   padding-bottom: 132px;
   box-sizing: border-box;
@@ -1094,7 +1152,7 @@
   left: 16px;
   right: 16px;
   bottom: 16px;
-  z-index: 4;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1199,23 +1257,6 @@
 .prompt-panel__pdf-index button:disabled {
   opacity: 0.35;
   cursor: default;
-}
-
-.prompt-panel__pdf-pick {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #1a1a1a;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.prompt-panel__pdf-pick input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: #008AF5;
-  cursor: pointer;
 }
 
 .prompt-panel__media-foot .prompt-pdf__meta {

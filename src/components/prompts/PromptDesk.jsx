@@ -1300,6 +1300,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const sideHold = useRef(false);
   const savedStepsRef = useRef({});
   const homeLogo = PROMPT_MODELS.find((model) => model.id === (step.modelIds || [])[0]) || null;
+  const pdfPickCount = pdfPick.filter(Boolean).length;
 
   function patchStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch } });
@@ -1625,7 +1626,18 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setPdfScan(text);
     setOrganizeError('');
     setOrganizePreview(null);
-    setOrganizeAsk('skill');
+    setOrganizeAsk(null);
+    setOrganizeLater(true);
+  }
+
+  function deliverExtract(text) {
+    if (sheetOpen && !stepHasDraft(step)) {
+      setPdfScan(text);
+      setSheetFace(1);
+      patchStep({ prompt: text, promptSaved: false });
+      return;
+    }
+    showTranscript(text);
   }
 
   function dismissOrganize() {
@@ -1756,7 +1768,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           setPdfError('Couldn’t find text in this file.');
           return;
         }
-        showTranscript(text);
+        deliverExtract(text);
         return;
       }
       const images = await ensurePdfImages();
@@ -1764,11 +1776,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         setPdfError('Couldn’t display the PDF.');
         return;
       }
-      const picked = images.map((_, index) => pdfPick[index] === true);
-      if (picked.every((on) => !on)) {
-        setPdfError('Choose a page to extract.');
-        return;
-      }
+      const anyPicked = images.some((_, index) => pdfPick[index] === true);
+      const picked = images.map((_, index) => (anyPicked ? pdfPick[index] === true : true));
       const extracted = await extractPdfPageTexts(data, { maxPages: images.length });
       const texts = images.map((_, index) => (picked[index] ? (extracted.pages[index] || '') : ''));
       const missing = texts
@@ -1786,7 +1795,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         setPdfError('Couldn’t find text on these pages.');
         return;
       }
-      showTranscript(text);
+      deliverExtract(text);
     } catch (error) {
       console.warn('[prompt-desk] pdf text failed', error?.message || error);
       setPdfError(pdfReadError(error));
@@ -2674,7 +2683,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           <div className={`prompt-panel__pdf${pdfPages.length || pdfPlain ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
               <div className="prompt-panel__pdf-pages">
-                <img src={pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)]} alt="" />
+                <div className="prompt-pdf__sheet">
+                  <img src={pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)]} alt="" />
+                </div>
               </div>
             ) : pdfPlain ? (
               <pre className="prompt-panel__pdf-text scroll-match-bg">{pdfPlain}</pre>
@@ -2719,9 +2730,29 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   disabled={pdfReading || pdfImproving || organizeAsk === 'busy'}
                   onClick={() => { void extractPdf(); }}
                 >
-                  {pdfReading ? 'Reading…' : 'Extract data'}
+                  {pdfReading
+                    ? 'Reading…'
+                    : pdfPickCount
+                      ? `extract ${pdfPickCount} ${pdfPickCount === 1 ? 'file' : 'files'}`
+                      : 'Extract all'}
                 </button>
               </div>
+            ) : null}
+            {pdfPages.length ? (
+              <label className="prompt-pdf__mark">
+                <input
+                  type="checkbox"
+                  aria-label="Include this page"
+                  checked={pdfPick[Math.min(pdfPageIndex, pdfPages.length - 1)] === true}
+                  onChange={(event) => {
+                    const index = Math.min(pdfPageIndex, pdfPages.length - 1);
+                    const on = event.target.checked;
+                    setPdfPick((current) => pdfPages.map((_, item) => (
+                      item === index ? on : current[item] === true
+                    )));
+                  }}
+                />
+              </label>
             ) : null}
             {(pdfPages.length || pdfPlain) && pdfAsk === 'ask' && (pdfPromptReady || prompt.pdf?.path) ? (
               <div className={pdfPromptLeaving ? 'prompt-pdf__popover is-leaving' : 'prompt-pdf__popover'} role="dialog" aria-label="Save this file">
@@ -2781,22 +2812,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   ›
                 </button>
               </div>
-            ) : null}
-            {pdfPages.length ? (
-              <label className="prompt-panel__pdf-pick">
-                <input
-                  type="checkbox"
-                  checked={pdfPick[Math.min(pdfPageIndex, pdfPages.length - 1)] === true}
-                  onChange={(event) => {
-                    const index = Math.min(pdfPageIndex, pdfPages.length - 1);
-                    const on = event.target.checked;
-                    setPdfPick((current) => pdfPages.map((_, item) => (
-                      item === index ? on : current[item] === true
-                    )));
-                  }}
-                />
-                <span>{`${pdfPick.filter(Boolean).length}/${pdfPages.length} selected`}</span>
-              </label>
             ) : null}
             {sheetOpen && pdfPages.length ? (
               <div className="prompt-panel__pdf-actions">
