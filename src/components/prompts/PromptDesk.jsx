@@ -9,13 +9,26 @@ import {
   currentPromptUserId,
   downloadPromptDocument,
   loadPromptDesk,
+  loadPromptStorageTree,
   promptDocumentKind,
   savePromptDesk,
   uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
+import { readPromptToolCalls } from '../../lib/promptDeskUsage.js';
+import {
+  PROMPT_LIMIT_COPY,
+  PROMPT_STORAGE_BYTES,
+  canAddPromptFile,
+  canAddPromptFolder,
+  canAddPromptPage,
+  promptLimits,
+  promptToolCallsLeft,
+} from '../../lib/promptPlanLimits.js';
+import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
+import { beautifyPromptFields } from '../../lib/promptBeautify.js';
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import {
   joinParagraphs,
@@ -26,6 +39,7 @@ import {
   validateStructure,
 } from '../../lib/promptStructure.js';
 import { useAuthStore } from '../../stores/authStore.js';
+import { usePlanStore } from '../../stores/planStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import {
   extractPdfPageTexts,
@@ -38,7 +52,7 @@ import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
 import { PromptBody, VariableDeck, applyTitleShortcut, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
-import StorageDistrict, { storageDemoRoot } from './StorageDistrict.jsx';
+import StorageDistrict from './StorageDistrict.jsx';
 import './prompt-desk.css';
 
 const pdfFiles = new Map();
@@ -105,6 +119,27 @@ function pdfReadError(error) {
     }
   }
   return message.length > 280 ? `${message.slice(0, 280)}…` : message;
+}
+
+async function promptApi(body) {
+  const { data: { session } } = await supabase.auth.getSession();
+  return apiClient(API_ROUTES.promptPdfRead, {
+    method: 'POST',
+    headers: session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {},
+    body: JSON.stringify(body),
+  });
+}
+
+async function freeToolAllowed() {
+  const plan = usePlanStore.getState().profile.plan;
+  if (promptToolCallsLeft(0, plan) === Infinity) return { ok: true };
+  const userId = useAuthStore.getState().user?.id || await currentPromptUserId();
+  const used = await readPromptToolCalls(userId);
+  if (used == null) return { ok: false, message: PROMPT_LIMIT_COPY.usage };
+  if (promptToolCallsLeft(used, plan) <= 0) return { ok: false, message: PROMPT_LIMIT_COPY.tools };
+  return { ok: true };
 }
 
 function retryWaitMs(error, attempt) {
@@ -427,9 +462,10 @@ function FloatInstructions({ value }) {
   );
 }
 
-function SheetFaces({ face, onFace }) {
+function SheetFaces({ face, onFace, onBeautify }) {
   return (
-    <div className="prompt-sheet__faces" role="tablist" aria-label="Prompt pages">
+    <div className="prompt-sheet__faces">
+      <div className="prompt-sheet__tabs" role="tablist" aria-label="Prompt pages">
       <button
         type="button"
         role="tab"
@@ -447,13 +483,21 @@ function SheetFaces({ face, onFace }) {
       >
         Prompt
       </button>
-      <button
-        type="button"
-        className="prompt-sheet__next"
-        onClick={() => onFace(face === 0 ? 1 : 0)}
-      >
-        Next
-      </button>
+      </div>
+      <span className="prompt-sheet__tools">
+        {onBeautify ? (
+          <button type="button" className="prompt-sheet__beautify" onClick={onBeautify}>
+            Organizar & embellecer
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="prompt-sheet__next"
+          onClick={() => onFace(face === 0 ? 1 : 0)}
+        >
+          Next
+        </button>
+      </span>
     </div>
   );
 }
@@ -695,9 +739,37 @@ function DeskSidebar({ view, settingsPane }) {
 }
 
 function StorageSettings() {
+  const [root, setRoot] = useState(null);
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const userId = await currentPromptUserId();
+      if (!userId) {
+        if (!cancel) setRoot(storageTreeFromDesk([]));
+        return;
+      }
+      const tree = await loadPromptStorageTree(userId);
+      if (!cancel) setRoot(tree);
+    })().catch((error) => {
+      console.warn('[prompt-desk] storage load failed', error?.message || error);
+      if (!cancel) {
+        setRoot(storageTreeFromDesk([]));
+        setNote('No pude leer el storage.');
+      }
+    });
+    return () => { cancel = true; };
+  }, []);
+
   return (
     <div className="prompt-desk__storage">
-      <StorageDistrict root={storageDemoRoot} capacityBytes={64_000_000_000} title="Storage" />
+      {note ? <p className="prompt-desk__limit" role="status">{note}</p> : null}
+      {root ? (
+        <StorageDistrict root={root} capacityBytes={PROMPT_STORAGE_BYTES} title="Storage" />
+      ) : (
+        <p className="prompt-desk__limit" role="status">Leyendo tu storage…</p>
+      )}
     </div>
   );
 }
@@ -790,6 +862,7 @@ export default function PromptDesk() {
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [limitNote, setLimitNote] = useState('');
   const [active, setActive] = useState(null);
   const [compact, setCompact] = useState(false);
   const [floating, setFloating] = useState(false);
@@ -851,10 +924,22 @@ export default function PromptDesk() {
   }
 
   function addCollection() {
+    const plan = usePlanStore.getState().profile.plan;
+    if (!canAddPromptFolder(foldersRef.current, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.folder);
+      return;
+    }
+    setLimitNote('');
     updateFolders((prev) => [...prev, blankFolder(prev.length)], 'now');
   }
 
   function addPrompt(folderId, prompt) {
+    const plan = usePlanStore.getState().profile.plan;
+    if (!canAddPromptFile(foldersRef.current, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.file);
+      return;
+    }
+    setLimitNote('');
     updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId
         ? { ...folder, prompts: [...folder.prompts, prompt] }
@@ -1094,6 +1179,7 @@ export default function PromptDesk() {
           Nueva colección
         </button>
       </header>
+      {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
       <div className="prompt-desk__search">
         <input
           type="search"
@@ -1235,6 +1321,7 @@ function ModelMenu({ customDraft, onCustomDraft, onChange }) {
 }
 
 function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpand, onClose }) {
+  const plan = usePlanStore((state) => state.profile.plan);
   const { steps, index, step } = stepAt(prompt);
   const copiedText = plainCopy(step.prompt, prompt.variables || []);
   const canCopy = Boolean(step.promptSaved && copiedText);
@@ -1245,6 +1332,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [showVideo, setShowVideo] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [pdfError, setPdfError] = useState('');
+  const [limitNote, setLimitNote] = useState('');
   const [pdfReading, setPdfReading] = useState(false);
   const [pdfImproving, setPdfImproving] = useState(false);
   const [pdfPasted, setPdfPasted] = useState(false);
@@ -1553,6 +1641,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       })
       .catch((error) => {
         console.warn('[prompt-desk] image upload failed', error?.message || error);
+        setLimitNote(error instanceof Error ? error.message : PROMPT_LIMIT_COPY.storage);
       });
   }
 
@@ -1665,21 +1754,26 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       return;
     }
     organizeMap.current = numbered.map;
+    const allowed = await freeToolAllowed();
+    if (!allowed.ok) {
+      organizeLock.current = false;
+      setOrganizeError(allowed.message);
+      setOrganizeAsk('error');
+      setOrganizeLater(true);
+      return;
+    }
     setOrganizeAsk('busy');
     setOrganizePreview(null);
     try {
       const account = useAuthStore.getState().user;
       const allowedModels = PROMPT_MODELS.map((model) => model.id);
-      const result = await apiClient(API_ROUTES.promptPdfRead, {
-        method: 'POST',
-        body: JSON.stringify({
-          pass: 'structure',
-          text: numbered.numbered,
-          ids: numbered.ids,
-          allowedModels,
-          userId: account?.id,
-          userEmail: account?.email,
-        }),
+      const result = await promptApi({
+        pass: 'structure',
+        text: numbered.numbered,
+        ids: numbered.ids,
+        allowedModels,
+        userId: account?.id,
+        userEmail: account?.email,
       });
       const checked = validateStructure(
         { sheets: result?.sheets, extra: result?.extra },
@@ -1703,7 +1797,10 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       setOrganizeAsk('preview');
     } catch (error) {
       console.warn('[prompt-desk] structure failed', error?.message || error);
-      setOrganizeError('No pude organizarlo automáticamente');
+      const message = pdfReadError(error);
+      setOrganizeError(message.includes('llamadas') || message.includes('Sign in')
+        ? message
+        : 'No pude organizarlo automáticamente');
       setOrganizeAsk('error');
       setOrganizeLater(true);
     } finally {
@@ -1719,7 +1816,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       return;
     }
     let variables = [...(prompt.variables || [])];
-    const nextSteps = sheets.map((sheet) => {
+    const built = sheets.map((sheet) => {
       const prepared = prepareSheetFields(
         joinParagraphs(sheet.instruction, map),
         joinParagraphs(sheet.prompt, map),
@@ -1735,7 +1832,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       };
     });
     const mode = organizeMode.current;
-    const stepsNext = mode === 'append' ? [...steps, ...nextSteps] : nextSteps;
+    const combined = mode === 'append' ? [...steps, ...built] : built;
+    const maxPages = promptLimits(plan).maxPagesPerFile;
+    const stepsNext = combined.slice(0, maxPages);
+    if (stepsNext.length === steps.length && mode === 'append' && combined.length > steps.length) {
+      setOrganizeError(PROMPT_LIMIT_COPY.page);
+      return;
+    }
+    if (combined.length > stepsNext.length) setLimitNote(PROMPT_LIMIT_COPY.page);
     onPatch({
       variables,
       steps: stepsNext,
@@ -1815,20 +1919,23 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     }
     setPdfImproving(true);
     setPdfError('');
+    const allowed = await freeToolAllowed();
+    if (!allowed.ok) {
+      setPdfError(allowed.message);
+      setPdfImproving(false);
+      return;
+    }
     try {
       const account = useAuthStore.getState().user;
       let result;
       for (let attempt = 0; ; attempt += 1) {
         try {
-          result = await apiClient(API_ROUTES.promptPdfRead, {
-            method: 'POST',
-            body: JSON.stringify({
-              pass: 'improve',
-              description: pastedDescription,
-              prompt: pastedPrompt,
-              userId: account?.id,
-              userEmail: account?.email,
-            }),
+          result = await promptApi({
+            pass: 'improve',
+            description: pastedDescription,
+            prompt: pastedPrompt,
+            userId: account?.id,
+            userEmail: account?.email,
           });
           break;
         } catch (error) {
@@ -2092,6 +2199,10 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       return;
     }
     if (!stepHasDraft(step)) return;
+    if (!canAddPromptPage(steps.length, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.page);
+      return;
+    }
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -2109,6 +2220,20 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     onPatch({
       steps: nextSteps,
       stepIndex: Math.min(index, nextSteps.length - 1),
+    });
+  }
+
+  function organizeAndBeautify() {
+    if (!stepHasDraft(step)) return;
+    const next = beautifyPromptFields(step.description, step.prompt, prompt.variables || []);
+    onPatch({
+      variables: next.variables,
+      stepPatch: {
+        id: step.id,
+        description: next.description,
+        prompt: next.prompt,
+        promptSaved: false,
+      },
     });
   }
 
@@ -2853,7 +2978,11 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 if (event.key === 'Enter') event.preventDefault();
               }}
             />
-            <SheetFaces face={sheetFace} onFace={setSheetFace} />
+            <SheetFaces
+              face={sheetFace}
+              onFace={setSheetFace}
+              onBeautify={stepHasDraft(step) ? organizeAndBeautify : null}
+            />
             {sheetFace === 0 ? (
               <DescriptionField
                 className="prompt-sheet__description"
@@ -2997,6 +3126,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               </svg>
             </button>
             <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+            {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
             <button
               type="button"
               className="prompt-steps__arrow"
@@ -3246,10 +3376,12 @@ async function copyInView(plain, html, view) {
 }
 
 function FloatCard({ prompt, view, onPatch }) {
+  const plan = usePlanStore((state) => state.profile.plan);
   const { steps, index, step } = stepAt(prompt);
   const plain = plainCopy(step.prompt, prompt.variables || []);
   const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
+  const [limitNote, setLimitNote] = useState('');
   const [showInstructions, setShowInstructions] = useState(false);
   const [urlOffer, setUrlOffer] = useState('');
   const floatModelName = (step.modelIds || [])[0] || '';
@@ -3301,6 +3433,10 @@ function FloatCard({ prompt, view, onPatch }) {
       return;
     }
     if (!stepHasDraft(step)) return;
+    if (!canAddPromptPage(steps.length, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.page);
+      return;
+    }
     onPatch({
       steps: [...steps, blankStep(steps.length)],
       stepIndex: steps.length,
@@ -3413,6 +3549,7 @@ function FloatCard({ prompt, view, onPatch }) {
           </svg>
         </button>
         <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+        {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
         <button
           type="button"
           className="prompt-steps__arrow"

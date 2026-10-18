@@ -2094,6 +2094,12 @@
   font-size: 12px;
 }
 
+.prompt-sheet__tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .prompt-sheet__faces button {
   border: 0;
   background: transparent;
@@ -2108,8 +2114,15 @@
   font-weight: 600;
 }
 
-.prompt-sheet__faces .prompt-sheet__next {
+.prompt-sheet__tools {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-sheet__faces .prompt-sheet__beautify,
+.prompt-sheet__faces .prompt-sheet__next {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;

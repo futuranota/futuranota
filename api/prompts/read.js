@@ -1,4 +1,5 @@
 import { processPromptPdfRead } from "../../server/promptPdfVision.js";
+import { guardPromptToolCall } from "../../server/promptToolGuard.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -15,7 +16,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await processPromptPdfRead(req.body || {});
+    const body = req.body || {};
+    const blocked = await guardPromptToolCall(req, body);
+    if (blocked) {
+      res.status(blocked.status).json(blocked.body);
+      return;
+    }
+    const result = await processPromptPdfRead(body);
     res.status(result.status).json(result.body);
   } catch (err) {
     res.status(500).json({

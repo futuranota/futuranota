@@ -1,4 +1,6 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
+import { PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
+import { storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 import { normalizeVariables } from './promptVariables.js';
 import { supabase } from './supabaseClient.js';
 
@@ -76,12 +78,14 @@ export function foldersFromRows(collections, files, steps) {
     art: collection.art || 'aurora',
     tone: collection.tone === 'dark' ? 'dark' : 'light',
     seed: Number(collection.seed) || 0,
+    updatedAt: collection.updated_at || null,
     prompts: (filesByCollection.get(collection.id) || [])
       .sort((a, b) => a.position - b.position)
       .map((file) => ({
         id: file.id,
         name: file.name || 'Untitled',
         meta: file.meta || 'Prompt',
+        updatedAt: file.updated_at || null,
         modelId: file.model_id || '',
         variables: normalizeVariables(file.variables),
         stepIndex: Number(file.step_index) || 0,
@@ -276,9 +280,44 @@ export async function savePromptDesk(userId, folders, previous) {
   }
 }
 
+export async function listPromptObjectSizes(userId) {
+  const sizes = {};
+  async function walk(prefix) {
+    const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 1000 });
+    if (error) throw error;
+    for (const item of data || []) {
+      if (!item?.name || item.name === '.emptyFolderPlaceholder') continue;
+      const path = `${prefix}/${item.name}`;
+      const size = Number(item.metadata?.size);
+      if (item.id && Number.isFinite(size)) sizes[path] = size;
+      else if (!item.id) await walk(path);
+    }
+  }
+  await walk(userId);
+  return sizes;
+}
+
+export async function loadPromptStorageTree(userId) {
+  const folders = await loadPromptDesk(userId);
+  const sizes = await listPromptObjectSizes(userId);
+  return storageTreeFromDesk(folders, sizes);
+}
+
+export async function assertStorageRoom(userId, incomingBytes, replacePath = '') {
+  const folders = await loadPromptDesk(userId);
+  const sizes = await listPromptObjectSizes(userId);
+  const used = treeBytes(storageTreeFromDesk(folders, sizes));
+  const previous = replacePath ? (Number(sizes[replacePath]) || 0) : 0;
+  const next = Math.max(0, used - previous) + Math.max(0, Number(incomingBytes) || 0);
+  if (next > PROMPT_STORAGE_BYTES) {
+    throw new Error(PROMPT_LIMIT_COPY.storage);
+  }
+}
+
 export async function uploadPromptAsset(file, fileId, userId) {
   const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
   if (isSvg) {
+    await assertStorageRoom(userId, file.size);
     const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.svg`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
       contentType: 'image/svg+xml',
@@ -296,6 +335,7 @@ export async function uploadPromptAsset(file, fileId, userId) {
   }
   const converted = await convertFileToWebpData(file);
   if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
+  await assertStorageRoom(userId, converted.blob.size);
   const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',
@@ -317,6 +357,7 @@ export async function uploadPromptAsset(file, fileId, userId) {
 export async function uploadPromptImage(file, stepId, userId) {
   const converted = await convertFileToWebpData(file);
   if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
+  await assertStorageRoom(userId, converted.blob.size);
   const path = `${userId}/${stepId}/${crypto.randomUUID()}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',
@@ -341,6 +382,7 @@ export async function uploadPromptDocument(file, fileId, userId) {
   const kind = promptDocumentKind(file?.name);
   const ext = kind === 'md' ? 'md' : kind === 'txt' ? 'txt' : 'pdf';
   const path = `${userId}/${fileId}.${ext}`;
+  await assertStorageRoom(userId, file.size, path);
   const bytes = await file.arrayBuffer();
   const types = kind === 'pdf'
     ? ['application/pdf', 'application/octet-stream', 'image/webp']
