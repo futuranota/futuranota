@@ -1504,11 +1504,12 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [formatOn, setFormatOn] = useState({});
   const [sheetFace, setSheetFace] = useState(1);
   const rightText = String(keptTranscript || pdfScan || '').trim();
-  const showPdfPreview = showPdf && !pdfFolded;
+  const textBesidePrompt = Boolean(sheetOpen && rightText && !showImage && !showVideo);
+  const showPdfPreview = showPdf && !pdfFolded && !textBesidePrompt;
   const pdfTranscriptWide = Boolean(
     !sheetOpen && pdfFolded && rightText && !showImage && !showVideo,
   );
-  const showSide = showImage || showVideo || showPdfPreview;
+  const showSide = showImage || showVideo || showPdfPreview || textBesidePrompt;
   const chipImage = step.image || coverImage(prompt);
   const promptCount = steps.filter((item) => item.promptSaved).length;
   const pageImageCount = stepHasImage(step) ? 1 : 0;
@@ -1904,6 +1905,37 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     if (fromState) return fromState;
     const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
     return String(node?.textContent || '').replace(/\u00a0/g, ' ').trim();
+  }
+
+  function renderPdfTextSheet(beside) {
+    return (
+      <div
+        className={beside ? 'prompt-pdf-sheet prompt-pdf-sheet--beside' : 'prompt-pdf-sheet'}
+        ref={pdfSheetRef}
+      >
+        {showPdfPreview ? (
+          <button type="button" className="prompt-pdf-sheet__remove" onClick={foldPdfPreview}>
+            Remove
+          </button>
+        ) : null}
+        <DescriptionField
+          className="prompt-pdf-sheet__page scroll-match-bg"
+          value={keptTranscript || pdfScan}
+          label="Documento"
+          placeholder={pdfScanReading ? 'Reading the PDF…' : ''}
+          onChange={(next) => {
+            setPdfScan(next);
+            setKeptTranscript(next);
+            textPanelKept.current = Boolean(String(next || '').trim());
+          }}
+        />
+        <div className="prompt-pdf-sheet__foot">
+          <button type="button" className="prompt-panel__remove" onClick={deletePdf}>
+            Remove
+          </button>
+        </div>
+      </div>
+    );
   }
 
   function foldPdfPreview() {
@@ -3202,6 +3234,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             {pdfError ? <p role="alert">{pdfError}</p> : null}
           </div>
         ) : null}
+          {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen ? (
           <div className="prompt-sheet">
             <textarea
@@ -3263,29 +3296,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             )}
           </div>
           ) : ((showPdf && prompt.pdf?.name) || (pdfFolded && rightText)) ? (
-          <div className="prompt-pdf-sheet" ref={pdfSheetRef}>
-            {showPdfPreview ? (
-              <button type="button" className="prompt-pdf-sheet__remove" onClick={foldPdfPreview}>
-                Remove
-              </button>
-            ) : null}
-            <DescriptionField
-              className="prompt-pdf-sheet__page scroll-match-bg"
-              value={keptTranscript || pdfScan}
-              label="Documento"
-              placeholder={pdfScanReading ? 'Reading the PDF…' : ''}
-              onChange={(next) => {
-                setPdfScan(next);
-                setKeptTranscript(next);
-                textPanelKept.current = Boolean(String(next || '').trim());
-              }}
-            />
-            <div className="prompt-pdf-sheet__foot">
-              <button type="button" className="prompt-panel__remove" onClick={deletePdf}>
-                Remove
-              </button>
-            </div>
-          </div>
+          renderPdfTextSheet(false)
           ) : (
           <div className="prompt-home">
           <div className="prompt-index">

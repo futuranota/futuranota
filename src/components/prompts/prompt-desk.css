@@ -918,6 +918,17 @@
   align-self: stretch;
 }
 
+.prompt-panel__split--side > .prompt-pdf-sheet--beside {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .prompt-panel__split--prompt .prompt-home {
   grid-column: 1;
   grid-row: 2;
