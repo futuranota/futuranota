@@ -1,4 +1,5 @@
 import { logApiUsageEvent } from "./management/logApiUsage.js";
+import { structurePdfText } from "./promptPdfStructure.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || "qwen/qwen3.8-27b";
@@ -220,6 +221,7 @@ export function parsePdfFields(raw) {
  */
 export async function processPromptPdfRead(body) {
   if (body.pass === "improve") return processPromptImprove(body);
+  if (body.pass === "structure") return structurePdfText(body);
 
   const listed = Array.isArray(body.pages)
     ? body.pages

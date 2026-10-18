@@ -1201,6 +1201,23 @@
   cursor: default;
 }
 
+.prompt-panel__pdf-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1a1a1a;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-panel__pdf-pick input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #008AF5;
+  cursor: pointer;
+}
+
 .prompt-panel__media-foot .prompt-pdf__meta {
   margin: 0;
   max-width: 280px;
@@ -2209,6 +2226,70 @@
 }
 
 .prompt-home-save button {
+  border: 1px solid rgba(20, 20, 22, 0.22);
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+
+.prompt-organize {
+  width: min(480px, calc(100% - 48px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #fff;
+  color: #111;
+  box-shadow: 0 12px 32px rgba(20, 20, 22, 0.16);
+}
+
+.prompt-organize p {
+  margin: 0 0 14px;
+  color: #111;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.prompt-organize ul {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-organize li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #111;
+}
+
+.prompt-organize li span:first-child {
+  font-weight: 700;
+}
+
+.prompt-organize li span:last-child {
+  color: rgba(20, 20, 22, 0.72);
+}
+
+.prompt-organize div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-organize button {
   border: 1px solid rgba(20, 20, 22, 0.22);
   border-radius: 999px;
   background: #fff;

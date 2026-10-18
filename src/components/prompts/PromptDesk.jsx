@@ -17,6 +17,14 @@ import {
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
+import {
+  joinParagraphs,
+  joinPdfPageTexts,
+  numberTranscriptParagraphs,
+  prepareSheetFields,
+  previewParagraphs,
+  validateStructure,
+} from '../../lib/promptStructure.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import {
@@ -1252,9 +1260,18 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const [pdfPages, setPdfPages] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
+  const [pdfPick, setPdfPick] = useState([]);
   const [pdfStatus, setPdfStatus] = useState('idle');
   const [pdfScan, setPdfScan] = useState('');
   const [pdfScanReading, setPdfScanReading] = useState(false);
+  const [organizeAsk, setOrganizeAsk] = useState(null);
+  const [organizeLater, setOrganizeLater] = useState(false);
+  const [organizeError, setOrganizeError] = useState('');
+  const [organizePreview, setOrganizePreview] = useState(null);
+  const organizeMap = useRef(new Map());
+  const organizeSheets = useRef([]);
+  const organizeMode = useRef('replace');
+  const organizeLock = useRef(false);
   const [pdfPlain, setPdfPlain] = useState('');
   const [pdfSaving, setPdfSaving] = useState(false);
   const [pdfAsk, setPdfAsk] = useState('ask');
@@ -1478,6 +1495,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   }, [prompt.id, prompt.pdf?.name, prompt.pdf?.path, prompt.pdf?.url]);
 
   useEffect(() => {
+    setPdfPick((current) => (
+      current.length === pdfPages.length
+        ? current
+        : pdfPages.map((_, index) => current[index] === true)
+    ));
+  }, [pdfPages.length]);
+
+  useEffect(() => {
     if (!prompt.pdf?.name || pdfAsk !== 'ask' || prompt.pdf?.path || pdfStatus !== 'ready') {
       return undefined;
     }
@@ -1596,11 +1621,127 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     return images;
   }
 
+  function showTranscript(text) {
+    setPdfScan(text);
+    setOrganizeError('');
+    setOrganizePreview(null);
+    setOrganizeAsk('skill');
+  }
+
+  function dismissOrganize() {
+    setOrganizeAsk(null);
+    setOrganizePreview(null);
+    setOrganizeError('');
+    setOrganizeLater(true);
+  }
+
+  function beginOrganize() {
+    setOrganizeError('');
+    void runOrganize(steps.some(stepHasDraft) ? 'append' : 'replace');
+  }
+
+  async function runOrganize(mode) {
+    if (organizeLock.current) return;
+    organizeLock.current = true;
+    organizeMode.current = mode;
+    const numbered = numberTranscriptParagraphs(pdfScan);
+    if (!numbered.ids.length) {
+      organizeLock.current = false;
+      setOrganizeError('No pude organizarlo automáticamente');
+      setOrganizeAsk('error');
+      setOrganizeLater(true);
+      return;
+    }
+    organizeMap.current = numbered.map;
+    setOrganizeAsk('busy');
+    setOrganizePreview(null);
+    try {
+      const account = useAuthStore.getState().user;
+      const allowedModels = PROMPT_MODELS.map((model) => model.id);
+      const result = await apiClient(API_ROUTES.promptPdfRead, {
+        method: 'POST',
+        body: JSON.stringify({
+          pass: 'structure',
+          text: numbered.numbered,
+          ids: numbered.ids,
+          allowedModels,
+          userId: account?.id,
+          userEmail: account?.email,
+        }),
+      });
+      const checked = validateStructure(
+        { sheets: result?.sheets, extra: result?.extra },
+        numbered.ids,
+        allowedModels,
+      );
+      if (!result?.ok || !checked.ok) {
+        setOrganizeError('No pude organizarlo automáticamente');
+        setOrganizeAsk('error');
+        setOrganizeLater(true);
+        return;
+      }
+      organizeSheets.current = checked.sheets;
+      setOrganizePreview(checked.sheets.map((sheet) => ({
+        model: sheet.model,
+        label: sheet.model === 'none'
+          ? 'Por defecto'
+          : (PROMPT_MODELS.find((model) => model.id === sheet.model)?.label || 'Por defecto'),
+        snippet: previewParagraphs(sheet.prompt, numbered.map),
+      })));
+      setOrganizeAsk('preview');
+    } catch (error) {
+      console.warn('[prompt-desk] structure failed', error?.message || error);
+      setOrganizeError('No pude organizarlo automáticamente');
+      setOrganizeAsk('error');
+      setOrganizeLater(true);
+    } finally {
+      organizeLock.current = false;
+    }
+  }
+
+  function acceptOrganize() {
+    const map = organizeMap.current;
+    const sheets = organizeSheets.current;
+    if (!sheets.length) {
+      dismissOrganize();
+      return;
+    }
+    let variables = [...(prompt.variables || [])];
+    const nextSteps = sheets.map((sheet) => {
+      const prepared = prepareSheetFields(
+        joinParagraphs(sheet.instruction, map),
+        joinParagraphs(sheet.prompt, map),
+        variables,
+      );
+      variables = prepared.variables;
+      return {
+        ...blankStep(),
+        description: prepared.instruction,
+        prompt: prepared.prompt,
+        modelIds: sheet.model && sheet.model !== 'none' ? [sheet.model] : [],
+        promptSaved: false,
+      };
+    });
+    const mode = organizeMode.current;
+    const stepsNext = mode === 'append' ? [...steps, ...nextSteps] : nextSteps;
+    onPatch({
+      variables,
+      steps: stepsNext,
+      stepIndex: mode === 'append' ? steps.length : 0,
+    });
+    setOrganizeAsk(null);
+    setOrganizePreview(null);
+    setOrganizeError('');
+    setOrganizeLater(true);
+    setSheetOpen(true);
+  }
+
   async function extractPdf() {
     if (!prompt.pdf?.name || pdfImproving) return;
     setPdfReading(true);
     setPdfScanReading(true);
     setPdfError('');
+    setOrganizeAsk(null);
     try {
       const data = await pdfBytes();
       if (!data) {
@@ -1615,7 +1756,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           setPdfError('Couldn’t find text in this file.');
           return;
         }
-        setPdfScan(text);
+        showTranscript(text);
         return;
       }
       const images = await ensurePdfImages();
@@ -1623,10 +1764,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         setPdfError('Couldn’t display the PDF.');
         return;
       }
+      const picked = images.map((_, index) => pdfPick[index] === true);
+      if (picked.every((on) => !on)) {
+        setPdfError('Choose a page to extract.');
+        return;
+      }
       const extracted = await extractPdfPageTexts(data, { maxPages: images.length });
-      const texts = images.map((_, index) => extracted.pages[index] || '');
+      const texts = images.map((_, index) => (picked[index] ? (extracted.pages[index] || '') : ''));
       const missing = texts
-        .map((text, index) => (text ? -1 : index))
+        .map((text, index) => (picked[index] && !text ? index : -1))
         .filter((index) => index >= 0);
       if (missing.length) {
         const recognized = await ocrPdfPageImages(missing.map((index) => images[index]));
@@ -1634,13 +1780,13 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
           texts[pageIndex] = normalizePdfExtractedText(recognized[index] || '');
         });
       }
-      const text = normalizePdfExtractedText(texts.filter(Boolean).join('\n\n'));
+      const text = joinPdfPageTexts(texts.map((page) => normalizePdfExtractedText(page)));
       if (!text) {
         setPdfScan('');
         setPdfError('Couldn’t find text on these pages.');
         return;
       }
-      setPdfScan(text);
+      showTranscript(text);
     } catch (error) {
       console.warn('[prompt-desk] pdf text failed', error?.message || error);
       setPdfError(pdfReadError(error));
@@ -2294,6 +2440,17 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
+            {!sheetOpen && organizeLater && !organizeAsk && pdfScan.trim() ? (
+              <button type="button" className="prompt-models__item" onClick={beginOrganize}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3.5 13.4 8l4.6 1.2-4.6 1.3L12 15l-1.4-4.5L6 9.2 10.6 8Z" />
+                    <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
+                  </svg>
+                </span>
+                <span>Organizar con IA</span>
+              </button>
+            ) : null}
             {sheetOpen ? null : (
               <button
                 type="button"
@@ -2332,6 +2489,57 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   </button>
                   <button type="button" onClick={discardCreated}>No</button>
                 </div>
+              </div>
+            </div>,
+            document.body,
+          ) : null}
+          {!parked && organizeAsk ? createPortal(
+            <div className="prompt-home-save-layer">
+              <div className="prompt-organize" role="dialog" aria-label="Organizar con IA">
+                {organizeAsk === 'skill' ? (
+                  <>
+                    <p>¿Es este documento una habilidad a organizar?</p>
+                    <div>
+                      <button type="button" onClick={() => setOrganizeAsk('confirm')}>Yes</button>
+                      <button type="button" onClick={dismissOrganize}>No</button>
+                    </div>
+                  </>
+                ) : null}
+                {organizeAsk === 'confirm' ? (
+                  <>
+                    <p>¿Quieres que organice este documento en prompts, siguiendo el set de instrucciones?</p>
+                    <div>
+                      <button type="button" onClick={beginOrganize}>Yes</button>
+                      <button type="button" onClick={dismissOrganize}>No</button>
+                    </div>
+                  </>
+                ) : null}
+                {organizeAsk === 'busy' ? <p>Organizando…</p> : null}
+                {organizeAsk === 'preview' ? (
+                  <>
+                    <p>{`Encontré ${organizePreview?.length || 0} páginas`}</p>
+                    <ul>
+                      {(organizePreview || []).map((page, pageIndex) => (
+                        <li key={`${page.model}-${pageIndex}`}>
+                          <span>{page.label}</span>
+                          <span>{page.snippet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div>
+                      <button type="button" onClick={acceptOrganize}>Aceptar</button>
+                      <button type="button" onClick={dismissOrganize}>Cancelar</button>
+                    </div>
+                  </>
+                ) : null}
+                {organizeAsk === 'error' ? (
+                  <>
+                    <p>{organizeError || 'No pude organizarlo automáticamente'}</p>
+                    <div>
+                      <button type="button" onClick={dismissOrganize}>Cerrar</button>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>,
             document.body,
@@ -2508,7 +2716,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 <button
                   type="button"
                   className="prompt-pdf__extract"
-                  disabled={pdfReading || pdfImproving}
+                  disabled={pdfReading || pdfImproving || organizeAsk === 'busy'}
                   onClick={() => { void extractPdf(); }}
                 >
                   {pdfReading ? 'Reading…' : 'Extract data'}
@@ -2573,6 +2781,22 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   ›
                 </button>
               </div>
+            ) : null}
+            {pdfPages.length ? (
+              <label className="prompt-panel__pdf-pick">
+                <input
+                  type="checkbox"
+                  checked={pdfPick[Math.min(pdfPageIndex, pdfPages.length - 1)] === true}
+                  onChange={(event) => {
+                    const index = Math.min(pdfPageIndex, pdfPages.length - 1);
+                    const on = event.target.checked;
+                    setPdfPick((current) => pdfPages.map((_, item) => (
+                      item === index ? on : current[item] === true
+                    )));
+                  }}
+                />
+                <span>{`${pdfPick.filter(Boolean).length}/${pdfPages.length} selected`}</span>
+              </label>
             ) : null}
             {sheetOpen && pdfPages.length ? (
               <div className="prompt-panel__pdf-actions">
@@ -2662,9 +2886,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             <textarea
               className="prompt-pdf-sheet__page scroll-match-bg"
               value={pdfScan}
-              readOnly
               aria-label="Documento"
               placeholder={pdfScanReading ? 'Reading the PDF…' : ''}
+              onChange={(event) => setPdfScan(event.target.value)}
             />
           </div>
           ) : (
