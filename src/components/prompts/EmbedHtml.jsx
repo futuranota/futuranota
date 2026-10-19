@@ -7,6 +7,9 @@ const DEFAULTS = {
   button: '#f4f1eb',
 };
 
+const DESIGN_STORE = 'fn-embed-designs';
+const MAX_DESIGNS = 24;
+
 const FORMATS = [
   { id: 'bold', label: 'Bold', command: 'bold' },
   { id: 'italic', label: 'Italic', command: 'italic' },
@@ -43,6 +46,43 @@ function promptCardStyles(background, color, button) {
   const fill = hexColor(button, DEFAULTS.button);
   const buttonInk = readableOn(fill);
   return { box, ink, fill, buttonInk };
+}
+
+function sameColors(a, b) {
+  return hexColor(a.background, DEFAULTS.background) === hexColor(b.background, DEFAULTS.background)
+    && hexColor(a.color, DEFAULTS.color) === hexColor(b.color, DEFAULTS.color)
+    && hexColor(a.button, DEFAULTS.button) === hexColor(b.button, DEFAULTS.button);
+}
+
+function designLabel(index) {
+  return `Design ${String(index + 1).padStart(2, '0')}`;
+}
+
+function isDesign(item) {
+  return Boolean(item)
+    && typeof item.id === 'string'
+    && item.id.length > 0
+    && /^#[0-9a-fA-F]{6}$/.test(item.background || '')
+    && /^#[0-9a-fA-F]{6}$/.test(item.color || '')
+    && /^#[0-9a-fA-F]{6}$/.test(item.button || '');
+}
+
+function loadDesignStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DESIGN_STORE) || 'null');
+    const designs = Array.isArray(parsed?.designs)
+      ? parsed.designs.filter(isDesign).slice(0, MAX_DESIGNS).map((item) => ({
+        id: item.id,
+        background: item.background.toLowerCase(),
+        color: item.color.toLowerCase(),
+        button: item.button.toLowerCase(),
+      }))
+      : [];
+    const activeId = designs.some((item) => item.id === parsed?.activeId) ? parsed.activeId : null;
+    return { designs, activeId };
+  } catch {
+    return { designs: [], activeId: null };
+  }
 }
 
 function plainFrom(root) {
@@ -274,23 +314,33 @@ export function buildPromptEmbed({ text, markup = '', background, color, button 
 }
 
 export default function EmbedHtml() {
+  const storedDesigns = useMemo(() => loadDesignStore(), []);
+  const activeDesign = storedDesigns.designs.find((item) => item.id === storedDesigns.activeId);
   const [text, setText] = useState('');
-  const [background, setBackground] = useState(DEFAULTS.background);
-  const [color, setColor] = useState(DEFAULTS.color);
-  const [button, setButton] = useState(DEFAULTS.button);
+  const [background, setBackground] = useState(activeDesign?.background || DEFAULTS.background);
+  const [color, setColor] = useState(activeDesign?.color || DEFAULTS.color);
+  const [button, setButton] = useState(activeDesign?.button || DEFAULTS.button);
   const [markup, setMarkup] = useState('');
+  const [designs, setDesigns] = useState(storedDesigns.designs);
+  const [activeId, setActiveId] = useState(storedDesigns.activeId);
+  const [designsOpen, setDesignsOpen] = useState(false);
+  const [designNote, setDesignNote] = useState('');
   const [active, setActive] = useState({ bold: false, italic: false, underline: false, strike: false, highlight: false });
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const editorRef = useRef(null);
   const savedRange = useRef(null);
+  const designRef = useRef(null);
   const html = useMemo(
     () => buildPromptEmbed({ text, markup, background, color, button }),
     [text, markup, background, color, button],
   );
   const card = promptCardStyles(background, color, button);
   const overflow = text.length > SCROLL_AT;
+  const activeIndex = designs.findIndex((item) => item.id === activeId);
+  const applied = activeIndex >= 0 ? designs[activeIndex] : null;
+  const dirty = !sameColors({ background, color, button }, applied || DEFAULTS);
 
   function sync() {
     const root = editorRef.current;
@@ -376,13 +426,76 @@ export default function EmbedHtml() {
   }, []);
 
   useEffect(() => {
-    if (!codeOpen) return undefined;
+    if (!codeOpen && !designsOpen) return undefined;
     function onKey(event) {
-      if (event.key === 'Escape') setCodeOpen(false);
+      if (event.key !== 'Escape') return;
+      if (designsOpen) setDesignsOpen(false);
+      if (codeOpen) setCodeOpen(false);
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [codeOpen]);
+  }, [codeOpen, designsOpen]);
+
+  useEffect(() => {
+    if (!designsOpen) return undefined;
+    function onPointer(event) {
+      if (!designRef.current?.contains(event.target)) setDesignsOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [designsOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DESIGN_STORE, JSON.stringify({ designs, activeId }));
+    } catch {
+      /* The browser refused the design list. */
+    }
+  }, [designs, activeId]);
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem('fn-embed-logo');
+    } catch {
+      /* The stored icon is already gone. */
+    }
+  }, []);
+
+  function applyDesign(design) {
+    setBackground(design.background);
+    setColor(design.color);
+    setButton(design.button);
+    setActiveId(design.id);
+    setDesignsOpen(false);
+    setDesignNote('');
+  }
+
+  function saveDesign() {
+    if (!dirty) return;
+    if (designs.length >= MAX_DESIGNS) {
+      setDesignNote('24 designs max.');
+      return;
+    }
+    const next = {
+      id: crypto.randomUUID(),
+      background: card.box,
+      color: card.ink,
+      button: card.fill,
+    };
+    setDesigns((list) => [...list, next]);
+    setActiveId(next.id);
+    setDesignNote('');
+    setDesignsOpen(false);
+  }
+
+  function removeDesign(id) {
+    const next = designs.filter((item) => item.id !== id);
+    setDesigns(next);
+    setDesignNote('');
+    if (id !== activeId) return;
+    const match = next.find((item) => sameColors(item, { background, color, button }));
+    setActiveId(match ? match.id : null);
+  }
 
   async function copyEmbed() {
     const ok = await copyToClipboard(html);
@@ -477,7 +590,54 @@ export default function EmbedHtml() {
               <span>Button</span>
               <input type="color" value={button} aria-label="Button" onChange={(event) => setButton(event.target.value)} />
             </label>
+            {designs.length ? (
+              <div className="prompt-embed__designs" ref={designRef}>
+                <button
+                  type="button"
+                  className="prompt-embed__action"
+                  aria-haspopup="listbox"
+                  aria-expanded={designsOpen}
+                  onClick={() => setDesignsOpen((open) => !open)}
+                >
+                  Select design
+                </button>
+                {designsOpen ? (
+                  <ul className="prompt-embed__design-menu scroll-match-bg" role="listbox" aria-label="Select design">
+                    {designs.map((item, index) => (
+                      <li key={item.id} className="prompt-embed__design-row">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={item.id === activeId}
+                          className={item.id === activeId ? 'prompt-embed__design-pick is-active' : 'prompt-embed__design-pick'}
+                          onClick={() => applyDesign(item)}
+                        >
+                          <span>{designLabel(index)}</span>
+                          <span className="prompt-embed__swatch" style={{ background: item.background }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="prompt-embed__design-remove"
+                          aria-label={`Remove ${designLabel(index)}`}
+                          onClick={() => removeDesign(item.id)}
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </div>
+          {dirty ? (
+            <div className="prompt-embed__toolbar prompt-embed__save">
+              <button type="button" className="prompt-embed__action" onClick={saveDesign}>
+                Save design
+              </button>
+            </div>
+          ) : null}
+          {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
           </div>
         </div>
       </div>

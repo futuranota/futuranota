@@ -29,6 +29,7 @@ import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { beautifyPastedText, beautifyPromptFields, prepareFileHomeText } from '../../lib/promptBeautify.js';
+import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
 import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
 import {
@@ -486,7 +487,45 @@ function FloatInstructions({ value }) {
   );
 }
 
-function SheetFaces({ face, onFace, onBeautify }) {
+function TranslateControl({ target, busy, note, onTarget, onTranslate }) {
+  return (
+    <span className="prompt-translate">
+      <span className="prompt-translate__lang" role="group" aria-label="Idioma de traducción">
+        {['es', 'en'].map((lang) => (
+          <button
+            key={lang}
+            type="button"
+            className={target === lang ? 'is-on' : ''}
+            aria-pressed={target === lang}
+            disabled={busy}
+            onClick={() => onTarget(lang)}
+          >
+            {lang.toUpperCase()}
+          </button>
+        ))}
+      </span>
+      <button
+        type="button"
+        className="prompt-models__item"
+        disabled={busy}
+        onClick={onTranslate}
+      >
+        <span className="prompt-models__glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M5 6h8M9 6c0 6-2 9-5 11" />
+            <path d="M7 11h4" />
+            <path d="M14 18l3-8 3 8" />
+            <path d="M15.2 15.5h3.6" />
+          </svg>
+        </span>
+        <span>{busy ? 'Traduciendo…' : 'Traducir'}</span>
+      </button>
+      {note ? <span className="prompt-translate__note" role="status">{note}</span> : null}
+    </span>
+  );
+}
+
+function SheetFaces({ face, onFace, onBeautify, translate }) {
   return (
     <div className="prompt-sheet__faces">
       <div className="prompt-sheet__tabs" role="tablist" aria-label="Prompt pages">
@@ -509,6 +548,15 @@ function SheetFaces({ face, onFace, onBeautify }) {
       </button>
       </div>
       <span className="prompt-sheet__tools">
+        {translate ? (
+          <TranslateControl
+            target={translate.target}
+            busy={translate.busy}
+            note={translate.note}
+            onTarget={translate.onTarget}
+            onTranslate={translate.onTranslate}
+          />
+        ) : null}
         {onBeautify ? (
           <button type="button" className="prompt-sheet__beautify" onClick={onBeautify}>
             Organizar & embellecer
@@ -1503,6 +1551,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
   const [sheetFace, setSheetFace] = useState(1);
+  const [translateTarget, setTranslateTarget] = useState('es');
+  const [translateBusy, setTranslateBusy] = useState(false);
+  const [translateNote, setTranslateNote] = useState('');
   const rightText = String(keptTranscript || pdfScan || '').trim();
   const textBesidePrompt = Boolean(sheetOpen && rightText && !showImage && !showVideo);
   const showPdfPreview = showPdf && !pdfFolded && !textBesidePrompt;
@@ -1898,6 +1949,47 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     textPanelKept.current = Boolean(String(next || '').trim());
     setPdfScan(next);
     setKeptTranscript(next);
+  }
+
+  const canTranslateText = Boolean(rightText);
+  const canTranslatePrompt = Boolean(
+    String(step.description || '').trim() || String(step.prompt || '').trim(),
+  );
+  const showTextTranslate = !sheetOpen && canTranslateText;
+  const showPromptTranslate = sheetOpen && (canTranslatePrompt || textBesidePrompt);
+
+  async function runTranslate(target = translateTarget) {
+    const nextTarget = target === 'en' ? 'en' : 'es';
+    setTranslateTarget(nextTarget);
+    if (translateBusy) return;
+    const includeText = (!sheetOpen && canTranslateText) || (sheetOpen && textBesidePrompt);
+    const includePrompt = sheetOpen && canTranslatePrompt;
+    if (!includeText && !includePrompt) return;
+    setTranslateBusy(true);
+    setTranslateNote('');
+    try {
+      if (includeText) {
+        const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
+        const live = node ? readMarked(node) : '';
+        const next = await translateDeskText(live || keptTranscript || pdfScan, nextTarget);
+        textPanelKept.current = Boolean(String(next || '').trim());
+        setPdfScan(next);
+        setKeptTranscript(next);
+      }
+      if (includePrompt) {
+        const description = await translateDeskText(step.description || '', nextTarget);
+        const promptText = await translateDeskText(step.prompt || '', nextTarget);
+        patchStep({ description, prompt: promptText, promptSaved: false });
+      }
+    } catch (error) {
+      setTranslateNote(
+        error?.code === 'passthrough' || error?.message === 'passthrough'
+          ? 'No pude traducir. La clave de traducción no respondió.'
+          : 'No pude traducir ahora.',
+      );
+    } finally {
+      setTranslateBusy(false);
+    }
   }
 
   function rightPanelText() {
@@ -2803,6 +2895,15 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
+            {showTextTranslate ? (
+              <TranslateControl
+                target={translateTarget}
+                busy={translateBusy}
+                note={translateNote}
+                onTarget={(lang) => { void runTranslate(lang); }}
+                onTranslate={() => { void runTranslate(); }}
+              />
+            ) : null}
             {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
               <button
                 type="button"
@@ -3252,6 +3353,13 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               face={sheetFace}
               onFace={setSheetFace}
               onBeautify={stepHasDraft(step) ? organizeAndBeautify : null}
+              translate={showPromptTranslate ? {
+                target: translateTarget,
+                busy: translateBusy,
+                note: translateNote,
+                onTarget: (lang) => { void runTranslate(lang); },
+                onTranslate: () => { void runTranslate(); },
+              } : null}
             />
             {sheetFace === 0 ? (
               <DescriptionField

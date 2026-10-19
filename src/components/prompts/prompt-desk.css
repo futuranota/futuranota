@@ -302,7 +302,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: stretch;
   gap: 8px;
+  width: 100%;
   max-width: 100%;
 }
 
@@ -431,6 +433,95 @@
   max-width: 960px;
   padding: 20px;
   border-radius: 12px;
+}
+
+.prompt-embed__designs {
+  position: relative;
+}
+
+.prompt-embed__save {
+  margin-left: auto;
+}
+
+.prompt-embed__design-pick,
+.prompt-embed__design-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.prompt-embed__swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(20, 20, 22, 0.16);
+  border-radius: 3px;
+}
+
+.prompt-embed__design-menu {
+  --scroll-bg: #fff;
+  --scroll-thumb: rgba(20, 20, 22, 0.22);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 4;
+  width: 180px;
+  max-height: 240px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.prompt-embed__design-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.prompt-embed__design-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.prompt-embed__design-pick:hover,
+.prompt-embed__design-pick.is-active {
+  background: rgba(20, 20, 22, 0.06);
+}
+
+.prompt-embed__design-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.prompt-embed__design-remove:hover {
+  background: rgba(20, 20, 22, 0.06);
+}
+
+.prompt-embed__note {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8a3d3d;
 }
 
 .prompt-embed__text-wrap {
@@ -2192,6 +2283,65 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.prompt-translate {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.prompt-translate__lang {
+  display: inline-flex;
+  border: 1px solid rgba(20, 20, 22, 0.14);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.prompt-translate__lang button {
+  border: 0;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 26px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.prompt-translate__lang button.is-on {
+  background: rgba(20, 20, 22, 0.08);
+}
+
+.prompt-translate__lang button:disabled,
+.prompt-translate .prompt-models__item:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.prompt-translate__note {
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a3b3b;
+}
+
+.prompt-sheet__faces .prompt-translate__lang button {
+  border: 0;
+  padding: 0 8px;
+  color: #111;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.prompt-sheet__faces .prompt-translate .prompt-models__item {
+  border: 1px solid rgba(20, 20, 22, 0.14);
+  padding: 2px 10px 2px 3px;
+  color: #111;
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .prompt-sheet__faces .prompt-sheet__beautify,
