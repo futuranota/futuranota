@@ -31,7 +31,7 @@ import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/vi
 import { beautifyPastedText, beautifyPromptFields, prepareFileHomeText } from '../../lib/promptBeautify.js';
 import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
-import { liftPromptPlaceholders, resolvePrompt } from '../../lib/promptVariables.js';
+import { documentVariables, liftPromptPlaceholders, resolvePrompt, stampVariables } from '../../lib/promptVariables.js';
 import {
   joinParagraphs,
   joinPdfPageTexts,
@@ -91,6 +91,7 @@ function blankStep() {
     pdf: null,
     format: 'text',
     promptSaved: false,
+    sheetFace: 1,
   };
 }
 
@@ -187,6 +188,16 @@ function promptHasText(value) {
   return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark|h1|ul|li)>/gi, '').trim());
 }
 
+function sheetFaceForContent(description, prompt) {
+  if (!promptHasText(prompt) && promptHasText(description)) return 0;
+  return 1;
+}
+
+function faceForStep(step) {
+  if (step?.sheetFace === 0 || step?.sheetFace === 1) return step.sheetFace;
+  return sheetFaceForContent(step?.description, step?.prompt);
+}
+
 function stepHasDraft(item) {
   return promptHasText(item?.prompt) || promptHasText(item?.description);
 }
@@ -204,7 +215,7 @@ function stepHasWork(item) {
 function promptLevelWork(prompt) {
   const name = String(prompt?.name || '').trim();
   const named = Boolean(name) && name !== 'Untitled';
-  const hasVars = (prompt?.variables || []).some((variable) => (
+  const hasVars = documentVariables(prompt).some((variable) => (
     String(variable?.name || '').trim() || String(variable?.value || '').trim()
   ));
   const hasMedia = Boolean(
@@ -228,11 +239,12 @@ function markStepUnsaved(stepId, patch = {}) {
   return { ...patch, stepPatch };
 }
 
-function stepsAfterSave(prompt, currentStepId) {
+function stepsAfterSave(prompt, currentStepId, openedIds) {
   const level = promptLevelWork(prompt);
   return (prompt?.steps || []).map((item) => {
     if (item.promptSaved) return item;
-    if (stepHasWork(item) || (level && item.id === currentStepId)) {
+    const added = openedIds ? !openedIds.has(item.id) : false;
+    if (stepHasWork(item) || (level && item.id === currentStepId) || added) {
       return { ...item, promptSaved: true };
     }
     return item;
@@ -971,7 +983,7 @@ export default function PromptDesk() {
       (folder.prompts || []).forEach((prompt) => {
         files[prompt.id] = {
           name: prompt.name || '',
-          variables: (prompt.variables || []).map((item) => ({ ...item })),
+          variables: documentVariables(prompt),
           referenceUrl: prompt.referenceUrl || '',
           referenceName: prompt.referenceName || '',
         };
@@ -1005,7 +1017,7 @@ export default function PromptDesk() {
         if (!dirty) {
           committed.files[prompt.id] = {
             name: prompt.name || '',
-            variables: (prompt.variables || []).map((item) => ({ ...item })),
+            variables: documentVariables(prompt),
             referenceUrl: prompt.referenceUrl || '',
             referenceName: prompt.referenceName || '',
           };
@@ -1037,7 +1049,7 @@ export default function PromptDesk() {
         return {
           ...prompt,
           name: file.name,
-          variables: file.variables,
+          variables: documentVariables({ id: prompt.id, variables: file.variables }),
           referenceUrl: file.referenceUrl,
           referenceName: file.referenceName,
           steps,
@@ -1106,9 +1118,10 @@ export default function PromptDesk() {
       return;
     }
     setLimitNote('');
+    const created = { ...prompt, variables: [] };
     updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId
-        ? { ...folder, prompts: [...folder.prompts, prompt] }
+        ? { ...folder, prompts: [...folder.prompts, created] }
         : folder
     )), 'now');
   }
@@ -1297,6 +1310,7 @@ export default function PromptDesk() {
     }
     slot.root.render(
       <FloatCard
+        key={activePrompt.prompt.id}
         prompt={activePrompt.prompt}
         view={slot.window}
         onPatch={patchPrompt}
@@ -1386,6 +1400,7 @@ export default function PromptDesk() {
 
       {activePrompt ? (
         <InstructionPanel
+          key={activePrompt.prompt.id}
           prompt={activePrompt.prompt}
           compact={compact}
           parked={floating}
@@ -1491,7 +1506,8 @@ function ModelMenu({ customDraft, onCustomDraft, onChange }) {
 function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpand, onClose }) {
   const plan = usePlanStore((state) => state.profile.plan);
   const { steps, index, step } = stepAt(prompt);
-  const copiedText = plainCopy(step.prompt, prompt.variables || []);
+  const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
+  const copiedText = plainCopy(step.prompt, ownedVariables);
   const canCopy = Boolean(step.promptSaved && copiedText);
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
@@ -1550,7 +1566,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const editRoot = useRef(null);
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
-  const [sheetFace, setSheetFace] = useState(1);
+  const [sheetFace, setSheetFace] = useState(() => faceForStep(step));
   const [translateTarget, setTranslateTarget] = useState('es');
   const [translateBusy, setTranslateBusy] = useState(false);
   const [translateNote, setTranslateNote] = useState('');
@@ -1568,11 +1584,23 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   const sideHold = useRef(false);
   const savedStepsRef = useRef({});
   const savedPromptRef = useRef(null);
+  const openedStepIds = useRef(new Set());
+  const openedFor = useRef(null);
+  if (openedFor.current !== prompt.id) {
+    openedFor.current = prompt.id;
+    openedStepIds.current = new Set(steps.map((item) => item.id));
+  }
   const homeLogo = PROMPT_MODELS.find((model) => model.id === (step.modelIds || [])[0]) || null;
   const pdfPickCount = pdfPick.filter(Boolean).length;
 
   function patchStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch } });
+  }
+
+  function chooseFace(face) {
+    setSheetFace(face);
+    if (step.sheetFace === face) return;
+    patchStep({ sheetFace: face });
   }
 
   async function copyHref(href) {
@@ -1641,7 +1669,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     if (!promptNeedsSave(prompt, step)) {
       savedPromptRef.current = {
         name: prompt.name || '',
-        variables: (prompt.variables || []).map((item) => ({ ...item })),
+        variables: ownedVariables.map((item) => ({ ...item })),
         referenceUrl: prompt.referenceUrl || '',
         referenceName: prompt.referenceName || '',
       };
@@ -1652,6 +1680,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setModelOpen(false);
     setFormatOpen(false);
     setCustomModel('');
+    setSheetFace(faceForStep(step));
   }, [step.id]);
 
   useEffect(() => {
@@ -1922,7 +1951,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     if (sheetOpen && !stepHasDraft(step)) {
       setPdfScan(text);
       setSheetFace(1);
-      patchStep({ prompt: organizePlainLists(text), promptSaved: false });
+      patchStep({ prompt: organizePlainLists(text), sheetFace: 1, promptSaved: false });
       return;
     }
     showTranscript(text);
@@ -2057,6 +2086,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       ...blankStep(),
       description: sheet.instruction,
       prompt: sheet.prompt,
+      sheetFace: sheetFaceForContent(sheet.instruction, sheet.prompt),
       promptSaved: false,
     }));
     const combined = mode === 'append' ? [...steps, ...built] : built;
@@ -2076,7 +2106,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setOrganizePreview(null);
     setOrganizeError('');
     setOrganizeLater(true);
-    setSheetFace(sheets.some((sheet) => sheet.instruction.trim()) ? 0 : 1);
+    setSheetFace(faceForStep(stepsNext[mode === 'append' ? Math.min(steps.length, stepsNext.length - 1) : 0]));
     setSheetOpen(true);
   }
 
@@ -2087,7 +2117,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       dismissOrganize();
       return;
     }
-    let variables = [...(prompt.variables || [])];
+    let variables = ownedVariables.map((item) => ({ ...item }));
     const built = sheets.map((sheet) => {
       const prepared = prepareSheetFields(
         joinParagraphs(sheet.instruction, map),
@@ -2100,6 +2130,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         description: prepared.instruction,
         prompt: prepared.prompt,
         modelIds: sheet.model && sheet.model !== 'none' ? [sheet.model] : [],
+        sheetFace: sheetFaceForContent(prepared.instruction, prepared.prompt),
         promptSaved: false,
       };
     });
@@ -2113,7 +2144,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     }
     if (combined.length > stepsNext.length) setLimitNote(PROMPT_LIMIT_COPY.page);
     onPatch({
-      variables,
+      variables: stampVariables(variables, prompt.id),
       steps: stepsNext,
       stepIndex: mode === 'append' ? steps.length : 0,
     });
@@ -2223,11 +2254,11 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         setPdfError('Groq didn’t find text to improve.');
         return;
       }
-      const lifted = liftPromptPlaceholders(nextPrompt, prompt.variables || []);
+      const lifted = liftPromptPlaceholders(nextPrompt, ownedVariables);
       const title = String(result?.title || '').trim();
       onPatch({
         ...(title && !String(prompt.name || '').trim() ? { name: title } : {}),
-        variables: lifted.variables,
+        variables: stampVariables(lifted.variables, prompt.id),
         stepPatch: {
           id: step.id,
           description: nextDescription,
@@ -2410,7 +2441,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   }
 
   function saveAllPrompts() {
-    onPatch({ steps: stepsAfterSave(prompt, step.id) });
+    onPatch({ steps: stepsAfterSave(prompt, step.id, openedStepIds.current) });
   }
 
   function editStep() {
@@ -2431,6 +2462,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       const prev = savedStepsRef.current[item.id];
       const promptText = item.prompt || '';
       const description = item.description || '';
+      if (!openedStepIds.current.has(item.id) && !item.promptSaved) return true;
       if (!prev) {
         if (promptHasText(promptText) || promptHasText(description)) return true;
         continue;
@@ -2475,7 +2507,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     onPatch({
       ...(file ? {
         name: file.name,
-        variables: file.variables,
+        variables: stampVariables(file.variables, prompt.id),
         referenceUrl: file.referenceUrl,
         referenceName: file.referenceName,
       } : {}),
@@ -2501,12 +2533,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   function goBack() {
     if (index <= 0) return;
     imageHold.current = false;
+    setSheetFace(faceForStep(steps[index - 1]));
     onPatch({ stepIndex: index - 1 });
   }
 
   function goForward() {
     imageHold.current = false;
     if (index < steps.length - 1) {
+      setSheetFace(faceForStep(steps[index + 1]));
       onPatch({ stepIndex: index + 1 });
       return;
     }
@@ -2537,9 +2571,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   function organizeAndBeautify() {
     if (!stepHasDraft(step)) return;
-    const next = beautifyPromptFields(step.description, step.prompt, prompt.variables || []);
+    const next = beautifyPromptFields(step.description, step.prompt, ownedVariables);
     onPatch({
-      variables: next.variables,
+      variables: stampVariables(next.variables, prompt.id),
       stepPatch: {
         id: step.id,
         description: next.description,
@@ -2556,16 +2590,25 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     }
     if (variables && nextPrompt != null) {
       onPatch({
-        variables,
-        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false },
+        variables: stampVariables(variables, prompt.id),
+        stepPatch: {
+          id: step.id,
+          prompt: nextPrompt,
+          promptSaved: false,
+          ...(step.sheetFace === 1 ? {} : { sheetFace: 1 }),
+        },
       });
       return;
     }
     if (variables) {
-      onPatch(markStepUnsaved(step.id, { variables }));
+      onPatch(markStepUnsaved(step.id, { variables: stampVariables(variables, prompt.id) }));
       return;
     }
-    patchStep({ prompt: nextPrompt, promptSaved: false });
+    patchStep({
+      prompt: nextPrompt,
+      promptSaved: false,
+      ...(step.sheetFace === 1 ? {} : { sheetFace: 1 }),
+    });
   }
 
   function trackEdit(root) {
@@ -2644,7 +2687,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
 
   async function copyPrompt() {
     if (!canCopy) return;
-    const ok = await copyRichText(copiedText, richCopy(step.prompt, prompt.variables || []));
+    const ok = await copyRichText(copiedText, richCopy(step.prompt, ownedVariables));
     if (!ok) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
@@ -3351,7 +3394,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             />
             <SheetFaces
               face={sheetFace}
-              onFace={setSheetFace}
+              onFace={chooseFace}
               onBeautify={stepHasDraft(step) ? organizeAndBeautify : null}
               translate={showPromptTranslate ? {
                 target: translateTarget,
@@ -3366,16 +3409,21 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                 className="prompt-sheet__description"
                 value={step.description || ''}
                 readOnly={Boolean(step.promptSaved)}
-                onChange={(description) => patchStep({ description, promptSaved: false })}
+                onChange={(description) => patchStep({
+                  description,
+                  promptSaved: false,
+                  ...(step.sheetFace === 0 ? {} : { sheetFace: 0 }),
+                })}
                 onEditFocus={trackEdit}
                 onUrlPaste={setUrlOffer}
               />
             ) : (
             <div className="prompt-drawer">
             <PromptBody
-              key={step.id}
+              key={`${prompt.id}:${step.id}`}
               prompt={step.prompt}
-              variables={prompt.variables || []}
+              documentId={prompt.id}
+              variables={ownedVariables}
               placeholder={'Write your prompt (press "#+space" for upper case)'}
               readOnly={Boolean(step.promptSaved)}
               onCommit={commitBody}
@@ -3415,7 +3463,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               onClick={openBuiltPrompt}
             >
               {[steps[index - 1] || null, step, steps[index + 1] || null].map((page, place) => {
-                const text = page ? plainCopy(page.prompt, prompt.variables || []) : '';
+                const text = page ? plainCopy(page.prompt, ownedVariables) : '';
                 return (
                   <span
                     key={page?.id || `empty-${place}`}
@@ -3515,8 +3563,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
       <VariableDeck
         open={varsOpen}
         title={prompt.name}
-        variables={prompt.variables || []}
-        onChange={(variables) => onPatch(markStepUnsaved(step.id, { variables }))}
+        variables={ownedVariables}
+        documentId={prompt.id}
+        onChange={(next) => onPatch(markStepUnsaved(step.id, { variables: stampVariables(next, prompt.id) }))}
         onClose={() => setVarsOpen(false)}
       />
       {urlOpen ? (
@@ -3748,7 +3797,8 @@ async function copyInView(plain, html, view) {
 function FloatCard({ prompt, view, onPatch }) {
   const plan = usePlanStore((state) => state.profile.plan);
   const { steps, index, step } = stepAt(prompt);
-  const plain = plainCopy(step.prompt, prompt.variables || []);
+  const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
+  const plain = plainCopy(step.prompt, ownedVariables);
   const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
   const [limitNote, setLimitNote] = useState('');
@@ -3772,13 +3822,13 @@ function FloatCard({ prompt, view, onPatch }) {
     }
     if (variables && nextPrompt != null) {
       onPatch({
-        variables,
+        variables: stampVariables(variables, prompt.id),
         stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false },
       });
       return;
     }
     if (variables) {
-      onPatch(markStepUnsaved(step.id, { variables }));
+      onPatch(markStepUnsaved(step.id, { variables: stampVariables(variables, prompt.id) }));
       return;
     }
     onPatch({ stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false } });
@@ -3815,7 +3865,7 @@ function FloatCard({ prompt, view, onPatch }) {
 
   async function copyPrompt() {
     if (!canCopy) return;
-    const ok = await copyInView(plain, richCopy(step.prompt, prompt.variables || []), view);
+    const ok = await copyInView(plain, richCopy(step.prompt, ownedVariables), view);
     if (!ok) return;
     setCopied(true);
     view.setTimeout(() => setCopied(false), 1200);
@@ -3873,9 +3923,10 @@ function FloatCard({ prompt, view, onPatch }) {
             <FloatInstructions value={step.description || ''} />
           ) : (
           <PromptBody
-            key={step.id}
+            key={`${prompt.id}:${step.id}`}
             prompt={step.prompt}
-            variables={prompt.variables || []}
+            documentId={prompt.id}
+            variables={ownedVariables}
             placeholder={'Write your prompt (press "#+space" for upper case)'}
             readOnly={Boolean(step.promptSaved)}
             onCommit={commitBody}

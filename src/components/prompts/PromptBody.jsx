@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { dropUnknownTokens, parsePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
+import { documentVariables, dropUnknownTokens, parsePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
 
 function fieldText(variable) {
   if (!variable) return '[?]';
@@ -547,6 +547,7 @@ export function applyTitleShortcut(root) {
 export function PromptBody({
   prompt,
   variables,
+  documentId = '',
   onCommit,
   className,
   spellCheck = true,
@@ -565,7 +566,10 @@ export function PromptBody({
   const [menu, setMenu] = useState(null);
   const [naming, setNaming] = useState(false);
   const [draftName, setDraftName] = useState('');
-  const list = variables || [];
+  const list = useMemo(
+    () => documentVariables({ id: documentId, variables }),
+    [documentId, variables],
+  );
 
   function paintChips() {
     const root = editorRef.current;
@@ -697,7 +701,9 @@ export function PromptBody({
       return;
     }
     const id = crypto.randomUUID();
-    insertVariable(id, mentionRef.current, [{ id, name: trimmed, value: '' }, ...list]);
+    const created = { id, name: trimmed, value: '' };
+    if (documentId) created.documentId = documentId;
+    insertVariable(id, mentionRef.current, [created, ...list]);
   }
 
   function options() {
@@ -976,8 +982,11 @@ function fixedHost(root) {
   return doc.documentElement;
 }
 
-export function VariableDeck({ open, title, variables, onChange, onClose, inline = false }) {
-  const list = variables || [];
+export function VariableDeck({ open, title, variables, documentId = '', onChange, onClose, inline = false }) {
+  const list = useMemo(
+    () => documentVariables({ id: documentId, variables }),
+    [documentId, variables],
+  );
   const [draftName, setDraftName] = useState('');
   const [draftValue, setDraftValue] = useState('');
   const [renamingId, setRenamingId] = useState(null);
@@ -1000,9 +1009,11 @@ export function VariableDeck({ open, title, variables, onChange, onClose, inline
     }
     const existing = list.find((item) => item.name.toLowerCase() === name.toLowerCase());
     const id = existing?.id || crypto.randomUUID();
+    const created = { id, name, value: draftValue };
+    if (documentId) created.documentId = documentId;
     const next = existing
-      ? list.map((item) => (item.id === id ? { ...item, value: draftValue } : item))
-      : [...list, { id, name, value: draftValue }];
+      ? list.map((item) => (item.id === id ? { ...item, ...created, id } : item))
+      : [...list, created];
     onChange(next);
     setDraftName('');
     setDraftValue('');
@@ -1177,7 +1188,7 @@ export function VariableDeck({ open, title, variables, onChange, onClose, inline
           );
         })}
       </div>
-      <p className="prompt-library__info">Queue stores the product. Type @ in the prompt to place it.</p>
+      <p className="prompt-library__info">La cola es solo de este documento. Escribe @ en el prompt para colocarla.</p>
     </>
   );
 

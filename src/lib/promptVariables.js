@@ -57,13 +57,78 @@ export function liftPromptPlaceholders(template, variables) {
   return { prompt, variables: list };
 }
 
+function variableRecord(item) {
+  const record = {
+    id: String(item.id),
+    name: String(item.name),
+    value: item.value == null ? '' : String(item.value),
+  };
+  if (item.documentId) record.documentId = String(item.documentId);
+  return record;
+}
+
 export function normalizeVariables(value) {
   if (!Array.isArray(value)) return [];
   return value
     .filter((item) => item && item.id && item.name)
-    .map((item) => ({
-      id: String(item.id),
-      name: String(item.name),
-      value: item.value == null ? '' : String(item.value),
-    }));
+    .map((item) => variableRecord(item));
+}
+
+/** Variables stored on this document. Another document's list never qualifies. */
+export function documentVariables(prompt) {
+  const documentId = prompt?.id ? String(prompt.id) : '';
+  return normalizeVariables(prompt?.variables).filter((item) => (
+    !item.documentId || !documentId || item.documentId === documentId
+  ));
+}
+
+export function stampVariables(variables, documentId) {
+  const owner = documentId ? String(documentId) : '';
+  return normalizeVariables(variables).map((item) => (
+    owner ? { ...item, documentId: item.documentId || owner } : item
+  ));
+}
+
+function promptText(prompt) {
+  return (prompt?.steps || [])
+    .map((step) => `${step?.prompt || ''}\n${step?.description || ''}`)
+    .join('\n');
+}
+
+/**
+ * Each variable belongs to one document.
+ * A copy of the same id on another file is dropped unless that file's text uses it.
+ * An unused id copied onto several files stays on the first file only.
+ */
+export function claimDocumentVariables(folders) {
+  const prompts = (folders || []).flatMap((folder) => folder.prompts || []);
+  const referencedBy = new Map();
+  for (const prompt of prompts) {
+    for (const match of promptText(prompt).matchAll(/\{\{([^{}]+)\}\}/g)) {
+      const id = match[1];
+      let owners = referencedBy.get(id);
+      if (!owners) {
+        owners = new Set();
+        referencedBy.set(id, owners);
+      }
+      owners.add(prompt.id);
+    }
+  }
+  const parked = new Set();
+  return (folders || []).map((folder) => ({
+    ...folder,
+    prompts: (folder.prompts || []).map((prompt) => {
+      const seen = new Set();
+      const variables = normalizeVariables(prompt.variables).filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        const owners = referencedBy.get(item.id);
+        if (owners?.size) return owners.has(prompt.id);
+        if (parked.has(item.id)) return false;
+        parked.add(item.id);
+        return true;
+      }).map((item) => ({ ...item, documentId: prompt.id }));
+      return { ...prompt, variables };
+    }),
+  }));
 }

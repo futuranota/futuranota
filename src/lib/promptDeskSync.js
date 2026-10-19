@@ -1,7 +1,7 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
 import { PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
 import { storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
-import { normalizeVariables } from './promptVariables.js';
+import { claimDocumentVariables, normalizeVariables } from './promptVariables.js';
 import { supabase } from './supabaseClient.js';
 
 const BUCKET = 'prompt-images';
@@ -56,6 +56,7 @@ function stepFromRow(row) {
     format: row.format || 'text',
     modelIds: Array.isArray(row.model_ids) ? row.model_ids.filter((id) => typeof id === 'string' && id) : [],
     promptSaved: Boolean(row.prompt_saved),
+    ...(row.sheet_face === 0 || row.sheet_face === 1 ? { sheetFace: row.sheet_face } : {}),
   };
 }
 
@@ -72,7 +73,7 @@ export function foldersFromRows(collections, files, steps) {
     list.push(row);
     filesByCollection.set(row.collection_id, list);
   }
-  return (collections || []).map((collection) => ({
+  const built = (collections || []).map((collection) => ({
     id: collection.id,
     label: collection.label || 'Prompts',
     art: collection.art || 'aurora',
@@ -109,6 +110,7 @@ export function foldersFromRows(collections, files, steps) {
           }),
       })),
   }));
+  return claimDocumentVariables(built);
 }
 
 export async function loadPromptDesk(userId) {
@@ -192,6 +194,7 @@ function stepRow(step, userId, fileId, position) {
     format: step.format || 'text',
     model_ids: Array.isArray(step.modelIds) ? step.modelIds : [],
     prompt_saved: Boolean(step.promptSaved),
+    sheet_face: step.sheetFace === 0 || step.sheetFace === 1 ? step.sheetFace : null,
     image_path: step.imagePath || null,
     pdf_page: null,
     video_provider: null,
@@ -264,7 +267,16 @@ export async function savePromptDesk(userId, folders, previous) {
     if (error) throw error;
   }
   if (steps.length) {
-    const { error } = await supabase.from('prompt_steps').upsert(steps, { onConflict: 'id' });
+    let rows = steps;
+    let { error } = await supabase.from('prompt_steps').upsert(rows, { onConflict: 'id' });
+    if (error && /sheet_face/i.test(error.message || '')) {
+      rows = rows.map((row) => {
+        const next = { ...row };
+        delete next.sheet_face;
+        return next;
+      });
+      ({ error } = await supabase.from('prompt_steps').upsert(rows, { onConflict: 'id' }));
+    }
     if (error) throw error;
   }
 
