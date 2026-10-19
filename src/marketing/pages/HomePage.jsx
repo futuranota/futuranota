@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
 import { PATHS, authPath } from '../lib/paths.js';
+import { PixelSquares } from '../components/PixelSquares.jsx';
+import { GetStartedButton } from '../components/GetStartedButton.jsx';
+
+const KOFI_PAGE = 'futuranota';
 
 const CARDS = [
   { src: '/landing%20cards/quick%20prompt%20creation.svg', alt: 'Quick prompt creation' },
@@ -35,62 +39,55 @@ function Placeholder({ kind }) {
   );
 }
 
-function CoffeeButton() {
+function useLandingKofi() {
   useEffect(() => {
-    document.body.classList.add('landing-coffee', 'landing-hide-chat');
-    window.$crisp = window.$crisp || [];
-    window.$crisp.push(['do', 'chat:hide']);
+    document.body.classList.add('landing-kofi');
+    let cancelled = false;
+
+    const draw = () => {
+      if (cancelled || window.__futuraKofiDrawn || !window.kofiWidgetOverlay) return;
+      window.__futuraKofiDrawn = true;
+      window.kofiWidgetOverlay.draw(KOFI_PAGE, {
+        type: 'floating-chat',
+        'floating-chat.donateButton.text': 'Support me',
+        'floating-chat.donateButton.background-color': '#00b9fe',
+        'floating-chat.donateButton.text-color': '#fff',
+      });
+    };
+
+    if (window.kofiWidgetOverlay) {
+      draw();
+    } else {
+      let script = document.querySelector('script[data-kofi-overlay]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'https://storage.ko-fi.com/cdn/scripts/overlay-widget.js';
+        script.async = true;
+        script.dataset.kofiOverlay = 'true';
+        document.body.appendChild(script);
+      }
+      script.addEventListener('load', draw);
+    }
+
     return () => {
-      document.body.classList.remove('landing-coffee', 'landing-hide-chat');
-      window.$crisp?.push(['do', 'chat:show']);
+      cancelled = true;
+      document.body.classList.remove('landing-kofi');
     };
   }, []);
-
-  return null;
-}
-
-function SupportPanel() {
-  const [open, setOpen] = useState(false);
-  const proHref = authPath(undefined, { plan: 'pro', billing: 'monthly' });
-
-  return (
-    <div className="plain-support">
-      {open ? (
-        <div className="plain-support__panel" role="dialog" aria-label="Pro">
-          <button type="button" className="plain-support__close" onClick={() => setOpen(false)} aria-label="Close">
-            ×
-          </button>
-          <p className="plain-support__kicker">Pro</p>
-          <p className="plain-support__price">$20<span>/mo</span></p>
-          <p className="plain-support__note">The paid plan. Checkout stays on Stripe.</p>
-          <Link to={proHref} className="plain-signup plain-signup--block">Continue</Link>
-        </div>
-      ) : null}
-      <button
-        type="button"
-        className="plain-support__fab"
-        aria-expanded={open}
-        aria-label={open ? 'Close Pro' : 'Open Pro'}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 21s-6.5-4.1-9.2-8.2C1 10.2 1.4 7 4 5.6 6.2 4.4 8.4 5.2 9.6 7.1 10.4 5.8 12 5 13.6 5c2.8 0 4.6 2.2 4.2 5-.6 4.2-5.8 11-5.8 11z" />
-        </svg>
-      </button>
-    </div>
-  );
 }
 
 export function HomePage() {
   const { t } = useI18n();
+  useLandingKofi();
   return (
     <div className="plain-home">
       <section className="plain-home__hero">
+        <PixelSquares />
         <h1>Prompts, kept in one place.</h1>
         <p>
           Paste a prompt, keep an image or a video beside it, and copy it into ChatGPT, Claude, or Grok.
         </p>
-        <Link to={authPath()} className="plain-signup">{t('marketing.signUp')}</Link>
+        <GetStartedButton to={authPath()} />
       </section>
       <section className="plain-features" aria-label="What you can do">
         <h2>Discover Everything Futura Nota Can Do</h2>
@@ -110,7 +107,7 @@ export function HomePage() {
               <h2>Placeholder</h2>
               <p>Two lines of text sit beside the box, in the same place as the reference.</p>
               {row.action ? (
-                <Link to={authPath()} className="plain-signup">{t('marketing.signUp')}</Link>
+                <Link to={authPath(undefined, { plan: 'pro', billing: 'monthly' })} className="plain-signup">Pro · $5/mo</Link>
               ) : null}
             </div>
           </article>
@@ -141,8 +138,6 @@ export function HomePage() {
         <Link to={authPath('signin')}>{t('marketing.logIn')}</Link>
         <Link to={authPath()}>{t('marketing.signUp')}</Link>
       </footer>
-      <CoffeeButton />
-      <SupportPanel />
     </div>
   );
 }

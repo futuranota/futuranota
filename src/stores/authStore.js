@@ -93,7 +93,7 @@ export const useAuthStore = create((set, get) => ({
     const emailRedirectTo = loginRedirectQuery
       ? `${loginPath}?${loginRedirectQuery}`
       : loginPath;
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -101,6 +101,9 @@ export const useAuthStore = create((set, get) => ({
         emailRedirectTo,
       },
     });
+    if (!error && data?.session) {
+      set({ session: data.session, user: data.session.user, loading: false });
+    }
     if (error) {
       if (error.status === 429 || /rate limit|too many/i.test(error.message)) {
         throw new Error('Too many sign-up attempts. Wait a minute and try again.');

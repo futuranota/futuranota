@@ -41,6 +41,8 @@ import {
   readAssistanceMarkers,
   transcriptHasMarkers,
 } from '../../lib/promptStructure.js';
+import { cancelProSubscription, startProCheckout } from '../../lib/billingApi.js';
+import { useStripeCheckoutReturn } from '../../lib/useStripeCheckoutReturn.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
@@ -716,7 +718,14 @@ const DESK_VIEWS = [
 
 const SETTINGS_PANES = [
   { id: 'storage', label: 'Storage', to: '/app/settings/storage' },
+  { id: 'billing', label: 'Payments & Billings', to: '/app/settings/billing' },
 ];
+
+function settingsPaneFromPath(pathname) {
+  if (!pathname.startsWith('/app/settings')) return null;
+  if (pathname.startsWith('/app/settings/billing')) return 'billing';
+  return 'storage';
+}
 
 function viewFromPath(pathname) {
   if (pathname.startsWith('/app/settings')) return 'settings';
@@ -854,6 +863,83 @@ function DeskSidebar({ view, settingsPane }) {
         </span>
       </div>
     </aside>
+  );
+}
+
+function BillingSettings() {
+  const plan = usePlanStore((state) => state.profile.plan);
+  const fetchProfile = usePlanStore((state) => state.fetchProfile);
+  const pro = plan === 'pro';
+  const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [note, setNote] = useState('');
+
+  const upgrade = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote('');
+    try {
+      const { url } = await startProCheckout('monthly', { cancelReturn: 'app' });
+      if (!url) throw new Error('Stripe checkout URL missing');
+      window.location.assign(url);
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : 'Checkout failed');
+      setBusy(false);
+    }
+  };
+
+  const cancelPlan = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote('');
+    try {
+      await cancelProSubscription();
+      await fetchProfile();
+      setConfirmCancel(false);
+      setNote('Plan canceled. The account is back on the free plan.');
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : 'Cancel failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="prompt-desk__page prompt-billing">
+      <header className="prompt-desk__bar">
+        <p className="prompt-desk__mark">Payments & Billings</p>
+      </header>
+      <div className="prompt-billing__card">
+        <p className="prompt-billing__kicker">{pro ? 'Pro' : 'Free'}</p>
+        <p className="prompt-billing__price">{pro ? '$5' : '$0'}<span>/mo</span></p>
+        <p className="prompt-billing__note">
+          {pro
+            ? 'Pro is active. Canceling ends the Stripe subscription and the webhook returns this account to the free plan.'
+            : 'Upgrade to Pro for $5/mo. That unlocks more folders, files, pages, embeds, and 200 clicks.'}
+        </p>
+        {note ? <p className="prompt-desk__limit" role="status">{note}</p> : null}
+        {pro ? (
+          confirmCancel ? (
+            <div className="prompt-billing__actions">
+              <button type="button" className="prompt-billing__cancel" onClick={cancelPlan} disabled={busy}>
+                {busy ? 'Canceling…' : 'Confirm cancel'}
+              </button>
+              <button type="button" className="prompt-desk__new" onClick={() => setConfirmCancel(false)} disabled={busy}>
+                Keep Pro
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="prompt-billing__cancel" onClick={() => setConfirmCancel(true)}>
+              Cancel plan
+            </button>
+          )
+        ) : (
+          <button type="button" className="plain-signup" onClick={upgrade} disabled={busy}>
+            {busy ? 'Opening checkout…' : 'Upgrade to Pro'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1235,7 +1321,8 @@ function CreditGlass({ credits, ready, empty }) {
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
-  const settingsPane = location.pathname.startsWith('/app/settings') ? 'storage' : null;
+  const settingsPane = settingsPaneFromPath(location.pathname);
+  useStripeCheckoutReturn();
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -1756,8 +1843,15 @@ export default function PromptDesk() {
         settingsPane={settingsPane}
       />
       <div className="prompt-desk__main">
-      <CreditGlass credits={credits} ready={clicksReady} empty={Number.isFinite(clicksLeft) && clicksLeft <= 0} />
-      {view === 'settings' ? <StorageSettings /> : null}
+      {view === 'home' ? (
+        <CreditGlass
+          credits={credits}
+          ready={clicksReady}
+          empty={Number.isFinite(clicksLeft) && clicksLeft <= 0}
+        />
+      ) : null}
+      {view === 'settings' && settingsPane === 'billing' ? <BillingSettings /> : null}
+      {view === 'settings' && settingsPane !== 'billing' ? <StorageSettings /> : null}
       {view === 'embed' ? <EmbedHtml plan={plan} /> : null}
       {view === 'transcribe' ? (
         <>

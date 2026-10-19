@@ -29,18 +29,35 @@ export function AuthSignupCard({
 }) {
   const isSignup = mode === 'signup';
   const [form, setForm] = useState({
+    name: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
+  const [localError, setLocalError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setLocalError(null);
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit?.(form);
+    if (!isSignup) {
+      onSubmit?.(form);
+      return;
+    }
+    const name = form.name.trim();
+    if (!name) {
+      setLocalError('Enter your name.');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setLocalError('Passwords do not match.');
+      return;
+    }
+    onSubmit?.({ ...form, name });
   };
 
   return (
@@ -60,6 +77,20 @@ export function AuthSignupCard({
       ) : null}
 
       <form className="auth-simple__form" onSubmit={handleSubmit}>
+        {isSignup ? (
+          <input
+            id="name"
+            name="name"
+            type="text"
+            placeholder="Name"
+            aria-label="Name"
+            autoComplete="name"
+            className="auth-simple__input"
+            value={form.name}
+            onChange={handleChange}
+            required
+          />
+        ) : null}
         <input
           id="email"
           name="email"
@@ -84,6 +115,20 @@ export function AuthSignupCard({
           onChange={handleChange}
           required
         />
+        {isSignup ? (
+          <input
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            placeholder="Confirm password"
+            aria-label="Confirm password"
+            autoComplete="new-password"
+            className="auth-simple__input"
+            value={form.confirmPassword}
+            onChange={handleChange}
+            required
+          />
+        ) : null}
 
         {!isSignup ? (
           <Link to={PATHS.forgotPassword} className="auth-simple__forgot">
@@ -91,9 +136,9 @@ export function AuthSignupCard({
           </Link>
         ) : null}
 
-        {errorMessage ? (
+        {localError || errorMessage ? (
           <div className="auth-simple__error" role="alert">
-            {errorMessage}
+            {localError || errorMessage}
             {onRetryCheckout ? (
               <button
                 type="button"

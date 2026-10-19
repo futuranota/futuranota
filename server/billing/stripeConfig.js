@@ -14,7 +14,11 @@ export function getStripeWebhookSecret() {
 
 /** @returns {string} */
 export function getStripePriceProMonthly() {
-  return (process.env.STRIPE_PRICE_PRO_MONTHLY || "").trim();
+  return (
+    process.env.STRIPE_PRICE_PRO_MONTHLY
+    || process.env.STRIPE_PRICE_ID
+    || ""
+  ).trim();
 }
 
 /** @returns {string} */

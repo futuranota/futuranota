@@ -58,7 +58,7 @@ export function WelcomePage() {
     return {
       id: plan.id,
       label: plan.shortName || plan.name,
-      priceLabel: `$${price}${priceSuffix || ''}`,
+      priceLabel: plan.id === 'pro' && !isAnnual ? '$5/mo' : `$${price}${priceSuffix || ''}`,
     };
   }, [planId, billing]);
 
@@ -119,9 +119,12 @@ export function WelcomePage() {
         if (selectedPlan?.id === 'pro') {
           markPendingProCheckout(billing);
         }
+        const name = String(form.name || '').trim();
+        const firstName = name.split(/\s+/)[0] || name;
         await signUp(form.email, form.password, {
           plan: selectedPlan?.id ?? 'free',
           ...(billing ? { billing } : {}),
+          ...(name ? { full_name: name, name, first_name: firstName } : {}),
         }, checkoutQuery);
         markPendingLibrary();
         setPendingEmail(form.email);
