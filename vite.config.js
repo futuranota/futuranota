@@ -26,6 +26,7 @@ import { createDebugAgentLogMiddleware } from './server/debugAgentLogHandler.js'
 import { createGinaChatMiddleware } from './server/gina/ginaChatHandler.js';
 import { createPromptPdfMiddleware } from './server/promptPdfVision.js';
 import { createUsersMeMiddleware } from './server/usersMeHandler.js';
+import { createKofiWebhookMiddleware } from './server/kofiWebhookHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
@@ -39,6 +40,7 @@ function brandCadenceApiPlugin(env) {
       }
       // Debug agent logs first so the path is always available during sessions.
       server.middlewares.use(createDebugAgentLogMiddleware());
+      server.middlewares.use(createKofiWebhookMiddleware());
       server.middlewares.use(createBrandCadenceMiddleware());
       server.middlewares.use(createTranslateMiddleware());
       server.middlewares.use(createCampaignDetectorMiddleware());
