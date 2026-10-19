@@ -313,7 +313,28 @@ export function buildPromptEmbed({ text, markup = '', background, color, button 
 <!-- REFERENCE: END OF THE BLOCK -->`;
 }
 
-export default function EmbedHtml() {
+function EmbedAllowance({ plan }) {
+  const pro = plan === 'pro';
+  return (
+    <div
+      className={pro ? 'prompt-embed__allow is-pro' : 'prompt-embed__allow'}
+      role="status"
+      aria-label={pro ? 'Unlimited embeds' : '3 embeds al día, de por vida'}
+    >
+      {pro ? (
+        <strong>Unlimited</strong>
+      ) : (
+        <>
+          <span className="prompt-embed__allow-life" aria-hidden="true">∞</span>
+          <strong>3</strong>
+          <small>Se renueva cada día</small>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function EmbedHtml({ plan = 'free' }) {
   const storedDesigns = useMemo(() => loadDesignStore(), []);
   const activeDesign = storedDesigns.designs.find((item) => item.id === storedDesigns.activeId);
   const [text, setText] = useState('');
@@ -548,6 +569,7 @@ export default function EmbedHtml() {
             </div>
           </div>
           <div className="prompt-embed__bars">
+          <EmbedAllowance plan={plan} />
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
             {FORMATS.map((item) => (
               <button

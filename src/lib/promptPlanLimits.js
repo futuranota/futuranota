@@ -1,12 +1,20 @@
 /** Prompt desk limits. Separate from the older workspace caps in planConfig.js. */
 
-/**
- * Free and Pro caps stay defined below. They do not apply while the desk is in development.
- * Set this to true when the plan should start counting folders, files, pages, and tool calls.
- */
-export const PROMPT_LIMITS_ENFORCED = false;
+/** Free shelf, embed day, and the 3-click pool are live. Pro stays open except the credit pool. */
+export const PROMPT_LIMITS_ENFORCED = true;
 
 export const PROMPT_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
+
+/** One toolbar click. 3 free clicks = 21 credits. 200 Pro clicks = 1400 credits. */
+export const CREDITS_PER_CLICK = 7;
+
+export const PRO_PROMPT_CREDITS = 200 * CREDITS_PER_CLICK;
+
+/**
+ * Preview account. The desk treats this login as free until the founder asks for Pro.
+ * Clicks for this email live in the browser so the cap shows even if the profile row says pro.
+ */
+export const DESK_FREE_PREVIEW_EMAIL = 'contact.fnota@gmail.com';
 
 export const FREE_PROMPT_LIMITS = {
   maxFolders: 1,
@@ -16,11 +24,19 @@ export const FREE_PROMPT_LIMITS = {
   maxEmbedBoxesPerDay: 3,
 };
 
+export const PRO_PROMPT_LIMITS = {
+  maxFolders: Infinity,
+  maxFiles: Infinity,
+  maxPagesPerFile: Infinity,
+  maxToolCalls: 200,
+  maxEmbedBoxesPerDay: Infinity,
+};
+
 export const PROMPT_LIMIT_COPY = {
   folder: 'El plan gratis incluye 1 folder.',
   file: 'El plan gratis incluye 2 files.',
   page: 'El plan gratis incluye 6 páginas por file.',
-  tools: 'El plan gratis incluye 3 llamadas con los tools.',
+  tools: 'Se acabaron los 3 clics del plan gratis.',
   storage: 'Llegaste al tope de 5 GB.',
   embed: 'El plan gratis incluye 3 embeds por día. Mañana podés crear otro.',
   usage: 'No pude revisar las llamadas del plan gratis.',
@@ -29,6 +45,28 @@ export const PROMPT_LIMIT_COPY = {
 /** @param {string} [plan] */
 export function isPromptPro(plan) {
   return plan === 'pro';
+}
+
+/** @param {string} [email] */
+export function isDeskFreePreview(email) {
+  return String(email || '').trim().toLowerCase() === DESK_FREE_PREVIEW_EMAIL;
+}
+
+/**
+ * Plan the desk enforces. The preview login stays free even when the profile row is pro.
+ * @param {string} [email]
+ * @param {string} [profilePlan]
+ */
+export function deskPlan(email, profilePlan) {
+  if (isDeskFreePreview(email)) return 'free';
+  return profilePlan === 'pro' ? 'pro' : 'free';
+}
+
+/** @param {number} clicksLeft @param {string} [plan] */
+export function creditBalance(clicksLeft, plan) {
+  if (isPromptPro(plan)) return PRO_PROMPT_CREDITS;
+  const left = Number.isFinite(clicksLeft) ? clicksLeft : 0;
+  return Math.max(0, left) * CREDITS_PER_CLICK;
 }
 
 const OPEN_PROMPT_LIMITS = {
@@ -41,9 +79,10 @@ const OPEN_PROMPT_LIMITS = {
 
 /** @param {string} [plan] */
 export function promptLimits(plan) {
-  const counts = !PROMPT_LIMITS_ENFORCED || isPromptPro(plan)
-    ? OPEN_PROMPT_LIMITS
-    : FREE_PROMPT_LIMITS;
+  let counts = OPEN_PROMPT_LIMITS;
+  if (PROMPT_LIMITS_ENFORCED) {
+    counts = isPromptPro(plan) ? PRO_PROMPT_LIMITS : FREE_PROMPT_LIMITS;
+  }
   return { ...counts, storageBytes: PROMPT_STORAGE_BYTES };
 }
 

@@ -1,5 +1,11 @@
 import { supabase } from './supabaseClient.js';
-import { PROMPT_LIMIT_COPY, PROMPT_LIMITS_ENFORCED } from './promptPlanLimits.js';
+import {
+  FREE_PROMPT_LIMITS,
+  PROMPT_LIMIT_COPY,
+  PROMPT_LIMITS_ENFORCED,
+  deskPlan,
+  isDeskFreePreview,
+} from './promptPlanLimits.js';
 
 function payloadOf(data) {
   if (!data) return null;
@@ -23,6 +29,74 @@ export async function readPromptToolCalls(userId) {
     .maybeSingle();
   if (error) return null;
   return Number(data?.tool_calls) || 0;
+}
+
+function previewClickKey(email) {
+  return `fn-desk-clicks:${String(email || '').trim().toLowerCase()}`;
+}
+
+/** Clicks already spent by the free-preview login on this browser. */
+export function readPreviewClicks(email) {
+  try {
+    const raw = localStorage.getItem(previewClickKey(email));
+    const used = Number(raw);
+    return Number.isFinite(used) && used > 0 ? used : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writePreviewClicks(email, used) {
+  try {
+    localStorage.setItem(previewClickKey(email), String(used));
+  } catch {
+    // Private mode can block storage. The in-memory count still disables the buttons.
+  }
+}
+
+/**
+ * @param {{ userId?: string, email?: string, profilePlan?: string }} account
+ * @returns {Promise<number|null>}
+ */
+export async function readDeskToolCalls(account) {
+  const email = account?.email || '';
+  const profilePlan = account?.profilePlan;
+  if (isDeskFreePreview(email)) return readPreviewClicks(email);
+  if (deskPlan(email, profilePlan) === 'pro') return 0;
+  const remote = await readPromptToolCalls(account?.userId);
+  if (remote == null) return readPreviewClicks(email);
+  return remote;
+}
+
+/**
+ * Spend one free click. The preview login is counted in the browser.
+ * Other free accounts use the lifetime counter. Pro does not spend.
+ * @param {{ userId?: string, email?: string, profilePlan?: string }} account
+ */
+export async function spendDeskToolCall(account) {
+  const email = account?.email || '';
+  const profilePlan = account?.profilePlan;
+  if (isDeskFreePreview(email)) {
+    const cap = FREE_PROMPT_LIMITS.maxToolCalls;
+    const used = readPreviewClicks(email);
+    if (used >= cap) return { ok: false, reason: 'limit', toolCalls: used };
+    const toolCalls = used + 1;
+    writePreviewClicks(email, toolCalls);
+    return { ok: true, toolCalls };
+  }
+  if (deskPlan(email, profilePlan) === 'pro') {
+    return { ok: true, unlimited: true, toolCalls: 0 };
+  }
+  const remote = await consumePromptToolCall();
+  if (remote.reason === 'error') {
+    const cap = FREE_PROMPT_LIMITS.maxToolCalls;
+    const used = readPreviewClicks(email);
+    if (used >= cap) return { ok: false, reason: 'limit', toolCalls: used };
+    const toolCalls = used + 1;
+    writePreviewClicks(email, toolCalls);
+    return { ok: true, toolCalls };
+  }
+  return remote;
 }
 
 /** Spend one lifetime quick-tool call. Pro stays unlimited. */

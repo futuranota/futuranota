@@ -15,13 +15,15 @@ import {
   uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
-import { readPromptToolCalls } from '../../lib/promptDeskUsage.js';
+import { readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
   PROMPT_STORAGE_BYTES,
   canAddPromptFile,
   canAddPromptFolder,
   canAddPromptPage,
+  creditBalance,
+  deskPlan,
   promptLimits,
   promptToolCallsLeft,
 } from '../../lib/promptPlanLimits.js';
@@ -59,6 +61,7 @@ import './prompt-desk.css';
 const pdfFiles = new Map();
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
+const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
 
 const HOME_FRAMES = [
   '/Portada/left%20frame.png',
@@ -134,11 +137,18 @@ async function promptApi(body) {
   });
 }
 
+function activeDeskPlan() {
+  const email = useAuthStore.getState().user?.email || '';
+  return deskPlan(email, usePlanStore.getState().profile.plan);
+}
+
 async function freeToolAllowed() {
-  const plan = usePlanStore.getState().profile.plan;
+  const email = useAuthStore.getState().user?.email || '';
+  const profilePlan = usePlanStore.getState().profile.plan;
+  const plan = deskPlan(email, profilePlan);
   if (promptToolCallsLeft(0, plan) === Infinity) return { ok: true };
   const userId = useAuthStore.getState().user?.id || await currentPromptUserId();
-  const used = await readPromptToolCalls(userId);
+  const used = await readDeskToolCalls({ userId, email, profilePlan });
   if (used == null) return { ok: false, message: PROMPT_LIMIT_COPY.usage };
   if (promptToolCallsLeft(used, plan) <= 0) return { ok: false, message: PROMPT_LIMIT_COPY.tools };
   return { ok: true };
@@ -499,29 +509,10 @@ function FloatInstructions({ value }) {
   );
 }
 
-function TranslateControl({ target, busy, note, onTarget, onTranslate }) {
+function TranslateControl({ busy, note, disabled, onTarget }) {
   return (
     <span className="prompt-translate">
-      <span className="prompt-translate__lang" role="group" aria-label="Idioma de traducción">
-        {['es', 'en'].map((lang) => (
-          <button
-            key={lang}
-            type="button"
-            className={target === lang ? 'is-on' : ''}
-            aria-pressed={target === lang}
-            disabled={busy}
-            onClick={() => onTarget(lang)}
-          >
-            {lang.toUpperCase()}
-          </button>
-        ))}
-      </span>
-      <button
-        type="button"
-        className="prompt-models__item"
-        disabled={busy}
-        onClick={onTranslate}
-      >
+      <label className="prompt-models__item prompt-translate__pick">
         <span className="prompt-models__glyph" aria-hidden="true">
           <svg viewBox="0 0 24 24">
             <path d="M5 6h8M9 6c0 6-2 9-5 11" />
@@ -530,14 +521,27 @@ function TranslateControl({ target, busy, note, onTarget, onTranslate }) {
             <path d="M15.2 15.5h3.6" />
           </svg>
         </span>
-        <span>{busy ? 'Traduciendo…' : 'Traducir'}</span>
-      </button>
+        <select
+          aria-label="Translate"
+          value=""
+          disabled={busy || disabled}
+          title={disabled ? PROMPT_LIMIT_COPY.tools : undefined}
+          onChange={(event) => {
+            const lang = event.target.value;
+            if (lang) onTarget(lang);
+          }}
+        >
+          <option value="">{busy ? 'Translating…' : 'Translate'}</option>
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+        </select>
+      </label>
       {note ? <span className="prompt-translate__note" role="status">{note}</span> : null}
     </span>
   );
 }
 
-function SheetFaces({ face, onFace, onBeautify, translate }) {
+function SheetFaces({ face, onFace }) {
   return (
     <div className="prompt-sheet__faces">
       <div className="prompt-sheet__tabs" role="tablist" aria-label="Prompt pages">
@@ -560,20 +564,6 @@ function SheetFaces({ face, onFace, onBeautify, translate }) {
       </button>
       </div>
       <span className="prompt-sheet__tools">
-        {translate ? (
-          <TranslateControl
-            target={translate.target}
-            busy={translate.busy}
-            note={translate.note}
-            onTarget={translate.onTarget}
-            onTranslate={translate.onTranslate}
-          />
-        ) : null}
-        {onBeautify ? (
-          <button type="button" className="prompt-sheet__beautify" onClick={onBeautify}>
-            Organizar & embellecer
-          </button>
-        ) : null}
         <button
           type="button"
           className="prompt-sheet__next"
@@ -627,6 +617,40 @@ function blankFolder(index) {
     seed: index * 7 + 3,
     prompts: [],
   };
+}
+
+function isTranscriptFolder(folder) {
+  return folder?.label === TRANSCRIPT_FOLDER_LABEL;
+}
+
+function blankTranscriptFolder(index) {
+  return {
+    id: uid(),
+    label: TRANSCRIPT_FOLDER_LABEL,
+    art: ARTS[index % ARTS.length],
+    tone: index % 2 === 1 ? 'dark' : 'light',
+    seed: index * 7 + 11,
+    prompts: [],
+  };
+}
+
+function ensureTranscriptFolder(folders) {
+  const list = folders || [];
+  if (list.some(isTranscriptFolder)) return list;
+  return [...list, blankTranscriptFolder(list.length)];
+}
+
+function blankTranscript() {
+  return {
+    ...blankPrompt(),
+    name: 'Untitled transcript',
+    meta: 'Transcript',
+  };
+}
+
+function transcriptTitle(name) {
+  const base = String(name || '').replace(/\.[^.]+$/, '').trim();
+  return base || 'Untitled transcript';
 }
 
 function coverImage(prompt) {
@@ -685,6 +709,7 @@ function readImageFile(file, onLoad) {
 
 const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
+  { id: 'transcribe', label: 'Transcribe File', to: '/app/transcribe' },
   { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
   { id: 'embed', label: 'Embed Html', to: '/app/embed' },
 ];
@@ -696,6 +721,7 @@ const SETTINGS_PANES = [
 function viewFromPath(pathname) {
   if (pathname.startsWith('/app/settings')) return 'settings';
   if (pathname.startsWith('/app/embed')) return 'embed';
+  if (pathname.startsWith('/app/transcribe')) return 'transcribe';
   return 'home';
 }
 
@@ -712,6 +738,15 @@ function SideIcon({ name }) {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="m9 8-4 4 4 4M15 8l4 4-4 4" />
+      </svg>
+    );
+  }
+  if (name === 'transcribe') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 3h7l5 5v13H7z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 13h6M9 17h4" />
       </svg>
     );
   }
@@ -858,6 +893,236 @@ function StorageSettings() {
   );
 }
 
+function TranscribePage({ prompts, onCreate, onSave, onDelete }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = prompts.find((item) => item.id === selectedId) || null;
+  const savedStep = selected ? stepAt(selected).step : null;
+  const savedText = savedStep?.promptSaved ? (savedStep.prompt || '') : '';
+  const savedTitle = selected?.name || 'Untitled transcript';
+  const [title, setTitle] = useState(savedTitle);
+  const [text, setText] = useState(savedText);
+  const [reading, setReading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    if (selectedId && !prompts.some((item) => item.id === selectedId)) setSelectedId(null);
+  }, [prompts, selectedId]);
+
+  useEffect(() => {
+    setTitle(selected?.name || 'Untitled transcript');
+    const step = selected ? stepAt(selected).step : null;
+    setText(step?.promptSaved ? (step.prompt || '') : '');
+    setReading(false);
+    setSaving(false);
+    setCopied(false);
+    setError('');
+    setNote('');
+  }, [selectedId]);
+
+  const dirty = text !== savedText || (selected ? title.trim() !== savedTitle : Boolean(text.trim()));
+
+  async function readFile(file) {
+    if (!file || reading) return;
+    const kind = fileDocumentKind(file);
+    if (!kind) {
+      setError('Choose a PDF, Markdown, or text file.');
+      return;
+    }
+    setReading(true);
+    setError('');
+    setNote('');
+    try {
+      const data = await file.arrayBuffer();
+      let next = '';
+      if (kind !== 'pdf') {
+        next = normalizePdfExtractedText(bytesToText(data));
+      } else {
+        const rendered = await renderPdfPageImages(data);
+        const extracted = await extractPdfPageTexts(data, { maxPages: rendered.images.length });
+        const texts = rendered.images.map((_, index) => extracted.pages[index] || '');
+        const missing = texts
+          .map((page, index) => (page ? -1 : index))
+          .filter((index) => index >= 0);
+        if (missing.length) {
+          const recognized = await ocrPdfPageImages(missing.map((index) => rendered.images[index]));
+          missing.forEach((pageIndex, index) => {
+            texts[pageIndex] = normalizePdfExtractedText(recognized[index] || '');
+          });
+        }
+        next = joinPdfPageTexts(texts.map((page) => normalizePdfExtractedText(page)));
+      }
+      if (!next) {
+        setError('Couldn’t find text in this file.');
+        return;
+      }
+      setText(next);
+      if (!title.trim() || title === 'Untitled transcript') setTitle(transcriptTitle(file.name));
+    } catch (readError) {
+      setError(pdfReadError(readError));
+    } finally {
+      setReading(false);
+    }
+  }
+
+  async function copyText() {
+    const value = text.trim();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function startNew() {
+    setSelectedId(null);
+    setTitle('Untitled transcript');
+    setText('');
+    setError('');
+    setNote('');
+    setCopied(false);
+  }
+
+  async function saveTranscript() {
+    const value = text.trim();
+    const nextTitle = title.trim() || transcriptTitle('');
+    if (!value || saving) return;
+    setText(value);
+    setTitle(nextTitle);
+    setSaving(true);
+    setError('');
+    setNote('');
+    try {
+      if (selected && savedStep) {
+        await onSave(selected.id, {
+          name: nextTitle,
+          steps: [{
+            ...savedStep,
+            prompt: value,
+            description: '',
+            promptSaved: true,
+            format: 'text',
+            sheetFace: 1,
+          }],
+        });
+        setNote('Saved');
+        return;
+      }
+      const id = await onCreate({ name: nextTitle, text: value });
+      if (!id) return;
+      setSelectedId(id);
+      setNote('Saved');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Couldn’t save the transcript.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="prompt-transcribe" aria-label="Transcribe File">
+      <aside className="prompt-transcribe__list">
+        <button type="button" className="prompt-transcribe__new" onClick={startNew}>
+          New transcript
+        </button>
+        <div className="prompt-transcribe__saved scroll-match-bg">
+          {prompts.length ? prompts.map((item) => (
+            <div key={item.id} className={item.id === selectedId ? 'prompt-transcribe__row is-current' : 'prompt-transcribe__row'}>
+              <button type="button" onClick={() => setSelectedId(item.id)}>
+                {item.name || 'Untitled transcript'}
+              </button>
+              <button type="button" aria-label={`Delete ${item.name || 'transcript'}`} onClick={() => onDelete(item.id)}>
+                ×
+              </button>
+            </div>
+          )) : (
+            <p className="prompt-transcript__status">No transcripts yet.</p>
+          )}
+        </div>
+      </aside>
+      <div className="prompt-transcribe__reader">
+      <div className="prompt-transcript">
+        <textarea
+          className="prompt-panel__name"
+          value={title}
+          placeholder="Title"
+          aria-label="Title"
+          rows={1}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            setNote('');
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault();
+          }}
+        />
+        {!text && !reading ? (
+          <label className="prompt-transcript__pick">
+            <img src="/Pdf%20File.svg" alt="" />
+            <span>Choose a file</span>
+            <input
+              type="file"
+              accept="application/pdf,.pdf,.md,.markdown,text/plain,.txt"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                void readFile(file);
+              }}
+            />
+          </label>
+        ) : null}
+        {reading ? <p className="prompt-transcript__status">Reading the file…</p> : null}
+        {error ? <p className="prompt-transcript__status" role="alert">{error}</p> : null}
+        {text ? (
+          <textarea
+            className="prompt-transcript__text scroll-match-bg"
+            value={text}
+            aria-label="Transcript"
+            spellCheck
+            onChange={(event) => {
+              setText(event.target.value);
+              setNote('');
+            }}
+          />
+        ) : null}
+        <div className="prompt-transcript__actions">
+          {text ? (
+            <button type="button" onClick={() => { void copyText(); }}>
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          ) : null}
+          {text ? (
+            <button type="button" disabled={saving || !dirty || !text.trim()} onClick={() => { void saveTranscript(); }}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          ) : null}
+          {text && !reading ? (
+            <label className="prompt-transcript__replace">
+              <span>Replace file</span>
+              <input
+                type="file"
+                accept="application/pdf,.pdf,.md,.markdown,text/plain,.txt"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  void readFile(file);
+                }}
+              />
+            </label>
+          ) : null}
+          {note ? <span className="prompt-transcript__note" role="status">{note}</span> : null}
+        </div>
+      </div>
+      </div>
+    </section>
+  );
+}
+
 function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
   const [opened, setOpened] = useState(false);
   const sheets = useMemo(
@@ -906,7 +1171,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -948,6 +1213,25 @@ function saveMode(patch, beforePrompt) {
   return 'skip';
 }
 
+function CreditGlass({ credits, ready, empty }) {
+  const shown = ready ? credits : '—';
+  return (
+    <div
+      className={empty ? 'prompt-credits is-empty' : 'prompt-credits'}
+      role="status"
+      aria-label={ready ? `${credits} créditos` : 'Créditos'}
+    >
+      <span className="prompt-credits__coin" aria-hidden="true">
+        <img src="/PLANT%20TOKEN.png" alt="" />
+      </span>
+      <span className="prompt-credits__copy">
+        <strong>{shown}</strong>
+        <small>créditos</small>
+      </span>
+    </div>
+  );
+}
+
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
@@ -959,6 +1243,15 @@ export default function PromptDesk() {
   const [active, setActive] = useState(null);
   const [compact, setCompact] = useState(false);
   const [floating, setFloating] = useState(false);
+  const [toolCalls, setToolCalls] = useState(0);
+  const [clicksReady, setClicksReady] = useState(false);
+  const toolCallsRef = useRef(0);
+  const spendLock = useRef(false);
+  const email = useAuthStore((state) => state.user?.email || '');
+  const profilePlan = usePlanStore((state) => state.profile.plan);
+  const plan = deskPlan(email, profilePlan);
+  const clicksLeft = promptToolCallsLeft(toolCalls, plan);
+  const credits = creditBalance(clicksLeft, plan);
   const floatRef = useRef(null);
   const foldersRef = useRef([]);
   const savedRef = useRef([]);
@@ -967,6 +1260,60 @@ export default function PromptDesk() {
   const savingRef = useRef(null);
   const queuedRef = useRef(null);
   const committedRef = useRef({ steps: {}, files: {} });
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const userId = useAuthStore.getState().user?.id || await currentPromptUserId();
+      const used = await readDeskToolCalls({
+        userId,
+        email: useAuthStore.getState().user?.email || '',
+        profilePlan: usePlanStore.getState().profile.plan,
+      });
+      if (cancel || used == null) {
+        if (!cancel) setClicksReady(true);
+        return;
+      }
+      toolCallsRef.current = used;
+      setToolCalls(used);
+      setClicksReady(true);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [email, profilePlan]);
+
+  async function spendClick() {
+    const account = {
+      userId: userIdRef.current || useAuthStore.getState().user?.id || '',
+      email: useAuthStore.getState().user?.email || '',
+      profilePlan: usePlanStore.getState().profile.plan,
+    };
+    const currentPlan = deskPlan(account.email, account.profilePlan);
+    if (promptToolCallsLeft(toolCallsRef.current, currentPlan) <= 0) return false;
+    if (spendLock.current) return false;
+    spendLock.current = true;
+    try {
+      const result = await spendDeskToolCall(account);
+      if (!result.ok) {
+        const spent = Number(result.toolCalls);
+        if (Number.isFinite(spent)) {
+          toolCallsRef.current = spent;
+          setToolCalls(spent);
+        }
+        return false;
+      }
+      if (!result.unlimited) {
+        const spent = Number(result.toolCalls);
+        const next = Number.isFinite(spent) ? spent : toolCallsRef.current + 1;
+        toolCallsRef.current = next;
+        setToolCalls(next);
+      }
+      return true;
+    } finally {
+      spendLock.current = false;
+    }
+  }
 
   const activePrompt = useMemo(() => {
     if (!active || !folders) return null;
@@ -1102,7 +1449,7 @@ export default function PromptDesk() {
   }
 
   function addCollection() {
-    const plan = usePlanStore.getState().profile.plan;
+    const plan = activeDeskPlan();
     if (!canAddPromptFolder(foldersRef.current, plan)) {
       setLimitNote(PROMPT_LIMIT_COPY.folder);
       return;
@@ -1112,7 +1459,7 @@ export default function PromptDesk() {
   }
 
   function addPrompt(folderId, prompt) {
-    const plan = usePlanStore.getState().profile.plan;
+    const plan = activeDeskPlan();
     if (!canAddPromptFile(foldersRef.current, plan)) {
       setLimitNote(PROMPT_LIMIT_COPY.file);
       return;
@@ -1218,13 +1565,69 @@ export default function PromptDesk() {
     }
   }
 
+  function patchFolderPrompt(folderId, promptId, patch, mode) {
+    const before = (foldersRef.current || [])
+      .find((folder) => folder.id === folderId)
+      ?.prompts.find((prompt) => prompt.id === promptId);
+    return updateFolders((prev) => prev.map((folder) => {
+      if (folder.id !== folderId) return folder;
+      return {
+        ...folder,
+        prompts: folder.prompts.map((prompt) => (
+          prompt.id === promptId ? { ...prompt, ...patch } : prompt
+        )),
+      };
+    }), mode || saveMode(patch, before));
+  }
+
+  function createTranscript({ name, text }) {
+    const plan = activeDeskPlan();
+    if (!canAddPromptFile(foldersRef.current, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.file);
+      return null;
+    }
+    setLimitNote('');
+    const created = blankTranscript();
+    created.name = name;
+    created.steps = [{
+      ...created.steps[0],
+      prompt: text,
+      description: '',
+      promptSaved: true,
+      format: 'text',
+      sheetFace: 1,
+    }];
+    updateFolders((prev) => prev.map((folder) => (
+      isTranscriptFolder(folder)
+        ? { ...folder, prompts: [...folder.prompts, created] }
+        : folder
+    )), 'now');
+    return created.id;
+  }
+
+  function saveTranscriptItem(promptId, patch) {
+    const folder = (foldersRef.current || []).find(isTranscriptFolder);
+    if (!folder) return null;
+    return patchFolderPrompt(folder.id, promptId, { ...patch, meta: 'Transcript' }, 'now');
+  }
+
+  function deleteTranscript(promptId) {
+    const folder = (foldersRef.current || []).find(isTranscriptFolder);
+    if (!folder) return;
+    deletePrompt(folder.id, promptId);
+  }
+
   function renameFolder(folderId, label) {
+    const current = (foldersRef.current || []).find((folder) => folder.id === folderId);
+    if (isTranscriptFolder(current)) return;
     updateFolders((prev) => prev.map((folder) => (
       folder.id === folderId ? { ...folder, label } : folder
     )));
   }
 
   function deleteFolder(folderId) {
+    const current = (foldersRef.current || []).find((folder) => folder.id === folderId);
+    if (isTranscriptFolder(current)) return;
     updateFolders((prev) => prev.filter((folder) => folder.id !== folderId), 'now');
     setActive((current) => (current?.folderId === folderId ? null : current));
     setCompact(false);
@@ -1262,11 +1665,13 @@ export default function PromptDesk() {
         const loaded = await loadPromptDesk(userId);
         if (cancel || loadedOk) return;
         loadedOk = true;
-        const next = loaded.length ? loaded : [blankFolder(0)];
+        const base = loaded.length ? loaded : [blankFolder(0)];
+        const next = ensureTranscriptFolder(base);
         foldersRef.current = next;
         savedRef.current = loaded;
         seedCommitted(next);
         setFolders(next);
+        if (next !== base) void queueSave(next, 'now');
       } catch (error) {
         console.warn('[prompt-desk] load failed', error?.message || error);
       } finally {
@@ -1319,7 +1724,7 @@ export default function PromptDesk() {
   });
 
   const shownFolders = useMemo(() => {
-    const list = folders || [];
+    const list = (folders || []).filter((folder) => !isTranscriptFolder(folder));
     const q = submitted.trim().toLowerCase();
     if (!q) return list.map((folder) => ({ folder, searchOpen: false }));
     const matched = [];
@@ -1351,8 +1756,20 @@ export default function PromptDesk() {
         settingsPane={settingsPane}
       />
       <div className="prompt-desk__main">
+      <CreditGlass credits={credits} ready={clicksReady} empty={Number.isFinite(clicksLeft) && clicksLeft <= 0} />
       {view === 'settings' ? <StorageSettings /> : null}
-      {view === 'embed' ? <EmbedHtml /> : null}
+      {view === 'embed' ? <EmbedHtml plan={plan} /> : null}
+      {view === 'transcribe' ? (
+        <>
+          {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
+          <TranscribePage
+            prompts={(folders || []).find(isTranscriptFolder)?.prompts || []}
+            onCreate={createTranscript}
+            onSave={saveTranscriptItem}
+            onDelete={deleteTranscript}
+          />
+        </>
+      ) : null}
       {view === 'home' ? (
       <>
       <header className="prompt-desk__bar">
@@ -1398,12 +1815,15 @@ export default function PromptDesk() {
       </>
       ) : null}
 
-      {activePrompt ? (
+      {view === 'home' && activePrompt ? (
         <InstructionPanel
           key={activePrompt.prompt.id}
           prompt={activePrompt.prompt}
           compact={compact}
           parked={floating}
+          plan={plan}
+          clicksLeft={clicksLeft}
+          onSpendClick={spendClick}
           onPatch={patchPrompt}
           onCompact={() => { void openFloat(); }}
           onExpand={() => setCompact(false)}
@@ -1503,8 +1923,18 @@ function ModelMenu({ customDraft, onCustomDraft, onChange }) {
   );
 }
 
-function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpand, onClose }) {
-  const plan = usePlanStore((state) => state.profile.plan);
+function InstructionPanel({
+  prompt,
+  compact,
+  parked,
+  plan,
+  clicksLeft,
+  onSpendClick,
+  onPatch,
+  onCompact,
+  onExpand,
+  onClose,
+}) {
   const { steps, index, step } = stepAt(prompt);
   const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
   const copiedText = plainCopy(step.prompt, ownedVariables);
@@ -1881,14 +2311,14 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     }
     setVideoError('');
     setVideoDraft(parsed.rawInput);
-    onPatch(markStepUnsaved(step.id, {
+    onPatch({
       video: {
         rawInput: parsed.rawInput,
         provider: parsed.provider,
         videoId: parsed.videoId,
         embedSrc: parsed.embedSrc,
       },
-    }));
+    });
   }
 
   function removeVideo() {
@@ -1898,7 +2328,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setShowVideo(true);
     setShowPdf(false);
     setShowImage(false);
-    onPatch(markStepUnsaved(step.id, { video: null }));
+    onPatch({ video: null });
   }
 
   function takePdf(file) {
@@ -1916,7 +2346,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setShowPdf(true);
     setShowImage(false);
     setShowVideo(false);
-    onPatch(markStepUnsaved(step.id, { pdf: { name: file.name, path: '', url: '', kind } }));
+    onPatch({ pdf: { name: file.name, path: '', url: '', kind } });
   }
 
   async function pdfBytes() {
@@ -1964,14 +2394,24 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setOrganizeLater(true);
   }
 
-  function beginOrganize() {
+  const toolsLocked = Number.isFinite(clicksLeft) && clicksLeft <= 0;
+
+  async function takeClick() {
+    if (toolsLocked) return false;
+    if (!onSpendClick) return true;
+    return onSpendClick();
+  }
+
+  async function beginOrganize() {
+    if (!(await takeClick())) return;
     setOrganizeError('');
     setOrganizeAsk(null);
     setOrganizePreview(null);
     setPdfScan(beautifyPastedText(pdfScan));
   }
 
-  function prepareHomeFile() {
+  async function prepareHomeFile() {
+    if (!(await takeClick())) return;
     const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
     const live = node ? readMarked(node) : '';
     const next = prepareFileHomeText(live || keptTranscript || pdfScan);
@@ -1994,6 +2434,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     const includeText = (!sheetOpen && canTranslateText) || (sheetOpen && textBesidePrompt);
     const includePrompt = sheetOpen && canTranslatePrompt;
     if (!includeText && !includePrompt) return;
+    if (!(await takeClick())) return;
     setTranslateBusy(true);
     setTranslateNote('');
     try {
@@ -2013,8 +2454,8 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     } catch (error) {
       setTranslateNote(
         error?.code === 'passthrough' || error?.message === 'passthrough'
-          ? 'No pude traducir. La clave de traducción no respondió.'
-          : 'No pude traducir ahora.',
+          ? 'Could not translate. The translation key did not respond.'
+          : 'Could not translate right now.',
       );
     } finally {
       setTranslateBusy(false);
@@ -2302,7 +2743,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     setShowPdf(false);
     onPatch({
       pdf: null,
-      steps: steps.map((item) => ({ ...item, pdfPage: null, promptSaved: false })),
+      steps: steps.map((item) => ({ ...item, pdfPage: null })),
     });
   }
 
@@ -2324,7 +2765,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
         url: uploaded.url,
         kind: fileDocumentKind(file) || promptDocumentKind(file.name),
       };
-      await onPatch(markStepUnsaved(step.id, { pdf: saved }));
+      await onPatch({ pdf: saved });
       const { error } = await supabase
         .from('prompt_files')
         .update({
@@ -2569,8 +3010,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
     });
   }
 
-  function organizeAndBeautify() {
+  async function organizeAndBeautify() {
     if (!stepHasDraft(step)) return;
+    if (!(await takeClick())) return;
     const next = beautifyPromptFields(step.description, step.prompt, ownedVariables);
     onPatch({
       variables: stampVariables(next.variables, prompt.id),
@@ -2675,10 +3117,10 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
   function commitReference(name, href) {
     const nextUrl = String(href || '').trim();
     if (!nextUrl) return false;
-    onPatch(markStepUnsaved(step.id, {
+    onPatch({
       referenceName: String(name || '').trim(),
       referenceUrl: nextUrl,
-    }));
+    });
     setUrlName('');
     setUrlDraft('');
     setUrlEditing(false);
@@ -2754,7 +3196,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             placeholder="Nombre"
             aria-label="Nombre"
             rows={1}
-            onChange={(event) => onPatch(markStepUnsaved(step.id, { name: event.target.value }))}
+            onChange={(event) => onPatch({ name: event.target.value })}
             onKeyDown={(event) => {
               if (event.key === 'Enter') event.preventDefault();
             }}
@@ -2765,7 +3207,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <button
                 type="button"
                 onClick={() => {
-                  onPatch(markStepUnsaved(step.id, { referenceUrl: urlOffer }));
+                  onPatch({ referenceUrl: urlOffer });
                   setUrlOffer('');
                 }}
               >
@@ -2938,20 +3380,38 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <span>Prompt</span>
             </button>
             )}
-            {showTextTranslate ? (
+            {showTextTranslate || showPromptTranslate ? (
               <TranslateControl
-                target={translateTarget}
                 busy={translateBusy}
                 note={translateNote}
+                disabled={toolsLocked}
                 onTarget={(lang) => { void runTranslate(lang); }}
-                onTranslate={() => { void runTranslate(); }}
               />
+            ) : null}
+            {sheetOpen && stepHasDraft(step) ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                disabled={toolsLocked}
+                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
+                onClick={() => { void organizeAndBeautify(); }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3.5 13.4 8l4.6 1.2-4.6 1.3L12 15l-1.4-4.5L6 9.2 10.6 8Z" />
+                    <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
+                  </svg>
+                </span>
+                <span>Organize & beautify</span>
+              </button>
             ) : null}
             {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
               <button
                 type="button"
                 className="prompt-models__item"
-                onClick={prepareHomeFile}
+                disabled={toolsLocked}
+                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
+                onClick={() => { void prepareHomeFile(); }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -2965,8 +3425,9 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               <button
                 type="button"
                 className="prompt-models__item"
-                disabled={organizeAsk === 'busy'}
-                onClick={beginOrganize}
+                disabled={toolsLocked || organizeAsk === 'busy'}
+                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
+                onClick={() => { void beginOrganize(); }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -2974,7 +3435,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                     <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
                   </svg>
                 </span>
-                <span>Organizar & embellecer</span>
+                <span>Organize & beautify</span>
               </button>
             ) : null}
             {!sheetOpen && transcriptHasMarkers(pdfScan) ? (
@@ -3056,7 +3517,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                   <>
                     <p>¿Quieres que organice este documento en prompts, siguiendo el set de instrucciones?</p>
                     <div>
-                      <button type="button" onClick={beginOrganize}>Yes</button>
+                      <button type="button" disabled={toolsLocked} onClick={() => { void beginOrganize(); }}>Yes</button>
                       <button type="button" onClick={dismissOrganize}>No</button>
                     </div>
                   </>
@@ -3387,7 +3848,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
               placeholder="Title"
               aria-label="Title"
               rows={1}
-              onChange={(event) => onPatch(markStepUnsaved(step.id, { name: event.target.value }))}
+              onChange={(event) => onPatch({ name: event.target.value })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') event.preventDefault();
               }}
@@ -3395,14 +3856,6 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
             <SheetFaces
               face={sheetFace}
               onFace={chooseFace}
-              onBeautify={stepHasDraft(step) ? organizeAndBeautify : null}
-              translate={showPromptTranslate ? {
-                target: translateTarget,
-                busy: translateBusy,
-                note: translateNote,
-                onTarget: (lang) => { void runTranslate(lang); },
-                onTranslate: () => { void runTranslate(); },
-              } : null}
             />
             {sheetFace === 0 ? (
               <DescriptionField
@@ -3699,7 +4152,7 @@ function InstructionPanel({ prompt, compact, parked, onPatch, onCompact, onExpan
                       className="prompt-library__remove"
                       aria-label="Borrar URL"
                       onClick={() => {
-                        onPatch(markStepUnsaved(step.id, { referenceName: '', referenceUrl: '' }));
+                        onPatch({ referenceName: '', referenceUrl: '' });
                         setEditName('');
                         setEditUrl('');
                         setUrlEditing(false);
@@ -3795,7 +4248,9 @@ async function copyInView(plain, html, view) {
 }
 
 function FloatCard({ prompt, view, onPatch }) {
-  const plan = usePlanStore((state) => state.profile.plan);
+  const email = useAuthStore((state) => state.user?.email || '');
+  const profilePlan = usePlanStore((state) => state.profile.plan);
+  const plan = deskPlan(email, profilePlan);
   const { steps, index, step } = stepAt(prompt);
   const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
   const plain = plainCopy(step.prompt, ownedVariables);
@@ -3890,7 +4345,7 @@ function FloatCard({ prompt, view, onPatch }) {
           placeholder="Title"
           aria-label="Title"
           rows={1}
-              onChange={(event) => onPatch(markStepUnsaved(step.id, { name: event.target.value }))}
+              onChange={(event) => onPatch({ name: event.target.value })}
           onKeyDown={(event) => {
             if (event.key === 'Enter') event.preventDefault();
           }}
@@ -3909,7 +4364,7 @@ function FloatCard({ prompt, view, onPatch }) {
             <button
               type="button"
               onClick={() => {
-                onPatch(markStepUnsaved(step.id, { referenceUrl: urlOffer }));
+                onPatch({ referenceUrl: urlOffer });
                 setUrlOffer('');
               }}
             >

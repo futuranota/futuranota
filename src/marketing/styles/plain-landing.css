@@ -125,6 +125,22 @@ body.marketing-body:has(.marketing-shell--home) {
   grid-column: 4 / span 2;
 }
 
+body.landing-hide-chat .crisp-client {
+  display: none !important;
+}
+
+#bmc-wbtn {
+  display: none !important;
+}
+
+body.landing-coffee #bmc-wbtn {
+  display: flex !important;
+}
+
+body.landing-coffee .plain-support {
+  bottom: 98px;
+}
+
 .plain-support {
   position: fixed;
   right: 22px;

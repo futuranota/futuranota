@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DESK_FREE_PREVIEW_EMAIL,
   FREE_PROMPT_LIMITS,
   PROMPT_LIMITS_ENFORCED,
   PROMPT_STORAGE_BYTES,
+  PRO_PROMPT_CREDITS,
   canAddPromptFile,
   canAddPromptFolder,
   canAddPromptPage,
+  creditBalance,
+  deskPlan,
   localDayKey,
   promptLimits,
   promptToolCallsLeft,
@@ -13,30 +17,43 @@ import {
 import { promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 
 describe('promptPlanLimits', () => {
-  it('keeps the free caps written down and leaves them off during development', () => {
-    expect(PROMPT_LIMITS_ENFORCED).toBe(false);
+  it('enforces the free shelf and leaves Pro open', () => {
+    expect(PROMPT_LIMITS_ENFORCED).toBe(true);
     expect(FREE_PROMPT_LIMITS.maxFolders).toBe(1);
     expect(FREE_PROMPT_LIMITS.maxFiles).toBe(2);
     expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(6);
     expect(FREE_PROMPT_LIMITS.maxToolCalls).toBe(3);
-    expect(promptLimits('free').storageBytes).toBe(PROMPT_STORAGE_BYTES);
-    expect(promptLimits('pro').storageBytes).toBe(PROMPT_STORAGE_BYTES);
-    expect(promptLimits('free').maxFolders).toBe(Infinity);
+    expect(promptLimits('free').maxFolders).toBe(1);
+    expect(promptLimits('free').maxFiles).toBe(2);
+    expect(promptLimits('free').maxPagesPerFile).toBe(6);
     expect(promptLimits('pro').maxFiles).toBe(Infinity);
+    expect(promptLimits('pro').maxToolCalls).toBe(200);
+    expect(promptLimits('free').storageBytes).toBe(PROMPT_STORAGE_BYTES);
     expect(PROMPT_STORAGE_BYTES).toBe(5 * 1024 * 1024 * 1024);
   });
 
-  it('lets every plan add folders, files, and pages while caps are off', () => {
+  it('stops the free shelf at 1 folder, 2 files, and 6 pages', () => {
     const folders = [{ prompts: [{}, {}] }];
-    expect(canAddPromptFolder(folders, 'free')).toBe(true);
-    expect(canAddPromptFile(folders, 'free')).toBe(true);
-    expect(canAddPromptPage(40, 'free')).toBe(true);
+    expect(canAddPromptFolder(folders, 'free')).toBe(false);
+    expect(canAddPromptFile(folders, 'free')).toBe(false);
+    expect(canAddPromptPage(6, 'free')).toBe(false);
+    expect(canAddPromptPage(5, 'free')).toBe(true);
     expect(canAddPromptPage(40, 'pro')).toBe(true);
   });
 
-  it('does not count tool calls while caps are off', () => {
-    expect(promptToolCallsLeft(3, 'free')).toBe(Infinity);
-    expect(promptToolCallsLeft(3, 'pro')).toBe(Infinity);
+  it('turns 3 free clicks into 21 credits and locks the fourth', () => {
+    expect(promptToolCallsLeft(0, 'free')).toBe(3);
+    expect(promptToolCallsLeft(3, 'free')).toBe(0);
+    expect(creditBalance(3, 'free')).toBe(21);
+    expect(creditBalance(0, 'free')).toBe(0);
+    expect(creditBalance(200, 'pro')).toBe(PRO_PROMPT_CREDITS);
+    expect(PRO_PROMPT_CREDITS).toBe(1400);
+  });
+
+  it('keeps the preview login on the free plan', () => {
+    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'pro')).toBe('free');
+    expect(deskPlan('someone@example.com', 'pro')).toBe('pro');
+    expect(deskPlan('someone@example.com', 'free')).toBe('free');
   });
 
   it('formats the local day', () => {

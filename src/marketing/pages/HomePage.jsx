@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
 import { PATHS, authPath } from '../lib/paths.js';
@@ -33,6 +33,20 @@ function Placeholder({ kind }) {
       <span>Placeholder</span>
     </div>
   );
+}
+
+function CoffeeButton() {
+  useEffect(() => {
+    document.body.classList.add('landing-coffee', 'landing-hide-chat');
+    window.$crisp = window.$crisp || [];
+    window.$crisp.push(['do', 'chat:hide']);
+    return () => {
+      document.body.classList.remove('landing-coffee', 'landing-hide-chat');
+      window.$crisp?.push(['do', 'chat:show']);
+    };
+  }, []);
+
+  return null;
 }
 
 function SupportPanel() {
@@ -127,6 +141,7 @@ export function HomePage() {
         <Link to={authPath('signin')}>{t('marketing.logIn')}</Link>
         <Link to={authPath()}>{t('marketing.signUp')}</Link>
       </footer>
+      <CoffeeButton />
       <SupportPanel />
     </div>
   );
