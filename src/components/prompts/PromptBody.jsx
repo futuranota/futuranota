@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { markFromInlineStyle } from '../../lib/promptInlineMark.js';
 import { documentVariables, dropUnknownTokens, parsePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
 
 function fieldText(variable) {
@@ -35,13 +36,7 @@ function escapeHtml(value) {
 }
 
 function styleMark(node) {
-  const style = node.getAttribute('style') || '';
-  if (/background/i.test(style)) return 'mark';
-  if (/font-weight:\s*(bold|[6-9]00)/i.test(style)) return 'strong';
-  if (/font-style:\s*italic/i.test(style)) return 'em';
-  if (/line-through/i.test(style)) return 's';
-  if (/underline/i.test(style)) return 'u';
-  return '';
+  return markFromInlineStyle(node.getAttribute('style') || '');
 }
 
 function appendText(doc, parent, text) {
@@ -66,6 +61,20 @@ const PASTE_MARKS = {
   LI: 'li',
 };
 
+function clipboardMark(node) {
+  const tag = node.tagName;
+  const style = node.getAttribute('style') || '';
+  if ((tag === 'B' || tag === 'STRONG') && /font-weight:\s*(normal|400)/i.test(style)) {
+    return markFromInlineStyle(style);
+  }
+  if ((tag === 'I' || tag === 'EM') && /font-style:\s*normal/i.test(style)) {
+    return markFromInlineStyle(style);
+  }
+  if (PASTE_MARKS[tag]) return PASTE_MARKS[tag];
+  if (tag === 'SPAN') return markFromInlineStyle(style);
+  return '';
+}
+
 function appendClipboard(doc, parent, node) {
   if (node.nodeType === Node.TEXT_NODE) {
     if (node.textContent) parent.appendChild(doc.createTextNode(node.textContent));
@@ -76,7 +85,7 @@ function appendClipboard(doc, parent, node) {
     parent.appendChild(doc.createElement('br'));
     return;
   }
-  const mark = PASTE_MARKS[node.tagName] || (node.tagName === 'SPAN' ? styleMark(node) : '');
+  const mark = clipboardMark(node);
   if (mark) {
     const el = doc.createElement(mark);
     for (const child of node.childNodes) appendClipboard(doc, el, child);
@@ -993,37 +1002,63 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
     () => documentVariables({ id: documentId, variables }),
     [documentId, variables],
   );
-  const [draftName, setDraftName] = useState('');
-  const [draftValue, setDraftValue] = useState('');
+  const [drafts, setDrafts] = useState([]);
   const [renamingId, setRenamingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editValue, setEditValue] = useState('');
-  const nameRef = useRef(null);
   const editRef = useRef(null);
   const editNameRef = useRef('');
   const editValueRef = useRef('');
+  const draftInputRefs = useRef(new Map());
+  const pendingFocusId = useRef(null);
 
   useEffect(() => {
     if (renamingId) editRef.current?.focus();
   }, [renamingId]);
 
-  function pushProduct() {
-    const name = draftName.trim();
+  useEffect(() => {
+    if (open) return;
+    setDrafts([]);
+    setRenamingId(null);
+    setEditName('');
+    setEditValue('');
+    editNameRef.current = '';
+    editValueRef.current = '';
+  }, [open]);
+
+  useEffect(() => {
+    const id = pendingFocusId.current;
+    if (!id) return;
+    pendingFocusId.current = null;
+    draftInputRefs.current.get(id)?.focus();
+  }, [drafts]);
+
+  function startDraft() {
+    const id = crypto.randomUUID();
+    pendingFocusId.current = id;
+    setDrafts((prev) => [...prev, { id, name: '', value: '' }]);
+  }
+
+  function patchDraft(id, patch) {
+    setDrafts((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function pushDraft(draftId) {
+    const draft = drafts.find((item) => item.id === draftId);
+    const name = draft?.name.trim();
     if (!name) {
-      nameRef.current?.focus();
+      draftInputRefs.current.get(draftId)?.focus();
       return;
     }
     const existing = list.find((item) => item.name.toLowerCase() === name.toLowerCase());
     const id = existing?.id || crypto.randomUUID();
-    const created = { id, name, value: draftValue };
+    const created = { id, name, value: draft.value };
     if (documentId) created.documentId = documentId;
     const next = existing
       ? list.map((item) => (item.id === id ? { ...item, ...created, id } : item))
       : [...list, created];
     onChange(next);
-    setDraftName('');
-    setDraftValue('');
-    nameRef.current?.focus();
+    setDrafts((prev) => prev.filter((item) => item.id !== draftId));
   }
 
   function removeName(id) {
@@ -1078,48 +1113,57 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
         </button>
       </header>
       <div className="prompt-library__fields">
-        <div className="prompt-library__field">
-          <div className="prompt-library__label-row">
-            <input
-              id="prompt-variable-name"
-              ref={nameRef}
-              className="prompt-library__name-input"
-              value={draftName}
-              size={Math.max((draftName || 'Variable name').length, 1)}
-              placeholder="Variable name"
-              aria-label="Variable name"
-              onChange={(event) => setDraftName(event.target.value)}
+        {drafts.map((draft) => (
+          <div key={draft.id} className="prompt-library__field">
+            <div className="prompt-library__label-row">
+              <input
+                ref={(node) => {
+                  if (node) draftInputRefs.current.set(draft.id, node);
+                  else draftInputRefs.current.delete(draft.id);
+                }}
+                className="prompt-library__name-input"
+                value={draft.name}
+                size={Math.max((draft.name || 'Variable name').length, 1)}
+                placeholder="Variable name"
+                aria-label="Variable name"
+                onChange={(event) => patchDraft(draft.id, { name: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    pushDraft(draft.id);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="prompt-library__rename"
+                aria-label="Edit variable name"
+                onClick={() => draftInputRefs.current.get(draft.id)?.focus()}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                  <path d="M13 7l4 4" />
+                </svg>
+              </button>
+              <button type="button" className="prompt-library__queue" onClick={() => pushDraft(draft.id)}>
+                Save
+              </button>
+            </div>
+            <textarea
+              rows={2}
+              value={draft.value}
+              placeholder={draft.name.trim() ? `[ ${draft.name.trim()} ]` : ''}
+              aria-label="Product"
+              onChange={(event) => patchDraft(draft.id, { value: event.target.value })}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
-                  pushProduct();
+                  pushDraft(draft.id);
                 }
               }}
             />
-            <button type="button" className="prompt-library__rename" aria-label="Edit variable name" onClick={() => nameRef.current?.focus()}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 20h4L18 10l-4-4L4 16v4z" />
-                <path d="M13 7l4 4" />
-              </svg>
-            </button>
-            <button type="button" className="prompt-library__queue" onClick={pushProduct}>
-              Queue
-            </button>
           </div>
-          <textarea
-            rows={2}
-            value={draftValue}
-            placeholder={draftName.trim() ? `[ ${draftName.trim()} ]` : ''}
-            aria-label="Product"
-            onChange={(event) => setDraftValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                pushProduct();
-              }
-            }}
-          />
-        </div>
+        ))}
         {list.map((variable) => {
           const editing = renamingId === variable.id;
           return (
@@ -1194,7 +1238,12 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
           );
         })}
       </div>
-      <p className="prompt-library__info">La cola es solo de este documento. Escribe @ en el prompt para colocarla.</p>
+      <footer className="prompt-library__footer">
+        <p className="prompt-library__info">This queue belongs only to this document. Type @ in the prompt to place it.</p>
+        <button type="button" className="prompt-library__create" onClick={startDraft}>
+          Create Variable
+        </button>
+      </footer>
     </>
   );
 

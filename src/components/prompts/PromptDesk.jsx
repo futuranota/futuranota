@@ -32,7 +32,9 @@ import {
 import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
-import { beautifyPastedText, beautifyPromptFields, prepareFileHomeText } from '../../lib/promptBeautify.js';
+import { beautifyPastedText, prepareFileHomeText } from '../../lib/promptBeautify.js';
+import { fixPromptText } from '../../lib/promptFixText.js';
+import { hasHighlightBackground } from '../../lib/promptInlineMark.js';
 import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
 import { documentVariables, liftPromptPlaceholders, resolvePrompt, stampVariables } from '../../lib/promptVariables.js';
@@ -303,7 +305,7 @@ function nodeHasFormat(node, kind) {
   if (kind === 'italic') return tag === 'I' || tag === 'EM' || /font-style:\s*italic/i.test(style);
   if (kind === 'underline') return tag === 'U' || /text-decoration[^;]*underline/i.test(style);
   if (kind === 'strike') return tag === 'S' || tag === 'STRIKE' || tag === 'DEL' || /line-through/i.test(style);
-  if (kind === 'highlight') return tag === 'MARK' || /background/i.test(style);
+  if (kind === 'highlight') return tag === 'MARK' || hasHighlightBackground(style);
   return false;
 }
 
@@ -530,7 +532,7 @@ function FloatInstructions({ value }) {
   );
 }
 
-function TranslateControl({ busy, note, disabled, onTarget }) {
+function TranslateControl({ busy, note, onTarget }) {
   return (
     <span className="prompt-translate">
       <label className="prompt-models__item prompt-translate__pick">
@@ -545,8 +547,7 @@ function TranslateControl({ busy, note, disabled, onTarget }) {
         <select
           aria-label="Translate"
           value=""
-          disabled={busy || disabled}
-          title={disabled ? PROMPT_LIMIT_COPY.tools : undefined}
+          disabled={busy}
           onChange={(event) => {
             const lang = event.target.value;
             if (lang) onTarget(lang);
@@ -2711,8 +2712,7 @@ function InstructionPanel({
     setPdfScan(beautifyPastedText(pdfScan));
   }
 
-  async function prepareHomeFile() {
-    if (!(await takeClick())) return;
+  function prepareHomeFile() {
     const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
     const live = node ? readMarked(node) : '';
     const next = prepareFileHomeText(live || keptTranscript || pdfScan);
@@ -2735,7 +2735,6 @@ function InstructionPanel({
     const includeText = (!sheetOpen && canTranslateText) || (sheetOpen && textBesidePrompt);
     const includePrompt = sheetOpen && canTranslatePrompt;
     if (!includeText && !includePrompt) return;
-    if (!(await takeClick())) return;
     setTranslateBusy(true);
     setTranslateNote('');
     try {
@@ -3310,16 +3309,26 @@ function InstructionPanel({
     });
   }
 
-  async function organizeAndBeautify() {
+  function fixOpenPrompt() {
     if (!stepHasDraft(step)) return;
-    if (!(await takeClick())) return;
-    const next = beautifyPromptFields(step.description, step.prompt, ownedVariables);
     onPatch({
-      variables: stampVariables(next.variables, prompt.id),
       stepPatch: {
         id: step.id,
-        description: next.description,
-        prompt: next.prompt,
+        description: fixPromptText(step.description),
+        prompt: fixPromptText(step.prompt),
+        promptSaved: false,
+      },
+    });
+  }
+
+  function addAutoVariables() {
+    if (!promptHasText(step.prompt)) return;
+    const lifted = liftPromptPlaceholders(step.prompt, ownedVariables);
+    onPatch({
+      variables: stampVariables(lifted.variables, prompt.id),
+      stepPatch: {
+        id: step.id,
+        prompt: lifted.prompt,
         promptSaved: false,
       },
     });
@@ -3367,7 +3376,7 @@ function InstructionPanel({
     let highlight = false;
     while (node && node !== root) {
       const style = node.getAttribute?.('style') || '';
-      if (node.tagName === 'MARK' || /background/i.test(style)) highlight = true;
+      if (node.tagName === 'MARK' || hasHighlightBackground(style)) highlight = true;
       node = node.parentElement;
     }
     try {
@@ -3688,14 +3697,13 @@ function InstructionPanel({
               onClick={openBuiltPrompt}
             >
               <span className="prompt-models__glyph" aria-hidden="true">{promptCount}</span>
-              <span>Prompt</span>
+              <span>{promptCount ? 'List of Prompts' : 'Create Prompt'}</span>
             </button>
             )}
             {showTextTranslate || showPromptTranslate ? (
               <TranslateControl
                 busy={translateBusy}
                 note={translateNote}
-                disabled={toolsLocked}
                 onTarget={(lang) => { void runTranslate(lang); }}
               />
             ) : null}
@@ -3703,26 +3711,36 @@ function InstructionPanel({
               <button
                 type="button"
                 className="prompt-models__item"
-                disabled={toolsLocked}
-                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
-                onClick={() => { void organizeAndBeautify(); }}
+                onClick={() => { fixOpenPrompt(); }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
-                    <path d="M12 3.5 13.4 8l4.6 1.2-4.6 1.3L12 15l-1.4-4.5L6 9.2 10.6 8Z" />
-                    <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
+                    <path d="M4 7h16M4 12h10M4 17h13" />
                   </svg>
                 </span>
-                <span>Organize & beautify</span>
+                <span>Fix Text</span>
+              </button>
+            ) : null}
+            {sheetOpen && promptHasText(step.prompt) ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                onClick={() => { addAutoVariables(); }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 7h.01M16 7h.01M9 12h6M8 17h.01M16 17h.01" />
+                    <path d="M7 5v14M17 5v14" />
+                  </svg>
+                </span>
+                <span>Auto variables</span>
               </button>
             ) : null}
             {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
               <button
                 type="button"
                 className="prompt-models__item"
-                disabled={toolsLocked}
-                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
-                onClick={() => { void prepareHomeFile(); }}
+                onClick={() => { prepareHomeFile(); }}
               >
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -3730,23 +3748,6 @@ function InstructionPanel({
                   </svg>
                 </span>
                 <span>Arreglar texto</span>
-              </button>
-            ) : null}
-            {!sheetOpen && pdfScan.trim() ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                disabled={toolsLocked || organizeAsk === 'busy'}
-                title={toolsLocked ? PROMPT_LIMIT_COPY.tools : undefined}
-                onClick={() => { void beginOrganize(); }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 3.5 13.4 8l4.6 1.2-4.6 1.3L12 15l-1.4-4.5L6 9.2 10.6 8Z" />
-                    <path d="M18 14.5 18.7 16.6 21 17.3l-2.3.7L18 20l-.7-2-2.3-.7 2.3-.7Z" />
-                  </svg>
-                </span>
-                <span>Organize & beautify</span>
               </button>
             ) : null}
             {!sheetOpen && transcriptHasMarkers(pdfScan) ? (
@@ -5054,8 +5055,11 @@ const FLOAT_CSS = `
     overflow: hidden;
   }
   .prompt-body__editor {
+    width: 100%;
+    min-width: 0;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
   .prompt-body__editor[data-empty]::before {
     content: attr(data-placeholder);
@@ -5323,7 +5327,7 @@ const FLOAT_CSS = `
     overflow: auto;
     border: 0;
     border-radius: 0;
-    padding: 16px 48px 16px 16px;
+    padding: 16px 10px;
     background: #fff;
     color: #111;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
