@@ -40,6 +40,31 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+function trimMeta(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function embedJsonLd(title, description, keywords) {
+  if (!title && !description && !keywords) return '';
+  const data = {
+    '@context': 'https://schema.org',
+    '@type': 'CreativeWork',
+  };
+  if (title) data.name = title;
+  if (description) data.description = description;
+  if (keywords) data.keywords = keywords;
+  const json = JSON.stringify(data).replace(/</g, '\\u003c');
+  return `\n  <script type="application/ld+json">${json}</script>`;
+}
+
+function embedMetaAttrs(title, description, keywords) {
+  const parts = [];
+  if (title) parts.push(`data-fn-title="${escapeHtml(title)}"`);
+  if (description) parts.push(`data-fn-description="${escapeHtml(description)}"`);
+  if (keywords) parts.push(`data-fn-keywords="${escapeHtml(keywords)}"`);
+  return parts.length ? ` ${parts.join(' ')}` : '';
+}
+
 function promptCardStyles(background, color, button) {
   const box = hexColor(background, DEFAULTS.background);
   const ink = hexColor(color, DEFAULTS.color);
@@ -241,11 +266,23 @@ function ToolIcon({ name }) {
   );
 }
 
-export function buildPromptEmbed({ text, markup = '', background, color, button }) {
+export function buildPromptEmbed({
+  text,
+  markup = '',
+  background,
+  color,
+  button,
+  metaTitle = '',
+  metaDescription = '',
+  metaKeywords = '',
+}) {
   const { box, ink, fill, buttonInk } = promptCardStyles(background, color, button);
   const safe = escapeHtml(text);
   const body = markup.trim() ? markup : safe;
   const overflow = String(text).length > SCROLL_AT;
+  const title = trimMeta(metaTitle);
+  const description = trimMeta(metaDescription);
+  const keywords = trimMeta(metaKeywords);
   const textStyle = [
     'white-space:pre-wrap',
     'overflow-wrap:anywhere',
@@ -257,7 +294,7 @@ export function buildPromptEmbed({ text, markup = '', background, color, button 
     ? `<div style="pointer-events:none;position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to top, ${box}, transparent)"></div>`
     : '';
   return `<!-- REFERENCE: CUT THIS WHOLE BLOCK -->
-<div data-fn-embed style="width:100%;max-width:960px">
+<div data-fn-embed${embedMetaAttrs(title, description, keywords)} style="width:100%;max-width:960px">${embedJsonLd(title, description, keywords)}
   <div style="box-sizing:border-box;position:relative;width:100%;padding:20px;border-radius:12px;background:${box};color:${ink}">
     <div style="position:relative">
       <div style="${textStyle}">${body}</div>
@@ -313,6 +350,227 @@ export function buildPromptEmbed({ text, markup = '', background, color, button 
 <!-- REFERENCE: END OF THE BLOCK -->`;
 }
 
+const HOW_PAGES = [
+  {
+    title: 'What Do Metadata Mean for Your Embed Text Box?',
+    cards: [
+      (
+        <p>
+          <strong>Metadata</strong> is the digital ID card of your content. They are invisible data tags to regular visitors, but essential for search engines like Google and web platforms to understand exactly what your text is about.
+        </p>
+      ),
+      (
+        <p>
+          When you use <strong>Embed Text Box</strong>, these tags are set up to boost your visibility every time you embed your widget into a website or online store.
+        </p>
+      ),
+    ],
+  },
+  {
+    title: 'Why Are They Vital for Your Content?',
+    cards: [
+      (
+        <p>
+          <strong>Direct SEO and Indexing.</strong> Your Embed Text Box communicates your publication&apos;s exact topic, main keywords, and website purpose directly to Google, helping you rank for the right searches.
+        </p>
+      ),
+      (
+        <p>
+          <strong>Accurate Topic Recognition.</strong> By properly structuring the <strong>Meta Title</strong> and <strong>Meta Description</strong> within the metadata, search algorithms can better categorize your content and show it to users interested in your niche.
+        </p>
+      ),
+      (
+        <p>
+          <strong>Clean Previews When Shared.</strong> When your page link or embedded content is shared across social media or messaging apps (like <strong>WhatsApp</strong>, <strong>Facebook</strong>, or <strong>LinkedIn</strong>), metadata ensures a clear title and an engaging summary are displayed.
+        </p>
+      ),
+      (
+        <>
+          <p>
+            <strong>Practical Example: A Recipe Blog in Your Embed Text Box.</strong> If you are embedding or sharing cooking content:
+          </p>
+          <p><strong>Meta Title:</strong> Easy Home Cooking Recipes | My Blog</p>
+          <p><strong>Meta Description:</strong> Learn step-by-step how to prepare quick desserts and delicious dinners in under 30 minutes.</p>
+          <p><strong>Meta Keywords:</strong> easy recipes, home cooking, quick desserts</p>
+          <p>
+            With <strong>Embed Text Box</strong>, you don&apos;t just ensure your text looks great on your site—you also give Google the exact information it needs to rank your content and drive more readers to you.
+          </p>
+        </>
+      ),
+    ],
+  },
+];
+
+const TAG_COLORS = ['#E8C4B8', '#C5D4E8', '#D4E8C5', '#E8D9B8', '#D4C5E8', '#C5E8E0'];
+
+function keywordList(value) {
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function KeywordTags({ value, onChange }) {
+  const [draft, setDraft] = useState('');
+  const tags = keywordList(value);
+
+  function commit(raw) {
+    const next = String(raw || '').replace(/,+$/, '').trim();
+    if (!next) {
+      setDraft('');
+      return;
+    }
+    if (tags.some((tag) => tag.toLowerCase() === next.toLowerCase())) {
+      setDraft('');
+      return;
+    }
+    onChange([...tags, next].join(', '));
+    setDraft('');
+  }
+
+  return (
+    <div className="prompt-embed__tags">
+      {tags.map((tag, index) => (
+        <button
+          key={`${tag}-${index}`}
+          type="button"
+          className="prompt-embed__tag"
+          style={{ background: TAG_COLORS[index % TAG_COLORS.length] }}
+          aria-label={`Remove ${tag}`}
+          onClick={() => onChange(tags.filter((_, item) => item !== index).join(', '))}
+        >
+          {tag}
+        </button>
+      ))}
+      <input
+        value={draft}
+        aria-label="Meta Keywords"
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ',') {
+            event.preventDefault();
+            commit(draft);
+          }
+          if (event.key === 'Backspace' && !draft && tags.length) {
+            onChange(tags.slice(0, -1).join(', '));
+          }
+        }}
+        onBlur={() => commit(draft)}
+      />
+    </div>
+  );
+}
+
+function HowGuide({ page, onPage, onClose }) {
+  const current = HOW_PAGES[page] || HOW_PAGES[0];
+  const last = page >= HOW_PAGES.length - 1;
+  return (
+    <div
+      className="prompt-embed__overlay prompt-embed__overlay--drop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prompt-embed-how-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="prompt-embed__sheet prompt-embed__sheet--how scroll-match-bg">
+        <button type="button" className="prompt-embed__sheet-close" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <div className="prompt-embed__how-hero" aria-hidden="true" />
+        <h2 id="prompt-embed-how-title">{current.title}</h2>
+        <div className="prompt-embed__how-steps">
+          {current.cards.map((card, index) => (
+            <article key={index} className="prompt-embed__how-card">{card}</article>
+          ))}
+        </div>
+        <div className="prompt-embed__how-nav">
+          {page > 0 ? (
+            <button type="button" className="prompt-embed__action" onClick={() => onPage(page - 1)}>
+              Back
+            </button>
+          ) : <span />}
+          <p className="prompt-embed__how-count" aria-live="polite">{page + 1} / {HOW_PAGES.length}</p>
+          {last ? (
+            <button type="button" className="prompt-embed__action" onClick={onClose}>
+              Done
+            </button>
+          ) : (
+            <button type="button" className="prompt-embed__action" onClick={() => onPage(page + 1)}>
+              Next
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetaEditor({
+  title,
+  description,
+  keywords,
+  onTitle,
+  onDescription,
+  onKeywords,
+  onSave,
+  onHow,
+  onClose,
+}) {
+  return (
+    <div
+      className="prompt-embed__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prompt-embed-meta-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <form
+        className="prompt-embed__sheet prompt-embed__sheet--meta"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <button type="button" className="prompt-embed__sheet-close" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <h2 id="prompt-embed-meta-title">Metadata</h2>
+        <label className="prompt-embed__sheet-field">
+          <span>Meta Title</span>
+          <input
+            type="text"
+            value={title}
+            maxLength={70}
+            aria-label="Meta Title"
+            onChange={(event) => onTitle(event.target.value)}
+          />
+        </label>
+        <label className="prompt-embed__sheet-field">
+          <span>Meta Description</span>
+          <textarea
+            value={description}
+            maxLength={160}
+            rows={4}
+            aria-label="Meta Description"
+            onChange={(event) => onDescription(event.target.value)}
+          />
+        </label>
+        <label className="prompt-embed__sheet-field">
+          <span>Meta Keywords</span>
+          <KeywordTags value={keywords} onChange={onKeywords} />
+        </label>
+        <button type="submit" className="prompt-embed__sheet-save">
+          Save
+        </button>
+        <button type="button" className="prompt-embed__learn" onClick={onHow}>
+          Learn how it work
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function EmbedAllowance({ plan }) {
   const pro = plan === 'pro';
   return (
@@ -350,12 +608,30 @@ export default function EmbedHtml({ plan = 'free' }) {
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
+  const [howPage, setHowPage] = useState(0);
+  const [metaOpen, setMetaOpen] = useState(false);
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [metaKeywords, setMetaKeywords] = useState('');
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
+  const [draftKeywords, setDraftKeywords] = useState('');
   const editorRef = useRef(null);
   const savedRange = useRef(null);
   const designRef = useRef(null);
   const html = useMemo(
-    () => buildPromptEmbed({ text, markup, background, color, button }),
-    [text, markup, background, color, button],
+    () => buildPromptEmbed({
+      text,
+      markup,
+      background,
+      color,
+      button,
+      metaTitle,
+      metaDescription,
+      metaKeywords,
+    }),
+    [text, markup, background, color, button, metaTitle, metaDescription, metaKeywords],
   );
   const card = promptCardStyles(background, color, button);
   const overflow = text.length > SCROLL_AT;
@@ -447,15 +723,17 @@ export default function EmbedHtml({ plan = 'free' }) {
   }, []);
 
   useEffect(() => {
-    if (!codeOpen && !designsOpen) return undefined;
+    if (!codeOpen && !designsOpen && !howOpen && !metaOpen) return undefined;
     function onKey(event) {
       if (event.key !== 'Escape') return;
       if (designsOpen) setDesignsOpen(false);
       if (codeOpen) setCodeOpen(false);
+      if (howOpen) setHowOpen(false);
+      if (metaOpen) setMetaOpen(false);
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [codeOpen, designsOpen]);
+  }, [codeOpen, designsOpen, howOpen, metaOpen]);
 
   useEffect(() => {
     if (!designsOpen) return undefined;
@@ -532,6 +810,28 @@ export default function EmbedHtml({ plan = 'free' }) {
     window.setTimeout(() => setCopiedPrompt(false), 1200);
   }
 
+  function openMeta() {
+    setDraftTitle(metaTitle);
+    setDraftDescription(metaDescription);
+    setDraftKeywords(metaKeywords);
+    setCodeOpen(false);
+    setHowOpen(false);
+    setMetaOpen(true);
+  }
+
+  function saveMeta() {
+    setMetaTitle(draftTitle);
+    setMetaDescription(draftDescription);
+    setMetaKeywords(draftKeywords);
+    setMetaOpen(false);
+  }
+
+  function openHow() {
+    setCodeOpen(false);
+    setHowPage(0);
+    setHowOpen(true);
+  }
+
   return (
     <div className="prompt-desk__page prompt-embed">
       <header className="prompt-desk__bar">
@@ -594,9 +894,21 @@ export default function EmbedHtml({ plan = 'free' }) {
               type="button"
               className="prompt-embed__action"
               aria-expanded={codeOpen}
-              onClick={() => setCodeOpen(true)}
+              onClick={() => {
+                setHowOpen(false);
+                setMetaOpen(false);
+                setCodeOpen(true);
+              }}
             >
               View embed
+            </button>
+            <button
+              type="button"
+              className="prompt-embed__action"
+              aria-expanded={metaOpen}
+              onClick={openMeta}
+            >
+              Add metadata
             </button>
           </div>
           <div className="prompt-embed__toolbar prompt-embed__colors" role="toolbar" aria-label="Colors">
@@ -681,6 +993,26 @@ export default function EmbedHtml({ plan = 'free' }) {
             </button>
           </div>
         </div>
+      ) : null}
+      {howOpen ? (
+        <HowGuide
+          page={howPage}
+          onPage={setHowPage}
+          onClose={() => setHowOpen(false)}
+        />
+      ) : null}
+      {metaOpen ? (
+        <MetaEditor
+          title={draftTitle}
+          description={draftDescription}
+          keywords={draftKeywords}
+          onTitle={setDraftTitle}
+          onDescription={setDraftDescription}
+          onKeywords={setDraftKeywords}
+          onSave={saveMeta}
+          onHow={openHow}
+          onClose={() => setMetaOpen(false)}
+        />
       ) : null}
     </div>
   );

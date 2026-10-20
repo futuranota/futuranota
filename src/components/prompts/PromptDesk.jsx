@@ -609,6 +609,7 @@ function blankPrompt() {
     referenceName: '',
     cover: '',
     coverPath: '',
+    coverSkipped: false,
     assets: [],
     steps: [blankStep()],
   };
@@ -1405,7 +1406,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'coverPath' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'coverPath' in patch || 'coverSkipped' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -2237,6 +2238,8 @@ function InstructionPanel({
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
   const [homeSaveAsk, setHomeSaveAsk] = useState(false);
+  const [coverAsk, setCoverAsk] = useState(false);
+  const coverPickRef = useRef(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [varsOpen, setVarsOpen] = useState(false);
@@ -2257,6 +2260,8 @@ function InstructionPanel({
   );
   const showSide = showImage || showVideo || showPdfPreview || textBesidePrompt;
   const chipImage = step.image || coverImage(prompt);
+  const cover = coverImage(prompt);
+  const needCoverChoice = !cover && !prompt.coverSkipped;
   const promptCount = steps.filter((item) => item.promptSaved).length;
   const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
@@ -2522,8 +2527,9 @@ function InstructionPanel({
 
   function takeCover(file) {
     if (!file || !file.type.startsWith('image/')) return;
+    setCoverAsk(false);
     readImageFile(file, (cover) => {
-      onPatch({ cover });
+      onPatch({ cover, coverSkipped: false });
     });
     currentPromptUserId()
       .then((userId) => {
@@ -2532,12 +2538,21 @@ function InstructionPanel({
       })
       .then((uploaded) => {
         if (!uploaded) return;
-        onPatch({ cover: uploaded.url, coverPath: uploaded.path });
+        onPatch({ cover: uploaded.url, coverPath: uploaded.path, coverSkipped: false });
       })
       .catch((error) => {
         console.warn('[prompt-desk] cover upload failed', error?.message || error);
         setLimitNote(error instanceof Error ? error.message : PROMPT_LIMIT_COPY.storage);
       });
+  }
+
+  function skipCover() {
+    setCoverAsk(false);
+    onPatch({ cover: '', coverPath: '', coverSkipped: true });
+  }
+
+  function askCover() {
+    setCoverAsk(true);
   }
 
   function takeImage(file, replace = false) {
@@ -4192,7 +4207,6 @@ function InstructionPanel({
             <div className="prompt-index__fan">
               {[steps[index - 1] || null, step, steps[index + 1] || null].map((page, place) => {
                 const text = page ? plainCopy(page.prompt, ownedVariables) : '';
-                const cover = coverImage(prompt);
                 const isFront = place === 1;
                 const picture = isFront
                   ? (cover || HOME_FRAMES[place])
@@ -4207,46 +4221,86 @@ function InstructionPanel({
                   <span className="prompt-index__text">{text}</span>
                 );
                 if (isFront) {
-                  return (
-                    <div
-                      key={page?.id || `empty-${place}`}
-                      className="prompt-index__card prompt-index__card--front"
-                    >
+                  if (needCoverChoice) {
+                    return (
                       <button
+                        key={page?.id || `empty-${place}`}
                         type="button"
-                        className="prompt-index__open"
-                        aria-label="Abrir prompt"
-                        onClick={openBuiltPrompt}
+                        className="prompt-index__card prompt-index__card--front"
+                        aria-label="Add or skip cover"
+                        onClick={askCover}
                       >
                         {inner}
                       </button>
-                      <label className="prompt-index__cover">
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/*"
-                          aria-label="Upload cover"
-                          onChange={(event) => {
-                            takeCover(event.target.files?.[0]);
-                            event.target.value = '';
-                          }}
-                        />
-                        Portada
-                      </label>
-                    </div>
+                    );
+                  }
+                  return (
+                    <label
+                      key={page?.id || `empty-${place}`}
+                      className="prompt-index__card prompt-index__card--front"
+                    >
+                      {inner}
+                      <input
+                        ref={coverPickRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/*"
+                        aria-label="Upload cover"
+                        onChange={(event) => {
+                          takeCover(event.target.files?.[0]);
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+                  );
+                }
+                if (needCoverChoice) {
+                  return (
+                    <button
+                      key={page?.id || `empty-${place}`}
+                      type="button"
+                      className="prompt-index__card"
+                      aria-label="Add or skip cover"
+                      onClick={askCover}
+                    >
+                      {inner}
+                    </button>
                   );
                 }
                 return (
-                  <button
+                  <span
                     key={page?.id || `empty-${place}`}
-                    type="button"
                     className="prompt-index__card"
-                    aria-label="Abrir prompt"
-                    onClick={openBuiltPrompt}
                   >
                     {inner}
-                  </button>
+                  </span>
                 );
               })}
+              {coverAsk ? (
+                <div className="prompt-cover-ask" role="dialog" aria-label="Cover image">
+                  <p>Add a cover image for this file?</p>
+                  <div className="prompt-cover-ask__actions">
+                    <button
+                      type="button"
+                      onClick={() => coverPickRef.current?.click()}
+                    >
+                      Add cover
+                    </button>
+                    <button type="button" onClick={skipCover}>
+                      Omit cover
+                    </button>
+                  </div>
+                  <input
+                    ref={coverPickRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/*"
+                    aria-label="Upload cover"
+                    onChange={(event) => {
+                      takeCover(event.target.files?.[0]);
+                      event.target.value = '';
+                    }}
+                  />
+                </div>
+              ) : null}
             </div>
             <div className="prompt-index__side">
               {homeLogo ? (

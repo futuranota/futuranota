@@ -103,6 +103,7 @@ export function foldersFromRows(collections, files, steps) {
         referenceName: typeof file.reference_name === 'string' ? file.reference_name : '',
         cover: promptImageUrl(file.cover_path || ''),
         coverPath: file.cover_path || '',
+        coverSkipped: Boolean(file.cover_skipped),
         assets: assetsFromRow(file.assets),
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
@@ -179,6 +180,7 @@ function fileRow(prompt, userId, collectionId, position) {
     reference_url: typeof prompt.referenceUrl === 'string' ? prompt.referenceUrl : '',
     reference_name: typeof prompt.referenceName === 'string' ? prompt.referenceName : '',
     cover_path: prompt.coverPath || null,
+    cover_skipped: Boolean(prompt.coverSkipped),
     assets: assetRows(prompt.assets),
     position,
     updated_at: new Date().toISOString(),
@@ -256,7 +258,7 @@ export async function savePromptDesk(userId, folders, previous) {
   if (files.length) {
     let rows = files;
     let { error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' });
-    if (error && /reference_url|reference_name|pdf_name|pdf_path|cover_path/i.test(error.message || '')) {
+    if (error && /reference_url|reference_name|pdf_name|pdf_path|cover_path|cover_skipped/i.test(error.message || '')) {
       const message = error.message || '';
       rows = rows.map((row) => {
         const next = { ...row };
@@ -265,6 +267,7 @@ export async function savePromptDesk(userId, folders, previous) {
         if (/pdf_name/i.test(message)) delete next.pdf_name;
         if (/pdf_path/i.test(message)) delete next.pdf_path;
         if (/cover_path/i.test(message)) delete next.cover_path;
+        if (/cover_skipped/i.test(message)) delete next.cover_skipped;
         return next;
       });
       ({ error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' }));
