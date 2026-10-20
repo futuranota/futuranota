@@ -15,6 +15,7 @@ import {
   promptToolCallsLeft,
 } from './promptPlanLimits.js';
 import { promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
+import { embedCountForDay, readPreviewEmbeds, spendPreviewEmbed } from './promptDeskUsage.js';
 
 describe('promptPlanLimits', () => {
   it('enforces the free shelf and leaves Pro open', () => {
@@ -84,5 +85,23 @@ describe('promptStorageTree', () => {
     expect(root.children[0].children[0].kind).toBe('file');
     expect(treeBytes(root)).toBe(promptFileBytes(prompt, sizes));
     expect(treeBytes(root)).not.toBe(1059);
+  });
+});
+
+describe('embedCountForDay', () => {
+  it('counts copies from today and resets on the next local day', () => {
+    expect(embedCountForDay({ embed_day: '2026-10-20', embed_count: 2 }, '2026-10-20')).toBe(2);
+    expect(embedCountForDay({ embed_day: '2026-10-20', embed_count: 2 }, '2026-10-21')).toBe(0);
+    expect(embedCountForDay(null, '2026-10-20')).toBe(0);
+  });
+
+  it('counts Copy embed on the preview login and opens a new day at 0', () => {
+    const email = 'embed-counter-test@example.com';
+    expect(spendPreviewEmbed(email, '2026-10-20').embedCount).toBe(1);
+    expect(spendPreviewEmbed(email, '2026-10-20').embedCount).toBe(2);
+    expect(spendPreviewEmbed(email, '2026-10-20').embedCount).toBe(3);
+    expect(spendPreviewEmbed(email, '2026-10-20').ok).toBe(false);
+    expect(readPreviewEmbeds(email, '2026-10-21')).toBe(0);
+    expect(spendPreviewEmbed(email, '2026-10-21').embedCount).toBe(1);
   });
 });

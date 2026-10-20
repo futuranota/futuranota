@@ -84,22 +84,12 @@ BEGIN
     RETURN jsonb_build_object('ok', true, 'unlimited', true, 'embedCount', 0);
   END IF;
 
-  INSERT INTO public.prompt_desk_usage (user_id)
-  VALUES (uid)
-  ON CONFLICT (user_id) DO NOTHING;
+  SELECT u.embed_count INTO next_count
+  FROM public.prompt_desk_usage u
+  WHERE u.user_id = uid
+    AND u.embed_day IS NOT DISTINCT FROM p_day;
 
-  UPDATE public.prompt_desk_usage
-  SET embed_count = CASE
-        WHEN embed_day IS DISTINCT FROM p_day THEN 1
-        WHEN embed_count < 1 THEN 1
-        ELSE embed_count
-      END,
-      embed_day = p_day,
-      updated_at = timezone('utc'::text, now())
-  WHERE user_id = uid
-  RETURNING embed_count INTO next_count;
-
-  RETURN jsonb_build_object('ok', true, 'embedCount', next_count);
+  RETURN jsonb_build_object('ok', true, 'embedCount', COALESCE(next_count, 0));
 END;
 $$;
 

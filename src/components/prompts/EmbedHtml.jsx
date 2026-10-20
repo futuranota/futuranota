@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import { readDeskEmbedDay, spendDeskEmbedBox } from '../../lib/promptDeskUsage.js';
+import { FREE_PROMPT_LIMITS } from '../../lib/promptPlanLimits.js';
 
 const DEFAULTS = {
   background: '#ffffff',
@@ -352,50 +355,42 @@ export function buildPromptEmbed({
 
 const HOW_PAGES = [
   {
-    title: 'What Do Metadata Mean for Your Embed Text Box?',
+    title: 'What do metadata do in your Embed Text Box?',
     cards: [
       (
         <p>
-          <strong>Metadata</strong> is the digital ID card of your content. They are invisible data tags to regular visitors, but essential for search engines like Google and web platforms to understand exactly what your text is about.
+          <strong>Metadata</strong> is the label on this box: title, description, and tags. Visitors do not see them. They stay on the snippet so you can name what the prompt is about.
         </p>
       ),
       (
         <p>
-          When you use <strong>Embed Text Box</strong>, these tags are set up to boost your visibility every time you embed your widget into a website or online store.
+          Google reads the <strong>visible text</strong> of the box on the page where you paste it. It does not treat the box as its own result, and there is no “prompt” type that Google recommends.
         </p>
       ),
     ],
   },
   {
-    title: 'Why Are They Vital for Your Content?',
+    title: 'What they do not do',
     cards: [
       (
         <p>
-          <strong>Direct SEO and Indexing.</strong> Your Embed Text Box communicates your publication&apos;s exact topic, main keywords, and website purpose directly to Google, helping you rank for the right searches.
+          <strong>They do not rank the embed.</strong> Google ranks the host page. Title and tags here do not create a listing for “how to build an AI calling agent” as prompt data.
         </p>
       ),
       (
         <p>
-          <strong>Accurate Topic Recognition.</strong> By properly structuring the <strong>Meta Title</strong> and <strong>Meta Description</strong> within the metadata, search algorithms can better categorize your content and show it to users interested in your niche.
+          <strong>Keywords are for you.</strong> They organize the box. Google has not used keyword lists to rank pages for years.
         </p>
       ),
       (
         <p>
-          <strong>Clean Previews When Shared.</strong> When your page link or embedded content is shared across social media or messaging apps (like <strong>WhatsApp</strong>, <strong>Facebook</strong>, or <strong>LinkedIn</strong>), metadata ensures a clear title and an engaging summary are displayed.
+          <strong>Sharing a page</strong> still uses that site’s own title and preview. This drawer does not change WhatsApp, Facebook, or LinkedIn cards.
         </p>
       ),
       (
-        <>
-          <p>
-            <strong>Practical Example: A Recipe Blog in Your Embed Text Box.</strong> If you are embedding or sharing cooking content:
-          </p>
-          <p><strong>Meta Title:</strong> Easy Home Cooking Recipes | My Blog</p>
-          <p><strong>Meta Description:</strong> Learn step-by-step how to prepare quick desserts and delicious dinners in under 30 minutes.</p>
-          <p><strong>Meta Keywords:</strong> easy recipes, home cooking, quick desserts</p>
-          <p>
-            With <strong>Embed Text Box</strong>, you don&apos;t just ensure your text looks great on your site—you also give Google the exact information it needs to rank your content and drive more readers to you.
-          </p>
-        </>
+        <p>
+          Use the fields to keep the embed labeled. The value is a clear prompt on the page — not a special place in Google.
+        </p>
       ),
     ],
   },
@@ -571,28 +566,61 @@ function MetaEditor({
   );
 }
 
-function EmbedAllowance({ plan }) {
+function CopyEmbedButton({ disabled, copied, onCopy, className }) {
+  const button = (
+    <button
+      type="button"
+      className={className}
+      disabled={disabled}
+      aria-label={disabled ? 'Free plan daily embed limit reached' : 'Copy embed'}
+      onClick={() => {
+        if (disabled) return;
+        void onCopy();
+      }}
+    >
+      {copied ? 'Copied' : 'Copy embed'}
+    </button>
+  );
+  if (!disabled) return button;
+  return (
+    <span className="prompt-embed__copy-wrap">
+      {button}
+      <span className="prompt-embed__copy-tip" role="tooltip">
+        <strong>Free Plan Limitations:</strong>
+        Unlock to Pro for Unlimited Folders & Files
+      </span>
+    </span>
+  );
+}
+
+function EmbedAllowance({ plan, used = 0 }) {
+  const navigate = useNavigate();
   const pro = plan === 'pro';
+  const max = FREE_PROMPT_LIMITS.maxEmbedBoxesPerDay;
+  const spent = Math.min(max, Math.max(0, Number(used) || 0));
+  if (pro) {
+    return (
+      <div className="prompt-embed__allow is-pro" role="status" aria-label="Unlimited embeds">
+        <strong>Unlimited</strong>
+      </div>
+    );
+  }
   return (
     <div
-      className={pro ? 'prompt-embed__allow is-pro' : 'prompt-embed__allow'}
+      className="prompt-embed__quota"
       role="status"
-      aria-label={pro ? 'Unlimited embeds' : '3 embeds al día, de por vida'}
+      aria-label={`${spent} of ${max} daily embeds used`}
     >
-      {pro ? (
-        <strong>Unlimited</strong>
-      ) : (
-        <>
-          <span className="prompt-embed__allow-life" aria-hidden="true">∞</span>
-          <strong>3</strong>
-          <small>Se renueva cada día</small>
-        </>
-      )}
+      <p>{spent} of {max} daily embeds used</p>
+      <progress max={max} value={spent} />
+      <button type="button" onClick={() => navigate('/app/settings/billing')}>
+        Upgrade to Unlimited
+      </button>
     </div>
   );
 }
 
-export default function EmbedHtml({ plan = 'free' }) {
+export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const storedDesigns = useMemo(() => loadDesignStore(), []);
   const activeDesign = storedDesigns.designs.find((item) => item.id === storedDesigns.activeId);
   const [text, setText] = useState('');
@@ -620,6 +648,17 @@ export default function EmbedHtml({ plan = 'free' }) {
   const editorRef = useRef(null);
   const savedRange = useRef(null);
   const designRef = useRef(null);
+  const [embedUsed, setEmbedUsed] = useState(0);
+
+  useEffect(() => {
+    if (plan === 'pro') return undefined;
+    let cancel = false;
+    readDeskEmbedDay({ email, profilePlan }).then((result) => {
+      if (cancel || !result?.ok || result.unlimited) return;
+      setEmbedUsed(Number(result.embedCount) || 0);
+    });
+    return () => { cancel = true; };
+  }, [plan, email, profilePlan]);
   const html = useMemo(
     () => buildPromptEmbed({
       text,
@@ -796,11 +835,19 @@ export default function EmbedHtml({ plan = 'free' }) {
     setActiveId(match ? match.id : null);
   }
 
+  const copyLocked = plan !== 'pro' && embedUsed >= FREE_PROMPT_LIMITS.maxEmbedBoxesPerDay;
+
   async function copyEmbed() {
+    if (copyLocked) return;
     const ok = await copyToClipboard(html);
     if (!ok) return;
     setCopiedEmbed(true);
     window.setTimeout(() => setCopiedEmbed(false), 1200);
+    if (plan === 'pro') return;
+    const result = await spendDeskEmbedBox({ email, profilePlan });
+    if (result?.unlimited) return;
+    const next = Number(result?.embedCount);
+    if (Number.isFinite(next)) setEmbedUsed(next);
   }
 
   async function copyPrompt() {
@@ -834,6 +881,11 @@ export default function EmbedHtml({ plan = 'free' }) {
 
   return (
     <div className="prompt-desk__page prompt-embed">
+      <div className="prompt-embed__split">
+        <aside className="prompt-embed__rail">
+          <EmbedAllowance plan={plan} used={embedUsed} />
+        </aside>
+        <div className="prompt-embed__main">
       <header className="prompt-desk__bar">
         <h1 className="prompt-desk__mark">Embed Html</h1>
       </header>
@@ -869,7 +921,6 @@ export default function EmbedHtml({ plan = 'free' }) {
             </div>
           </div>
           <div className="prompt-embed__bars">
-          <EmbedAllowance plan={plan} />
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
             {FORMATS.map((item) => (
               <button
@@ -887,9 +938,12 @@ export default function EmbedHtml({ plan = 'free' }) {
                 <ToolIcon name={item.id} />
               </button>
             ))}
-            <button type="button" className="prompt-embed__action" onClick={() => { void copyEmbed(); }}>
-              {copiedEmbed ? 'Copied' : 'Copy embed'}
-            </button>
+            <CopyEmbedButton
+              className="prompt-embed__action"
+              disabled={copyLocked}
+              copied={copiedEmbed}
+              onCopy={copyEmbed}
+            />
             <button
               type="button"
               className="prompt-embed__action"
@@ -975,6 +1029,8 @@ export default function EmbedHtml({ plan = 'free' }) {
           </div>
         </div>
       </div>
+        </div>
+      </div>
       {codeOpen ? (
         <div
           className="prompt-embed__overlay"
@@ -988,9 +1044,12 @@ export default function EmbedHtml({ plan = 'free' }) {
           <div className="prompt-embed__overlay-card">
             <h2>Embed code</h2>
             <pre>{html}</pre>
-            <button type="button" onClick={() => { void copyEmbed(); }}>
-              {copiedEmbed ? 'Copied' : 'Copy embed'}
-            </button>
+            <CopyEmbedButton
+              className="prompt-embed__overlay-copy"
+              disabled={copyLocked}
+              copied={copiedEmbed}
+              onCopy={copyEmbed}
+            />
           </div>
         </div>
       ) : null}

@@ -553,10 +553,42 @@
   min-height: 100svh;
 }
 
+.prompt-embed__split {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: start;
+  min-height: 100svh;
+}
+
+.prompt-embed__rail {
+  position: sticky;
+  top: 28px;
+  padding: 28px 16px 48px 32px;
+}
+
+.prompt-embed__main > .prompt-desk__bar {
+  padding-left: 8px;
+}
+
 .prompt-embed__body {
   display: flex;
-  justify-content: center;
-  padding: 28px 32px 48px;
+  justify-content: flex-start;
+  padding: 12px 32px 48px 8px;
+}
+
+@media (max-width: 900px) {
+  .prompt-embed__split {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-embed__rail {
+    position: static;
+    padding: 20px 32px 0;
+  }
+
+  .prompt-embed__body {
+    padding: 20px 32px 48px;
+  }
 }
 
 .prompt-embed__stage {
@@ -621,6 +653,66 @@
   font-size: 11px;
   letter-spacing: 0.02em;
   color: rgba(28, 26, 23, 0.62);
+}
+
+.prompt-embed__quota {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #334155 0%, #52525b 100%);
+  color: #fff;
+  text-align: center;
+}
+
+.prompt-embed__quota p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.prompt-embed__quota progress {
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.prompt-embed__quota progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+
+.prompt-embed__quota progress::-webkit-progress-value {
+  background: #fbbf24;
+  border-radius: 999px;
+}
+
+.prompt-embed__quota progress::-moz-progress-bar {
+  background: #fbbf24;
+  border-radius: 999px;
+}
+
+.prompt-embed__quota button {
+  width: 100%;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #151515;
+  font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.prompt-embed__quota button:hover {
+  background: #f4f4f5;
 }
 
 .prompt-embed__toolbar {
@@ -739,6 +831,55 @@
 
 .prompt-embed__action:hover {
   background: rgba(20, 20, 22, 0.04);
+}
+
+.prompt-embed__action:disabled,
+.prompt-embed__overlay-copy:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.prompt-embed__action:disabled:hover {
+  background: #fff;
+}
+
+.prompt-embed__copy-wrap {
+  position: relative;
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.prompt-embed__copy-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  width: max-content;
+  max-width: 220px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #141416;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 500;
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.prompt-embed__copy-tip strong {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 650;
+}
+
+.prompt-embed__copy-wrap:hover .prompt-embed__copy-tip,
+.prompt-embed__copy-wrap:focus-within .prompt-embed__copy-tip {
+  opacity: 1;
+  transform: none;
 }
 
 .prompt-embed__box {
@@ -956,7 +1097,8 @@
   white-space: pre-wrap;
 }
 
-.prompt-embed__overlay-card > button {
+.prompt-embed__overlay-card > button,
+.prompt-embed__overlay-copy {
   align-self: flex-start;
   height: 36px;
   padding: 0 14px;
@@ -967,6 +1109,10 @@
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+
+.prompt-embed__overlay-copy:disabled:hover {
+  background: #fff;
 }
 
 .prompt-embed__sheet {

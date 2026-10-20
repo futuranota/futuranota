@@ -2007,7 +2007,7 @@ export default function PromptDesk() {
           onDeleteFile={deletePrompt}
         />
       ) : null}
-      {view === 'embed' ? <EmbedHtml plan={plan} /> : null}
+      {view === 'embed' ? <EmbedHtml plan={plan} email={email} profilePlan={profilePlan} /> : null}
       {view === 'transcribe' ? (
         <>
           {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
