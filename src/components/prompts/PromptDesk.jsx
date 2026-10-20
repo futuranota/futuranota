@@ -34,6 +34,7 @@ import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { beautifyPastedText, prepareFileHomeText } from '../../lib/promptBeautify.js';
 import { fixPromptText } from '../../lib/promptFixText.js';
+import { savedPromptCount, stepsMarkedAfterSave } from '../../lib/promptStepSave.js';
 import { hasHighlightBackground } from '../../lib/promptInlineMark.js';
 import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
@@ -256,16 +257,8 @@ function markStepUnsaved(stepId, patch = {}) {
   return { ...patch, stepPatch };
 }
 
-function stepsAfterSave(prompt, currentStepId, openedIds) {
-  const level = promptLevelWork(prompt);
-  return (prompt?.steps || []).map((item) => {
-    if (item.promptSaved) return item;
-    const added = openedIds ? !openedIds.has(item.id) : false;
-    if (stepHasWork(item) || (level && item.id === currentStepId) || added) {
-      return { ...item, promptSaved: true };
-    }
-    return item;
-  });
+function stepsAfterSave(prompt) {
+  return stepsMarkedAfterSave(prompt?.steps, stepHasWork);
 }
 
 const FORMAT_TOOLS = [
@@ -735,7 +728,6 @@ function readImageFile(file, onLoad) {
 
 const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
-  { id: 'transcribe', label: 'Transcribe File', to: '/app/transcribe' },
   { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
   { id: 'embed', label: 'Embed Html', to: '/app/embed' },
 ];
@@ -825,6 +817,7 @@ function DeskSidebar({ view, settingsPane }) {
   const signOut = useAuthStore((state) => state.signOut);
   const [loggingOut, setLoggingOut] = useState(false);
   const [open, setOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(view === 'settings');
   const email = user?.email || '';
   const initial = (email[0] || 'F').toUpperCase();
 
@@ -838,6 +831,10 @@ function DeskSidebar({ view, settingsPane }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  useEffect(() => {
+    if (view === 'settings') setSettingsOpen(true);
+  }, [view]);
 
   async function handleSignOut() {
     if (loggingOut) return;
@@ -869,29 +866,60 @@ function DeskSidebar({ view, settingsPane }) {
       </div>
       <nav className="prompt-desk__side-nav">
         {DESK_VIEWS.map((item) => (
-          <div key={item.id}>
-            <button
-              type="button"
-              className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
-              aria-current={view === item.id ? 'page' : undefined}
-              title={item.label}
-              onClick={() => navigate(item.to)}
-            >
-              <SideIcon name={item.id} />
-              <span>{item.label}</span>
-            </button>
-            {item.id === 'settings' && open ? SETTINGS_PANES.map((pane) => (
+          item.id === 'settings' ? (
+            <div key={item.id} className="prompt-desk__side-group">
               <button
-                key={pane.id}
                 type="button"
-                className={settingsPane === pane.id ? 'prompt-desk__side-sublink is-current' : 'prompt-desk__side-sublink'}
-                aria-current={settingsPane === pane.id ? 'page' : undefined}
-                onClick={() => navigate(pane.to)}
+                className={[
+                  'prompt-desk__side-settings',
+                  view === item.id ? 'is-current' : '',
+                ].filter(Boolean).join(' ')}
+                aria-expanded={settingsOpen}
+                aria-current={view === item.id ? 'page' : undefined}
+                title={item.label}
+                onClick={() => {
+                  if (!open) {
+                    navigate(item.to);
+                    return;
+                  }
+                  const next = !settingsOpen;
+                  setSettingsOpen(next);
+                  if (next && view !== 'settings') navigate(item.to);
+                }}
               >
-                {pane.label}
+                <SideIcon name={item.id} />
+                <span>{item.label}</span>
               </button>
-            )) : null}
-          </div>
+              {settingsOpen && open ? (
+                <div className="prompt-desk__side-picker" role="group" aria-label="Settings section">
+                  {SETTINGS_PANES.map((pane) => (
+                    <button
+                      key={pane.id}
+                      type="button"
+                      className={settingsPane === pane.id ? 'prompt-desk__side-sublink is-current' : 'prompt-desk__side-sublink'}
+                      aria-current={settingsPane === pane.id ? 'page' : undefined}
+                      onClick={() => navigate(pane.to)}
+                    >
+                      {pane.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div key={item.id}>
+              <button
+                type="button"
+                className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
+                aria-current={view === item.id ? 'page' : undefined}
+                title={item.label}
+                onClick={() => navigate(item.to)}
+              >
+                <SideIcon name={item.id} />
+                <span>{item.label}</span>
+              </button>
+            </div>
+          )
         ))}
       </nav>
       <div className="prompt-desk__account">
@@ -2282,7 +2310,7 @@ function InstructionPanel({
   const chipImage = step.image || coverImage(prompt);
   const cover = coverImage(prompt);
   const needCoverChoice = !cover && !prompt.coverSkipped;
-  const promptCount = steps.filter((item) => item.promptSaved).length;
+  const promptCount = savedPromptCount(steps, stepHasWork);
   const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
   const sideHold = useRef(false);
@@ -3183,7 +3211,7 @@ function InstructionPanel({
   }
 
   function saveAllPrompts() {
-    onPatch({ steps: stepsAfterSave(prompt, step.id, openedStepIds.current) });
+    onPatch({ steps: stepsAfterSave(prompt) });
   }
 
   function editStep() {
@@ -4669,7 +4697,7 @@ function FloatCard({ prompt, view, onPatch }) {
   }
 
   function saveAllPrompts() {
-    onPatch({ steps: stepsAfterSave(prompt, step.id) });
+    onPatch({ steps: stepsAfterSave(prompt) });
   }
 
   function editFloatStep() {
