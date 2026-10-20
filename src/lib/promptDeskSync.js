@@ -1,5 +1,6 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
-import { PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
+import { EMBED_BRAND_MAX_BYTES, PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
+import { normalizePromptFile } from './promptPages.js';
 import { storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 import { claimDocumentVariables, normalizeVariables } from './promptVariables.js';
 import { supabase } from './supabaseClient.js';
@@ -111,7 +112,7 @@ export function foldersFromRows(collections, files, steps) {
             const step = stepFromRow(row);
             return { ...step, video: null, pdf: null };
           }),
-      })),
+      })).map((file) => normalizePromptFile(file)),
   }));
   return claimDocumentVariables(built);
 }
@@ -410,6 +411,141 @@ export async function downloadPromptDocument(path) {
 
 export async function uploadPromptPdf(file, stepId, userId) {
   return uploadPromptDocument(file, stepId, userId);
+}
+
+function embedBrandPrefix(userId) {
+  return `${userId}/embed-brand`;
+}
+
+function isBrandLogoName(name) {
+  return /^logo\.(jpe?g|svg|png|webp)$/i.test(name);
+}
+
+function brandMimeError(error) {
+  const message = error?.message || '';
+  if (/mime|content type|invalidmime|octet-stream/i.test(message)) {
+    return new Error('Couldn’t save branding. Try SVG, PNG or JPG under 5 MB.');
+  }
+  return new Error(message || 'Couldn’t save branding.');
+}
+
+function parseBrandMeta(raw) {
+  const text = String(raw || '').trim();
+  const fromSvg = text.match(/<desc>([\s\S]*?)<\/desc>/i);
+  const json = fromSvg ? fromSvg[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : text;
+  const meta = JSON.parse(json);
+  return {
+    alt: String(meta.alt || ''),
+    saved: meta.saved === true,
+  };
+}
+
+async function uploadBrandObject(path, body, contentType) {
+  const { error } = await supabase.storage.from(BUCKET).upload(path, body, {
+    contentType,
+    upsert: true,
+    cacheControl: '3600',
+  });
+  return error;
+}
+
+async function readBrandMeta(prefix, names) {
+  for (const name of names) {
+    const { data: blob } = await supabase.storage.from(BUCKET).download(`${prefix}/${name}`);
+    if (!blob) continue;
+    try {
+      return parseBrandMeta(await blob.text());
+    } catch {
+      /* Try the next sidecar. */
+    }
+  }
+  return { alt: '', saved: false };
+}
+
+export async function loadPromptBrandLogo(userId) {
+  if (!userId) return { src: '', alt: '', path: '', saved: false };
+  const prefix = embedBrandPrefix(userId);
+  const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 40 });
+  if (error || !data?.length) return { src: '', alt: '', path: '', saved: false };
+  const names = (data || []).map((item) => item.name);
+  const logo = data.find((item) => isBrandLogoName(item.name));
+  const metaNames = ['meta.txt', 'meta.svg', 'meta.json'].filter((name) => names.includes(name));
+  const meta = metaNames.length ? await readBrandMeta(prefix, metaNames) : { alt: '', saved: false };
+  if (!logo) return { src: '', alt: meta.alt, path: '', saved: false };
+  const path = `${prefix}/${logo.name}`;
+  return { src: promptImageUrl(path), alt: meta.alt, path, saved: meta.saved || Boolean(meta.alt) };
+}
+
+export async function savePromptBrandMeta(userId, alt) {
+  if (!userId) throw new Error('Sign in to save branding.');
+  const prefix = embedBrandPrefix(userId);
+  const payload = JSON.stringify({ alt: String(alt || '').trim(), saved: true });
+  const textError = await uploadBrandObject(
+    `${prefix}/meta.txt`,
+    new Blob([payload], { type: 'text/plain' }),
+    'text/plain',
+  );
+  if (!textError) return;
+  const safe = payload.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const svgError = await uploadBrandObject(
+    `${prefix}/meta.svg`,
+    new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><desc>${safe}</desc></svg>`], { type: 'image/svg+xml' }),
+    'image/svg+xml',
+  );
+  if (svgError) console.warn('[prompt-desk] brand meta skipped', svgError.message);
+}
+
+export async function savePromptBrandLogo(userId, file, alt) {
+  if (!userId) throw new Error('Sign in to save branding.');
+  if (!file) throw new Error('Choose an SVG, PNG or JPG.');
+  const type = String(file.type || '').toLowerCase();
+  const name = String(file.name || '').toLowerCase();
+  const isSvg = type === 'image/svg+xml' || name.endsWith('.svg');
+  const isPng = type === 'image/png' || name.endsWith('.png');
+  const isJpg = type === 'image/jpeg' || name.endsWith('.jpg') || name.endsWith('.jpeg');
+  if (!isSvg && !isPng && !isJpg) throw new Error('Use SVG, PNG or JPG.');
+  if (file.size > EMBED_BRAND_MAX_BYTES) throw new Error('Use a file under 5 MB.');
+  const prefix = embedBrandPrefix(userId);
+  const { data: existing } = await supabase.storage.from(BUCKET).list(prefix, { limit: 40 });
+  const oldLogoPaths = (existing || [])
+    .filter((item) => isBrandLogoName(item.name))
+    .map((item) => `${prefix}/${item.name}`);
+  let ext = isSvg ? 'svg' : isPng ? 'png' : 'jpg';
+  let contentType = isSvg ? 'image/svg+xml' : isPng ? 'image/png' : 'image/jpeg';
+  let body = file;
+  await assertStorageRoom(userId, body.size, oldLogoPaths[0] || '');
+  let error = await uploadBrandObject(`${prefix}/logo.${ext}`, body, contentType);
+  if (error && /mime|content type|invalidmime/i.test(error.message || '')) {
+    const converted = await convertFileToWebpData(file);
+    if (!converted?.blob) throw brandMimeError(error);
+    ext = 'webp';
+    contentType = 'image/webp';
+    body = converted.blob;
+    await assertStorageRoom(userId, body.size, oldLogoPaths[0] || '');
+    error = await uploadBrandObject(`${prefix}/logo.webp`, body, contentType);
+  }
+  if (error) throw brandMimeError(error);
+  const path = `${prefix}/logo.${ext}`;
+  const stale = oldLogoPaths.filter((item) => item !== path);
+  if (stale.length) {
+    const { error: removeError } = await supabase.storage.from(BUCKET).remove(stale);
+    if (removeError) console.warn('[prompt-desk] brand replace failed', removeError.message);
+  }
+  await savePromptBrandMeta(userId, alt);
+  return { src: promptImageUrl(path), path, alt: String(alt || '').trim() };
+}
+
+export async function removePromptBrandLogo(userId) {
+  if (!userId) return;
+  const prefix = embedBrandPrefix(userId);
+  const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 40 });
+  if (error) throw error;
+  const paths = (data || [])
+    .filter((item) => item?.name && item.name !== '.emptyFolderPlaceholder')
+    .map((item) => `${prefix}/${item.name}`);
+  if (!paths.length) return;
+  const { error: removeError } = await supabase.storage.from(BUCKET).remove(paths);
+  if (removeError) throw removeError;
 }
 
 export async function uploadPromptDocument(file, fileId, userId) {

@@ -5,6 +5,9 @@ export const PROMPT_LIMITS_ENFORCED = true;
 
 export const PROMPT_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
 
+/** Embed branding logo. The original file lives in the 5 GB desk quota. */
+export const EMBED_BRAND_MAX_BYTES = 5 * 1024 * 1024;
+
 /** One toolbar click. 3 free clicks = 21 credits. 200 Pro clicks = 1400 credits. */
 export const CREDITS_PER_CLICK = 7;
 

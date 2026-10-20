@@ -1,8 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import {
+  currentPromptUserId,
+  loadPromptBrandLogo,
+  savePromptBrandLogo,
+  savePromptBrandMeta,
+} from '../../lib/promptDeskSync.js';
 import { readDeskEmbedDay, spendDeskEmbedBox } from '../../lib/promptDeskUsage.js';
-import { FREE_PROMPT_LIMITS } from '../../lib/promptPlanLimits.js';
+import { EMBED_BRAND_MAX_BYTES, FREE_PROMPT_LIMITS } from '../../lib/promptPlanLimits.js';
 
 const DEFAULTS = {
   background: '#ffffff',
@@ -14,7 +20,6 @@ const DESIGN_STORE = 'fn-embed-designs';
 const LOGO_STORE = 'fn-embed-logo';
 const MAX_DESIGNS = 24;
 const LOGO_MAX_EDGE = 80;
-const LOGO_MAX_BYTES = 220_000;
 
 const FORMATS = [
   { id: 'bold', label: 'Bold', command: 'bold' },
@@ -72,21 +77,36 @@ function embedMetaAttrs(title, description, keywords, brand) {
   return parts.length ? ` ${parts.join(' ')}` : '';
 }
 
+function isLogoSrc(src) {
+  return typeof src === 'string' && /^(data:image\/|https?:\/\/)/.test(src);
+}
+
 function isLogo(item) {
-  return Boolean(item)
-    && typeof item.src === 'string'
-    && item.src.startsWith('data:image/')
-    && typeof item.alt === 'string';
+  return Boolean(item) && isLogoSrc(item.src) && typeof item.alt === 'string';
 }
 
 function loadLogoStore() {
   try {
     const parsed = JSON.parse(localStorage.getItem(LOGO_STORE) || 'null');
-    if (!isLogo(parsed)) return { src: '', alt: '' };
-    return { src: parsed.src, alt: parsed.alt };
+    if (!isLogo(parsed)) return { src: '', alt: '', saved: false };
+    return { src: parsed.src, alt: parsed.alt, saved: parsed.saved === true };
   } catch {
-    return { src: '', alt: '' };
+    return { src: '', alt: '', saved: false };
   }
+}
+
+export function stripPasteColor(html) {
+  return String(html || '')
+    .replace(/\sstyle="([^"]*)"/gi, (_, style) => {
+      const next = style
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => part && !/^(color|font-size|font-family|-webkit-text-fill-color)\s*:/i.test(part))
+        .join('; ');
+      return next ? ` style="${next}"` : '';
+    })
+    .replace(/\s(?:color|face|size)="[^"]*"/gi, '')
+    .replace(/<\/?font\b[^>]*>/gi, '');
 }
 
 export function sanitizeBrandSvg(raw) {
@@ -101,7 +121,7 @@ export function sanitizeBrandSvg(raw) {
     .trim();
 }
 
-function resizeBrandPng(file) {
+function resizeBrandImage(file, mime = 'image/jpeg') {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const image = new Image();
@@ -115,35 +135,34 @@ function resizeBrandPng(file) {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        reject(new Error('Couldn’t read that PNG.'));
+        reject(new Error('Couldn’t read that image.'));
         return;
       }
       ctx.clearRect(0, 0, width, height);
       ctx.drawImage(image, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/png'));
+      resolve(mime === 'image/png' ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.86));
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Couldn’t read that PNG.'));
+      reject(new Error('Couldn’t read that image.'));
     };
     image.src = url;
   });
 }
 
 export async function readBrandFile(file) {
-  if (!file) throw new Error('Choose an SVG or PNG.');
+  if (!file) throw new Error('Choose an SVG, PNG or JPG.');
   const type = String(file.type || '').toLowerCase();
   const name = String(file.name || '').toLowerCase();
   const isSvg = type === 'image/svg+xml' || name.endsWith('.svg');
   const isPng = type === 'image/png' || name.endsWith('.png');
-  if (!isSvg && !isPng) throw new Error('Use SVG or PNG.');
-  if (file.size > 800_000) throw new Error('File is too large.');
+  const isJpg = type === 'image/jpeg' || name.endsWith('.jpg') || name.endsWith('.jpeg');
+  if (!isSvg && !isPng && !isJpg) throw new Error('Use SVG, PNG or JPG.');
+  if (file.size > EMBED_BRAND_MAX_BYTES) throw new Error('Use a file under 5 MB.');
   if (isSvg) {
-    const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitizeBrandSvg(await file.text()))}`;
-    if (src.length > LOGO_MAX_BYTES * 1.4) throw new Error('File is too large.');
-    return src;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitizeBrandSvg(await file.text()))}`;
   }
-  return resizeBrandPng(file);
+  return resizeBrandImage(file, isPng ? 'image/png' : 'image/jpeg');
 }
 
 function embedBrandMark(src, alt) {
@@ -712,8 +731,9 @@ function DesignThumb({ design, selected, label, onChoose, onRemove }) {
   );
 }
 
-function BrandingCard({ src, alt, note, onFile, onAlt, onClear }) {
+function BrandingCard({ src, alt, note, saved, onFile, onAlt, onSave }) {
   const fileId = useId();
+  const showAlt = Boolean(src) && !saved;
   return (
     <section className="prompt-embed__branding" aria-label="Branding">
       <h2>Branding</h2>
@@ -723,7 +743,7 @@ function BrandingCard({ src, alt, note, onFile, onAlt, onClear }) {
           <input
             id={fileId}
             type="file"
-            accept="image/png,image/svg+xml,.png,.svg"
+            accept="image/jpeg,.jpg,.jpeg,image/png,.png,image/svg+xml,.svg"
             onChange={onFile}
           />
           {src ? (
@@ -732,24 +752,25 @@ function BrandingCard({ src, alt, note, onFile, onAlt, onClear }) {
             <span className="prompt-embed__brand-plus" aria-hidden="true">+</span>
           )}
         </label>
-        <div className="prompt-embed__brand-fields">
-          <label className="prompt-embed__brand-name">
-            <span>Nombre</span>
-            <input
-              type="text"
-              value={alt}
-              placeholder="Nombre del negocio"
-              onChange={(event) => onAlt(event.target.value)}
-            />
-          </label>
-          {src ? (
-            <button type="button" className="prompt-embed__brand-clear" onClick={onClear}>
-              Quitar icono
-            </button>
-          ) : null}
-        </div>
+        {showAlt ? (
+          <input
+            className="prompt-embed__brand-alt"
+            type="text"
+            value={alt}
+            placeholder="ALT"
+            aria-label="ALT"
+            onChange={(event) => onAlt(event.target.value)}
+          />
+        ) : null}
       </div>
-      <p className="prompt-embed__brand-hint">SVG o PNG · 40×40 · sin fondo</p>
+      <p className="prompt-embed__brand-hint">
+        SVG, PNG or JPG 1080px x 1080px · 5 MB <strong>no background</strong>
+      </p>
+      {showAlt ? (
+        <button type="button" className="prompt-embed__brand-save" onClick={onSave}>
+          Save
+        </button>
+      ) : null}
       {note ? <p className="prompt-embed__note" role="status">{note}</p> : null}
     </section>
   );
@@ -793,7 +814,9 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const [button, setButton] = useState(activeDesign?.button || DEFAULTS.button);
   const [logoSrc, setLogoSrc] = useState(storedLogo.src);
   const [logoAlt, setLogoAlt] = useState(storedLogo.alt);
+  const [logoSaved, setLogoSaved] = useState(storedLogo.saved);
   const [brandNote, setBrandNote] = useState('');
+  const brandFileRef = useRef(null);
   const [markup, setMarkup] = useState('');
   const [designs, setDesigns] = useState(storedDesigns.designs);
   const [activeId, setActiveId] = useState(storedDesigns.activeId);
@@ -949,12 +972,32 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   }, [designs, activeId]);
 
   useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const userId = await currentPromptUserId();
+        if (!userId || cancel) return;
+        const remote = await loadPromptBrandLogo(userId);
+        if (cancel || brandFileRef.current) return;
+        setLogoSrc(remote.src);
+        setLogoAlt(remote.alt);
+        setLogoSaved(Boolean(remote.src && (remote.saved || remote.alt)));
+        brandFileRef.current = null;
+      } catch {
+        /* Keep the local cache until storage answers. */
+      }
+    })();
+    return () => { cancel = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!isLogoSrc(logoSrc) || brandFileRef.current) return;
     try {
-      localStorage.setItem(LOGO_STORE, JSON.stringify({ src: logoSrc, alt: logoAlt }));
+      localStorage.setItem(LOGO_STORE, JSON.stringify({ src: logoSrc, alt: logoAlt, saved: logoSaved }));
     } catch {
       /* The browser refused the brand mark. */
     }
-  }, [logoSrc, logoAlt]);
+  }, [logoSrc, logoAlt, logoSaved]);
 
   function applyDesign(design) {
     setBackground(design.background);
@@ -1040,10 +1083,32 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
     if (!file) return;
     try {
       const src = await readBrandFile(file);
+      brandFileRef.current = file;
       setLogoSrc(src);
+      setLogoSaved(false);
       setBrandNote('');
     } catch (error) {
+      brandFileRef.current = null;
       setBrandNote(error instanceof Error ? error.message : 'Couldn’t read that file.');
+    }
+  }
+
+  async function saveBrand() {
+    if (!logoSrc) return;
+    setBrandNote('');
+    try {
+      const userId = await currentPromptUserId();
+      if (!userId) throw new Error('Sign in to save branding.');
+      if (brandFileRef.current) {
+        const next = await savePromptBrandLogo(userId, brandFileRef.current, logoAlt);
+        brandFileRef.current = null;
+        setLogoSrc(next.src);
+      } else {
+        await savePromptBrandMeta(userId, logoAlt);
+      }
+      setLogoSaved(true);
+    } catch (error) {
+      setBrandNote(error instanceof Error ? error.message : 'Couldn’t save branding.');
     }
   }
 
@@ -1069,6 +1134,16 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
               onInput={sync}
               onKeyUp={sync}
               onMouseUp={() => { saveRange(); sync(); }}
+              onPaste={(event) => {
+                const html = event.clipboardData.getData('text/html');
+                const plain = event.clipboardData.getData('text/plain');
+                event.preventDefault();
+                restoreRange();
+                if (html) document.execCommand('insertHTML', false, stripPasteColor(html));
+                else document.execCommand('insertText', false, plain);
+                sync();
+                saveRange();
+              }}
             />
             {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
           </div>
@@ -1096,12 +1171,10 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
           src={logoSrc}
           alt={logoAlt}
           note={brandNote}
+          saved={logoSaved}
           onFile={(event) => { void handleBrandFile(event); }}
           onAlt={setLogoAlt}
-          onClear={() => {
-            setLogoSrc('');
-            setBrandNote('');
-          }}
+          onSave={() => { void saveBrand(); }}
         />
         <div className="prompt-embed__bars">
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">

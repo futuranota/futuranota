@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DESK_FREE_PREVIEW_EMAIL,
+  EMBED_BRAND_MAX_BYTES,
   FREE_PROMPT_LIMITS,
   PROMPT_LIMITS_ENFORCED,
   PROMPT_STORAGE_BYTES,
@@ -14,12 +15,13 @@ import {
   promptLimits,
   promptToolCallsLeft,
 } from './promptPlanLimits.js';
-import { promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
+import { brandStorageBytes, promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 import { clearPreviewDeskUsage, embedCountForDay, readPreviewEmbeds, spendPreviewEmbed } from './promptDeskUsage.js';
 
 describe('promptPlanLimits', () => {
   it('enforces the free shelf and leaves Pro open', () => {
     expect(PROMPT_LIMITS_ENFORCED).toBe(true);
+    expect(EMBED_BRAND_MAX_BYTES).toBe(5 * 1024 * 1024);
     expect(FREE_PROMPT_LIMITS.maxFolders).toBe(1);
     expect(FREE_PROMPT_LIMITS.maxFiles).toBe(2);
     expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(6);
@@ -85,6 +87,20 @@ describe('promptStorageTree', () => {
     expect(root.children[0].children[0].kind).toBe('file');
     expect(treeBytes(root)).toBe(promptFileBytes(prompt, sizes));
     expect(treeBytes(root)).not.toBe(1059);
+  });
+
+  it('counts embed branding toward the desk quota', () => {
+    const sizes = {
+      'user/file-1.pdf': 100,
+      'user/embed-brand/logo.jpg': 800,
+      'user/embed-brand/meta.json': 40,
+    };
+    expect(brandStorageBytes(sizes)).toBe(840);
+    const root = storageTreeFromDesk([], sizes);
+    const brand = root.children.find((child) => child.id === 'embed-brand');
+    expect(brand?.name).toBe('Branding');
+    expect(brand?.bytes).toBe(840);
+    expect(treeBytes(root)).toBe(840);
   });
 });
 

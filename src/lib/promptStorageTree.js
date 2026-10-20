@@ -38,6 +38,13 @@ export function treeBytes(node) {
   return (node.children || []).reduce((total, child) => total + treeBytes(child), 0);
 }
 
+/** Bytes under `{userId}/embed-brand/` in the prompt-images bucket. */
+export function brandStorageBytes(sizesByPath = {}) {
+  return Object.entries(sizesByPath).reduce((sum, [path, n]) => (
+    String(path).includes('/embed-brand/') ? sum + Math.max(0, Number(n) || 0) : sum
+  ), 0);
+}
+
 /**
  * @param {Array<object>} [folders]
  * @param {Record<string, number>} [sizesByPath]
@@ -56,6 +63,16 @@ export function storageTreeFromDesk(folders, sizesByPath = {}) {
       bytes: promptFileBytes(prompt, sizesByPath),
     })),
   }));
+  const brand = brandStorageBytes(sizesByPath);
+  if (brand > 0) {
+    children.push({
+      id: 'embed-brand',
+      name: 'Branding',
+      kind: 'file',
+      modifiedAt: null,
+      bytes: brand,
+    });
+  }
   return {
     id: 'workspace',
     name: 'Workspace',

@@ -11,12 +11,13 @@ import {
   loadPromptDesk,
   loadPromptStorageTree,
   promptDocumentKind,
+  removePromptBrandLogo,
   savePromptDesk,
   uploadPromptCover,
   uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
-import { clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
+import { applyPreviewUsageEpoch, clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
   PROMPT_STORAGE_BYTES,
@@ -46,6 +47,20 @@ import {
   readAssistanceMarkers,
   transcriptHasMarkers,
 } from '../../lib/promptStructure.js';
+import {
+  appendOrganizedSheets,
+  blankInstructionStep,
+  blankPromptStep,
+  isInstructionIndex,
+  isTranscriptPrompt,
+  normalizePromptFile,
+  promptPagesAreSplit,
+  readInstructionSections,
+  stepsFromOrganizedSheets,
+  visibleStepTitle,
+  writeInstructionSections,
+} from '../../lib/promptPages.js';
+import PromptInstructionStepper from './PromptInstructionStepper.jsx';
 import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
 import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
 import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
@@ -89,21 +104,7 @@ function uid() {
 }
 
 function blankStep() {
-  return {
-    id: uid(),
-    title: '',
-    modelIds: [],
-    description: '',
-    prompt: '',
-    image: '',
-    imagePath: '',
-    pdfPage: null,
-    video: null,
-    pdf: null,
-    format: 'text',
-    promptSaved: false,
-    sheetFace: 1,
-  };
+  return blankPromptStep();
 }
 
 function fileDocumentKind(file) {
@@ -204,16 +205,6 @@ function richCopy(template, variables) {
 
 function promptHasText(value) {
   return Boolean(String(value || '').replace(/<\/?(?:strong|em|u|s|mark|h1|ul|li)>/gi, '').trim());
-}
-
-function sheetFaceForContent(description, prompt) {
-  if (!promptHasText(prompt) && promptHasText(description)) return 0;
-  return 1;
-}
-
-function faceForStep(step) {
-  if (step?.sheetFace === 0 || step?.sheetFace === 1) return step.sheetFace;
-  return sheetFaceForContent(step?.description, step?.prompt);
 }
 
 function stepHasDraft(item) {
@@ -557,38 +548,20 @@ function TranslateControl({ busy, note, onTarget }) {
   );
 }
 
-function SheetFaces({ face, onFace }) {
+function PromptTitleField({ className, value, onChange, titleRef }) {
   return (
-    <div className="prompt-sheet__faces">
-      <div className="prompt-sheet__tabs" role="tablist" aria-label="Prompt pages">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={face === 0}
-        onClick={() => onFace(0)}
-      >
-        Instrucciones
-      </button>
-      <span aria-hidden="true">\</span>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={face === 1}
-        onClick={() => onFace(1)}
-      >
-        Prompt
-      </button>
-      </div>
-      <span className="prompt-sheet__tools">
-        <button
-          type="button"
-          className="prompt-sheet__next"
-          onClick={() => onFace(face === 0 ? 1 : 0)}
-        >
-          Next
-        </button>
-      </span>
-    </div>
+    <textarea
+      ref={titleRef}
+      className={className}
+      value={value}
+      placeholder="Title"
+      aria-label="Title"
+      rows={1}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.preventDefault();
+      }}
+    />
   );
 }
 
@@ -623,7 +596,7 @@ function blankPrompt() {
     coverPath: '',
     coverSkipped: false,
     assets: [],
-    steps: [blankStep()],
+    steps: [blankInstructionStep(), blankPromptStep()],
   };
 }
 
@@ -677,7 +650,9 @@ function coverImage(prompt) {
 }
 
 function stepAt(prompt) {
-  const steps = prompt.steps?.length ? prompt.steps : [blankStep()];
+  const steps = prompt.steps?.length
+    ? prompt.steps
+    : (isTranscriptPrompt(prompt) ? [blankStep()] : [blankInstructionStep(), blankPromptStep()]);
   const index = Math.min(Math.max(prompt.stepIndex || 0, 0), steps.length - 1);
   return { steps, index, step: steps[index] };
 }
@@ -1117,10 +1092,15 @@ function BillingSettings() {
 function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDeleteFile }) {
   const navigate = useNavigate();
   const [bytesById, setBytesById] = useState({});
+  const [brandBytes, setBrandBytes] = useState(0);
   const [note, setNote] = useState('');
   const root = useMemo(() => {
     const tree = storageTreeFromDesk(folders || []);
-    if (!Object.keys(bytesById).length) return tree;
+    const children = brandBytes > 0
+      ? [...tree.children, { id: 'embed-brand', name: 'Branding', kind: 'file', bytes: brandBytes }]
+      : tree.children;
+    const next = { ...tree, children };
+    if (!Object.keys(bytesById).length) return next;
     const paint = (node) => {
       if (node.kind === 'file') {
         const bytes = bytesById[node.id];
@@ -1128,8 +1108,8 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
       }
       return { ...node, children: (node.children || []).map(paint) };
     };
-    return paint(tree);
-  }, [folders, bytesById]);
+    return paint(next);
+  }, [folders, bytesById, brandBytes]);
 
   useEffect(() => {
     let cancel = false;
@@ -1145,6 +1125,8 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
           (node.children || []).forEach(walk);
         };
         walk(tree);
+        const brand = (tree.children || []).find((child) => child.id === 'embed-brand');
+        setBrandBytes(brand ? Number(brand.bytes) || 0 : 0);
         setBytesById(next);
       } catch (error) {
         console.warn('[prompt-desk] storage load failed', error?.message || error);
@@ -1155,7 +1137,27 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
   }, []);
 
   function handleDelete(node) {
-    if (!node || node.kind !== 'file' || !onDeleteFile) return;
+    if (!node || node.kind !== 'file') return;
+    if (node.id === 'embed-brand') {
+      if (!window.confirm('¿Eliminar “Branding”?')) return;
+      (async () => {
+        try {
+          const userId = await currentPromptUserId();
+          if (!userId) return;
+          await removePromptBrandLogo(userId);
+          setBrandBytes(0);
+          setBytesById((prev) => {
+            const next = { ...prev };
+            delete next['embed-brand'];
+            return next;
+          });
+        } catch (error) {
+          setNote(error?.message || 'No pude borrar el branding.');
+        }
+      })();
+      return;
+    }
+    if (!onDeleteFile) return;
     const folder = (folders || []).find((entry) => (
       (entry.prompts || []).some((prompt) => prompt.id === node.id)
     ));
@@ -1176,7 +1178,7 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
         defaultView={focusView || 'district'}
         focusFileId={focusFileId}
         focusFolderId={focusFolderId}
-        onDelete={onDeleteFile ? handleDelete : undefined}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1556,6 +1558,8 @@ export default function PromptDesk() {
       params.delete('reset-desk');
       const search = params.toString();
       navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+    } else {
+      applyPreviewUsageEpoch(email || undefined);
     }
     let cancel = false;
     (async () => {
@@ -1881,12 +1885,11 @@ export default function PromptDesk() {
     const created = blankTranscript();
     created.name = name;
     created.steps = [{
-      ...created.steps[0],
+      ...blankPromptStep(),
       prompt: text,
       description: '',
       promptSaved: true,
       format: 'text',
-      sheetFace: 1,
     }];
     updateFolders((prev) => prev.map((folder) => (
       isTranscriptFolder(folder)
@@ -2322,7 +2325,7 @@ function InstructionPanel({
   const editRoot = useRef(null);
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
-  const [sheetFace, setSheetFace] = useState(() => faceForStep(step));
+  const [instructionStep, setInstructionStep] = useState(1);
   const [translateTarget, setTranslateTarget] = useState('es');
   const [translateBusy, setTranslateBusy] = useState(false);
   const [translateNote, setTranslateNote] = useState('');
@@ -2336,7 +2339,12 @@ function InstructionPanel({
   const chipImage = step.image || coverImage(prompt);
   const cover = coverImage(prompt);
   const needCoverChoice = !cover && !prompt.coverSkipped;
-  const promptCount = savedPromptCount(steps, stepHasWork);
+  const promptCount = savedPromptCount(steps, (item) => (
+    promptHasText(item?.prompt)
+    || Boolean(String(item?.image || '').trim() || String(item?.imagePath || '').trim())
+    || Number.isInteger(item?.pdfPage)
+  ));
+  const instructionPage = isInstructionIndex(prompt, index);
   const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
   const sideHold = useRef(false);
@@ -2353,12 +2361,6 @@ function InstructionPanel({
 
   function patchStep(patch) {
     onPatch({ stepPatch: { id: step.id, ...patch } });
-  }
-
-  function chooseFace(face) {
-    setSheetFace(face);
-    if (step.sheetFace === face) return;
-    patchStep({ sheetFace: face });
   }
 
   async function copyHref(href) {
@@ -2412,6 +2414,11 @@ function InstructionPanel({
     setHomeSaveAsk(false);
     savedPromptRef.current = null;
     savedStepsRef.current = {};
+    setInstructionStep(1);
+    if (!isTranscriptPrompt(prompt) && !promptPagesAreSplit(prompt.steps || [])) {
+      const next = normalizePromptFile(prompt);
+      onPatch({ steps: next.steps, stepIndex: 0 });
+    }
   }, [prompt.id]);
 
   useEffect(() => {
@@ -2421,6 +2428,7 @@ function InstructionPanel({
       next[item.id] = {
         prompt: item.prompt || '',
         description: item.description || '',
+        title: item.title || '',
       };
     }
     savedStepsRef.current = next;
@@ -2438,7 +2446,7 @@ function InstructionPanel({
     setModelOpen(false);
     setFormatOpen(false);
     setCustomModel('');
-    setSheetFace(faceForStep(step));
+    setInstructionStep(1);
   }, [step.id]);
 
   useEffect(() => {
@@ -2736,13 +2744,23 @@ function InstructionPanel({
   }
 
   function deliverExtract(text) {
-    if (sheetOpen && !stepHasDraft(step)) {
+    if (sheetOpen && !instructionPage && !stepHasDraft(step)) {
       setPdfScan(text);
-      setSheetFace(1);
-      patchStep({ prompt: organizePlainLists(text), sheetFace: 1, promptSaved: false });
+      patchStep({ prompt: organizePlainLists(text), promptSaved: false });
       return;
     }
     showTranscript(text);
+  }
+
+  function instructionSections() {
+    return readInstructionSections(step.description);
+  }
+
+  function patchInstructionSections(next) {
+    patchStep({
+      description: writeInstructionSections(next),
+      promptSaved: false,
+    });
   }
 
   function dismissOrganize() {
@@ -2878,14 +2896,9 @@ function InstructionPanel({
       return;
     }
     const mode = steps.some(stepHasDraft) ? 'append' : 'replace';
-    const built = sheets.map((sheet) => ({
-      ...blankStep(),
-      description: sheet.instruction,
-      prompt: sheet.prompt,
-      sheetFace: sheetFaceForContent(sheet.instruction, sheet.prompt),
-      promptSaved: false,
-    }));
-    const combined = mode === 'append' ? [...steps, ...built] : built;
+    const combined = mode === 'append'
+      ? appendOrganizedSheets(steps, sheets)
+      : stepsFromOrganizedSheets(sheets);
     const maxPages = promptLimits(plan).maxPagesPerFile;
     const stepsNext = combined.slice(0, maxPages);
     if (stepsNext.length === steps.length && mode === 'append' && combined.length > steps.length) {
@@ -2896,13 +2909,13 @@ function InstructionPanel({
     if (combined.length > stepsNext.length) setLimitNote(PROMPT_LIMIT_COPY.page);
     onPatch({
       steps: stepsNext,
-      stepIndex: mode === 'append' ? steps.length : 0,
+      stepIndex: 0,
     });
     setOrganizeAsk(null);
     setOrganizePreview(null);
     setOrganizeError('');
     setOrganizeLater(true);
-    setSheetFace(faceForStep(stepsNext[mode === 'append' ? Math.min(steps.length, stepsNext.length - 1) : 0]));
+    setInstructionStep(1);
     setSheetOpen(true);
   }
 
@@ -2914,7 +2927,7 @@ function InstructionPanel({
       return;
     }
     let variables = ownedVariables.map((item) => ({ ...item }));
-    const built = sheets.map((sheet) => {
+    const preparedSheets = sheets.map((sheet) => {
       const prepared = prepareSheetFields(
         joinParagraphs(sheet.instruction, map),
         joinParagraphs(sheet.prompt, map),
@@ -2922,16 +2935,15 @@ function InstructionPanel({
       );
       variables = prepared.variables;
       return {
-        ...blankStep(),
-        description: prepared.instruction,
+        instruction: prepared.instruction,
         prompt: prepared.prompt,
-        modelIds: sheet.model && sheet.model !== 'none' ? [sheet.model] : [],
-        sheetFace: sheetFaceForContent(prepared.instruction, prepared.prompt),
-        promptSaved: false,
+        model: sheet.model,
       };
     });
     const mode = organizeMode.current;
-    const combined = mode === 'append' ? [...steps, ...built] : built;
+    const combined = mode === 'append'
+      ? appendOrganizedSheets(steps, preparedSheets)
+      : stepsFromOrganizedSheets(preparedSheets);
     const maxPages = promptLimits(plan).maxPagesPerFile;
     const stepsNext = combined.slice(0, maxPages);
     if (stepsNext.length === steps.length && mode === 'append' && combined.length > steps.length) {
@@ -2942,12 +2954,13 @@ function InstructionPanel({
     onPatch({
       variables: stampVariables(variables, prompt.id),
       steps: stepsNext,
-      stepIndex: mode === 'append' ? steps.length : 0,
+      stepIndex: 0,
     });
     setOrganizeAsk(null);
     setOrganizePreview(null);
     setOrganizeError('');
     setOrganizeLater(true);
+    setInstructionStep(1);
     setSheetOpen(true);
   }
 
@@ -3053,12 +3066,13 @@ function InstructionPanel({
       const lifted = liftPromptPlaceholders(nextPrompt, ownedVariables);
       const title = String(result?.title || '').trim();
       onPatch({
-        ...(title && !String(prompt.name || '').trim() ? { name: title } : {}),
         variables: stampVariables(lifted.variables, prompt.id),
         stepPatch: {
           id: step.id,
-          description: nextDescription,
-          prompt: lifted.prompt,
+          ...(instructionPage
+            ? { description: nextDescription || step.description }
+            : { prompt: lifted.prompt || step.prompt }),
+          ...(title && !String(step.title || '').trim() ? { title } : {}),
           promptSaved: false,
         },
       });
@@ -3263,7 +3277,7 @@ function InstructionPanel({
         if (promptHasText(promptText) || promptHasText(description)) return true;
         continue;
       }
-      if (promptText !== prev.prompt || description !== prev.description) return true;
+      if (promptText !== prev.prompt || description !== prev.description || (item.title || '') !== (prev.title || '')) return true;
     }
     const file = savedPromptRef.current;
     if (file && (prompt.name || '') !== file.name) return true;
@@ -3289,16 +3303,20 @@ function InstructionPanel({
           ...item,
           prompt: previous.prompt,
           description: previous.description,
+          title: previous.title || '',
           promptSaved: true,
         };
       }
-      return { ...item, prompt: '', description: '', promptSaved: false };
+      return { ...item, prompt: '', description: '', title: '', promptSaved: false };
     }).filter((item, _, list) => {
+      if (list.length === 2 && item === list[0]) return true;
       if (list.length === 1) return true;
       if (item.promptSaved) return true;
       return stepHasWork(item);
     });
-    const nextSteps = restored.length ? restored : [blankStep()];
+    const nextSteps = restored.length > 1 || isTranscriptPrompt(prompt)
+      ? (restored.length ? restored : [blankInstructionStep(), blankPromptStep()])
+      : [blankInstructionStep(), blankPromptStep()];
     const file = savedPromptRef.current;
     onPatch({
       ...(file ? {
@@ -3329,33 +3347,37 @@ function InstructionPanel({
   function goBack() {
     if (index <= 0) return;
     imageHold.current = false;
-    setSheetFace(faceForStep(steps[index - 1]));
     onPatch({ stepIndex: index - 1 });
   }
 
   function goForward() {
     imageHold.current = false;
     if (index < steps.length - 1) {
-      setSheetFace(faceForStep(steps[index + 1]));
       onPatch({ stepIndex: index + 1 });
       return;
     }
-    if (!stepHasDraft(step)) return;
+    if (instructionPage || !stepHasDraft(step)) return;
     if (!canAddPromptPage(steps.length, plan)) {
       setLimitNote(PROMPT_LIMIT_COPY.page);
       return;
     }
     onPatch({
-      steps: [...steps, blankStep(steps.length)],
+      steps: [...steps, blankPromptStep()],
       stepIndex: steps.length,
     });
   }
 
   function deleteIndex() {
-    if (steps.length <= 1) {
-      onPatch({ steps: [blankStep(0)], stepIndex: 0 });
-      setSheetOpen(false);
-      showIndexMedia();
+    if (instructionPage) {
+      patchInstructionSections([{ title: 'Step 1', body: '' }]);
+      return;
+    }
+    if (steps.length <= 2) {
+      const instruction = steps[0] || blankInstructionStep();
+      onPatch({
+        steps: [instruction, blankPromptStep(step.id)],
+        stepIndex: 1,
+      });
       return;
     }
     const nextSteps = steps.filter((_, itemIndex) => itemIndex !== index);
@@ -3402,7 +3424,6 @@ function InstructionPanel({
           id: step.id,
           prompt: nextPrompt,
           promptSaved: false,
-          ...(step.sheetFace === 1 ? {} : { sheetFace: 1 }),
         },
       });
       return;
@@ -3414,7 +3435,6 @@ function InstructionPanel({
     patchStep({
       prompt: nextPrompt,
       promptSaved: false,
-      ...(step.sheetFace === 1 ? {} : { sheetFace: 1 }),
     });
   }
 
@@ -4201,33 +4221,45 @@ function InstructionPanel({
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen ? (
           <div className="prompt-sheet">
-            <textarea
+            <PromptTitleField
               className="prompt-sheet__title"
-              value={prompt.name}
-              placeholder="Title"
-              aria-label="Title"
-              rows={1}
-              onChange={(event) => onPatch({ name: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.preventDefault();
-              }}
+              value={visibleStepTitle(step, prompt.name)}
+              onChange={(title) => patchStep({ title })}
             />
-            <SheetFaces
-              face={sheetFace}
-              onFace={chooseFace}
-            />
-            {sheetFace === 0 ? (
-              <DescriptionField
-                className="prompt-sheet__description"
-                value={step.description || ''}
+            {instructionPage ? (
+              <PromptInstructionStepper
+                sections={instructionSections()}
+                activeStep={instructionStep}
+                onActiveStep={setInstructionStep}
                 readOnly={Boolean(step.promptSaved)}
-                onChange={(description) => patchStep({
-                  description,
-                  promptSaved: false,
-                  ...(step.sheetFace === 0 ? {} : { sheetFace: 0 }),
-                })}
-                onEditFocus={trackEdit}
-                onUrlPaste={setUrlOffer}
+                onTitleChange={(sectionIndex, title) => {
+                  const next = instructionSections().map((section, itemIndex) => (
+                    itemIndex === sectionIndex ? { ...section, title } : section
+                  ));
+                  patchInstructionSections(next);
+                }}
+                onAdd={() => {
+                  const next = [...instructionSections(), { title: `Step ${instructionSections().length + 1}`, body: '' }];
+                  patchInstructionSections(next);
+                  setInstructionStep(next.length);
+                }}
+                renderBody={(section, sectionIndex) => (
+                  <DescriptionField
+                    className="prompt-sheet__description"
+                    value={section.body || ''}
+                    readOnly={Boolean(step.promptSaved)}
+                    label={`Step ${sectionIndex + 1} instructions`}
+                    placeholder="Steps to follow"
+                    onChange={(body) => {
+                      const next = instructionSections().map((item, itemIndex) => (
+                        itemIndex === sectionIndex ? { ...item, body } : item
+                      ));
+                      patchInstructionSections(next);
+                    }}
+                    onEditFocus={trackEdit}
+                    onUrlPaste={setUrlOffer}
+                  />
+                )}
               />
             ) : (
             <div className="prompt-drawer">
@@ -4435,7 +4467,7 @@ function InstructionPanel({
               type="button"
               className="prompt-steps__arrow"
               aria-label="Next prompt"
-              disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+              disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
               onClick={goForward}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4690,18 +4722,23 @@ function FloatCard({ prompt, view, onPatch }) {
   const canCopy = Boolean(step.promptSaved && plain);
   const [copied, setCopied] = useState(false);
   const [limitNote, setLimitNote] = useState('');
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructionStep, setInstructionStep] = useState(1);
   const [urlOffer, setUrlOffer] = useState('');
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
   const titleRef = useRef(null);
+  const instructionPage = isInstructionIndex(prompt, index);
 
   useLayoutEffect(() => {
     const node = titleRef.current;
     if (!node) return;
     node.style.height = 'auto';
     node.style.height = `${node.scrollHeight}px`;
-  }, [prompt.name]);
+  }, [step.title, prompt.name]);
+
+  useEffect(() => {
+    setInstructionStep(1);
+  }, [step.id]);
 
   function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
     if (keepSaved) {
@@ -4740,13 +4777,13 @@ function FloatCard({ prompt, view, onPatch }) {
       onPatch({ stepIndex: index + 1 });
       return;
     }
-    if (!stepHasDraft(step)) return;
+    if (instructionPage || !stepHasDraft(step)) return;
     if (!canAddPromptPage(steps.length, plan)) {
       setLimitNote(PROMPT_LIMIT_COPY.page);
       return;
     }
     onPatch({
-      steps: [...steps, blankStep(steps.length)],
+      steps: [...steps, blankPromptStep()],
       stepIndex: steps.length,
     });
   }
@@ -4771,25 +4808,12 @@ function FloatCard({ prompt, view, onPatch }) {
             </svg>
           )}
         </span>
-        <textarea
-          ref={titleRef}
+        <PromptTitleField
+          titleRef={titleRef}
           className="prompt-float__step"
-          value={prompt.name}
-          placeholder="Title"
-          aria-label="Title"
-          rows={1}
-              onChange={(event) => onPatch({ name: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.preventDefault();
-          }}
+          value={visibleStepTitle(step, prompt.name)}
+          onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
         />
-        <button
-          type="button"
-          className="prompt-float__instructions"
-          onClick={() => setShowInstructions((open) => !open)}
-        >
-          {showInstructions ? 'See prompt' : 'See instructions'}
-        </button>
         </div>
         {urlOffer ? (
           <div className="prompt-url-offer" role="status">
@@ -4807,8 +4831,14 @@ function FloatCard({ prompt, view, onPatch }) {
           </div>
         ) : null}
         <div className="prompt-drawer">
-          {showInstructions ? (
-            <FloatInstructions value={step.description || ''} />
+          {instructionPage ? (
+            <PromptInstructionStepper
+              sections={readInstructionSections(step.description)}
+              activeStep={instructionStep}
+              onActiveStep={setInstructionStep}
+              readOnly
+              renderBody={(section) => <FloatInstructions value={section.body || ''} />}
+            />
           ) : (
           <PromptBody
             key={`${prompt.id}:${step.id}`}
@@ -4863,7 +4893,7 @@ function FloatCard({ prompt, view, onPatch }) {
           type="button"
           className="prompt-steps__arrow"
           aria-label="Next prompt"
-          disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+          disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
           onClick={goForward}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4921,7 +4951,7 @@ const FLOAT_CSS = `
     position: relative;
     flex: none;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
+    grid-template-columns: 22px minmax(0, 1fr);
     align-items: start;
     gap: 8px;
     padding: 14px 12px 12px;
@@ -4970,21 +5000,56 @@ const FLOAT_CSS = `
     field-sizing: content;
     outline: none;
   }
-  .prompt-float__instructions {
-    position: static;
-    margin-top: 1px;
-    border: 0;
-    border-radius: 999px;
-    background: #f4f1eb;
-    color: #3d3b3b;
-    font: inherit;
-    font-size: 12px;
-    line-height: 1;
-    padding: 7px 10px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
   .prompt-float__instructions-body { white-space: pre-wrap; }
+  .prompt-stepper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    overflow: auto;
+  }
+  .prompt-stepper__nav { display: flex; flex-direction: column; width: 100%; }
+  .prompt-stepper__item { position: relative; display: flex; flex-direction: column; }
+  .prompt-stepper__trigger {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 0 10px;
+    border: 0;
+    background: transparent;
+    color: #1a1a1a;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .prompt-stepper__indicator {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #eceae4;
+    color: #6b6864;
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .prompt-stepper__indicator[data-state='active'] { background: #1a1a1a; color: #fff; }
+  .prompt-stepper__indicator[data-state='completed'] { background: #57bc6c; color: #fff; }
+  .prompt-stepper__title { font-size: 13px; font-weight: 600; }
+  .prompt-stepper__separator {
+    position: absolute;
+    top: 26px;
+    left: 10px;
+    width: 2px;
+    height: calc(100% - 18px);
+    border-radius: 999px;
+    background: #e4e1d8;
+  }
+  .prompt-stepper__panel { padding: 0 0 12px 32px; }
+  .prompt-stepper__panel[hidden] { display: none; }
   .prompt-url-offer {
     display: flex;
     flex-wrap: wrap;

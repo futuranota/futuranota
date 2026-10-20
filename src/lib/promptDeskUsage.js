@@ -64,6 +64,23 @@ function previewEmbedPrefix(email) {
  * Wipe the preview browser counters (clicks + embed day keys).
  * Used by `?reset-desk=1` while the founder is testing limits.
  */
+const PREVIEW_USAGE_EPOCH = '2026-10-20-desk-reset';
+
+/** One-shot wipe after a founder reset so this browser picks up a clean meter. */
+export function applyPreviewUsageEpoch(email = DESK_FREE_PREVIEW_EMAIL) {
+  const who = String(email || DESK_FREE_PREVIEW_EMAIL).trim().toLowerCase();
+  if (who !== DESK_FREE_PREVIEW_EMAIL) return false;
+  const flag = `fn-desk-usage-epoch:${who}`;
+  try {
+    if (localStorage.getItem(flag) === PREVIEW_USAGE_EPOCH) return false;
+    clearPreviewDeskUsage(who);
+    localStorage.setItem(flag, PREVIEW_USAGE_EPOCH);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function clearPreviewDeskUsage(email = DESK_FREE_PREVIEW_EMAIL) {
   const who = String(email || DESK_FREE_PREVIEW_EMAIL).trim().toLowerCase();
   const clickKey = previewClickKey(who);
