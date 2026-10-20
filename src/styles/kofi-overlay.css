@@ -1,0 +1,23 @@
+body:not(.fn-kofi) .floatingchat-container-wrap,
+body:not(.fn-kofi) .floatingchat-container-wrap-mobi,
+body:not(.fn-kofi) .floating-chat-kofi-popup-iframe,
+body:not(.fn-kofi) .floating-chat-kofi-popup-iframe-mobi,
+body:not(.fn-kofi) .floating-chat-kofi-popup-iframe-closer-mobi {
+  display: none !important;
+}
+
+body.fn-kofi .floatingchat-container-wrap,
+body.fn-kofi .floatingchat-container-wrap-mobi {
+  left: auto !important;
+  right: 22px !important;
+  bottom: 22px !important;
+  z-index: 40;
+}
+
+body.fn-kofi .floating-chat-kofi-popup-iframe,
+body.fn-kofi .floating-chat-kofi-popup-iframe-mobi {
+  left: auto !important;
+  right: 22px !important;
+  bottom: 96px !important;
+  z-index: 40;
+}

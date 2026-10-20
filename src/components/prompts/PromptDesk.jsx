@@ -47,6 +47,7 @@ import {
 } from '../../lib/promptStructure.js';
 import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
 import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
+import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
 import { useStripeCheckoutReturn } from '../../lib/useStripeCheckoutReturn.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
@@ -1488,6 +1489,7 @@ function CreditGlass({ credits, ready, empty }) {
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
+  useKofiOverlay(view === 'home' || view === 'transcribe' || view === 'embed');
   const settingsPane = settingsPaneFromPath(location.pathname);
   const storageFocus = storageFocusFromPath(location.pathname);
   const navigate = useNavigate();
@@ -2040,7 +2042,7 @@ export default function PromptDesk() {
       {view === 'home' ? (
       <>
       <header className="prompt-desk__bar">
-        <p className="prompt-desk__mark">Futura Nota</p>
+        <img src="/navbar.svg" alt="Futura Nota" className="prompt-desk__logo" />
         <button type="button" className="prompt-desk__new" onClick={addCollection} disabled={!folders}>
           Nueva colección
         </button>
@@ -5058,7 +5060,7 @@ const FLOAT_CSS = `
     width: 100%;
     min-width: 0;
     white-space: pre-wrap;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
     word-break: normal;
   }
   .prompt-body__editor[data-empty]::before {
@@ -5229,8 +5231,8 @@ const FLOAT_CSS = `
     max-width: 100%;
     padding: 0 3px;
     border-radius: 4px;
-    background: rgba(255, 120, 120, 0.16);
-    color: #ff8f8f;
+    background: #D2C6D5;
+    color: #410066;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     box-decoration-break: clone;

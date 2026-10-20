@@ -86,8 +86,12 @@
 
 .prompt-desk__side-link svg {
   flex: none;
-  width: 18px;
-  height: 18px;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border-radius: 50%;
+  background: #F1F1F1;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -330,6 +334,12 @@
   font-size: 13px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.prompt-desk__logo {
+  display: block;
+  height: 40px;
+  width: auto;
 }
 
 .prompt-desk__new {
@@ -2735,7 +2745,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #f4f1eb;
+  background: #F1F1F1;
 }
 
 .prompt-models__item img {
@@ -2936,7 +2946,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #f4f1eb;
+  background: #F1F1F1;
   padding: 2px;
   object-fit: contain;
 }
@@ -3434,7 +3444,7 @@
   outline: none;
   box-sizing: border-box;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-break: normal;
 }
 
@@ -3752,7 +3762,7 @@
   width: 100%;
   min-width: 0;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-break: normal;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
@@ -4319,8 +4329,8 @@
   max-width: 100%;
   padding: 0 3px;
   border-radius: 4px;
-  background: rgba(255, 120, 120, 0.16);
-  color: #ff8f8f;
+  background: #D2C6D5;
+  color: #410066;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   box-decoration-break: clone;
@@ -4537,14 +4547,12 @@
 }
 
 .prompt-models__item.is-counted .prompt-models__glyph {
-  background: #9fd8f2;
   color: #111;
   font-size: 13px;
   font-weight: 700;
 }
 
 .prompt-models__item.is-counted.is-empty .prompt-models__glyph {
-  background: #c8c8c8;
   color: #3d3b3b;
 }
 

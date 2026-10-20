@@ -221,28 +221,6 @@ body.marketing-body:has(.marketing-shell--home) {
   grid-column: 4 / span 2;
 }
 
-body:not(.landing-kofi) .floatingchat-container-wrap,
-body:not(.landing-kofi) .floatingchat-container-wrap-mobi,
-body:not(.landing-kofi) .floating-chat-kofi-popup-iframe,
-body:not(.landing-kofi) .floating-chat-kofi-popup-iframe-mobi,
-body:not(.landing-kofi) .floating-chat-kofi-popup-iframe-closer-mobi {
-  display: none !important;
-}
-
-body.landing-kofi .floatingchat-container-wrap,
-body.landing-kofi .floatingchat-container-wrap-mobi {
-  left: auto !important;
-  right: 22px !important;
-  bottom: 22px !important;
-}
-
-body.landing-kofi .floating-chat-kofi-popup-iframe,
-body.landing-kofi .floating-chat-kofi-popup-iframe-mobi {
-  left: auto !important;
-  right: 22px !important;
-  bottom: 96px !important;
-}
-
 .plain-features {
   padding: 48px 0 8px;
   text-align: center;

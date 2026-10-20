@@ -1,11 +1,9 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
+import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
 import { PATHS, authPath } from '../lib/paths.js';
 import { PixelSquares } from '../components/PixelSquares.jsx';
 import { GetStartedButton } from '../components/GetStartedButton.jsx';
-
-const KOFI_PAGE = 'futuranota';
 
 const CARDS = [
   { src: '/landing%20cards/quick%20prompt%20creation.svg', alt: 'Quick prompt creation' },
@@ -39,46 +37,9 @@ function Placeholder({ kind }) {
   );
 }
 
-function useLandingKofi() {
-  useEffect(() => {
-    document.body.classList.add('landing-kofi');
-    let cancelled = false;
-
-    const draw = () => {
-      if (cancelled || window.__futuraKofiDrawn || !window.kofiWidgetOverlay) return;
-      window.__futuraKofiDrawn = true;
-      window.kofiWidgetOverlay.draw(KOFI_PAGE, {
-        type: 'floating-chat',
-        'floating-chat.donateButton.text': 'Support me',
-        'floating-chat.donateButton.background-color': '#323842',
-        'floating-chat.donateButton.text-color': '#fff',
-      });
-    };
-
-    if (window.kofiWidgetOverlay) {
-      draw();
-    } else {
-      let script = document.querySelector('script[data-kofi-overlay]');
-      if (!script) {
-        script = document.createElement('script');
-        script.src = 'https://storage.ko-fi.com/cdn/scripts/overlay-widget.js';
-        script.async = true;
-        script.dataset.kofiOverlay = 'true';
-        document.body.appendChild(script);
-      }
-      script.addEventListener('load', draw);
-    }
-
-    return () => {
-      cancelled = true;
-      document.body.classList.remove('landing-kofi');
-    };
-  }, []);
-}
-
 export function HomePage() {
   const { t } = useI18n();
-  useLandingKofi();
+  useKofiOverlay();
   return (
     <div className="plain-home">
       <section className="plain-home__hero">
