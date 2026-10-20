@@ -20,6 +20,7 @@ export function promptFileBytes(prompt, sizesByPath = {}) {
   let total = promptTextBytes(prompt);
   const paths = [];
   if (prompt?.pdf?.path) paths.push(prompt.pdf.path);
+  if (prompt?.coverPath) paths.push(prompt.coverPath);
   for (const asset of prompt?.assets || []) {
     if (asset?.path) paths.push(asset.path);
   }

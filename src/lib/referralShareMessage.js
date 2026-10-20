@@ -13,6 +13,13 @@ export function buildReferralShareMessage(url, t) {
   });
 }
 
+/** Invite/promo copy for Payments & Billings — not framed as an affiliate. */
+export function buildPromoShareMessage(url, t) {
+  const link = String(url || "").trim();
+  if (!link) return "";
+  return t("referral.promoShareMessage", { url: link });
+}
+
 /**
  * @param {string} value
  */

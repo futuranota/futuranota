@@ -348,69 +348,204 @@
   z-index: 1;
 }
 
-.prompt-billing__card {
-  width: min(420px, calc(100% - 64px));
-  margin: 28px 32px;
-  padding: 22px 22px 20px;
-  border-radius: 18px;
+.prompt-billing {
+  --prompt-billing-ink: #111;
+  --prompt-billing-muted: #3d3b3b;
+  color: var(--prompt-billing-ink);
+}
+
+.prompt-billing__sheet {
+  --scroll-bg: #fff;
+  width: min(720px, calc(100% - 64px));
+  margin: 20px 32px 48px;
+  padding: 32px 32px 28px;
+  border: 1px solid #e8e8e8;
+  border-radius: 14px;
   background: #fff;
-  color: #1c1917;
+  box-shadow: 0 3px 16px #00000014;
+  color: var(--prompt-billing-ink);
+}
+
+.prompt-billing__card {
+  padding: 0 0 28px;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 .prompt-billing__kicker {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #6f6a64;
+  color: var(--prompt-billing-muted);
+}
+
+.prompt-billing__plan {
+  margin: 8px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--prompt-billing-ink);
 }
 
 .prompt-billing__price {
-  margin: 8px 0 0;
-  font-size: 36px;
+  margin: 12px 0 0;
+  font-size: 44px;
   letter-spacing: -0.04em;
-  font-weight: 650;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--prompt-billing-ink);
 }
 
 .prompt-billing__price span {
+  margin-left: 6px;
   font-size: 16px;
   font-weight: 500;
-  color: #6f6a64;
+  color: var(--prompt-billing-muted);
 }
 
 .prompt-billing__note {
-  margin: 10px 0 18px;
-  color: #6f6a64;
+  margin: 12px 0 0;
+  color: var(--prompt-billing-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.prompt-billing__list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-billing__list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   font-size: 14px;
   line-height: 1.45;
+  color: var(--prompt-billing-ink);
+}
+
+.prompt-billing__check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--prompt-billing-ink);
+}
+
+.prompt-billing__status {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--prompt-billing-ink);
 }
 
 .prompt-billing__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+  margin-top: 20px;
 }
 
+.prompt-billing__actions .prompt-billing__cta,
+.prompt-billing__actions .prompt-billing__cancel {
+  margin-top: 0;
+}
+
+.prompt-billing__cta,
 .prompt-billing__cancel {
+  margin-top: 20px;
   border: 0;
   border-radius: 999px;
-  background: #1c1917;
+  background: #111;
   color: #fff;
-  padding: 10px 16px;
+  padding: 10px 18px;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 
-.prompt-billing .plain-signup {
-  border: 0;
+.prompt-billing__ghost {
+  margin-top: 20px;
+  border: 1px solid #111;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
 
+.prompt-billing__cta:disabled,
 .prompt-billing__cancel:disabled,
-.prompt-billing .plain-signup:disabled {
+.prompt-billing__ghost:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.prompt-billing__promo {
+  padding: 28px 0 0;
+}
+
+.prompt-billing__promo-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--prompt-billing-ink);
+}
+
+.prompt-billing__promo-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--prompt-billing-muted);
+}
+
+.prompt-billing__promo-label {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--prompt-billing-muted);
+}
+
+.prompt-billing__promo-text {
+  display: block;
+  width: 100%;
+  min-height: 168px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.prompt-billing__promo-text:focus {
+  outline: 1px solid #111;
+  outline-offset: 0;
+}
+
+.prompt-billing__promo .prompt-billing__cta {
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .prompt-billing__sheet {
+    width: calc(100% - 32px);
+    margin: 12px 16px 40px;
+    padding: 24px 18px 22px;
+  }
 }
 
 .prompt-embed {
@@ -2519,7 +2654,6 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  cursor: pointer;
 }
 
 .prompt-index__card {
@@ -2528,10 +2662,50 @@
   width: 46%;
   height: 80%;
   overflow: hidden;
+  appearance: none;
+  border: 0;
+  padding: 0;
   border-radius: 18px;
   background: #c5c5c5;
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
   color: #1a1a1a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.prompt-index__card input {
+  display: none;
+}
+
+.prompt-index__open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.prompt-index__cover {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
 }
 
 .prompt-index__card img {

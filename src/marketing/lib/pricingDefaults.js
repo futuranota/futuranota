@@ -5,7 +5,7 @@ export const PRICING_SECTION_DEFAULT = {
   eyebrow: 'PRICING',
   title: 'Pricing that Scales with You',
   lead: 'Choose the right plan to unlock powerful tools and insights. Transparent pricing built for makers and founders.',
-  trust: 'No credit card on Starter · Pro is $20/mo · Cancel anytime',
+  trust: 'No credit card on Starter · Pro is $5/mo · Cancel anytime',
 };
 
 /** @type {Record<string, unknown>[]} */
@@ -54,7 +54,7 @@ export const PRICING_PLANS_DEFAULT = [
     name: 'Pro',
     shortName: 'Pro Monthly',
     desc: 'Perfect for makers & founders shipping on every campaign window.',
-    price: '20.00',
+    price: '5',
     priceSuffix: '/mo',
     annualPrice: '99.00',
     annualPriceSuffix: '/yr',

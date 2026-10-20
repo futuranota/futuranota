@@ -385,6 +385,7 @@ export default function GlassFolder({
   onOpenChange,
   onFileSelect,
   onLabelChange,
+  addDisabled = false,
   width = 340,
   appear = true,
   appearDelay = 0,
@@ -518,7 +519,9 @@ export default function GlassFolder({
   }, [menuOpen])
 
   const addFile = () => {
+    if (addDisabled) return
     const made = onAdd?.(files)
+    if (made === null) return
     const file = made || { name: "Untitled " + (files.length + 1), meta: "Just now" }
     const next = [...files, file]
     const id = nextId.current++
@@ -693,28 +696,38 @@ export default function GlassFolder({
           </div>
 
           {action !== "none" ? (
-            <button
-              ref={keyRef}
-              type="button"
-              className={"gf-key gf-key--" + action}
-              aria-label={action === "add" ? "Add a file to " + label : "More options for " + label}
-              aria-haspopup={action === "more" ? "menu" : undefined}
-              aria-expanded={action === "more" ? menuOpen : undefined}
-              aria-controls={action === "more" ? "gf-menu-" + uid : undefined}
-              onClick={() => (action === "add" ? addFile() : setMenuOpen((m) => !m))}
-            >
-              {action === "add" ? (
-                <svg key={bump} className="gf-glyph gf-glyph--plus" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 4.5v15M4.5 12h15" />
-                </svg>
-              ) : (
-                <svg className="gf-glyph gf-glyph--more" viewBox="0 0 30 12" aria-hidden="true">
-                  <rect x="1" y="1.5" width="8" height="9" rx="3.4" />
-                  <rect x="11" y="1.5" width="8" height="9" rx="3.4" />
-                  <rect x="21" y="1.5" width="8" height="9" rx="3.4" />
-                </svg>
-              )}
-            </button>
+            <span className={action === "add" && addDisabled ? "gf-key-wrap gf-key-wrap--tip" : "gf-key-wrap"}>
+              <button
+                ref={keyRef}
+                type="button"
+                className={"gf-key gf-key--" + action}
+                aria-label={action === "add" ? (addDisabled ? "Free plan file limit reached" : "Add a file to " + label) : "More options for " + label}
+                aria-describedby={action === "add" && addDisabled ? "gf-key-tip-" + uid : undefined}
+                aria-haspopup={action === "more" ? "menu" : undefined}
+                aria-expanded={action === "more" ? menuOpen : undefined}
+                aria-controls={action === "more" ? "gf-menu-" + uid : undefined}
+                disabled={action === "add" ? addDisabled : undefined}
+                onClick={() => (action === "add" ? addFile() : setMenuOpen((m) => !m))}
+              >
+                {action === "add" ? (
+                  <svg key={bump} className="gf-glyph gf-glyph--plus" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4.5v15M4.5 12h15" />
+                  </svg>
+                ) : (
+                  <svg className="gf-glyph gf-glyph--more" viewBox="0 0 30 12" aria-hidden="true">
+                    <rect x="1" y="1.5" width="8" height="9" rx="3.4" />
+                    <rect x="11" y="1.5" width="8" height="9" rx="3.4" />
+                    <rect x="21" y="1.5" width="8" height="9" rx="3.4" />
+                  </svg>
+                )}
+              </button>
+              {action === "add" && addDisabled ? (
+                <span className="gf-key-tip" id={"gf-key-tip-" + uid} role="tooltip">
+                  <strong>Free Plan Limitations:</strong>
+                  Unlock to Pro for Unlimited Folders & Files
+                </span>
+              ) : null}
+            </span>
           ) : null}
 
           {action === "more" ? (
@@ -910,13 +923,34 @@ canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
 .gf-title-input::placeholder { color: var(--gf-ink-soft); }
 .gf-meta { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; letter-spacing: .03em; color: var(--gf-ink-soft); white-space: nowrap; animation: gf-roll .5s var(--gf-ease) both; }
 @keyframes gf-roll { from { opacity: 0; translate: 0 7px; filter: blur(3px); } to { opacity: 1; translate: 0 0; filter: blur(0); } }
+.gf-key-wrap {
+  position: absolute; right: 22px; bottom: 22px; z-index: 12;
+}
 .gf-key {
-  all: unset; box-sizing: border-box; position: absolute; right: 22px; bottom: 22px; z-index: 12;
+  all: unset; box-sizing: border-box;
   width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; cursor: pointer;
   transition: transform .35s var(--gf-spring), box-shadow .35s var(--gf-ease), background .35s var(--gf-ease);
 }
 .gf-key:hover { transform: translateY(-2px); }
 .gf-key:active { transform: translateY(0) scale(.93); transition-duration: .12s; }
+.gf-key:disabled,
+.gf-key:disabled:hover,
+.gf-key:disabled:active {
+  opacity: 0.38;
+  cursor: default;
+  transform: none;
+}
+.gf-key-tip {
+  position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 21;
+  width: max-content; max-width: 220px; padding: 10px 12px; border-radius: 10px;
+  background: #141416; color: #fff; font-size: 12px; line-height: 1.35; font-weight: 500;
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .45);
+  opacity: 0; pointer-events: none; transform: translateY(4px);
+  transition: opacity .18s var(--gf-ease), transform .18s var(--gf-ease);
+}
+.gf-key-tip strong { display: block; margin-bottom: 2px; font-weight: 650; }
+.gf-key-wrap--tip:hover .gf-key-tip,
+.gf-key-wrap--tip:focus-within .gf-key-tip { opacity: 1; transform: none; }
 .gf-key:focus-visible { outline: 2px solid #4c8dff; outline-offset: 3px; }
 .gf-key--add {
   color: #fff;

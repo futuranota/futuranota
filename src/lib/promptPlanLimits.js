@@ -16,6 +16,8 @@ export const PRO_PROMPT_CREDITS = 200 * CREDITS_PER_CLICK;
  */
 export const DESK_FREE_PREVIEW_EMAIL = 'contact.fnota@gmail.com';
 
+export const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
+
 export const FREE_PROMPT_LIMITS = {
   maxFolders: 1,
   maxFiles: 2,
@@ -86,19 +88,30 @@ export function promptLimits(plan) {
   return { ...counts, storageBytes: PROMPT_STORAGE_BYTES };
 }
 
+function isDeskFolder(folder) {
+  return folder?.label !== TRANSCRIPT_FOLDER_LABEL;
+}
+
 /** @param {Array<{ prompts?: unknown[] }>} [folders] */
 export function countPromptFiles(folders) {
-  return (folders || []).reduce((total, folder) => total + (folder.prompts?.length || 0), 0);
+  return (folders || []).filter(isDeskFolder).reduce((total, folder) => total + (folder.prompts?.length || 0), 0);
 }
 
 /** @param {Array<unknown>} [folders] @param {string} [plan] */
 export function canAddPromptFolder(folders, plan) {
-  return (folders || []).length < promptLimits(plan).maxFolders;
+  return (folders || []).filter(isDeskFolder).length < promptLimits(plan).maxFolders;
 }
 
-/** @param {Array<{ prompts?: unknown[] }>} [folders] @param {string} [plan] */
-export function canAddPromptFile(folders, plan) {
-  return countPromptFiles(folders) < promptLimits(plan).maxFiles;
+/** @param {Array<{ id?: string, prompts?: unknown[] }>} [folders] @param {string} [plan] @param {string} [folderId] */
+export function canAddPromptFile(folders, plan, folderId) {
+  const cap = promptLimits(plan).maxFiles;
+  if (!Number.isFinite(cap)) return true;
+  if (folderId) {
+    const folder = (folders || []).find((item) => item.id === folderId);
+    if (!folder || !isDeskFolder(folder)) return true;
+    return (folder.prompts?.length || 0) < cap;
+  }
+  return countPromptFiles(folders) < cap;
 }
 
 /** @param {number} pageCount @param {string} [plan] */

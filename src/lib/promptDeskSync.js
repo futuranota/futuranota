@@ -101,6 +101,8 @@ export function foldersFromRows(collections, files, steps) {
         video: null,
         referenceUrl: typeof file.reference_url === 'string' ? file.reference_url : '',
         referenceName: typeof file.reference_name === 'string' ? file.reference_name : '',
+        cover: promptImageUrl(file.cover_path || ''),
+        coverPath: file.cover_path || '',
         assets: assetsFromRow(file.assets),
         steps: (stepsByFile.get(file.id) || [])
           .sort((a, b) => a.position - b.position)
@@ -176,6 +178,7 @@ function fileRow(prompt, userId, collectionId, position) {
     pdf_path: prompt.pdf?.path || null,
     reference_url: typeof prompt.referenceUrl === 'string' ? prompt.referenceUrl : '',
     reference_name: typeof prompt.referenceName === 'string' ? prompt.referenceName : '',
+    cover_path: prompt.coverPath || null,
     assets: assetRows(prompt.assets),
     position,
     updated_at: new Date().toISOString(),
@@ -220,6 +223,7 @@ function imagePaths(folders) {
   for (const folder of folders || []) {
     for (const prompt of folder.prompts || []) {
       if (prompt.pdf?.path) paths.add(prompt.pdf.path);
+      if (prompt.coverPath) paths.add(prompt.coverPath);
       for (const asset of prompt.assets || []) {
         if (asset.path) paths.add(asset.path);
       }
@@ -252,7 +256,7 @@ export async function savePromptDesk(userId, folders, previous) {
   if (files.length) {
     let rows = files;
     let { error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' });
-    if (error && /reference_url|reference_name|pdf_name|pdf_path/i.test(error.message || '')) {
+    if (error && /reference_url|reference_name|pdf_name|pdf_path|cover_path/i.test(error.message || '')) {
       const message = error.message || '';
       rows = rows.map((row) => {
         const next = { ...row };
@@ -260,6 +264,7 @@ export async function savePromptDesk(userId, folders, previous) {
         if (/reference_name/i.test(message)) delete next.reference_name;
         if (/pdf_name/i.test(message)) delete next.pdf_name;
         if (/pdf_path/i.test(message)) delete next.pdf_path;
+        if (/cover_path/i.test(message)) delete next.cover_path;
         return next;
       });
       ({ error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' }));
@@ -371,6 +376,20 @@ export async function uploadPromptImage(file, stepId, userId) {
   if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
   await assertStorageRoom(userId, converted.blob.size);
   const path = `${userId}/${stepId}/${crypto.randomUUID()}.webp`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
+    contentType: 'image/webp',
+    upsert: false,
+    cacheControl: '3600',
+  });
+  if (error) throw error;
+  return { path, url: promptImageUrl(path) };
+}
+
+export async function uploadPromptCover(file, fileId, userId, replacePath = '') {
+  const converted = await convertFileToWebpData(file);
+  if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
+  await assertStorageRoom(userId, converted.blob.size, replacePath);
+  const path = `${userId}/${fileId}/cover-${crypto.randomUUID()}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',
     upsert: false,

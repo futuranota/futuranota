@@ -33,9 +33,10 @@ describe('promptPlanLimits', () => {
   });
 
   it('stops the free shelf at 1 folder, 2 files, and 6 pages', () => {
-    const folders = [{ prompts: [{}, {}] }];
+    const folders = [{ id: 'folder-1', prompts: [{}, {}] }];
     expect(canAddPromptFolder(folders, 'free')).toBe(false);
-    expect(canAddPromptFile(folders, 'free')).toBe(false);
+    expect(canAddPromptFile(folders, 'free', 'folder-1')).toBe(false);
+    expect(canAddPromptFile([{ id: 'folder-1', prompts: [{}] }], 'free', 'folder-1')).toBe(true);
     expect(canAddPromptPage(6, 'free')).toBe(false);
     expect(canAddPromptPage(5, 'free')).toBe(true);
     expect(canAddPromptPage(40, 'pro')).toBe(true);
@@ -67,11 +68,12 @@ describe('promptStorageTree', () => {
       id: 'file-1',
       name: 'Brief',
       steps: [{ description: 'Hola', prompt: 'Prompt', imagePath: 'user/step.webp' }],
+      coverPath: 'user/cover.webp',
       pdf: { path: 'user/file-1.pdf' },
     };
-    const sizes = { 'user/file-1.pdf': 1000, 'user/step.webp': 50, 'user/other.pdf': 9 };
+    const sizes = { 'user/file-1.pdf': 1000, 'user/step.webp': 50, 'user/cover.webp': 80, 'user/other.pdf': 9 };
     const text = promptFileBytes({ ...prompt, pdf: null, steps: [{ description: 'Hola', prompt: 'Prompt' }] });
-    expect(promptFileBytes(prompt, sizes)).toBe(text + 1050);
+    expect(promptFileBytes(prompt, sizes)).toBe(text + 1130);
 
     const root = storageTreeFromDesk([{
       id: 'folder-1',

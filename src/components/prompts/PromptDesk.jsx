@@ -12,6 +12,7 @@ import {
   loadPromptStorageTree,
   promptDocumentKind,
   savePromptDesk,
+  uploadPromptCover,
   uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
@@ -19,6 +20,7 @@ import { readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.
 import {
   PROMPT_LIMIT_COPY,
   PROMPT_STORAGE_BYTES,
+  TRANSCRIPT_FOLDER_LABEL,
   canAddPromptFile,
   canAddPromptFolder,
   canAddPromptPage,
@@ -41,7 +43,8 @@ import {
   readAssistanceMarkers,
   transcriptHasMarkers,
 } from '../../lib/promptStructure.js';
-import { cancelProSubscription, startProCheckout } from '../../lib/billingApi.js';
+import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
+import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
 import { useStripeCheckoutReturn } from '../../lib/useStripeCheckoutReturn.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
@@ -63,7 +66,6 @@ import './prompt-desk.css';
 const pdfFiles = new Map();
 
 const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
-const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
 
 const HOME_FRAMES = [
   '/Portada/left%20frame.png',
@@ -605,6 +607,8 @@ function blankPrompt() {
     video: null,
     referenceUrl: '',
     referenceName: '',
+    cover: '',
+    coverPath: '',
     assets: [],
     steps: [blankStep()],
   };
@@ -656,7 +660,7 @@ function transcriptTitle(name) {
 }
 
 function coverImage(prompt) {
-  return (prompt.steps || []).find((step) => step.image)?.image || '';
+  return prompt.cover || '';
 }
 
 function stepAt(prompt) {
@@ -888,13 +892,56 @@ function DeskSidebar({ view, settingsPane }) {
   );
 }
 
+const PRO_BILLING_FEATURE_KEYS = [
+  'deskBilling.featureStorage',
+  'deskBilling.featureDesk',
+  'deskBilling.featureAi',
+  'deskBilling.featureUrlVars',
+  'deskBilling.featureCopy',
+];
+
+function BillingCheckIcon() {
+  return (
+    <svg className="prompt-billing__check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M6.5 10.2 8.8 12.5 13.5 7.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function BillingSettings() {
-  const plan = usePlanStore((state) => state.profile.plan);
+  const { t } = useI18n();
+  const profile = usePlanStore((state) => state.profile);
   const fetchProfile = usePlanStore((state) => state.fetchProfile);
-  const pro = plan === 'pro';
+  const pro = profile.plan === 'pro';
+  const canCancel = pro && Boolean(profile.stripeSubscriptionId);
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [note, setNote] = useState('');
+  const [promoUrl, setPromoUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const shareMessage = useMemo(
+    () => buildPromoShareMessage(promoUrl, t),
+    [promoUrl, t],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAffiliateLink()
+      .then((data) => {
+        if (!cancelled) setPromoUrl(data?.url || '');
+      })
+      .catch(() => {
+        if (!cancelled) setPromoUrl('');
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const upgrade = async () => {
     if (busy) return;
@@ -905,7 +952,7 @@ function BillingSettings() {
       if (!url) throw new Error('Stripe checkout URL missing');
       window.location.assign(url);
     } catch (error) {
-      setNote(error instanceof Error ? error.message : 'Checkout failed');
+      setNote(error instanceof Error ? error.message : t('deskBilling.checkoutFailed'));
       setBusy(false);
     }
   };
@@ -918,48 +965,102 @@ function BillingSettings() {
       await cancelProSubscription();
       await fetchProfile();
       setConfirmCancel(false);
-      setNote('Plan canceled. The account is back on the free plan.');
+      setNote(t('deskBilling.canceled'));
     } catch (error) {
-      setNote(error instanceof Error ? error.message : 'Cancel failed');
+      setNote(error instanceof Error ? error.message : t('deskBilling.cancelFailed'));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const copyPromo = async () => {
+    if (!shareMessage) return;
+    try {
+      await copyReferralShareMessage(shareMessage, promoUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
     }
   };
 
   return (
     <div className="prompt-desk__page prompt-billing">
       <header className="prompt-desk__bar">
-        <p className="prompt-desk__mark">Payments & Billings</p>
+        <p className="prompt-desk__mark">{t('deskBilling.title')}</p>
       </header>
-      <div className="prompt-billing__card">
-        <p className="prompt-billing__kicker">{pro ? 'Pro' : 'Free'}</p>
-        <p className="prompt-billing__price">{pro ? '$5' : '$0'}<span>/mo</span></p>
-        <p className="prompt-billing__note">
-          {pro
-            ? 'Pro is active. Canceling ends the Stripe subscription and the webhook returns this account to the free plan.'
-            : 'Upgrade to Pro for $5/mo. That unlocks more folders, files, pages, embeds, and 200 clicks.'}
-        </p>
-        {note ? <p className="prompt-desk__limit" role="status">{note}</p> : null}
-        {pro ? (
-          confirmCancel ? (
-            <div className="prompt-billing__actions">
-              <button type="button" className="prompt-billing__cancel" onClick={cancelPlan} disabled={busy}>
-                {busy ? 'Canceling…' : 'Confirm cancel'}
-              </button>
-              <button type="button" className="prompt-desk__new" onClick={() => setConfirmCancel(false)} disabled={busy}>
-                Keep Pro
-              </button>
-            </div>
+      <div className="prompt-billing__sheet">
+        <section className="prompt-billing__card" aria-labelledby="prompt-billing-plan">
+          <p className="prompt-billing__kicker">{pro ? t('deskBilling.pro') : t('deskBilling.free')}</p>
+          <h2 id="prompt-billing-plan" className="prompt-billing__plan">{t('deskBilling.planName')}</h2>
+          <p className="prompt-billing__price">
+            $5<span>{t('deskBilling.priceSuffix')}</span>
+          </p>
+          <p className="prompt-billing__note">{t('deskBilling.desc')}</p>
+          <ul className="prompt-billing__list" role="list">
+            {PRO_BILLING_FEATURE_KEYS.map((key) => (
+              <li key={key} className="prompt-billing__list-item">
+                <BillingCheckIcon />
+                <span>{t(key)}</span>
+              </li>
+            ))}
+          </ul>
+          {note ? <p className="prompt-billing__status" role="status">{note}</p> : null}
+          {pro && !canCancel ? (
+            <p className="prompt-billing__note">{t('deskBilling.managedNote')}</p>
+          ) : null}
+          {pro ? (
+            canCancel ? (
+              confirmCancel ? (
+                <div className="prompt-billing__actions">
+                  <button type="button" className="prompt-billing__cancel" onClick={cancelPlan} disabled={busy}>
+                    {busy ? t('deskBilling.processing') : t('deskBilling.confirmCancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="prompt-desk__new"
+                    onClick={() => setConfirmCancel(false)}
+                    disabled={busy}
+                  >
+                    {t('deskBilling.keepPro')}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="prompt-billing__ghost" onClick={() => setConfirmCancel(true)}>
+                  {t('deskBilling.cancelPlan')}
+                </button>
+              )
+            ) : null
           ) : (
-            <button type="button" className="prompt-billing__cancel" onClick={() => setConfirmCancel(true)}>
-              Cancel plan
+            <button type="button" className="prompt-billing__cta" onClick={upgrade} disabled={busy}>
+              {busy ? t('deskBilling.openingCheckout') : t('deskBilling.upgrade')}
             </button>
-          )
-        ) : (
-          <button type="button" className="plain-signup" onClick={upgrade} disabled={busy}>
-            {busy ? 'Opening checkout…' : 'Upgrade to Pro'}
+          )}
+        </section>
+
+        <section className="prompt-billing__promo" aria-labelledby="prompt-billing-promo">
+          <h2 id="prompt-billing-promo" className="prompt-billing__promo-title">{t('deskBilling.promoTitle')}</h2>
+          <p className="prompt-billing__promo-hint">{t('deskBilling.promoHint')}</p>
+          <label className="prompt-billing__promo-label" htmlFor="prompt-billing-promo-text">
+            {t('deskBilling.promoLabel')}
+          </label>
+          <textarea
+            id="prompt-billing-promo-text"
+            className="prompt-billing__promo-text scroll-match-bg"
+            rows={8}
+            readOnly
+            value={shareMessage}
+            placeholder={t('deskBilling.promoPlaceholder')}
+          />
+          <button
+            type="button"
+            className="prompt-billing__cta"
+            onClick={() => { void copyPromo(); }}
+            disabled={!shareMessage}
+          >
+            {copied ? t('deskBilling.promoCopied') : t('deskBilling.promoCopy')}
           </button>
-        )}
+        </section>
       </div>
     </div>
   );
@@ -1263,7 +1364,7 @@ function TranscribePage({ prompts, onCreate, onSave, onDelete }) {
   );
 }
 
-function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename }) {
+function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename, canAdd = true }) {
   const [opened, setOpened] = useState(false);
   const sheets = useMemo(
     () => sheetsOf(folder.prompts, searchOpen ? highlightQuery : ''),
@@ -1286,13 +1387,16 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
           setOpened(next);
         }}
         onLabelChange={(label) => onRename(folder.id, label)}
+        addDisabled={!canAdd}
         onAdd={() => {
           const prompt = blankPrompt();
-          onAdd(folder.id, prompt);
-          return { name: prompt.name, meta: prompt.meta, promptId: prompt.id };
+          const id = onAdd(folder.id, prompt);
+          if (!id) return null;
+          return { name: prompt.name, meta: prompt.meta, promptId: id };
         }}
-        onFileSelect={(file) => {
-          if (file?.promptId) onOpenPrompt(folder.id, file.promptId);
+        onFileSelect={(file, index) => {
+          const promptId = file?.promptId || folder.prompts[index]?.id;
+          if (promptId) onOpenPrompt(folder.id, promptId);
         }}
       />
     </div>
@@ -1301,7 +1405,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'coverPath' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -1593,9 +1697,9 @@ export default function PromptDesk() {
 
   function addPrompt(folderId, prompt) {
     const plan = activeDeskPlan();
-    if (!canAddPromptFile(foldersRef.current, plan)) {
+    if (!canAddPromptFile(foldersRef.current, plan, folderId)) {
       setLimitNote(PROMPT_LIMIT_COPY.file);
-      return;
+      return null;
     }
     setLimitNote('');
     const created = { ...prompt, variables: [] };
@@ -1604,6 +1708,7 @@ export default function PromptDesk() {
         ? { ...folder, prompts: [...folder.prompts, created] }
         : folder
     )), 'now');
+    return created.id;
   }
 
   function patchPrompt(patch, mode) {
@@ -1714,11 +1819,6 @@ export default function PromptDesk() {
   }
 
   function createTranscript({ name, text }) {
-    const plan = activeDeskPlan();
-    if (!canAddPromptFile(foldersRef.current, plan)) {
-      setLimitNote(PROMPT_LIMIT_COPY.file);
-      return null;
-    }
     setLimitNote('');
     const created = blankTranscript();
     created.name = name;
@@ -1951,6 +2051,7 @@ export default function PromptDesk() {
             appearDelay={index * 120}
             onAdd={addPrompt}
             onRename={renameFolder}
+            canAdd={canAddPromptFile(folders, plan, folder.id)}
             onOpenPrompt={(folderId, promptId) => {
               setActive({ folderId, promptId });
               setCompact(false);
@@ -2418,6 +2519,26 @@ function InstructionPanel({
       window.clearTimeout(close);
     };
   }, [pdfAsk, prompt.pdf?.path]);
+
+  function takeCover(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    readImageFile(file, (cover) => {
+      onPatch({ cover });
+    });
+    currentPromptUserId()
+      .then((userId) => {
+        if (!userId) return null;
+        return uploadPromptCover(file, prompt.id, userId, prompt.coverPath);
+      })
+      .then((uploaded) => {
+        if (!uploaded) return;
+        onPatch({ cover: uploaded.url, coverPath: uploaded.path });
+      })
+      .catch((error) => {
+        console.warn('[prompt-desk] cover upload failed', error?.message || error);
+        setLimitNote(error instanceof Error ? error.message : PROMPT_LIMIT_COPY.storage);
+      });
+  }
 
   function takeImage(file, replace = false) {
     if (!sheetOpen) return;
@@ -4068,30 +4189,65 @@ function InstructionPanel({
           ) : (
           <div className="prompt-home">
           <div className="prompt-index">
-            <button
-              type="button"
-              className="prompt-index__fan"
-              aria-label="Abrir prompt"
-              onClick={openBuiltPrompt}
-            >
+            <div className="prompt-index__fan">
               {[steps[index - 1] || null, step, steps[index + 1] || null].map((page, place) => {
                 const text = page ? plainCopy(page.prompt, ownedVariables) : '';
+                const cover = coverImage(prompt);
+                const isFront = place === 1;
+                const picture = isFront
+                  ? (cover || HOME_FRAMES[place])
+                  : (page?.image || (!text ? HOME_FRAMES[place] : ''));
+                const inner = picture ? (
+                  <img
+                    className={(isFront ? cover : page?.image) ? undefined : 'prompt-index__default'}
+                    src={picture}
+                    alt=""
+                  />
+                ) : (
+                  <span className="prompt-index__text">{text}</span>
+                );
+                if (isFront) {
+                  return (
+                    <div
+                      key={page?.id || `empty-${place}`}
+                      className="prompt-index__card prompt-index__card--front"
+                    >
+                      <button
+                        type="button"
+                        className="prompt-index__open"
+                        aria-label="Abrir prompt"
+                        onClick={openBuiltPrompt}
+                      >
+                        {inner}
+                      </button>
+                      <label className="prompt-index__cover">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/*"
+                          aria-label="Upload cover"
+                          onChange={(event) => {
+                            takeCover(event.target.files?.[0]);
+                            event.target.value = '';
+                          }}
+                        />
+                        Portada
+                      </label>
+                    </div>
+                  );
+                }
                 return (
-                  <span
+                  <button
                     key={page?.id || `empty-${place}`}
-                    className={place === 1 ? 'prompt-index__card prompt-index__card--front' : 'prompt-index__card'}
+                    type="button"
+                    className="prompt-index__card"
+                    aria-label="Abrir prompt"
+                    onClick={openBuiltPrompt}
                   >
-                    {page?.image ? (
-                      <img src={page.image} alt="" />
-                    ) : text ? (
-                      <span className="prompt-index__text">{text}</span>
-                    ) : (
-                      <img className="prompt-index__default" src={HOME_FRAMES[place]} alt="" />
-                    )}
-                  </span>
+                    {inner}
+                  </button>
                 );
               })}
-            </button>
+            </div>
             <div className="prompt-index__side">
               {homeLogo ? (
                 <img
@@ -4161,7 +4317,7 @@ function InstructionPanel({
               type="button"
               className="prompt-steps__arrow"
               aria-label="Next prompt"
-              disabled={index >= steps.length - 1 && !stepHasDraft(step)}
+              disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
               onClick={goForward}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4589,7 +4745,7 @@ function FloatCard({ prompt, view, onPatch }) {
           type="button"
           className="prompt-steps__arrow"
           aria-label="Next prompt"
-          disabled={index >= steps.length - 1 && !stepHasDraft(step)}
+          disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
           onClick={goForward}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
