@@ -16,7 +16,7 @@ import {
   uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
-import { readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
+import { clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
   PROMPT_STORAGE_BYTES,
@@ -1548,6 +1548,15 @@ export default function PromptDesk() {
   const committedRef = useRef({ steps: {}, files: {} });
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('reset-desk') === '1') {
+      clearPreviewDeskUsage(email || undefined);
+      toolCallsRef.current = 0;
+      setToolCalls(0);
+      params.delete('reset-desk');
+      const search = params.toString();
+      navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+    }
     let cancel = false;
     (async () => {
       const userId = useAuthStore.getState().user?.id || await currentPromptUserId();
@@ -1567,7 +1576,7 @@ export default function PromptDesk() {
     return () => {
       cancel = true;
     };
-  }, [email, profilePlan]);
+  }, [email, profilePlan, location.pathname, location.search, navigate]);
 
   async function spendClick() {
     const account = {
@@ -2025,6 +2034,8 @@ export default function PromptDesk() {
     return [...matched, ...rest];
   }, [folders, submitted]);
 
+  const folderLimitReached = Boolean(folders) && !canAddPromptFolder(folders, plan);
+
   useEffect(() => {
     if (!submitted.trim()) return;
     document.querySelector('.prompt-desk__folder--hit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2071,9 +2082,24 @@ export default function PromptDesk() {
       <>
       <header className="prompt-desk__bar">
         <img src="/navbar.svg" alt="Futura Nota" className="prompt-desk__logo" />
-        <button type="button" className="prompt-desk__new" onClick={addCollection} disabled={!folders}>
-          Nueva colección
-        </button>
+        <span className={folderLimitReached ? 'prompt-desk__new-wrap prompt-desk__new-wrap--tip' : 'prompt-desk__new-wrap'}>
+          <button
+            type="button"
+            className="prompt-desk__new"
+            onClick={addCollection}
+            disabled={!folders || folderLimitReached}
+            aria-label={folderLimitReached ? 'Free plan folder limit reached' : 'New Collection'}
+            aria-describedby={folderLimitReached ? 'prompt-desk-new-tip' : undefined}
+          >
+            New Collection
+          </button>
+          {folderLimitReached ? (
+            <span className="prompt-desk__new-tip" id="prompt-desk-new-tip" role="tooltip">
+              <strong>Free Plan Limitations:</strong>
+              Unlock to Pro for Unlimited Folders & Files
+            </span>
+          ) : null}
+        </span>
       </header>
       {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
       <div className="prompt-desk__search">

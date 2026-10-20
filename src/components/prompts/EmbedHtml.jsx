@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import { readDeskEmbedDay, spendDeskEmbedBox } from '../../lib/promptDeskUsage.js';
@@ -11,7 +11,10 @@ const DEFAULTS = {
 };
 
 const DESIGN_STORE = 'fn-embed-designs';
+const LOGO_STORE = 'fn-embed-logo';
 const MAX_DESIGNS = 24;
+const LOGO_MAX_EDGE = 80;
+const LOGO_MAX_BYTES = 220_000;
 
 const FORMATS = [
   { id: 'bold', label: 'Bold', command: 'bold' },
@@ -60,12 +63,92 @@ function embedJsonLd(title, description, keywords) {
   return `\n  <script type="application/ld+json">${json}</script>`;
 }
 
-function embedMetaAttrs(title, description, keywords) {
+function embedMetaAttrs(title, description, keywords, brand) {
   const parts = [];
   if (title) parts.push(`data-fn-title="${escapeHtml(title)}"`);
   if (description) parts.push(`data-fn-description="${escapeHtml(description)}"`);
   if (keywords) parts.push(`data-fn-keywords="${escapeHtml(keywords)}"`);
+  if (brand) parts.push(`data-fn-brand="${escapeHtml(brand)}"`);
   return parts.length ? ` ${parts.join(' ')}` : '';
+}
+
+function isLogo(item) {
+  return Boolean(item)
+    && typeof item.src === 'string'
+    && item.src.startsWith('data:image/')
+    && typeof item.alt === 'string';
+}
+
+function loadLogoStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOGO_STORE) || 'null');
+    if (!isLogo(parsed)) return { src: '', alt: '' };
+    return { src: parsed.src, alt: parsed.alt };
+  } catch {
+    return { src: '', alt: '' };
+  }
+}
+
+export function sanitizeBrandSvg(raw) {
+  const svg = String(raw || '');
+  if (!/<svg[\s>]/i.test(svg)) {
+    throw new Error('That SVG is not valid.');
+  }
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '')
+    .trim();
+}
+
+function resizeBrandPng(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, LOGO_MAX_EDGE / Math.max(image.width, image.height, 1));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Couldn’t read that PNG.'));
+        return;
+      }
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Couldn’t read that PNG.'));
+    };
+    image.src = url;
+  });
+}
+
+export async function readBrandFile(file) {
+  if (!file) throw new Error('Choose an SVG or PNG.');
+  const type = String(file.type || '').toLowerCase();
+  const name = String(file.name || '').toLowerCase();
+  const isSvg = type === 'image/svg+xml' || name.endsWith('.svg');
+  const isPng = type === 'image/png' || name.endsWith('.png');
+  if (!isSvg && !isPng) throw new Error('Use SVG or PNG.');
+  if (file.size > 800_000) throw new Error('File is too large.');
+  if (isSvg) {
+    const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sanitizeBrandSvg(await file.text()))}`;
+    if (src.length > LOGO_MAX_BYTES * 1.4) throw new Error('File is too large.');
+    return src;
+  }
+  return resizeBrandPng(file);
+}
+
+function embedBrandMark(src, alt) {
+  if (!src) return '';
+  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(trimMeta(alt))}" width="40" height="40" style="display:block;width:40px;height:40px;object-fit:contain;background:transparent;flex:none" />`;
 }
 
 function promptCardStyles(background, color, button) {
@@ -278,6 +361,8 @@ export function buildPromptEmbed({
   metaTitle = '',
   metaDescription = '',
   metaKeywords = '',
+  logoSrc = '',
+  logoAlt = '',
 }) {
   const { box, ink, fill, buttonInk } = promptCardStyles(background, color, button);
   const safe = escapeHtml(text);
@@ -286,6 +371,8 @@ export function buildPromptEmbed({
   const title = trimMeta(metaTitle);
   const description = trimMeta(metaDescription);
   const keywords = trimMeta(metaKeywords);
+  const brand = trimMeta(logoAlt);
+  const mark = embedBrandMark(logoSrc, brand);
   const textStyle = [
     'white-space:pre-wrap',
     'overflow-wrap:anywhere',
@@ -296,16 +383,18 @@ export function buildPromptEmbed({
   const fade = overflow
     ? `<div style="pointer-events:none;position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to top, ${box}, transparent)"></div>`
     : '';
+  const copyButton = `<button type="button" data-fn-prompt="${safe}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border:1px solid ${buttonInk}33;border-radius:6px;background:${fill};color:${buttonInk};font:500 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap">${COPY_ICON}<span>Copy</span></button>`;
+  const footer = mark
+    ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px">${mark}${copyButton}</div>`
+    : `<div style="display:flex;justify-content:flex-end;margin-top:16px">${copyButton}</div>`;
   return `<!-- REFERENCE: CUT THIS WHOLE BLOCK -->
-<div data-fn-embed${embedMetaAttrs(title, description, keywords)} style="width:100%;max-width:960px">${embedJsonLd(title, description, keywords)}
+<div data-fn-embed${embedMetaAttrs(title, description, keywords, brand)} style="width:100%;max-width:960px">${embedJsonLd(title, description, keywords)}
   <div style="box-sizing:border-box;position:relative;width:100%;padding:20px;border-radius:12px;background:${box};color:${ink}">
     <div style="position:relative">
       <div style="${textStyle}">${body}</div>
       ${fade}
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:16px">
-      <button type="button" data-fn-prompt="${safe}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border:1px solid ${buttonInk}33;border-radius:6px;background:${fill};color:${buttonInk};font:500 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap">${COPY_ICON}<span>Copy</span></button>
-    </div>
+    ${footer}
   </div>
 </div>
 <script>
@@ -321,7 +410,7 @@ export function buildPromptEmbed({
   }
   if (!root || root.getAttribute("data-fn-ready")) return;
   root.setAttribute("data-fn-ready", "1");
-  var button = root.querySelector("button");
+  var button = root.querySelector("[data-fn-prompt]");
   if (button) {
     var copyLabel = button.querySelector("span");
     button.addEventListener("click", function () {
@@ -623,6 +712,49 @@ function DesignThumb({ design, selected, label, onChoose, onRemove }) {
   );
 }
 
+function BrandingCard({ src, alt, note, onFile, onAlt, onClear }) {
+  const fileId = useId();
+  return (
+    <section className="prompt-embed__branding" aria-label="Branding">
+      <h2>Branding</h2>
+      <div className="prompt-embed__brand-row">
+        <label className={src ? 'prompt-embed__brand-slot has-file' : 'prompt-embed__brand-slot'} htmlFor={fileId}>
+          <span className="prompt-embed__brand-sr">Icono del negocio</span>
+          <input
+            id={fileId}
+            type="file"
+            accept="image/png,image/svg+xml,.png,.svg"
+            onChange={onFile}
+          />
+          {src ? (
+            <img src={src} alt="" width={40} height={40} />
+          ) : (
+            <span className="prompt-embed__brand-plus" aria-hidden="true">+</span>
+          )}
+        </label>
+        <div className="prompt-embed__brand-fields">
+          <label className="prompt-embed__brand-name">
+            <span>Nombre</span>
+            <input
+              type="text"
+              value={alt}
+              placeholder="Nombre del negocio"
+              onChange={(event) => onAlt(event.target.value)}
+            />
+          </label>
+          {src ? (
+            <button type="button" className="prompt-embed__brand-clear" onClick={onClear}>
+              Quitar icono
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <p className="prompt-embed__brand-hint">SVG o PNG · 40×40 · sin fondo</p>
+      {note ? <p className="prompt-embed__note" role="status">{note}</p> : null}
+    </section>
+  );
+}
+
 function EmbedAllowance({ plan, used = 0 }) {
   const navigate = useNavigate();
   const pro = plan === 'pro';
@@ -653,11 +785,15 @@ function EmbedAllowance({ plan, used = 0 }) {
 
 export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const storedDesigns = useMemo(() => loadDesignStore(), []);
+  const storedLogo = useMemo(() => loadLogoStore(), []);
   const activeDesign = storedDesigns.designs.find((item) => item.id === storedDesigns.activeId);
   const [text, setText] = useState('');
   const [background, setBackground] = useState(activeDesign?.background || DEFAULTS.background);
   const [color, setColor] = useState(activeDesign?.color || DEFAULTS.color);
   const [button, setButton] = useState(activeDesign?.button || DEFAULTS.button);
+  const [logoSrc, setLogoSrc] = useState(storedLogo.src);
+  const [logoAlt, setLogoAlt] = useState(storedLogo.alt);
+  const [brandNote, setBrandNote] = useState('');
   const [markup, setMarkup] = useState('');
   const [designs, setDesigns] = useState(storedDesigns.designs);
   const [activeId, setActiveId] = useState(storedDesigns.activeId);
@@ -698,8 +834,10 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
       metaTitle,
       metaDescription,
       metaKeywords,
+      logoSrc,
+      logoAlt,
     }),
-    [text, markup, background, color, button, metaTitle, metaDescription, metaKeywords],
+    [text, markup, background, color, button, metaTitle, metaDescription, metaKeywords, logoSrc, logoAlt],
   );
   const card = promptCardStyles(background, color, button);
   const overflow = text.length > SCROLL_AT;
@@ -812,11 +950,11 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
 
   useEffect(() => {
     try {
-      localStorage.removeItem('fn-embed-logo');
+      localStorage.setItem(LOGO_STORE, JSON.stringify({ src: logoSrc, alt: logoAlt }));
     } catch {
-      /* The stored icon is already gone. */
+      /* The browser refused the brand mark. */
     }
-  }, []);
+  }, [logoSrc, logoAlt]);
 
   function applyDesign(design) {
     setBackground(design.background);
@@ -896,6 +1034,19 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
     setHowOpen(true);
   }
 
+  async function handleBrandFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const src = await readBrandFile(file);
+      setLogoSrc(src);
+      setBrandNote('');
+    } catch (error) {
+      setBrandNote(error instanceof Error ? error.message : 'Couldn’t read that file.');
+    }
+  }
+
   return (
     <div className="prompt-desk__page prompt-embed">
       <header className="prompt-desk__bar">
@@ -922,6 +1073,15 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
           </div>
           <div className="prompt-embed__actions">
+            {logoSrc ? (
+              <img
+                className="prompt-embed__brand-preview"
+                src={logoSrc}
+                alt={logoAlt || ''}
+                width={40}
+                height={40}
+              />
+            ) : null}
             <button
               type="button"
               style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
@@ -932,6 +1092,17 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             </button>
           </div>
         </div>
+        <BrandingCard
+          src={logoSrc}
+          alt={logoAlt}
+          note={brandNote}
+          onFile={(event) => { void handleBrandFile(event); }}
+          onAlt={setLogoAlt}
+          onClear={() => {
+            setLogoSrc('');
+            setBrandNote('');
+          }}
+        />
         <div className="prompt-embed__bars">
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
             {FORMATS.map((item) => (

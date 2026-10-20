@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import {
+  DESK_FREE_PREVIEW_EMAIL,
   FREE_PROMPT_LIMITS,
   PROMPT_LIMIT_COPY,
   PROMPT_LIMITS_ENFORCED,
@@ -53,6 +54,35 @@ function writePreviewClicks(email, used) {
   } catch {
     // Private mode can block storage. The in-memory count still disables the buttons.
   }
+}
+
+function previewEmbedPrefix(email) {
+  return `fn-desk-embeds:${String(email || '').trim().toLowerCase()}:`;
+}
+
+/**
+ * Wipe the preview browser counters (clicks + embed day keys).
+ * Used by `?reset-desk=1` while the founder is testing limits.
+ */
+export function clearPreviewDeskUsage(email = DESK_FREE_PREVIEW_EMAIL) {
+  const who = String(email || DESK_FREE_PREVIEW_EMAIL).trim().toLowerCase();
+  const clickKey = previewClickKey(who);
+  const embedPrefix = previewEmbedPrefix(who);
+  try {
+    localStorage.removeItem(clickKey);
+    const stale = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith(embedPrefix)) stale.push(key);
+    }
+    stale.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* Private mode can block storage. */
+  }
+  for (const key of [...previewEmbedMemory.keys()]) {
+    if (key === clickKey || key.startsWith(embedPrefix)) previewEmbedMemory.delete(key);
+  }
+  return who;
 }
 
 /**

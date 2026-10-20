@@ -15,7 +15,7 @@ import {
   promptToolCallsLeft,
 } from './promptPlanLimits.js';
 import { promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
-import { embedCountForDay, readPreviewEmbeds, spendPreviewEmbed } from './promptDeskUsage.js';
+import { clearPreviewDeskUsage, embedCountForDay, readPreviewEmbeds, spendPreviewEmbed } from './promptDeskUsage.js';
 
 describe('promptPlanLimits', () => {
   it('enforces the free shelf and leaves Pro open', () => {
@@ -103,5 +103,13 @@ describe('embedCountForDay', () => {
     expect(spendPreviewEmbed(email, '2026-10-20').ok).toBe(false);
     expect(readPreviewEmbeds(email, '2026-10-21')).toBe(0);
     expect(spendPreviewEmbed(email, '2026-10-21').embedCount).toBe(1);
+  });
+
+  it('clears preview clicks and embed keys for a reset', () => {
+    const email = 'reset-desk-test@example.com';
+    spendPreviewEmbed(email, '2026-10-20');
+    expect(readPreviewEmbeds(email, '2026-10-20')).toBe(1);
+    expect(clearPreviewDeskUsage(email)).toBe(email);
+    expect(readPreviewEmbeds(email, '2026-10-20')).toBe(0);
   });
 });
