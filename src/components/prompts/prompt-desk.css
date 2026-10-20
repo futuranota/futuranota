@@ -553,50 +553,27 @@
   min-height: 100svh;
 }
 
-.prompt-embed__split {
+.prompt-embed__board {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  align-items: start;
-  min-height: 100svh;
-}
-
-.prompt-embed__rail {
-  position: sticky;
-  top: 28px;
-  padding: 28px 16px 48px 32px;
-}
-
-.prompt-embed__main > .prompt-desk__bar {
-  padding-left: 8px;
-}
-
-.prompt-embed__body {
-  display: flex;
-  justify-content: flex-start;
-  padding: 12px 32px 48px 8px;
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 14px 16px;
+  width: min(1240px, calc(100% - 40px));
+  padding: 8px 32px 48px 32px;
 }
 
 @media (max-width: 900px) {
-  .prompt-embed__split {
+  .prompt-embed__board {
     grid-template-columns: 1fr;
+    width: 100%;
+    padding: 12px 32px 48px;
   }
 
-  .prompt-embed__rail {
-    position: static;
-    padding: 20px 32px 0;
+  .prompt-embed__bars,
+  .prompt-embed__designs {
+    grid-column: 1;
   }
-
-  .prompt-embed__body {
-    padding: 20px 32px 48px;
-  }
-}
-
-.prompt-embed__stage {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  width: min(960px, 100%);
 }
 
 .prompt-embed__bars {
@@ -604,6 +581,7 @@
   flex-wrap: wrap;
   align-items: center;
   align-self: stretch;
+  grid-column: 2;
   gap: 8px;
   width: 100%;
   max-width: 100%;
@@ -658,10 +636,11 @@
 .prompt-embed__quota {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
-  max-width: 280px;
-  padding: 14px 16px;
+  min-height: 100%;
+  padding: 20px 18px;
   border-radius: 12px;
   background: linear-gradient(90deg, #334155 0%, #52525b 100%);
   color: #fff;
@@ -670,9 +649,10 @@
 
 .prompt-embed__quota p {
   margin: 0;
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1.35;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
 }
 
 .prompt-embed__quota progress {
@@ -701,14 +681,24 @@
 }
 
 .prompt-embed__quota button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
-  height: 36px;
+  height: 52px;
   border: 0;
   border-radius: 8px;
   background: #fff;
   color: #151515;
   font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
+}
+
+.prompt-embed__quota button img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .prompt-embed__quota button:hover {
@@ -886,90 +876,117 @@
   box-sizing: border-box;
   align-self: stretch;
   width: 100%;
-  max-width: 960px;
   padding: 20px;
   border-radius: 12px;
-}
-
-.prompt-embed__designs {
-  position: relative;
 }
 
 .prompt-embed__save {
   margin-left: auto;
 }
 
-.prompt-embed__design-pick,
-.prompt-embed__design-remove {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+.prompt-embed__designs {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 28px;
+  width: 100%;
+}
+
+.prompt-embed__designs h2 {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.prompt-embed__gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .prompt-embed__gallery {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prompt-embed__thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 16px 16px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.prompt-embed__thumb-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 118px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.prompt-embed__thumb-box p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.55;
+}
+
+.prompt-embed__thumb-copy {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: 500 11px/1 ui-sans-serif, system-ui, sans-serif;
+}
+
+.prompt-embed__thumb-copy svg {
+  width: 12px;
+  height: 12px;
+}
+
+.prompt-embed__thumb-choose {
+  align-self: flex-end;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(20, 20, 22, 0.12);
+  border-radius: 6px;
+  background: #fff;
+  color: #151515;
+  font: 500 11px/1 ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
 }
 
-.prompt-embed__swatch {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border: 1px solid rgba(20, 20, 22, 0.16);
-  border-radius: 3px;
-}
-
-.prompt-embed__design-menu {
-  --scroll-bg: #fff;
-  --scroll-thumb: rgba(20, 20, 22, 0.22);
+.prompt-embed__thumb-remove {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 4;
-  width: 180px;
-  max-height: 240px;
-  margin: 0;
-  padding: 4px;
-  overflow: auto;
-  list-style: none;
-  border: 1px solid rgba(20, 20, 22, 0.08);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-}
-
-.prompt-embed__design-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.prompt-embed__design-pick {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-  height: 32px;
-  padding: 0 8px;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border: 0;
   border-radius: 6px;
-  font-size: 13px;
-  text-align: left;
+  background: rgba(255, 255, 255, 0.86);
+  color: #151515;
+  font: 500 14px/1 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
 }
 
-.prompt-embed__design-pick:hover,
-.prompt-embed__design-pick.is-active {
-  background: rgba(20, 20, 22, 0.06);
-}
-
-.prompt-embed__design-remove {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.prompt-embed__design-remove:hover {
-  background: rgba(20, 20, 22, 0.06);
+.prompt-embed__thumb-choose:hover,
+.prompt-embed__thumb-remove:hover {
+  background: #f4f4f5;
 }
 
 .prompt-embed__note {

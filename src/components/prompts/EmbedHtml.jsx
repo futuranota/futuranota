@@ -593,6 +593,36 @@ function CopyEmbedButton({ disabled, copied, onCopy, className }) {
   );
 }
 
+function DesignThumb({ design, selected, label, onChoose, onRemove }) {
+  const card = promptCardStyles(design.background, design.color, design.button);
+  return (
+    <article className={selected ? 'prompt-embed__thumb is-active' : 'prompt-embed__thumb'}>
+      <button
+        type="button"
+        className="prompt-embed__thumb-remove"
+        aria-label={`Remove ${label}`}
+        onClick={onRemove}
+      >
+        ×
+      </button>
+      <div className="prompt-embed__thumb-box" style={{ background: card.box, color: card.ink }}>
+        <p>Insert Prompt</p>
+        <span
+          className="prompt-embed__thumb-copy"
+          style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
+          aria-hidden="true"
+        >
+          <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
+          <span>Copy</span>
+        </span>
+      </div>
+      <button type="button" className="prompt-embed__thumb-choose" onClick={onChoose}>
+        Choose design
+      </button>
+    </article>
+  );
+}
+
 function EmbedAllowance({ plan, used = 0 }) {
   const navigate = useNavigate();
   const pro = plan === 'pro';
@@ -614,6 +644,7 @@ function EmbedAllowance({ plan, used = 0 }) {
       <p>{spent} of {max} daily embeds used</p>
       <progress max={max} value={spent} />
       <button type="button" onClick={() => navigate('/app/settings/billing')}>
+        <img src="/favicon.svg" alt="" />
         Upgrade to Unlimited
       </button>
     </div>
@@ -630,7 +661,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const [markup, setMarkup] = useState('');
   const [designs, setDesigns] = useState(storedDesigns.designs);
   const [activeId, setActiveId] = useState(storedDesigns.activeId);
-  const [designsOpen, setDesignsOpen] = useState(false);
   const [designNote, setDesignNote] = useState('');
   const [active, setActive] = useState({ bold: false, italic: false, underline: false, strike: false, highlight: false });
   const [copiedEmbed, setCopiedEmbed] = useState(false);
@@ -647,7 +677,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const [draftKeywords, setDraftKeywords] = useState('');
   const editorRef = useRef(null);
   const savedRange = useRef(null);
-  const designRef = useRef(null);
   const [embedUsed, setEmbedUsed] = useState(0);
 
   useEffect(() => {
@@ -762,26 +791,16 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   }, []);
 
   useEffect(() => {
-    if (!codeOpen && !designsOpen && !howOpen && !metaOpen) return undefined;
+    if (!codeOpen && !howOpen && !metaOpen) return undefined;
     function onKey(event) {
       if (event.key !== 'Escape') return;
-      if (designsOpen) setDesignsOpen(false);
       if (codeOpen) setCodeOpen(false);
       if (howOpen) setHowOpen(false);
       if (metaOpen) setMetaOpen(false);
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [codeOpen, designsOpen, howOpen, metaOpen]);
-
-  useEffect(() => {
-    if (!designsOpen) return undefined;
-    function onPointer(event) {
-      if (!designRef.current?.contains(event.target)) setDesignsOpen(false);
-    }
-    document.addEventListener('pointerdown', onPointer);
-    return () => document.removeEventListener('pointerdown', onPointer);
-  }, [designsOpen]);
+  }, [codeOpen, howOpen, metaOpen]);
 
   useEffect(() => {
     try {
@@ -804,7 +823,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
     setColor(design.color);
     setButton(design.button);
     setActiveId(design.id);
-    setDesignsOpen(false);
     setDesignNote('');
   }
 
@@ -823,7 +841,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
     setDesigns((list) => [...list, next]);
     setActiveId(next.id);
     setDesignNote('');
-    setDesignsOpen(false);
   }
 
   function removeDesign(id) {
@@ -881,46 +898,41 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
 
   return (
     <div className="prompt-desk__page prompt-embed">
-      <div className="prompt-embed__split">
-        <aside className="prompt-embed__rail">
-          <EmbedAllowance plan={plan} used={embedUsed} />
-        </aside>
-        <div className="prompt-embed__main">
       <header className="prompt-desk__bar">
         <h1 className="prompt-desk__mark">Embed Html</h1>
       </header>
-      <div className="prompt-embed__body">
-        <div className="prompt-embed__stage">
-          <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
-            <div className="prompt-embed__text-wrap">
-              <div
-                ref={editorRef}
-                className={overflow ? 'prompt-embed__text is-scroll' : 'prompt-embed__text'}
-                contentEditable
-                role="textbox"
-                aria-label="Prompt"
-                aria-multiline="true"
-                data-placeholder="Insert Prompt"
-                data-empty={text.length ? undefined : ''}
-                onMouseDown={placeCaretAtStart}
-                onInput={sync}
-                onKeyUp={sync}
-                onMouseUp={() => { saveRange(); sync(); }}
-              />
-              {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
-            </div>
-            <div className="prompt-embed__actions">
-              <button
-                type="button"
-                style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
-                onClick={() => { void copyPrompt(); }}
-              >
-                <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
-                <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
+      <div className="prompt-embed__board">
+        <EmbedAllowance plan={plan} used={embedUsed} />
+        <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
+          <div className="prompt-embed__text-wrap">
+            <div
+              ref={editorRef}
+              className={overflow ? 'prompt-embed__text is-scroll' : 'prompt-embed__text'}
+              contentEditable
+              role="textbox"
+              aria-label="Prompt"
+              aria-multiline="true"
+              data-placeholder="Insert Prompt"
+              data-empty={text.length ? undefined : ''}
+              onMouseDown={placeCaretAtStart}
+              onInput={sync}
+              onKeyUp={sync}
+              onMouseUp={() => { saveRange(); sync(); }}
+            />
+            {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
           </div>
-          <div className="prompt-embed__bars">
+          <div className="prompt-embed__actions">
+            <button
+              type="button"
+              style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
+              onClick={() => { void copyPrompt(); }}
+            >
+              <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
+              <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
+            </button>
+          </div>
+        </div>
+        <div className="prompt-embed__bars">
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
             {FORMATS.map((item) => (
               <button
@@ -964,8 +976,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             >
               Add metadata
             </button>
-          </div>
-          <div className="prompt-embed__toolbar prompt-embed__colors" role="toolbar" aria-label="Colors">
             <label className="prompt-embed__tool">
               <span>Background</span>
               <input type="color" value={background} aria-label="Background" onChange={(event) => setBackground(event.target.value)} />
@@ -978,58 +988,31 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
               <span>Button</span>
               <input type="color" value={button} aria-label="Button" onChange={(event) => setButton(event.target.value)} />
             </label>
-            {designs.length ? (
-              <div className="prompt-embed__designs" ref={designRef}>
-                <button
-                  type="button"
-                  className="prompt-embed__action"
-                  aria-haspopup="listbox"
-                  aria-expanded={designsOpen}
-                  onClick={() => setDesignsOpen((open) => !open)}
-                >
-                  Select design
-                </button>
-                {designsOpen ? (
-                  <ul className="prompt-embed__design-menu scroll-match-bg" role="listbox" aria-label="Select design">
-                    {designs.map((item, index) => (
-                      <li key={item.id} className="prompt-embed__design-row">
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={item.id === activeId}
-                          className={item.id === activeId ? 'prompt-embed__design-pick is-active' : 'prompt-embed__design-pick'}
-                          onClick={() => applyDesign(item)}
-                        >
-                          <span>{designLabel(index)}</span>
-                          <span className="prompt-embed__swatch" style={{ background: item.background }} />
-                        </button>
-                        <button
-                          type="button"
-                          className="prompt-embed__design-remove"
-                          aria-label={`Remove ${designLabel(index)}`}
-                          onClick={() => removeDesign(item.id)}
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          {dirty ? (
-            <div className="prompt-embed__toolbar prompt-embed__save">
+            {dirty ? (
               <button type="button" className="prompt-embed__action" onClick={saveDesign}>
                 Save design
               </button>
-            </div>
-          ) : null}
-          {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
+            ) : null}
           </div>
+          {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
         </div>
-      </div>
-        </div>
+        {designs.length ? (
+          <section className="prompt-embed__designs" aria-label="My Designs">
+            <h2>My Designs</h2>
+            <div className="prompt-embed__gallery">
+              {designs.map((item, index) => (
+                <DesignThumb
+                  key={item.id}
+                  design={item}
+                  selected={item.id === activeId}
+                  label={designLabel(index)}
+                  onChoose={() => applyDesign(item)}
+                  onRemove={() => removeDesign(item.id)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
       {codeOpen ? (
         <div
