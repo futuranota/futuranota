@@ -2027,9 +2027,9 @@
 .prompt-panel__pdf--pages {
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   align-items: stretch;
-  justify-items: center;
+  justify-items: stretch;
   overflow: hidden;
   padding: 12px;
   text-align: center;
@@ -2089,8 +2089,10 @@
   min-height: 0;
   width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
 }
 
 .prompt-pdf__sheet {
@@ -2098,6 +2100,92 @@
   display: inline-grid;
   max-width: 100%;
   max-height: 100%;
+}
+
+.prompt-pdf__sheet--text {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.prompt-pdf__sheet--text .prompt-panel__pdf-text {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.prompt-pdf__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex: none;
+  padding: 8px 0 0;
+}
+
+.prompt-pdf__chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.prompt-pdf__chrome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-pdf__pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #151515;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.prompt-pdf__pager button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(20, 20, 22, 0.42);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prompt-pdf__pager button:hover:not(:disabled) {
+  color: rgba(20, 20, 22, 0.72);
+}
+
+.prompt-pdf__pager button:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.prompt-pdf__pager span {
+  color: #151515;
+}
+
+.prompt-pdf__inline-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 52px;
+  z-index: 4;
+  margin: 0;
+  color: #8a2a2a;
+  font-size: 12px;
+  text-align: center;
 }
 
 .prompt-pdf__sheet img {
@@ -2112,10 +2200,7 @@
 }
 
 .prompt-pdf__mark {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  z-index: 4;
+  position: static;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2143,7 +2228,7 @@
 .prompt-panel__pdf--pages .prompt-panel__pdf-pages {
   overflow: auto;
   padding-top: 48px;
-  padding-bottom: 132px;
+  padding-bottom: 8px;
   box-sizing: border-box;
 }
 
@@ -2937,6 +3022,7 @@
 }
 
 .prompt-pdf-sheet {
+  position: relative;
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -2946,28 +3032,6 @@
   border: 1px solid rgba(20, 20, 22, 0.12);
   border-radius: 14px;
   overflow: hidden;
-}
-
-.prompt-pdf-sheet__remove {
-  align-self: flex-end;
-  margin: 8px 12px 0;
-  border: 0;
-  background: transparent;
-  color: rgba(20, 20, 22, 0.72);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.prompt-pdf-sheet__remove:hover {
-  color: #1a1a1a;
-}
-
-.prompt-pdf-sheet__foot {
-  display: flex;
-  justify-content: center;
-  flex: none;
-  padding: 4px 12px 14px;
 }
 
 .prompt-pdf-sheet__page {
@@ -2984,9 +3048,15 @@
   font: inherit;
   font-size: 14px;
   line-height: 1.45;
-  padding: 18px 16px;
+  padding: 18px 16px 16px;
   --scroll-bg: var(--surface-base);
   --scroll-thumb: rgba(20, 20, 22, 0.18);
+}
+
+.prompt-pdf-sheet > .prompt-pdf__chrome {
+  position: static;
+  align-self: flex-start;
+  margin: 0 0 12px 12px;
 }
 
 .prompt-pdf-sheet__page strong {
@@ -3363,6 +3433,13 @@
   outline: none;
   box-sizing: border-box;
   white-space: pre-wrap;
+}
+
+.prompt-sheet__description *,
+.prompt-body__editor *,
+.prompt-pdf-sheet__page * {
+  font-family: inherit !important;
+  font-size: inherit;
 }
 
 .prompt-sheet__description::placeholder {

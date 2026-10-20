@@ -58,7 +58,7 @@ import {
 import { ocrPdfPageImages } from '../../lib/ocrPdfPage.js';
 import { apiClient } from '../../api/client.js';
 import { API_ROUTES } from '../../api/routes.js';
-import { PromptBody, VariableDeck, applyBulletPoint, applyTitleShortcut, caretInBullet, continueBullet, paintMarked, readMarked } from './PromptBody.jsx';
+import { PromptBody, VariableDeck, applyBulletPoint, applyTitleShortcut, caretInBullet, continueBullet, insertSanitizedPaste, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
 import StorageDistrict from './StorageDistrict.jsx';
 import './prompt-desk.css';
@@ -409,6 +409,18 @@ function FormatBar({ active, onApply }) {
   );
 }
 
+function PdfPager({ index, count, onPrev, onNext }) {
+  if (!count) return null;
+  const page = Math.min(index, count - 1) + 1;
+  return (
+    <div className="prompt-pdf__pager">
+      <button type="button" aria-label="Previous PDF page" disabled={index <= 0} onClick={onPrev}>‹</button>
+      <span>{`${page} / ${count}`}</span>
+      <button type="button" aria-label="Next PDF page" disabled={index >= count - 1} onClick={onNext}>›</button>
+    </div>
+  );
+}
+
 function DescriptionField({
   className,
   value,
@@ -463,8 +475,13 @@ function DescriptionField({
       }}
       onMouseUp={() => onEditFocus?.(ref.current)}
       onPaste={(event) => {
-        const href = firstHttpUrl(event.clipboardData?.getData('text/plain'));
-        if (href) onUrlPaste?.(href);
+        if (readOnly) return;
+        if (!insertSanitizedPaste(event, ref.current, onUrlPaste)) return;
+        const next = readMarked(ref.current);
+        local.current = next;
+        if (ref.current.textContent.trim()) delete ref.current.dataset.empty;
+        else ref.current.dataset.empty = 'true';
+        onChange(next);
       }}
       onKeyDown={(event) => {
         if (readOnly) return;
@@ -2759,11 +2776,6 @@ function InstructionPanel({
         className={beside ? 'prompt-pdf-sheet prompt-pdf-sheet--beside' : 'prompt-pdf-sheet'}
         ref={pdfSheetRef}
       >
-        {showPdfPreview ? (
-          <button type="button" className="prompt-pdf-sheet__remove" onClick={foldPdfPreview}>
-            Remove
-          </button>
-        ) : null}
         <DescriptionField
           className="prompt-pdf-sheet__page scroll-match-bg"
           value={keptTranscript || pdfScan}
@@ -2775,8 +2787,12 @@ function InstructionPanel({
             textPanelKept.current = Boolean(String(next || '').trim());
           }}
         />
-        <div className="prompt-pdf-sheet__foot">
-          <button type="button" className="prompt-panel__remove" onClick={deletePdf}>
+        <div className="prompt-pdf__chrome">
+          <button
+            type="button"
+            className="prompt-panel__remove"
+            onClick={showPdfPreview ? foldPdfPreview : deletePdf}
+          >
             Remove
           </button>
         </div>
@@ -3982,7 +3998,14 @@ function InstructionPanel({
                 </div>
               </div>
             ) : pdfPlain ? (
-              <pre className="prompt-panel__pdf-text scroll-match-bg">{pdfPlain}</pre>
+              <div className="prompt-pdf__sheet prompt-pdf__sheet--text">
+                <pre className="prompt-panel__pdf-text scroll-match-bg">{pdfPlain}</pre>
+                <div className="prompt-pdf__chrome">
+                  <button type="button" className="prompt-panel__remove" onClick={foldPdfPreview}>
+                    Remove
+                  </button>
+                </div>
+              </div>
             ) : pdfStatus === 'loading' ? (
               <p>Opening the file…</p>
             ) : (
@@ -4033,20 +4056,54 @@ function InstructionPanel({
               </div>
             ) : null}
             {pdfPages.length ? (
-              <label className="prompt-pdf__mark">
-                <input
-                  type="checkbox"
-                  aria-label="Include this page"
-                  checked={pdfPick[Math.min(pdfPageIndex, pdfPages.length - 1)] === true}
-                  onChange={(event) => {
-                    const index = Math.min(pdfPageIndex, pdfPages.length - 1);
-                    const on = event.target.checked;
-                    setPdfPick((current) => pdfPages.map((_, item) => (
-                      item === index ? on : current[item] === true
-                    )));
-                  }}
-                />
-              </label>
+              <div className="prompt-pdf__foot">
+                <label className="prompt-pdf__mark">
+                  <input
+                    type="checkbox"
+                    aria-label="Include this page"
+                    checked={pdfPick[Math.min(pdfPageIndex, pdfPages.length - 1)] === true}
+                    onChange={(event) => {
+                      const index = Math.min(pdfPageIndex, pdfPages.length - 1);
+                      const on = event.target.checked;
+                      setPdfPick((current) => pdfPages.map((_, item) => (
+                        item === index ? on : current[item] === true
+                      )));
+                    }}
+                  />
+                </label>
+                <div className="prompt-pdf__chrome">
+                  <PdfPager
+                    index={pdfPageIndex}
+                    count={pdfPages.length}
+                    onPrev={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
+                    onNext={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
+                  />
+                  <button
+                    type="button"
+                    className={prompt.pdf?.path && !pdfScan.trim() ? 'prompt-panel__remove is-danger' : 'prompt-panel__remove'}
+                    onClick={foldPdfPreview}
+                  >
+                    Remove
+                  </button>
+                </div>
+                {sheetOpen ? (
+                  <div className="prompt-pdf__chrome-actions">
+                    {pdfPasted ? (
+                      <button
+                        type="button"
+                        className="prompt-video__extract"
+                        disabled={pdfReading || pdfImproving}
+                        onClick={() => { void improvePdf(); }}
+                      >
+                        {pdfImproving ? 'Mejorando…' : 'Mejorar con IA'}
+                      </button>
+                    ) : null}
+                    <button type="button" className="prompt-video__extract" onClick={placePdfPage}>
+                      {stepHasImage(step) ? 'Replace' : 'Add as image'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {(pdfPages.length || pdfPlain) && pdfAsk === 'ask' && (pdfPromptReady || prompt.pdf?.path) ? (
               <div className={pdfPromptLeaving ? 'prompt-pdf__popover is-leaving' : 'prompt-pdf__popover'} role="dialog" aria-label="Save this file">
@@ -4074,6 +4131,7 @@ function InstructionPanel({
                 )}
               </div>
             ) : null}
+            {pdfError ? <p className="prompt-pdf__inline-error" role="alert">{pdfError}</p> : null}
           </div>
         ) : null}
         {showVideo && prompt.video?.embedSrc ? (
@@ -4081,57 +4139,6 @@ function InstructionPanel({
             <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
               Remove
             </button>
-          </div>
-        ) : null}
-        {showPdfPreview && prompt.pdf?.name ? (
-          <div className="prompt-panel__media-foot">
-            <p className="prompt-pdf__meta">{prompt.pdf.name}</p>
-            {pdfPages.length ? (
-              <div className="prompt-panel__pdf-index">
-                <button
-                  type="button"
-                  aria-label="Previous PDF page"
-                  disabled={pdfPageIndex <= 0}
-                  onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
-                >
-                  ‹
-                </button>
-                <span>{`${Math.min(pdfPageIndex, pdfPages.length - 1) + 1} / ${pdfPages.length}`}</span>
-                <button
-                  type="button"
-                  aria-label="Next PDF page"
-                  disabled={pdfPageIndex >= pdfPages.length - 1}
-                  onClick={() => setPdfPageIndex((current) => Math.min(pdfPages.length - 1, current + 1))}
-                >
-                  ›
-                </button>
-              </div>
-            ) : null}
-            {sheetOpen && pdfPages.length ? (
-              <div className="prompt-panel__pdf-actions">
-                {pdfPasted ? (
-                  <button
-                    type="button"
-                    className="prompt-video__extract"
-                    disabled={pdfReading || pdfImproving}
-                    onClick={() => { void improvePdf(); }}
-                  >
-                    {pdfImproving ? 'Mejorando…' : 'Mejorar con IA'}
-                  </button>
-                ) : null}
-                <button type="button" className="prompt-video__extract" onClick={placePdfPage}>
-                  {stepHasImage(step) ? 'Replace' : 'Add as image'}
-                </button>
-              </div>
-            ) : null}
-            <button
-              type="button"
-              className={prompt.pdf?.path && !pdfScan.trim() ? 'prompt-panel__remove is-danger' : 'prompt-panel__remove'}
-              onClick={foldPdfPreview}
-            >
-              Remove
-            </button>
-            {pdfError ? <p role="alert">{pdfError}</p> : null}
           </div>
         ) : null}
           {textBesidePrompt ? renderPdfTextSheet(true) : null}

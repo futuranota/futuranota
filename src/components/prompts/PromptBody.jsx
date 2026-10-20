@@ -76,7 +76,7 @@ function appendClipboard(doc, parent, node) {
     parent.appendChild(doc.createElement('br'));
     return;
   }
-  const mark = PASTE_MARKS[node.tagName];
+  const mark = PASTE_MARKS[node.tagName] || (node.tagName === 'SPAN' ? styleMark(node) : '');
   if (mark) {
     const el = doc.createElement(mark);
     for (const child of node.childNodes) appendClipboard(doc, el, child);
@@ -295,6 +295,45 @@ function placeCaret(doc, node, offset) {
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+/** Paste bold/italic/etc. without bringing the source font-family. */
+export function insertSanitizedPaste(event, root, onUrlPaste) {
+  event.preventDefault();
+  if (!root) return false;
+  const html = event.clipboardData.getData('text/html');
+  const plain = event.clipboardData.getData('text/plain');
+  if (!html && !plain) return false;
+  const doc = root.ownerDocument;
+  const selection = doc.getSelection();
+  if (!selection || !selection.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const fragment = doc.createDocumentFragment();
+  if (html && /<(strong|em|u|s|mark|h1|b|i|span)\b/i.test(html)) {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    for (const child of parsed.body.childNodes) appendClipboard(doc, fragment, child);
+  }
+  if (!fragment.childNodes.length && plain) {
+    plain.split('\n').forEach((line, index) => {
+      if (index) fragment.appendChild(doc.createElement('br'));
+      if (line) fragment.appendChild(doc.createTextNode(line));
+    });
+  }
+  if (!fragment.childNodes.length) return false;
+  const last = fragment.lastChild;
+  range.insertNode(fragment);
+  if (last?.nodeType === Node.TEXT_NODE) placeCaret(doc, last, last.textContent.length);
+  else if (last?.isConnected) {
+    const next = doc.createRange();
+    next.setStartAfter(last);
+    next.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(next);
+  }
+  const href = String(plain || '').match(/https?:\/\/[^\s<>"']+/i);
+  if (href) onUrlPaste?.(href[0].replace(/[.,;:!?)]+$/g, ''));
+  return true;
 }
 
 const TITLE_LINE = /^\s*(?:#|\/title|title)\s+(.+)$/i;
@@ -801,42 +840,9 @@ export function PromptBody({
   }
 
   function onPaste(event) {
-    event.preventDefault();
-    const html = event.clipboardData.getData('text/html');
-    const plain = event.clipboardData.getData('text/plain');
-    if (!html && !plain) return;
-    const root = editorRef.current;
-    const doc = root.ownerDocument;
-    const selection = doc.getSelection();
-    if (!selection || !selection.rangeCount) return;
-    const range = selection.getRangeAt(0);
-    range.deleteContents();
-    const fragment = doc.createDocumentFragment();
-    if (html && /<(strong|em|u|s|mark|h1|b|i)\b/i.test(html)) {
-      const parsed = new DOMParser().parseFromString(html, 'text/html');
-      for (const child of parsed.body.childNodes) appendClipboard(doc, fragment, child);
-    }
-    if (!fragment.childNodes.length && plain) {
-      plain.split('\n').forEach((line, index) => {
-        if (index) fragment.appendChild(doc.createElement('br'));
-        if (line) fragment.appendChild(doc.createTextNode(line));
-      });
-    }
-    if (!fragment.childNodes.length) return;
-    const last = fragment.lastChild;
-    range.insertNode(fragment);
-    if (last?.nodeType === Node.TEXT_NODE) placeCaret(doc, last, last.textContent.length);
-    else if (last?.isConnected) {
-      const next = doc.createRange();
-      next.setStartAfter(last);
-      next.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(next);
-    }
+    if (!insertSanitizedPaste(event, editorRef.current, onUrlPaste)) return;
     commitDom();
     syncMenu();
-    const href = String(plain || '').match(/https?:\/\/[^\s<>"']+/i);
-    if (href) onUrlPaste?.(href[0].replace(/[.,;:!?)]+$/g, ''));
   }
 
   useEffect(() => {
