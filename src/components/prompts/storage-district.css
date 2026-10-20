@@ -285,6 +285,12 @@
   text-overflow: ellipsis;
 }
 .sd-node-select > svg { position: absolute; right: 9px; pointer-events: none; color: var(--sd-muted); }
+.sd-inspector-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 .sd-open {
   display: flex;
   align-items: center;
@@ -301,6 +307,28 @@
   flex: none;
 }
 .sd-open:hover { filter: brightness(.9); }
+.sd-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(155, 44, 44, 0.28);
+  background: rgba(255, 255, 255, 0.92);
+  color: #9b2c2c;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: none;
+}
+.sd-delete:hover { background: rgba(155, 44, 44, 0.08); }
+[data-theme="dark"] .sd-delete {
+  background: rgba(28, 28, 32, 0.92);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.28);
+}
 .sd-selected-summary {
   display: flex;
   justify-content: space-between;
@@ -372,7 +400,9 @@
   .sd-map-caption > span:last-child { display: none; }
   .sd-list { padding-inline: 18px; }
   .sd-inspector { padding-inline: 18px; }
-  .sd-inspector-top { gap: 8px; }
+  .sd-inspector-top { gap: 8px; flex-wrap: wrap; }
+  .sd-inspector-actions { width: 100%; justify-content: flex-end; }
+  .sd-delete { height: 44px; min-width: 44px; padding-inline: 12px; font-size: 13px; }
 }
 
 @media (max-width: 380px) {

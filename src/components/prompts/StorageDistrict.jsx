@@ -91,6 +91,25 @@ function modifiedLabel(date) {
   }).format(new Date(date));
 }
 
+/**
+ * Find a node and the folder-id path from the workspace root (excluding root id).
+ * @returns {{ path: string[], node: object } | null}
+ */
+export function locateStorageNode(root, nodeId) {
+  if (!root || !nodeId) return null;
+  const walk = (node, folderPath) => {
+    for (const child of node.children || []) {
+      if (child.id === nodeId) return { path: folderPath, node: child };
+      if (child.kind === 'folder') {
+        const hit = walk(child, [...folderPath, child.id]);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  };
+  return walk(root, []);
+}
+
 function district(items, width, height) {
   const columns = Math.min(4, Math.ceil(Math.sqrt(Math.max(1, items.length))));
   const rows = Math.ceil(Math.max(1, items.length) / columns);
@@ -188,12 +207,15 @@ export default function StorageDistrict({
   capacityBytes = 64_000_000_000,
   title = 'Storage',
   defaultView = 'district',
+  focusFileId = null,
+  focusFolderId = null,
   theme = 'light',
   className = '',
   onNodeSelect,
   onNavigate,
+  onDelete,
 }) {
-  const [view, setView] = useState(defaultView);
+  const [view, setView] = useState(defaultView === 'list' ? 'list' : 'district');
   const [path, setPath] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [sort, setSort] = useState('size');
@@ -201,6 +223,39 @@ export default function StorageDistrict({
   const [hover, setHover] = useState(null);
   const plotRef = useRef(null);
   const id = useId();
+  const focusKey = `${focusFileId || ''}|${focusFolderId || ''}`;
+  const appliedFocusRef = useRef('');
+  const appliedViewRef = useRef('');
+
+  useEffect(() => {
+    if (defaultView !== 'list' && defaultView !== 'district') return;
+    if (appliedViewRef.current === defaultView) return;
+    appliedViewRef.current = defaultView;
+    setView(defaultView);
+  }, [defaultView]);
+
+  useEffect(() => {
+    if (!focusFileId && !focusFolderId) return;
+    if (focusFileId) {
+      const hit = locateStorageNode(root, focusFileId);
+      if (!hit) {
+        if (appliedFocusRef.current === focusKey) setSelectedId(null);
+        return;
+      }
+      if (appliedFocusRef.current === focusKey) return;
+      appliedFocusRef.current = focusKey;
+      setPath(hit.path);
+      setSelectedId(hit.node.id);
+      return;
+    }
+    const hit = locateStorageNode(root, focusFolderId);
+    if (!hit || hit.node.kind !== 'folder') return;
+    if (appliedFocusRef.current === focusKey) return;
+    appliedFocusRef.current = focusKey;
+    setPath([...hit.path, hit.node.id]);
+    setSelectedId(null);
+  }, [root, focusKey, focusFileId, focusFolderId]);
+
   const trail = useMemo(() => {
     const folders = [root];
     for (const nodeId of path) {
@@ -423,11 +478,22 @@ export default function StorageDistrict({
               </select>
               <Icon name="chevronDown" size={13} />
             </label>
-            {selected.kind === 'folder' ? (
-              <button type="button" className="sd-open" onClick={() => open(selected)}>
-                Open folder<Icon name="arrowUpRight" size={13} />
-              </button>
-            ) : null}
+            <div className="sd-inspector-actions">
+              {selected.kind === 'file' && onDelete ? (
+                <button
+                  type="button"
+                  className="sd-delete"
+                  onClick={() => onDelete(selected)}
+                >
+                  Eliminar
+                </button>
+              ) : null}
+              {selected.kind === 'folder' ? (
+                <button type="button" className="sd-open" onClick={() => open(selected)}>
+                  Open folder<Icon name="arrowUpRight" size={13} />
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="sd-selected-summary" aria-live="polite" aria-atomic="true">
             <span>

@@ -727,6 +727,28 @@ function settingsPaneFromPath(pathname) {
   return 'storage';
 }
 
+/** /app/settings/storage/list/files/:fileId · /list/folders/:folderId · /list */
+function storageFocusFromPath(pathname) {
+  if (!pathname.startsWith('/app/settings/storage')) {
+    return { view: null, fileId: null, folderId: null };
+  }
+  const rest = pathname.slice('/app/settings/storage'.length).replace(/^\//, '');
+  const parts = rest ? rest.split('/').filter(Boolean) : [];
+  let view = null;
+  let fileId = null;
+  let folderId = null;
+  if (parts[0] === 'list' || parts[0] === 'district') {
+    view = parts[0];
+    if (parts[1] === 'files' && parts[2]) fileId = decodeURIComponent(parts[2]);
+    if (parts[1] === 'folders' && parts[2]) folderId = decodeURIComponent(parts[2]);
+  }
+  return { view, fileId, folderId };
+}
+
+function storageFileHref(fileId) {
+  return `/app/settings/storage/list/files/${encodeURIComponent(fileId)}`;
+}
+
 function viewFromPath(pathname) {
   if (pathname.startsWith('/app/settings')) return 'settings';
   if (pathname.startsWith('/app/embed')) return 'embed';
@@ -943,38 +965,70 @@ function BillingSettings() {
   );
 }
 
-function StorageSettings() {
-  const [root, setRoot] = useState(null);
+function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDeleteFile }) {
+  const navigate = useNavigate();
+  const [bytesById, setBytesById] = useState({});
   const [note, setNote] = useState('');
+  const root = useMemo(() => {
+    const tree = storageTreeFromDesk(folders || []);
+    if (!Object.keys(bytesById).length) return tree;
+    const paint = (node) => {
+      if (node.kind === 'file') {
+        const bytes = bytesById[node.id];
+        return bytes != null ? { ...node, bytes } : node;
+      }
+      return { ...node, children: (node.children || []).map(paint) };
+    };
+    return paint(tree);
+  }, [folders, bytesById]);
 
   useEffect(() => {
     let cancel = false;
     (async () => {
       const userId = await currentPromptUserId();
-      if (!userId) {
-        if (!cancel) setRoot(storageTreeFromDesk([]));
-        return;
+      if (!userId) return;
+      try {
+        const tree = await loadPromptStorageTree(userId);
+        if (cancel) return;
+        const next = {};
+        const walk = (node) => {
+          if (node.kind === 'file' && node.id) next[node.id] = node.bytes;
+          (node.children || []).forEach(walk);
+        };
+        walk(tree);
+        setBytesById(next);
+      } catch (error) {
+        console.warn('[prompt-desk] storage load failed', error?.message || error);
+        if (!cancel) setNote('No pude leer el storage.');
       }
-      const tree = await loadPromptStorageTree(userId);
-      if (!cancel) setRoot(tree);
-    })().catch((error) => {
-      console.warn('[prompt-desk] storage load failed', error?.message || error);
-      if (!cancel) {
-        setRoot(storageTreeFromDesk([]));
-        setNote('No pude leer el storage.');
-      }
-    });
+    })();
     return () => { cancel = true; };
   }, []);
+
+  function handleDelete(node) {
+    if (!node || node.kind !== 'file' || !onDeleteFile) return;
+    const folder = (folders || []).find((entry) => (
+      (entry.prompts || []).some((prompt) => prompt.id === node.id)
+    ));
+    if (!folder) return;
+    const label = node.name || 'este archivo';
+    if (!window.confirm(`¿Eliminar “${label}”?`)) return;
+    onDeleteFile(folder.id, node.id);
+    navigate('/app/settings/storage/list', { replace: true });
+  }
 
   return (
     <div className="prompt-desk__storage">
       {note ? <p className="prompt-desk__limit" role="status">{note}</p> : null}
-      {root ? (
-        <StorageDistrict root={root} capacityBytes={PROMPT_STORAGE_BYTES} title="Storage" />
-      ) : (
-        <p className="prompt-desk__limit" role="status">Leyendo tu storage…</p>
-      )}
+      <StorageDistrict
+        root={root}
+        capacityBytes={PROMPT_STORAGE_BYTES}
+        title="Storage"
+        defaultView={focusView || 'district'}
+        focusFileId={focusFileId}
+        focusFolderId={focusFolderId}
+        onDelete={onDeleteFile ? handleDelete : undefined}
+      />
     </div>
   );
 }
@@ -1209,7 +1263,7 @@ function TranscribePage({ prompts, onCreate, onSave, onDelete }) {
   );
 }
 
-function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename, onDeleteFolder, onDeletePrompt }) {
+function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, onOpenPrompt, onRename }) {
   const [opened, setOpened] = useState(false);
   const sheets = useMemo(
     () => sheetsOf(folder.prompts, searchOpen ? highlightQuery : ''),
@@ -1217,13 +1271,6 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
   );
   return (
     <div className={searchOpen ? 'prompt-desk__folder prompt-desk__folder--hit' : 'prompt-desk__folder'}>
-      <button
-        type="button"
-        className="prompt-desk__delete"
-        onClick={() => onDeleteFolder(folder.id)}
-      >
-        Eliminar
-      </button>
       <GlassFolder
         label={folder.label}
         art={folder.art}
@@ -1246,9 +1293,6 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
         }}
         onFileSelect={(file) => {
           if (file?.promptId) onOpenPrompt(folder.id, file.promptId);
-        }}
-        onFileDelete={(file) => {
-          if (file?.promptId) onDeletePrompt(folder.id, file.promptId);
         }}
       />
     </div>
@@ -1322,6 +1366,8 @@ export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
   const settingsPane = settingsPaneFromPath(location.pathname);
+  const storageFocus = storageFocusFromPath(location.pathname);
+  const navigate = useNavigate();
   useStripeCheckoutReturn();
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
@@ -1851,7 +1897,15 @@ export default function PromptDesk() {
         />
       ) : null}
       {view === 'settings' && settingsPane === 'billing' ? <BillingSettings /> : null}
-      {view === 'settings' && settingsPane !== 'billing' ? <StorageSettings /> : null}
+      {view === 'settings' && settingsPane !== 'billing' ? (
+        <StorageSettings
+          folders={folders || []}
+          focusView={storageFocus.view}
+          focusFileId={storageFocus.fileId}
+          focusFolderId={storageFocus.folderId}
+          onDeleteFile={deletePrompt}
+        />
+      ) : null}
       {view === 'embed' ? <EmbedHtml plan={plan} /> : null}
       {view === 'transcribe' ? (
         <>
@@ -1897,8 +1951,6 @@ export default function PromptDesk() {
             appearDelay={index * 120}
             onAdd={addPrompt}
             onRename={renameFolder}
-            onDeleteFolder={deleteFolder}
-            onDeletePrompt={deletePrompt}
             onOpenPrompt={(folderId, promptId) => {
               setActive({ folderId, promptId });
               setCompact(false);
@@ -1922,6 +1974,7 @@ export default function PromptDesk() {
           onCompact={() => { void openFloat(); }}
           onExpand={() => setCompact(false)}
           onClose={closePanel}
+          onOpenStorage={() => navigate(storageFileHref(activePrompt.prompt.id))}
         />
       ) : null}
       </div>
@@ -2028,6 +2081,7 @@ function InstructionPanel({
   onCompact,
   onExpand,
   onClose,
+  onOpenStorage,
 }) {
   const { steps, index, step } = stepAt(prompt);
   const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
@@ -3311,6 +3365,17 @@ function InstructionPanel({
             </div>
           ) : null}
           <div className="prompt-models">
+            {onOpenStorage ? (
+              <button type="button" className="prompt-models__item" onClick={onOpenStorage}>
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 3.5v2.2M12 18.3v2.2M4.8 6.2l1.6 1.6M17.6 16.2l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.8 17.8l1.6-1.6M17.6 7.8l1.6-1.6" />
+                  </svg>
+                </span>
+                <span>Settings</span>
+              </button>
+            ) : null}
             {sheetOpen ? (
             <ModelPicker
               modelIds={step.modelIds}

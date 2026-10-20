@@ -384,7 +384,6 @@ export default function GlassFolder({
   defaultOpen = false,
   onOpenChange,
   onFileSelect,
-  onFileDelete,
   onLabelChange,
   width = 340,
   appear = true,
@@ -662,30 +661,7 @@ export default function GlassFolder({
                   )}
                   <span className="gf-sheet-head">
                     <span className="gf-sheet-name">{file.name}</span>
-                    {onFileDelete ? (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="gf-sheet-delete"
-                        aria-label={"Delete " + file.name}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          event.preventDefault()
-                          onFileDelete(file, start + v)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter" && event.key !== " ") return
-                          event.stopPropagation()
-                          event.preventDefault()
-                          onFileDelete(file, start + v)
-                        }}
-                      >
-                        Eliminar
-                      </span>
-                    ) : file.meta ? (
-                      <span className="gf-sheet-meta">{file.meta}</span>
-                    ) : null}
+                    {file.meta ? <span className="gf-sheet-meta">{file.meta}</span> : null}
                   </span>
                 </>
               )
@@ -932,21 +908,6 @@ canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
   cursor: text;
 }
 .gf-title-input::placeholder { color: var(--gf-ink-soft); }
-.gf-sheet-delete {
-  flex: none;
-  position: relative;
-  z-index: 4;
-  pointer-events: auto;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .88);
-  color: #9b2c2c;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .02em;
-  cursor: pointer;
-  box-shadow: 0 0 0 1px rgba(155, 44, 44, .18);
-}
 .gf-meta { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; letter-spacing: .03em; color: var(--gf-ink-soft); white-space: nowrap; animation: gf-roll .5s var(--gf-ease) both; }
 @keyframes gf-roll { from { opacity: 0; translate: 0 7px; filter: blur(3px); } to { opacity: 1; translate: 0 0; filter: blur(0); } }
 .gf-key {

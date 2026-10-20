@@ -926,19 +926,25 @@
   position: relative;
 }
 
-.prompt-desk__delete {
+.prompt-desk__delete,
+.prompt-desk__settings {
   position: absolute;
   top: 0;
   right: 0;
   z-index: 3;
-  border: 1px solid rgba(155, 44, 44, 0.28);
+  border: 1px solid rgba(20, 20, 22, 0.18);
   background: rgba(255, 255, 255, 0.86);
-  color: #9b2c2c;
+  color: #1a1a1a;
   border-radius: 999px;
   padding: 6px 10px;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.prompt-desk__delete {
+  border-color: rgba(155, 44, 44, 0.28);
+  color: #9b2c2c;
 }
 
 .prompt-panel {
