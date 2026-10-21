@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { instructionThread } from "../../lib/promptPages.js";
 
 function CheckIcon() {
   return (
@@ -18,11 +19,10 @@ function stepState(index, activeStep, completed) {
 /**
  * Vertical instruction stepper. JSX + CSS port of the saved paste.
  * @param {{
- *   sections: { title?: string, body?: string }[],
+ *   sections: { title?: string, body?: string, peek?: boolean }[],
  *   activeStep?: number,
  *   onActiveStep?: (step: number) => void,
  *   readOnly?: boolean,
- *   onAdd?: () => void,
  *   onRemove?: (index: number) => void,
  *   renderBody?: (section: { title?: string, body?: string }, index: number) => import('react').ReactNode,
  * }} props
@@ -32,14 +32,14 @@ export default function PromptInstructionStepper({
   activeStep = 1,
   onActiveStep,
   readOnly = false,
-  onAdd,
   onRemove,
   renderBody,
 }) {
   const items = useMemo(
-    () => (sections?.length ? sections : [{ title: "Step 1", body: "" }]),
-    [sections],
+    () => instructionThread(sections, { peek: !readOnly }),
+    [sections, readOnly],
   );
+  const realCount = items.filter((item) => !item.peek).length;
 
   return (
     <div className="prompt-stepper" data-orientation="vertical">
@@ -47,12 +47,13 @@ export default function PromptInstructionStepper({
         {items.map((section, index) => {
           const step = index + 1;
           const state = stepState(index, activeStep, false);
-          const selected = activeStep === step;
+          const selected = !section.peek && activeStep === step;
           return (
             <div
               key={`instruction-step-${index}`}
               className="prompt-stepper__item"
               data-state={state}
+              data-peek={section.peek ? "true" : undefined}
             >
               <div className="prompt-stepper__head">
               <button
@@ -61,7 +62,7 @@ export default function PromptInstructionStepper({
                 role="tab"
                 id={`prompt-stepper-tab-${step}`}
                 aria-selected={selected}
-                aria-controls={`prompt-stepper-panel-${step}`}
+                aria-controls={section.peek ? undefined : `prompt-stepper-panel-${step}`}
                 data-state={state}
                 onClick={() => onActiveStep?.(step)}
               >
@@ -72,7 +73,7 @@ export default function PromptInstructionStepper({
                   <span className="prompt-stepper__title">{section.title || `Step ${step}`}</span>
                 </span>
               </button>
-              {!readOnly && onRemove && items.length > 1 ? (
+              {!readOnly && onRemove && !section.peek && realCount > 1 ? (
                 <button
                   type="button"
                   className="prompt-stepper__remove"
@@ -86,6 +87,7 @@ export default function PromptInstructionStepper({
               {index < items.length - 1 ? (
                 <span className="prompt-stepper__separator" data-state={state} aria-hidden="true" />
               ) : null}
+              {section.peek ? null : (
               <div
                 className="prompt-stepper__panel"
                 id={`prompt-stepper-panel-${step}`}
@@ -95,15 +97,11 @@ export default function PromptInstructionStepper({
               >
                 {selected ? renderBody?.(section, index) : null}
               </div>
+              )}
             </div>
           );
         })}
       </nav>
-      {!readOnly && onAdd ? (
-        <button type="button" className="prompt-stepper__add" onClick={onAdd}>
-          Add step
-        </button>
-      ) : null}
     </div>
   );
 }

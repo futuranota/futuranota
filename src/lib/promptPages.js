@@ -87,6 +87,21 @@ export function blankPromptStep(id = makeId()) {
  * @param {string} text
  * @returns {{ title: string, body: string }[]}
  */
+/**
+ * Saved steps plus the next thread row (Step N+1) so the user can open it.
+ * The peek is not persisted until they press it.
+ * @param {{ title?: string, body?: string }[]} sections
+ * @param {{ peek?: boolean }} [options]
+ */
+export function instructionThread(sections, options = {}) {
+  const list = sections?.length ? sections.map((section) => ({ ...section, peek: false })) : [{ title: "Step 1", body: "", peek: false }];
+  if (options.peek === false) return list;
+  return [
+    ...list,
+    { title: `Step ${list.length + 1}`, body: "", peek: true },
+  ];
+}
+
 export function readInstructionSections(text) {
   const raw = String(text || "").trim();
   if (!raw) return [{ title: "Step 1", body: "" }];

@@ -4231,13 +4231,17 @@ function InstructionPanel({
               <PromptInstructionStepper
                 sections={instructionSections()}
                 activeStep={instructionStep}
-                onActiveStep={setInstructionStep}
-                readOnly={Boolean(step.promptSaved)}
-                onAdd={() => {
-                  const next = [...instructionSections(), { title: `Step ${instructionSections().length + 1}`, body: '' }];
-                  patchInstructionSections(next);
-                  setInstructionStep(next.length);
+                onActiveStep={(step) => {
+                  const current = instructionSections();
+                  if (step > current.length) {
+                    const next = [...current, { title: `Step ${current.length + 1}`, body: '' }];
+                    patchInstructionSections(next);
+                    setInstructionStep(next.length);
+                    return;
+                  }
+                  setInstructionStep(step);
                 }}
+                readOnly={Boolean(step.promptSaved)}
                 onRemove={(sectionIndex) => {
                   const current = instructionSections();
                   if (current.length <= 1) return;

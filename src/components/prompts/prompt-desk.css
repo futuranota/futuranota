@@ -5162,9 +5162,9 @@ svg.prompt-chip__model {
   display: none;
 }
 
-.prompt-stepper__add,
 .prompt-stepper__remove {
   flex: none;
+  margin-top: 3px;
   border: 0;
   background: transparent;
   color: rgba(26, 26, 26, 0.55);
@@ -5173,13 +5173,8 @@ svg.prompt-chip__model {
   cursor: pointer;
 }
 
-.prompt-stepper__add {
-  align-self: flex-start;
-  margin-left: 34px;
-}
-
-.prompt-stepper__remove {
-  margin-top: 3px;
+.prompt-stepper__item[data-peek='true'] .prompt-stepper__title {
+  color: rgba(26, 26, 26, 0.45);
 }
 
 .prompt-sheet .prompt-stepper__panel .prompt-sheet__description {

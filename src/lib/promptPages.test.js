@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendOrganizedSheets,
   filePageCaption,
+  instructionThread,
   normalizePromptFile,
   promptPagesAreSplit,
   readInstructionSections,
@@ -43,6 +44,14 @@ describe("instruction sections", () => {
     expect(readInstructionSections(text)).toEqual([
       { title: "Step 1", body: "Lee el brief" },
       { title: "Step 2", body: "Pega el prompt" },
+    ]);
+  });
+
+  it("shows Step 2 as a thread after Step 1", () => {
+    const thread = instructionThread([{ title: "Step 1", body: "" }]);
+    expect(thread.map((item) => [item.title, item.peek])).toEqual([
+      ["Step 1", false],
+      ["Step 2", true],
     ]);
   });
 
