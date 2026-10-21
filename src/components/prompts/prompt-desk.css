@@ -691,22 +691,34 @@
     padding: 12px 32px 48px;
   }
 
-  .prompt-embed__bars,
-  .prompt-embed__branding,
+  .prompt-embed__main,
+  .prompt-embed__rail,
   .prompt-embed__designs {
     grid-column: 1;
+    grid-row: auto;
   }
+
+  .prompt-embed__rail {
+    max-height: none;
+  }
+}
+
+.prompt-embed__main {
+  display: flex;
+  flex-direction: column;
+  grid-column: 2;
+  gap: 20px;
+  min-width: 0;
 }
 
 .prompt-embed__bars {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  align-self: stretch;
-  grid-column: 2;
   gap: 8px;
   width: 100%;
   max-width: 100%;
+  padding-top: 0;
 }
 
 .prompt-embed__allow {
@@ -755,15 +767,29 @@
   color: rgba(28, 26, 23, 0.62);
 }
 
+.prompt-embed__rail {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100svh - 96px);
+  overflow: hidden;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+
 .prompt-embed__quota {
   display: flex;
+  flex: none;
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  min-height: 100%;
   padding: 20px 18px;
-  border-radius: 12px;
   background: linear-gradient(90deg, #334155 0%, #52525b 100%);
   color: #fff;
   text-align: center;
@@ -825,6 +851,16 @@
 
 .prompt-embed__quota button:hover {
   background: #f4f4f5;
+}
+
+.prompt-embed__quota.is-pro {
+  justify-content: center;
+  min-height: 72px;
+  padding: 18px 16px;
+}
+
+.prompt-embed__quota.is-pro p {
+  font-size: 20px;
 }
 
 .prompt-embed__toolbar {
@@ -996,7 +1032,7 @@
 
 .prompt-embed__box {
   box-sizing: border-box;
-  align-self: stretch;
+  align-self: start;
   width: 100%;
   padding: 20px;
   border-radius: 12px;
@@ -1478,16 +1514,15 @@
 }
 
 .prompt-embed__branding {
+  position: relative;
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  grid-column: 1;
-  align-self: start;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid rgba(20, 20, 22, 0.08);
-  border-radius: 12px;
+  padding: 16px 14px 18px;
+  overflow: auto;
   background: #fff;
 }
 
@@ -1512,18 +1547,11 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   border: 1px dashed rgba(20, 20, 22, 0.22);
   border-radius: 8px;
-  background-color: #fff;
-  background-image:
-    linear-gradient(45deg, rgba(20, 20, 22, 0.08) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(20, 20, 22, 0.08) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(20, 20, 22, 0.08) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(20, 20, 22, 0.08) 75%);
-  background-size: 10px 10px;
-  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+  background: #fff;
   cursor: pointer;
 }
 
@@ -1548,8 +1576,8 @@ button.prompt-embed__brand-slot {
 }
 
 .prompt-embed__brand-slot img {
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
   background: transparent;
   pointer-events: none;
@@ -1557,7 +1585,7 @@ button.prompt-embed__brand-slot {
 
 .prompt-embed__brand-plus {
   color: rgba(20, 20, 22, 0.45);
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1;
   pointer-events: none;
 }
@@ -1619,6 +1647,24 @@ button.prompt-embed__brand-slot {
 .prompt-embed__brand-hint strong {
   font-weight: 650;
   color: rgba(26, 26, 26, 0.72);
+}
+
+.prompt-embed__brand-how {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(26, 26, 26, 0.55);
+  font: 500 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.prompt-embed__brand-how:hover {
+  color: #151515;
 }
 
 .prompt-embed__box button {

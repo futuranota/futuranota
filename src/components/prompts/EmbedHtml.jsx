@@ -823,7 +823,7 @@ function DesignThumb({ design, selected, label, onChoose, onRemove }) {
   );
 }
 
-function BrandingCard({ src, alt, note, saved, onFile, onAlt, onSave }) {
+function BrandingCard({ src, alt, note, saved, onFile, onAlt, onSave, onHow }) {
   const fileId = useId();
   const showAlt = Boolean(src) && !saved;
   return (
@@ -839,7 +839,7 @@ function BrandingCard({ src, alt, note, saved, onFile, onAlt, onSave }) {
             onChange={onFile}
           />
           {src ? (
-            <img src={src} alt="" width={40} height={40} />
+            <img src={src} alt="" width={64} height={64} />
           ) : (
             <span className="prompt-embed__brand-plus" aria-hidden="true">+</span>
           )}
@@ -855,15 +855,20 @@ function BrandingCard({ src, alt, note, saved, onFile, onAlt, onSave }) {
           />
         ) : null}
       </div>
-      <p className="prompt-embed__brand-hint">
-        SVG, PNG or JPG 1080px x 1080px · 5 MB <strong>no background</strong>
-      </p>
+      {saved ? null : (
+        <p className="prompt-embed__brand-hint">
+          SVG, PNG or JPG 1080px x 1080px · 5 MB <strong>no background</strong>
+        </p>
+      )}
       {showAlt ? (
         <button type="button" className="prompt-embed__brand-save" onClick={onSave}>
           Save
         </button>
       ) : null}
       {note ? <p className="prompt-embed__note" role="status">{note}</p> : null}
+      <button type="button" className="prompt-embed__brand-how" onClick={onHow}>
+        Learn how it work
+      </button>
     </section>
   );
 }
@@ -875,8 +880,8 @@ function EmbedAllowance({ plan, used = 0 }) {
   const spent = Math.min(max, Math.max(0, Number(used) || 0));
   if (pro) {
     return (
-      <div className="prompt-embed__allow is-pro" role="status" aria-label="Unlimited embeds">
-        <strong>Unlimited</strong>
+      <div className="prompt-embed__quota is-pro" role="status" aria-label="Unlimited embeds">
+        <p>Unlimited</p>
       </div>
     );
   }
@@ -896,6 +901,35 @@ function EmbedAllowance({ plan, used = 0 }) {
   );
 }
 
+function EmbedSideSheet({
+  plan,
+  used,
+  src,
+  alt,
+  note,
+  saved,
+  onFile,
+  onAlt,
+  onSave,
+  onHow,
+}) {
+  return (
+    <aside className="prompt-embed__rail">
+      <EmbedAllowance plan={plan} used={used} />
+      <BrandingCard
+        src={src}
+        alt={alt}
+        note={note}
+        saved={saved}
+        onFile={onFile}
+        onAlt={onAlt}
+        onSave={onSave}
+        onHow={onHow}
+      />
+    </aside>
+  );
+}
+
 export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const storedDesigns = useMemo(() => loadDesignStore(), []);
   const storedLogo = useMemo(() => loadLogoStore(), []);
@@ -909,6 +943,7 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   const [logoSaved, setLogoSaved] = useState(storedLogo.saved);
   const [brandNote, setBrandNote] = useState('');
   const brandFileRef = useRef(null);
+  const keepPastedLogo = useRef(isLogoSrc(storedLogo.src));
   const [markup, setMarkup] = useState('');
   const [designs, setDesigns] = useState(storedDesigns.designs);
   const [activeId, setActiveId] = useState(storedDesigns.activeId);
@@ -1070,11 +1105,10 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
         const userId = await currentPromptUserId();
         if (!userId || cancel) return;
         const remote = await loadPromptBrandLogo(userId);
-        if (cancel || brandFileRef.current) return;
+        if (cancel || brandFileRef.current || keepPastedLogo.current) return;
         setLogoSrc(remote.src);
         setLogoAlt(remote.alt);
         setLogoSaved(Boolean(remote.src && (remote.saved || remote.alt)));
-        brandFileRef.current = null;
       } catch {
         /* Keep the local cache until storage answers. */
       }
@@ -1083,7 +1117,7 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   }, []);
 
   useEffect(() => {
-    if (!isLogoSrc(logoSrc) || brandFileRef.current) return;
+    if (!isLogoSrc(logoSrc)) return;
     try {
       localStorage.setItem(LOGO_STORE, JSON.stringify({ src: logoSrc, alt: logoAlt, saved: logoSaved }));
     } catch {
@@ -1176,6 +1210,7 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
     try {
       const src = await readBrandFile(file);
       brandFileRef.current = file;
+      keepPastedLogo.current = true;
       setLogoSrc(src);
       setLogoSaved(false);
       setBrandNote('');
@@ -1192,9 +1227,8 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
       const userId = await currentPromptUserId();
       if (!userId) throw new Error('Sign in to save branding.');
       if (brandFileRef.current) {
-        const next = await savePromptBrandLogo(userId, brandFileRef.current, logoAlt);
+        await savePromptBrandLogo(userId, brandFileRef.current, logoAlt);
         brandFileRef.current = null;
-        setLogoSrc(next.src);
       } else {
         await savePromptBrandMeta(userId, logoAlt);
       }
@@ -1210,7 +1244,19 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
         <h1 className="prompt-desk__mark">Embed Html</h1>
       </header>
       <div className="prompt-embed__board">
-        <EmbedAllowance plan={plan} used={embedUsed} />
+        <EmbedSideSheet
+          plan={plan}
+          used={embedUsed}
+          src={logoSrc}
+          alt={logoAlt}
+          note={brandNote}
+          saved={logoSaved}
+          onFile={(event) => { void handleBrandFile(event); }}
+          onAlt={setLogoAlt}
+          onSave={() => { void saveBrand(); }}
+          onHow={openHow}
+        />
+        <div className="prompt-embed__main">
         <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
           <div className="prompt-embed__text-wrap">
             <div
@@ -1259,15 +1305,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             </button>
           </div>
         </div>
-        <BrandingCard
-          src={logoSrc}
-          alt={logoAlt}
-          note={brandNote}
-          saved={logoSaved}
-          onFile={(event) => { void handleBrandFile(event); }}
-          onAlt={setLogoAlt}
-          onSave={() => { void saveBrand(); }}
-        />
         <div className="prompt-embed__bars">
           <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
             {FORMATS.map((item) => (
@@ -1296,14 +1333,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
                 setCodeOpen(true);
               }}
             />
-            <button
-              type="button"
-              className="prompt-embed__action"
-              aria-expanded={metaOpen}
-              onClick={openMeta}
-            >
-              Add metadata
-            </button>
             <label className="prompt-embed__tool">
               <span>Background</span>
               <input type="color" value={background} aria-label="Background" onChange={(event) => setBackground(event.target.value)} />
@@ -1323,6 +1352,7 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             ) : null}
           </div>
           {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
+        </div>
         </div>
         {designs.length ? (
           <section className="prompt-embed__designs" aria-label="My Designs">
