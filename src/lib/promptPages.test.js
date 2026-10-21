@@ -102,7 +102,7 @@ describe("stepsFromOrganizedSheets", () => {
   it("puts every instruction on page 1 and each prompt on its own page", () => {
     n = 0;
     const steps = stepsFromOrganizedSheets([
-      { instruction: "Rol editor", prompt: "Actúa como editor", model: "claude" },
+      { instruction: "Rol editor", prompt: "Actúa como editor", model: "claude", prompt_title: "Editor" },
       { instruction: "Rol ads", prompt: "Actúa como ads", model: "openai" },
     ], { makeId: ids() });
     expect(steps).toHaveLength(3);
@@ -112,6 +112,7 @@ describe("stepsFromOrganizedSheets", () => {
       "Rol ads",
     ]);
     expect(steps[1].prompt).toBe("Actúa como editor");
+    expect(steps[1].title).toBe("Editor");
     expect(steps[1].modelIds).toEqual(["claude"]);
     expect(steps[2].modelIds).toEqual(["openai"]);
   });

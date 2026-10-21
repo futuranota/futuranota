@@ -41,9 +41,12 @@ import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
 import { documentVariables, liftPromptPlaceholders, resolvePrompt, stampVariables } from '../../lib/promptVariables.js';
 import {
+  STRUCTURE_MODEL_IDS,
   joinParagraphs,
   joinPdfPageTexts,
+  numberTranscriptParagraphs,
   prepareSheetFields,
+  previewParagraphs,
   readAssistanceMarkers,
   transcriptHasMarkers,
 } from '../../lib/promptStructure.js';
@@ -846,10 +849,7 @@ function DeskSidebar({ view, settingsPane }) {
             <div key={item.id} className="prompt-desk__side-group">
               <button
                 type="button"
-                className={[
-                  'prompt-desk__side-settings',
-                  view === item.id ? 'is-current' : '',
-                ].filter(Boolean).join(' ')}
+                className={view === item.id ? 'prompt-desk__side-link is-current' : 'prompt-desk__side-link'}
                 aria-expanded={settingsOpen}
                 aria-current={view === item.id ? 'page' : undefined}
                 title={item.label}
@@ -2780,11 +2780,73 @@ function InstructionPanel({
   }
 
   async function beginOrganize() {
+    const node = pdfSheetRef.current?.querySelector('.prompt-pdf-sheet__page');
+    const live = node ? readMarked(node) : '';
+    const text = String(live || keptTranscript || pdfScan || '').trim();
+    if (!text) {
+      setOrganizeError('Extract the PDF and fix the text first.');
+      setOrganizeAsk('error');
+      return;
+    }
+    const allowed = await freeToolAllowed();
+    if (!allowed.ok) {
+      setOrganizeError(allowed.message);
+      setOrganizeAsk('error');
+      return;
+    }
     if (!(await takeClick())) return;
     setOrganizeError('');
-    setOrganizeAsk(null);
     setOrganizePreview(null);
-    setPdfScan(beautifyPastedText(pdfScan));
+    setOrganizeAsk('busy');
+    const { numbered, map, ids } = numberTranscriptParagraphs(text);
+    if (!ids.length) {
+      setOrganizeError('No encontré párrafos para organizar.');
+      setOrganizeAsk('error');
+      return;
+    }
+    try {
+      const account = useAuthStore.getState().user;
+      let result;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          result = await promptApi({
+            pass: 'structure',
+            text: numbered,
+            ids,
+            allowedModels: STRUCTURE_MODEL_IDS,
+            userId: account?.id,
+            userEmail: account?.email,
+          });
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (!message.includes('429') || attempt >= 3) throw error;
+          setOrganizeError('Groq is busy. Waiting to organize…');
+          await new Promise((resolve) => setTimeout(resolve, retryWaitMs(error, attempt)));
+        }
+      }
+      if (!result?.ok || !Array.isArray(result.sheets) || !result.sheets.length) {
+        setOrganizeError('No pude organizarlo automáticamente');
+        setOrganizeAsk('error');
+        return;
+      }
+      organizeMap.current = map;
+      organizeSheets.current = result.sheets;
+      organizeMode.current = steps.some(stepHasDraft) ? 'append' : 'replace';
+      setOrganizePreview(result.sheets.map((sheet, index) => ({
+        model: sheet.model,
+        label: sheet.prompt_title || `Prompt ${index + 1}`,
+        snippet: previewParagraphs(
+          sheet.prompt?.length ? sheet.prompt : sheet.instruction,
+          map,
+        ),
+      })));
+      setOrganizeAsk('preview');
+    } catch (error) {
+      console.warn('[prompt-desk] auto organize failed', error?.message || error);
+      setOrganizeError(pdfReadError(error));
+      setOrganizeAsk('error');
+    }
   }
 
   function prepareHomeFile() {
@@ -2939,6 +3001,8 @@ function InstructionPanel({
         instruction: prepared.instruction,
         prompt: prepared.prompt,
         model: sheet.model,
+        prompt_title: sheet.prompt_title,
+        step_title: sheet.step_title,
       };
     });
     const mode = organizeMode.current;
@@ -3827,6 +3891,22 @@ function InstructionPanel({
                 <span>Arreglar texto</span>
               </button>
             ) : null}
+            {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
+              <button
+                type="button"
+                className="prompt-models__item"
+                disabled={organizeAsk === 'busy' || toolsLocked}
+                onClick={() => { void beginOrganize(); }}
+              >
+                <span className="prompt-models__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 7h4l2 4 3-8 2 4h5" />
+                    <path d="M4 17h16" />
+                  </svg>
+                </span>
+                <span>Auto Organize</span>
+              </button>
+            ) : null}
             {!sheetOpen && transcriptHasMarkers(pdfScan) ? (
               <button
                 type="button"
@@ -3892,26 +3972,8 @@ function InstructionPanel({
           ) : null}
           {!parked && organizeAsk ? createPortal(
             <div className="prompt-home-save-layer">
-              <div className="prompt-organize" role="dialog" aria-label="Assistance AI">
-                {organizeAsk === 'skill' ? (
-                  <>
-                    <p>¿Es este documento una habilidad a organizar?</p>
-                    <div>
-                      <button type="button" onClick={() => setOrganizeAsk('confirm')}>Yes</button>
-                      <button type="button" onClick={dismissOrganize}>No</button>
-                    </div>
-                  </>
-                ) : null}
-                {organizeAsk === 'confirm' ? (
-                  <>
-                    <p>¿Quieres que organice este documento en prompts, siguiendo el set de instrucciones?</p>
-                    <div>
-                      <button type="button" disabled={toolsLocked} onClick={() => { void beginOrganize(); }}>Yes</button>
-                      <button type="button" onClick={dismissOrganize}>No</button>
-                    </div>
-                  </>
-                ) : null}
-                {organizeAsk === 'busy' ? <p>Marcando instrucción y prompt…</p> : null}
+              <div className="prompt-organize" role="dialog" aria-label="Auto Organize">
+                {organizeAsk === 'busy' ? <p>Organizando instrucciones y prompts…</p> : null}
                 {organizeAsk === 'preview' ? (
                   <>
                     <p>{`Encontré ${organizePreview?.length || 0} páginas`}</p>

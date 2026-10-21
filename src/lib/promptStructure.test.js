@@ -106,6 +106,24 @@ describe("validateStructure", () => {
       "gemini",
     ]);
   });
+
+  it("keeps optional titles and trims them to six words", () => {
+    const result = validateStructure({
+      sheets: [{
+        instruction: [1],
+        prompt: [2],
+        model: "none",
+        step_title: "  Captions en ChatGPT para el pack nuevo  ",
+        prompt_title: "Instagram captions",
+      }],
+      extra: [3],
+      warnings: ["messy footer"],
+    }, ids, ALLOWED);
+    expect(result.ok).toBe(true);
+    expect(result.sheets[0].step_title).toBe("Captions en ChatGPT para el pack");
+    expect(result.sheets[0].prompt_title).toBe("Instagram captions");
+    expect(result.warnings).toEqual(["messy footer"]);
+  });
 });
 
 describe("markAssistanceText", () => {

@@ -214,6 +214,7 @@ export function stepsFromOrganizedSheets(sheets, options = {}) {
     if (!hasText(sheet.prompt)) return null;
     return {
       ...blankPromptStep(createId()),
+      title: String(sheet.prompt_title || "").trim(),
       prompt: sheet.prompt,
       modelIds: sheet.model && sheet.model !== "none" ? [sheet.model] : [],
       promptSaved: false,

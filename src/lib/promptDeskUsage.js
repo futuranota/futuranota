@@ -64,7 +64,7 @@ function previewEmbedPrefix(email) {
  * Wipe the preview browser counters (clicks + embed day keys).
  * Used by `?reset-desk=1` while the founder is testing limits.
  */
-const PREVIEW_USAGE_EPOCH = '2026-10-20-desk-reset';
+const PREVIEW_USAGE_EPOCH = '2026-10-21-desk-reset';
 
 /** One-shot wipe after a founder reset so this browser picks up a clean meter. */
 export function applyPreviewUsageEpoch(email = DESK_FREE_PREVIEW_EMAIL) {

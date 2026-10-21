@@ -152,6 +152,8 @@ export function validateStructure(parsed, ids, allowedModels) {
       instruction,
       prompt,
       model: normalizeStructureModel(sheet?.model, allowedModels),
+      step_title: shortStructureTitle(sheet?.step_title),
+      prompt_title: shortStructureTitle(sheet?.prompt_title),
     });
   }
   if (!sheets.length) return { ok: false, reason: "empty" };
@@ -163,7 +165,16 @@ export function validateStructure(parsed, ids, allowedModels) {
     sheet.instruction.sort((a, b) => Number(a) - Number(b));
     sheet.prompt.sort((a, b) => Number(a) - Number(b));
   }
-  return { ok: true, sheets, extra };
+  const warnings = Array.isArray(parsed.warnings)
+    ? parsed.warnings.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  return { ok: true, sheets, extra, warnings };
+}
+
+function shortStructureTitle(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.split(" ").slice(0, 6).join(" ");
 }
 
 function placeMissing(sheets, missing) {
