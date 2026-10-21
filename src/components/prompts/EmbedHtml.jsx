@@ -674,19 +674,111 @@ function MetaEditor({
   );
 }
 
-function CopyEmbedButton({ disabled, copied, onCopy, className }) {
+function selectEmbedSource(event) {
+  const node = event.currentTarget;
+  node.focus();
+  node.setSelectionRange(0, node.value.length);
+}
+
+function EmbedCodeSheet({
+  html,
+  card,
+  text,
+  markup,
+  logoSrc,
+  logoAlt,
+  copied,
+  disabled,
+  onCopy,
+  onClose,
+}) {
+  const preview = String(markup || '').trim() || String(text || '').trim();
+  return (
+    <div
+      className="prompt-embed__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prompt-embed-code-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="prompt-embed__sheet prompt-embed__sheet--code scroll-match-bg">
+        <button type="button" className="prompt-embed__sheet-close" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <h2 id="prompt-embed-code-title">Copy embed</h2>
+        <div className="prompt-embed__code-preview">
+          <div className="prompt-embed__box prompt-embed__box--preview" style={{ background: card.box, color: card.ink }}>
+            <div className="prompt-embed__text-wrap">
+              {preview ? (
+                <div
+                  className="prompt-embed__text"
+                  dangerouslySetInnerHTML={{ __html: markup || text }}
+                />
+              ) : (
+                <div className="prompt-embed__text" data-empty="" data-placeholder="Insert Prompt" />
+              )}
+            </div>
+            <div className="prompt-embed__actions">
+              {logoSrc ? (
+                <img
+                  className="prompt-embed__brand-preview"
+                  src={logoSrc}
+                  alt={logoAlt || ''}
+                  width={40}
+                  height={40}
+                />
+              ) : null}
+              <button
+                type="button"
+                tabIndex={-1}
+                style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
+              >
+                <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
+                <span>Copy</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <label className="prompt-embed__sheet-field" htmlFor="prompt-embed-source">
+          <span>Copy and paste code</span>
+          <textarea
+            id="prompt-embed-source"
+            className="prompt-embed__code-source"
+            readOnly
+            spellCheck={false}
+            rows={6}
+            value={html}
+            onFocus={selectEmbedSource}
+            onClick={selectEmbedSource}
+          />
+        </label>
+        <CopyEmbedButton
+          className="prompt-embed__sheet-copy"
+          label="Copy"
+          disabled={disabled}
+          copied={copied}
+          onCopy={onCopy}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CopyEmbedButton({ disabled, copied, onCopy, className, label = 'Copy embed' }) {
   const button = (
     <button
       type="button"
       className={className}
       disabled={disabled}
-      aria-label={disabled ? 'Free plan daily embed limit reached' : 'Copy embed'}
+      aria-label={disabled ? 'Free plan daily embed limit reached' : label}
       onClick={() => {
         if (disabled) return;
         void onCopy();
       }}
     >
-      {copied ? 'Copied' : 'Copy embed'}
+      {copied ? 'Copied' : label}
     </button>
   );
   if (!disabled) return button;
@@ -1197,21 +1289,13 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             <CopyEmbedButton
               className="prompt-embed__action"
               disabled={copyLocked}
-              copied={copiedEmbed}
-              onCopy={copyEmbed}
-            />
-            <button
-              type="button"
-              className="prompt-embed__action"
-              aria-expanded={codeOpen}
-              onClick={() => {
+              copied={false}
+              onCopy={() => {
                 setHowOpen(false);
                 setMetaOpen(false);
                 setCodeOpen(true);
               }}
-            >
-              View embed
-            </button>
+            />
             <button
               type="button"
               className="prompt-embed__action"
@@ -1259,26 +1343,18 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
         ) : null}
       </div>
       {codeOpen ? (
-        <div
-          className="prompt-embed__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Embed code"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setCodeOpen(false);
-          }}
-        >
-          <div className="prompt-embed__overlay-card">
-            <h2>Embed code</h2>
-            <pre>{html}</pre>
-            <CopyEmbedButton
-              className="prompt-embed__overlay-copy"
-              disabled={copyLocked}
-              copied={copiedEmbed}
-              onCopy={copyEmbed}
-            />
-          </div>
-        </div>
+        <EmbedCodeSheet
+          html={html}
+          card={card}
+          text={text}
+          markup={markup}
+          logoSrc={logoSrc}
+          logoAlt={logoAlt}
+          copied={copiedEmbed}
+          disabled={copyLocked}
+          onCopy={copyEmbed}
+          onClose={() => setCodeOpen(false)}
+        />
       ) : null}
       {howOpen ? (
         <HowGuide
