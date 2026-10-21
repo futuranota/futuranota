@@ -59,6 +59,7 @@ import {
   stepsFromOrganizedSheets,
   visibleStepTitle,
   writeInstructionSections,
+  filePageCaption,
 } from '../../lib/promptPages.js';
 import PromptInstructionStepper from './PromptInstructionStepper.jsx';
 import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
@@ -512,7 +513,7 @@ function FloatInstructions({ value }) {
     <div
       ref={ref}
       className="prompt-float__text prompt-float__instructions-body"
-      data-placeholder="No instructions yet."
+      data-placeholder="Write your instruction"
     />
   );
 }
@@ -4232,16 +4233,29 @@ function InstructionPanel({
                 activeStep={instructionStep}
                 onActiveStep={setInstructionStep}
                 readOnly={Boolean(step.promptSaved)}
-                onTitleChange={(sectionIndex, title) => {
-                  const next = instructionSections().map((section, itemIndex) => (
-                    itemIndex === sectionIndex ? { ...section, title } : section
-                  ));
-                  patchInstructionSections(next);
-                }}
                 onAdd={() => {
                   const next = [...instructionSections(), { title: `Step ${instructionSections().length + 1}`, body: '' }];
                   patchInstructionSections(next);
                   setInstructionStep(next.length);
+                }}
+                onRemove={(sectionIndex) => {
+                  const current = instructionSections();
+                  if (current.length <= 1) return;
+                  const next = current
+                    .filter((_, itemIndex) => itemIndex !== sectionIndex)
+                    .map((section, itemIndex) => ({
+                      ...section,
+                      title: /^(?:step|paso)\s+\d+$/i.test(section.title || '')
+                        ? `Step ${itemIndex + 1}`
+                        : section.title,
+                    }));
+                  patchInstructionSections(next);
+                  setInstructionStep((active) => {
+                    if (active > next.length) return next.length;
+                    if (active === sectionIndex + 1) return Math.max(1, sectionIndex);
+                    if (active > sectionIndex + 1) return active - 1;
+                    return active;
+                  });
                 }}
                 renderBody={(section, sectionIndex) => (
                   <DescriptionField
@@ -4249,7 +4263,7 @@ function InstructionPanel({
                     value={section.body || ''}
                     readOnly={Boolean(step.promptSaved)}
                     label={`Step ${sectionIndex + 1} instructions`}
-                    placeholder="Steps to follow"
+                    placeholder="Write your instruction"
                     onChange={(body) => {
                       const next = instructionSections().map((item, itemIndex) => (
                         itemIndex === sectionIndex ? { ...item, body } : item
@@ -4461,7 +4475,7 @@ function InstructionPanel({
                 <path d="M14.5 6.5 9 12l5.5 5.5" />
               </svg>
             </button>
-            <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+            <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
             {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
             <button
               type="button"
@@ -4887,7 +4901,7 @@ function FloatCard({ prompt, view, onPatch }) {
             <path d="M14.5 6.5 9 12l5.5 5.5" />
           </svg>
         </button>
-        <span className="prompt-steps__count">{index + 1} / {steps.length}</span>
+        <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
         {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
         <button
           type="button"
@@ -5459,12 +5473,13 @@ const FLOAT_CSS = `
   }
   .prompt-float__text::placeholder { color: rgba(20, 20, 22, 0.38); }
   .prompt-float__text.prompt-float__instructions-body {
-    color: #704901;
+    background: #F5F5F5;
+    color: #1a1a1a;
     white-space: pre-wrap;
   }
   .prompt-float__instructions-body[data-empty="true"]::before {
     content: attr(data-placeholder);
-    color: rgba(112, 73, 1, 0.45);
+    color: rgba(26, 26, 26, 0.38);
   }
   .prompt-float__instructions-body strong,
   .prompt-body__editor strong { font-weight: 700; }

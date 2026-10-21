@@ -5058,11 +5058,20 @@ svg.prompt-chip__model {
   align-items: stretch;
 }
 
+.prompt-stepper__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+
 .prompt-stepper__trigger {
   display: flex;
   align-items: flex-start;
+  flex: 1;
+  min-width: 0;
   gap: 10px;
-  padding: 0 0 12px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #1a1a1a;
@@ -5153,9 +5162,9 @@ svg.prompt-chip__model {
   display: none;
 }
 
-.prompt-stepper__add {
-  align-self: flex-start;
-  margin-left: 34px;
+.prompt-stepper__add,
+.prompt-stepper__remove {
+  flex: none;
   border: 0;
   background: transparent;
   color: rgba(26, 26, 26, 0.55);
@@ -5164,8 +5173,28 @@ svg.prompt-chip__model {
   cursor: pointer;
 }
 
+.prompt-stepper__add {
+  align-self: flex-start;
+  margin-left: 34px;
+}
+
+.prompt-stepper__remove {
+  margin-top: 3px;
+}
+
 .prompt-sheet .prompt-stepper__panel .prompt-sheet__description {
   min-height: 88px;
-  padding: 0;
+  padding: 16px;
   border: 0;
+  border-radius: 10px;
+  background: #F5F5F5;
+  color: #1a1a1a;
+  box-sizing: border-box;
+}
+
+.prompt-sheet .prompt-stepper__panel .prompt-sheet__description[data-empty='true']::before {
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  color: rgba(26, 26, 26, 0.38);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendOrganizedSheets,
+  filePageCaption,
   normalizePromptFile,
   promptPagesAreSplit,
   readInstructionSections,
@@ -13,6 +14,18 @@ let n = 0;
 function ids() {
   return () => `id-${n++}`;
 }
+
+describe("filePageCaption", () => {
+  it("names the instruction page 0 and the first prompt 1", () => {
+    expect(filePageCaption({ meta: "Prompt" }, 0, 2)).toBe("0 / 1");
+    expect(filePageCaption({ meta: "Prompt" }, 1, 2)).toBe("1 / 1");
+    expect(filePageCaption({ meta: "Prompt" }, 2, 3)).toBe("2 / 2");
+  });
+
+  it("keeps transcripts 1-based", () => {
+    expect(filePageCaption({ meta: "Transcript" }, 0, 1)).toBe("1 / 1");
+  });
+});
 
 describe("visibleStepTitle", () => {
   it("falls back to the file instance name", () => {

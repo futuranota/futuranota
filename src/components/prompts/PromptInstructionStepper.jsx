@@ -22,8 +22,8 @@ function stepState(index, activeStep, completed) {
  *   activeStep?: number,
  *   onActiveStep?: (step: number) => void,
  *   readOnly?: boolean,
- *   onTitleChange?: (index: number, title: string) => void,
  *   onAdd?: () => void,
+ *   onRemove?: (index: number) => void,
  *   renderBody?: (section: { title?: string, body?: string }, index: number) => import('react').ReactNode,
  * }} props
  */
@@ -32,8 +32,8 @@ export default function PromptInstructionStepper({
   activeStep = 1,
   onActiveStep,
   readOnly = false,
-  onTitleChange,
   onAdd,
+  onRemove,
   renderBody,
 }) {
   const items = useMemo(
@@ -54,6 +54,7 @@ export default function PromptInstructionStepper({
               className="prompt-stepper__item"
               data-state={state}
             >
+              <div className="prompt-stepper__head">
               <button
                 type="button"
                 className="prompt-stepper__trigger"
@@ -68,19 +69,20 @@ export default function PromptInstructionStepper({
                   {state === "completed" ? <CheckIcon /> : step}
                 </span>
                 <span className="prompt-stepper__copy">
-                  {readOnly || !onTitleChange ? (
-                    <span className="prompt-stepper__title">{section.title || `Step ${step}`}</span>
-                  ) : (
-                    <input
-                      className="prompt-stepper__title-input"
-                      value={section.title || `Step ${step}`}
-                      aria-label={`Step ${step} title`}
-                      onChange={(event) => onTitleChange(index, event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                    />
-                  )}
+                  <span className="prompt-stepper__title">{section.title || `Step ${step}`}</span>
                 </span>
               </button>
+              {!readOnly && onRemove && items.length > 1 ? (
+                <button
+                  type="button"
+                  className="prompt-stepper__remove"
+                  aria-label={`Remove step ${step}`}
+                  onClick={() => onRemove(index)}
+                >
+                  Remove
+                </button>
+              ) : null}
+              </div>
               {index < items.length - 1 ? (
                 <span className="prompt-stepper__separator" data-state={state} aria-hidden="true" />
               ) : null}

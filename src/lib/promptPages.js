@@ -26,6 +26,21 @@ export function isInstructionIndex(prompt, index) {
   return index === 0;
 }
 
+/**
+ * Instruction page = 0. Prompt pages start at 1.
+ * Transcripts keep 1-based file pages.
+ * @param {object} prompt
+ * @param {number} index
+ * @param {number} total
+ */
+export function filePageCaption(prompt, index, total) {
+  const count = Math.max(Number(total) || 0, 1);
+  const current = Math.max(Number(index) || 0, 0);
+  if (isTranscriptPrompt(prompt)) return `${current + 1} / ${count}`;
+  const prompts = Math.max(count - 1, 1);
+  return `${current === 0 ? 0 : current} / ${prompts}`;
+}
+
 export function visibleStepTitle(step, fileName) {
   const title = String(step?.title || "").trim();
   if (title) return title;
