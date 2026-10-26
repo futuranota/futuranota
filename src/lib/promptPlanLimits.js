@@ -14,8 +14,8 @@ export const CREDITS_PER_CLICK = 7;
 export const PRO_PROMPT_CREDITS = 200 * CREDITS_PER_CLICK;
 
 /**
- * Preview account. The desk treats this login as free until the founder asks for Pro.
- * Clicks for this email live in the browser so the cap shows even if the profile row says pro.
+ * Founder / development login. The desk treats this email as unlimited Pro
+ * so Organizar, Mejorar, embeds and the credit glass stay open while testing.
  */
 export const DESK_FREE_PREVIEW_EMAIL = 'contact.fnota@gmail.com';
 
@@ -58,12 +58,12 @@ export function isDeskFreePreview(email) {
 }
 
 /**
- * Plan the desk enforces. The preview login stays free even when the profile row is pro.
+ * Plan the desk enforces. The founder login is always unlimited (Pro).
  * @param {string} [email]
  * @param {string} [profilePlan]
  */
 export function deskPlan(email, profilePlan) {
-  if (isDeskFreePreview(email)) return 'free';
+  if (isDeskFreePreview(email)) return 'pro';
   return profilePlan === 'pro' ? 'pro' : 'free';
 }
 

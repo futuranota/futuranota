@@ -96,6 +96,18 @@ const HOME_FRAMES = [
   '/Portada/right%20frame.png',
 ];
 
+const FLOAT_OPEN_SIZE = { width: 400, height: 360 };
+const FLOAT_COLLAPSED_WIDTH = 340;
+
+function resizeFloatHost(host, width, height) {
+  if (!host || typeof host.resizeTo !== 'function') return;
+  try {
+    host.resizeTo(Math.max(200, Math.round(width)), Math.max(72, Math.round(height)));
+  } catch {
+    // Some hosts ignore resizeTo; CSS still shrinks the card.
+  }
+}
+
 const PROMPT_MODELS = [
   { id: 'openai', label: 'ChatGPT', src: '/uploads/source/OpenAiLogo.svg' },
   { id: 'claude', label: 'Claude', src: '/uploads/claude-color.svg' },
@@ -222,6 +234,7 @@ function stepHasWork(item) {
     || Number.isInteger(item.pdfPage)
     || Boolean(item.video?.embedSrc)
     || (item.modelIds || []).length > 0
+    || Boolean(String(item.recommendedModel || '').trim())
     || Boolean(item.format && item.format !== 'text');
 }
 
@@ -552,13 +565,13 @@ function TranslateControl({ busy, note, onTarget }) {
   );
 }
 
-function PromptTitleField({ className, value, onChange, titleRef }) {
+function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Title' }) {
   return (
     <textarea
       ref={titleRef}
       className={className}
       value={value}
-      placeholder="Title"
+      placeholder={placeholder}
       aria-label="Title"
       rows={1}
       onChange={(event) => onChange(event.target.value)}
@@ -1469,6 +1482,8 @@ function saveMode(patch, beforePrompt) {
         || prev.pdfPage !== step.pdfPage
         || prev.format !== step.format
         || prev.promptSaved !== step.promptSaved
+        || prev.recommendedModel !== step.recommendedModel
+        || JSON.stringify(prev.modelIds || []) !== JSON.stringify(step.modelIds || [])
         || JSON.stringify(prev.video) !== JSON.stringify(step.video)
         || JSON.stringify(prev.pdf || null) !== JSON.stringify(step.pdf || null);
     });
@@ -1840,10 +1855,14 @@ export default function PromptDesk() {
       return;
     }
     try {
-      const pipWindow = await api.requestWindow({ width: 400, height: 360 });
+      const pipWindow = await api.requestWindow({
+        width: FLOAT_OPEN_SIZE.width,
+        height: FLOAT_OPEN_SIZE.height,
+      });
       const doc = pipWindow.document;
       doc.title = '';
       const style = doc.createElement('style');
+      style.id = 'prompt-float-css';
       style.textContent = FLOAT_CSS;
       doc.head.appendChild(style);
       const mount = doc.createElement('div');
@@ -2013,6 +2032,7 @@ export default function PromptDesk() {
         key={activePrompt.prompt.id}
         prompt={activePrompt.prompt}
         view={slot.window}
+        hostWindow={slot.window}
         onPatch={patchPrompt}
       />
     );
@@ -2167,6 +2187,7 @@ function ModelPicker({
   open,
   onToggle,
   onChange,
+  readOnly = false,
 }) {
   const ids = Array.isArray(modelIds) ? modelIds : [];
   const chosen = ids.length > 0;
@@ -2175,14 +2196,8 @@ function ModelPicker({
       {ids.map((id) => {
         const known = PROMPT_MODELS.find((model) => model.id === id);
         const label = known?.label || id;
-        return (
-          <button
-            key={id}
-            type="button"
-            className="prompt-models__item is-selected"
-            aria-label={`Quitar ${label}`}
-            onClick={() => onChange(ids.filter((item) => item !== id))}
-          >
+        const face = (
+          <>
             {known ? <img src={known.src} alt="" /> : (
               <span className="prompt-models__glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -2191,10 +2206,28 @@ function ModelPicker({
               </span>
             )}
             <span>{label}</span>
+          </>
+        );
+        if (readOnly) {
+          return (
+            <span key={id} className="prompt-models__item is-selected is-readonly">
+              {face}
+            </span>
+          );
+        }
+        return (
+          <button
+            key={id}
+            type="button"
+            className="prompt-models__item is-selected"
+            aria-label={`Quitar ${label}`}
+            onClick={() => onChange(ids.filter((item) => item !== id))}
+          >
+            {face}
           </button>
         );
       })}
-      {chosen ? null : (
+      {chosen || readOnly ? null : (
         <button type="button" className="prompt-models__item prompt-models__item--tip" aria-expanded={open} onClick={onToggle}>
           <span className="prompt-models__glyph" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -2202,9 +2235,9 @@ function ModelPicker({
               <path d="M12 9v3l2 2" />
             </svg>
           </span>
-          <span>Select model</span>
+          <span>Plataforma objetivo</span>
           <span className="prompt-models__tip" role="tooltip">
-            Indicates which AI or platform you plan to paste your prompt into by choosing a model from the list or setting a custom destination.
+            Indica a qué plataforma vas a pegar este prompt (ChatGPT, Claude, Gemini…) o definí un destino custom.
           </span>
         </button>
       )}
@@ -2214,7 +2247,7 @@ function ModelPicker({
 
 function ModelMenu({ customDraft, onCustomDraft, onChange }) {
   return (
-    <div className="prompt-drop prompt-model__menu" role="listbox" aria-label="Select a model">
+    <div className="prompt-drop prompt-model__menu" role="listbox" aria-label="Plataforma objetivo">
       {PROMPT_MODELS.map((model) => (
         <button
           key={model.id}
@@ -2319,6 +2352,7 @@ function InstructionPanel({
   const [coverAsk, setCoverAsk] = useState(false);
   const coverPickRef = useRef(null);
   const [modelOpen, setModelOpen] = useState(false);
+  const [recommendedOpen, setRecommendedOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [varsOpen, setVarsOpen] = useState(false);
   const [customModel, setCustomModel] = useState('');
@@ -2380,6 +2414,7 @@ function InstructionPanel({
     setSheetOpen(false);
     if (index !== 0) onPatch({ stepIndex: 0 });
     setModelOpen(false);
+    setRecommendedOpen(false);
     setFormatOpen(false);
     setCustomModel('');
     setVideoDraft(prompt.video?.rawInput || '');
@@ -2445,6 +2480,7 @@ function InstructionPanel({
 
   useEffect(() => {
     setModelOpen(false);
+    setRecommendedOpen(false);
     setFormatOpen(false);
     setCustomModel('');
     setInstructionStep(1);
@@ -2632,6 +2668,12 @@ function InstructionPanel({
   function skipCover() {
     setCoverAsk(false);
     onPatch({ cover: '', coverPath: '', coverSkipped: true });
+  }
+
+  function removeCover(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    skipCover();
   }
 
   function askCover() {
@@ -3328,6 +3370,7 @@ function InstructionPanel({
     setSheetOpen(false);
     setShowImage(false);
     setModelOpen(false);
+    setRecommendedOpen(false);
     setFormatOpen(false);
     showIndexMedia();
   }
@@ -3678,12 +3721,13 @@ function InstructionPanel({
                 <span>Settings</span>
               </button>
             ) : null}
-            {sheetOpen ? (
+            {sheetOpen && instructionPage ? (
             <ModelPicker
               modelIds={step.modelIds}
               open={modelOpen}
               onToggle={() => {
                 setModelOpen((open) => !open);
+                setRecommendedOpen(false);
                 setFormatOpen(false);
               }}
               onChange={(modelIds) => {
@@ -3701,6 +3745,7 @@ function InstructionPanel({
                 onClick={() => {
                   setFormatOpen((open) => !open);
                   setModelOpen(false);
+                  setRecommendedOpen(false);
                 }}
               >
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
@@ -4003,7 +4048,7 @@ function InstructionPanel({
             </div>,
             document.body,
           ) : null}
-          {sheetOpen && modelOpen ? (
+          {sheetOpen && modelOpen && instructionPage ? (
             <ModelMenu
               customDraft={customModel}
               onCustomDraft={setCustomModel}
@@ -4286,7 +4331,8 @@ function InstructionPanel({
           <div className="prompt-sheet">
             <PromptTitleField
               className="prompt-sheet__title"
-              value={visibleStepTitle(step, prompt.name)}
+              value={step.title || ''}
+              placeholder={prompt.name || 'Title'}
               onChange={(title) => patchStep({ title })}
             />
             {instructionPage ? (
@@ -4343,6 +4389,105 @@ function InstructionPanel({
               />
             ) : (
             <div className="prompt-drawer">
+            {(!step.promptSaved
+              || (step.modelIds || []).length > 0
+              || String(step.recommendedModel || '').trim()) ? (
+              <div className="prompt-target-float" aria-label="Destino del prompt">
+                <div className="prompt-target-float__chip">
+                  <ModelPicker
+                    modelIds={step.modelIds}
+                    open={modelOpen}
+                    readOnly={Boolean(step.promptSaved)}
+                    onToggle={() => {
+                      if (step.promptSaved) return;
+                      setModelOpen((open) => !open);
+                      setRecommendedOpen(false);
+                      setFormatOpen(false);
+                    }}
+                    onChange={(modelIds) => {
+                      if (step.promptSaved) return;
+                      patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
+                      setCustomModel('');
+                      setModelOpen(false);
+                    }}
+                  />
+                  {!step.promptSaved && modelOpen ? (
+                    <div className="prompt-target-float__menu">
+                      <ModelMenu
+                        customDraft={customModel}
+                        onCustomDraft={setCustomModel}
+                        onChange={(modelIds) => {
+                          patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
+                          setCustomModel('');
+                          setModelOpen(false);
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+                <div className="prompt-target-float__chip">
+                  {step.promptSaved ? (
+                    String(step.recommendedModel || '').trim() ? (
+                      <span className="prompt-models__item is-selected is-readonly">
+                        <span className="prompt-models__glyph" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M4 7h16M4 12h10M4 17h7" />
+                          </svg>
+                        </span>
+                        <span>{String(step.recommendedModel || '').trim()}</span>
+                      </span>
+                    ) : null
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={
+                          recommendedOpen || String(step.recommendedModel || '').trim()
+                            ? 'prompt-models__item is-selected'
+                            : 'prompt-models__item prompt-models__item--tip'
+                        }
+                        aria-expanded={recommendedOpen}
+                        aria-label="Modelo recomendado"
+                        onClick={() => {
+                          setRecommendedOpen((open) => !open);
+                          setModelOpen(false);
+                          setFormatOpen(false);
+                        }}
+                      >
+                        <span className="prompt-models__glyph" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M4 7h16M4 12h10M4 17h7" />
+                          </svg>
+                        </span>
+                        <span>
+                          {String(step.recommendedModel || '').trim() || 'Modelo recomendado'}
+                        </span>
+                      </button>
+                      {recommendedOpen ? (
+                        <div className="prompt-target-float__pop" role="dialog" aria-label="Modelo recomendado">
+                          <input
+                            className="prompt-target-float__input"
+                            type="text"
+                            value={step.recommendedModel || ''}
+                            placeholder="ej. Claude Sonnet 4"
+                            autoFocus
+                            onChange={(event) => {
+                              patchStep({ recommendedModel: event.target.value, promptSaved: false });
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === 'Escape') {
+                                event.preventDefault();
+                                setRecommendedOpen(false);
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
             <PromptBody
               key={`${prompt.id}:${step.id}`}
               prompt={step.prompt}
@@ -4387,9 +4532,12 @@ function InstructionPanel({
                 const picture = isFront
                   ? (cover || HOME_FRAMES[place])
                   : (page?.image || (!text ? HOME_FRAMES[place] : ''));
+                const coverClass = isFront && cover
+                  ? 'prompt-index__cover'
+                  : ((isFront ? cover : page?.image) ? undefined : 'prompt-index__default');
                 const inner = picture ? (
                   <img
-                    className={(isFront ? cover : page?.image) ? undefined : 'prompt-index__default'}
+                    className={coverClass}
                     src={picture}
                     alt=""
                   />
@@ -4411,22 +4559,34 @@ function InstructionPanel({
                     );
                   }
                   return (
-                    <label
+                    <div
                       key={page?.id || `empty-${place}`}
                       className="prompt-index__card prompt-index__card--front"
                     >
-                      {inner}
-                      <input
-                        ref={coverPickRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/*"
-                        aria-label="Upload cover"
-                        onChange={(event) => {
-                          takeCover(event.target.files?.[0]);
-                          event.target.value = '';
-                        }}
-                      />
-                    </label>
+                      <label className="prompt-index__cover-hit">
+                        {inner}
+                        <input
+                          ref={coverPickRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/*"
+                          aria-label="Upload cover"
+                          onChange={(event) => {
+                            takeCover(event.target.files?.[0]);
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {cover ? (
+                        <button
+                          type="button"
+                          className="prompt-index__cover-remove"
+                          aria-label="Remove cover"
+                          onClick={removeCover}
+                        >
+                          Remover
+                        </button>
+                      ) : null}
+                    </div>
                   );
                 }
                 if (needCoverChoice) {
@@ -4792,7 +4952,7 @@ async function copyInView(plain, html, view) {
   }
 }
 
-function FloatCard({ prompt, view, onPatch }) {
+function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
   const email = useAuthStore((state) => state.user?.email || '');
   const profilePlan = usePlanStore((state) => state.profile.plan);
   const plan = deskPlan(email, profilePlan);
@@ -4804,21 +4964,66 @@ function FloatCard({ prompt, view, onPatch }) {
   const [limitNote, setLimitNote] = useState('');
   const [instructionStep, setInstructionStep] = useState(1);
   const [urlOffer, setUrlOffer] = useState('');
+  const [bodyCollapsed, setBodyCollapsed] = useState(false);
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
+  const floatPlatformLabel = floatModel?.label || floatModelName || '';
+  const floatRecommended = String(step.recommendedModel || '').trim();
   const titleRef = useRef(null);
+  const floatRootRef = useRef(null);
   const instructionPage = isInstructionIndex(prompt, index);
+  const floatHost = hostWindow || view || null;
+  const floatClassName = bodyCollapsed ? 'prompt-float is-collapsed' : 'prompt-float';
+
+  useLayoutEffect(() => {
+    const doc = floatHost?.document;
+    if (!doc?.head) return;
+    let style = doc.getElementById('prompt-float-css');
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = 'prompt-float-css';
+      doc.head.appendChild(style);
+    }
+    if (style.textContent !== FLOAT_CSS) {
+      style.textContent = FLOAT_CSS;
+    }
+  });
 
   useLayoutEffect(() => {
     const node = titleRef.current;
     if (!node) return;
     node.style.height = 'auto';
-    node.style.height = `${node.scrollHeight}px`;
-  }, [step.title, prompt.name]);
+    node.style.height = `${Math.max(node.scrollHeight, 24)}px`;
+  }, [step.title, prompt.name, bodyCollapsed]);
 
   useEffect(() => {
     setInstructionStep(1);
+    setBodyCollapsed(false);
   }, [step.id]);
+
+  useLayoutEffect(() => {
+    const doc = floatHost?.document;
+    if (doc?.body) {
+      doc.body.classList.toggle('is-float-collapsed', bodyCollapsed);
+    }
+    if (doc?.documentElement) {
+      doc.documentElement.classList.toggle('is-float-collapsed', bodyCollapsed);
+    }
+    if (!bodyCollapsed) {
+      resizeFloatHost(floatHost, FLOAT_OPEN_SIZE.width, FLOAT_OPEN_SIZE.height);
+      return;
+    }
+    const root = floatRootRef.current;
+    const fitCollapsed = () => {
+      const measured = root ? root.getBoundingClientRect().height : 96;
+      resizeFloatHost(floatHost, FLOAT_COLLAPSED_WIDTH, measured + 8);
+    };
+    fitCollapsed();
+    const frame = floatHost?.requestAnimationFrame?.(fitCollapsed);
+    return () => {
+      if (frame != null) floatHost?.cancelAnimationFrame?.(frame);
+    };
+  }, [bodyCollapsed, floatHost, step.title, floatPlatformLabel, floatRecommended]);
 
   function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
     if (keepSaved) {
@@ -4877,25 +5082,68 @@ function FloatCard({ prompt, view, onPatch }) {
   }
 
   return (
-    <section className="prompt-float" aria-label="Prompt flotante">
+    <section
+      ref={floatRootRef}
+      className={floatClassName}
+      aria-label="Prompt flotante"
+    >
       <div className="prompt-float__sheet">
         <div className="prompt-float__head">
-        <span className="prompt-float__model" title={floatModel?.label || floatModelName || 'Select model'}>
-          {floatModel ? <img src={floatModel.src} alt="" /> : (
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="7" />
-              <path d="M12 9v3l2 2" />
-            </svg>
-          )}
-        </span>
-        <PromptTitleField
-          titleRef={titleRef}
-          className="prompt-float__step"
-          value={visibleStepTitle(step, prompt.name)}
-          onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
-        />
+          <div className="prompt-float__brand">
+            <span
+              className="prompt-float__model"
+              title={floatPlatformLabel || 'Plataforma objetivo'}
+            >
+              {floatModel ? <img src={floatModel.src} alt="" /> : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="7" />
+                  <path d="M12 9v3l2 2" />
+                </svg>
+              )}
+            </span>
+            {(floatPlatformLabel || floatRecommended) ? (
+              <p className="prompt-float__target">
+                {floatPlatformLabel ? (
+                  <span className="prompt-float__target-platform">{floatPlatformLabel}</span>
+                ) : null}
+                {floatPlatformLabel && floatRecommended ? (
+                  <span className="prompt-float__target-sep" aria-hidden="true">|</span>
+                ) : null}
+                {floatRecommended ? (
+                  <span className="prompt-float__target-model">{floatRecommended}</span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+          <div className="prompt-float__head-copy">
+            <PromptTitleField
+              titleRef={titleRef}
+              className="prompt-float__step"
+              value={step.title || ''}
+              placeholder={prompt.name || 'Title'}
+              onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
+            />
+          </div>
+          <div className="prompt-float__head-actions">
+            <button
+              type="button"
+              className="prompt-float__collapse"
+              aria-expanded={!bodyCollapsed}
+              aria-label={bodyCollapsed ? 'Expandir prompt' : 'Colapsar prompt'}
+              title={bodyCollapsed ? 'Expandir' : 'Colapsar'}
+              onClick={() => setBodyCollapsed((value) => !value)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {bodyCollapsed ? (
+                  <path d="M7.5 14.25 12 9.75l4.5 4.5" />
+                ) : (
+                  <path d="M7.5 9.75 12 14.25l4.5-4.5" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
-        {urlOffer ? (
+        {urlOffer && !bodyCollapsed ? (
           <div className="prompt-url-offer" role="status">
             <p>Guardar este link en Url?</p>
             <button
@@ -4910,77 +5158,81 @@ function FloatCard({ prompt, view, onPatch }) {
             <button type="button" onClick={() => setUrlOffer('')}>No</button>
           </div>
         ) : null}
-        <div className="prompt-drawer">
-          {instructionPage ? (
-            <PromptInstructionStepper
-              sections={readInstructionSections(step.description)}
-              activeStep={instructionStep}
-              onActiveStep={setInstructionStep}
-              readOnly
-              renderBody={(section) => <FloatInstructions value={section.body || ''} />}
-            />
-          ) : (
-          <PromptBody
-            key={`${prompt.id}:${step.id}`}
-            prompt={step.prompt}
-            documentId={prompt.id}
-            variables={ownedVariables}
-            placeholder={'Write your prompt (press "#+space" for upper case)'}
-            readOnly={Boolean(step.promptSaved)}
-            onCommit={commitBody}
-            onUrlPaste={setUrlOffer}
-            className="prompt-float__text"
-          >
-          {canCopy ? (
-            <button
-              type="button"
-              className="prompt-copy"
-              onClick={() => { void copyPrompt(); }}
-              aria-label={copied ? 'Copiado' : 'Copiar'}
-              title={copied ? 'Copiado' : 'Copiar'}
-            >
-              {copied ? '✓' : '⧉'}
+        {!bodyCollapsed ? (
+          <div className="prompt-drawer">
+            {instructionPage ? (
+              <PromptInstructionStepper
+                sections={readInstructionSections(step.description)}
+                activeStep={instructionStep}
+                onActiveStep={setInstructionStep}
+                readOnly
+                renderBody={(section) => <FloatInstructions value={section.body || ''} />}
+              />
+            ) : (
+              <PromptBody
+                key={`${prompt.id}:${step.id}`}
+                prompt={step.prompt}
+                documentId={prompt.id}
+                variables={ownedVariables}
+                placeholder={'Write your prompt (press "#+space" for upper case)'}
+                readOnly={Boolean(step.promptSaved)}
+                onCommit={commitBody}
+                onUrlPaste={setUrlOffer}
+                className="prompt-float__text"
+              >
+                {canCopy ? (
+                  <button
+                    type="button"
+                    className="prompt-copy"
+                    onClick={() => { void copyPrompt(); }}
+                    aria-label={copied ? 'Copiado' : 'Copiar'}
+                    title={copied ? 'Copiado' : 'Copiar'}
+                  >
+                    {copied ? '✓' : '⧉'}
+                  </button>
+                ) : null}
+              </PromptBody>
+            )}
+          </div>
+        ) : null}
+      </div>
+      {!bodyCollapsed ? (
+        <div className="prompt-steps">
+          {promptNeedsSave(prompt, step) ? (
+            <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
+              Guardar
+            </button>
+          ) : step.promptSaved ? (
+            <button type="button" className="prompt-steps__save" onClick={editFloatStep}>
+              Editar
             </button>
           ) : null}
-          </PromptBody>
-          )}
+          <button
+            type="button"
+            className="prompt-steps__arrow"
+            aria-label="Paso anterior"
+            disabled={index <= 0}
+            onClick={goBack}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14.5 6.5 9 12l5.5 5.5" />
+            </svg>
+          </button>
+          <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
+          {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
+          <button
+            type="button"
+            className="prompt-steps__arrow"
+            aria-label="Next prompt"
+            disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+            onClick={goForward}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9.5 6.5 15 12l-5.5 5.5" />
+            </svg>
+          </button>
         </div>
-      </div>
-      <div className="prompt-steps">
-        {promptNeedsSave(prompt, step) ? (
-          <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
-            Guardar
-          </button>
-        ) : step.promptSaved ? (
-          <button type="button" className="prompt-steps__save" onClick={editFloatStep}>
-            Editar
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="prompt-steps__arrow"
-          aria-label="Paso anterior"
-          disabled={index <= 0}
-          onClick={goBack}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14.5 6.5 9 12l5.5 5.5" />
-          </svg>
-        </button>
-        <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
-        {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
-        <button
-          type="button"
-          className="prompt-steps__arrow"
-          aria-label="Next prompt"
-          disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
-          onClick={goForward}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9.5 6.5 15 12l-5.5 5.5" />
-          </svg>
-        </button>
-      </div>
+      ) : null}
     </section>
   );
 }
@@ -4989,6 +5241,14 @@ const FLOAT_CSS = `
   html, body, #prompt-float-root {
     margin: 0;
     height: 100%;
+    overflow: hidden;
+  }
+  html.is-float-collapsed,
+  html.is-float-collapsed body,
+  html.is-float-collapsed #prompt-float-root {
+    height: fit-content;
+    min-height: 0;
+    max-height: none;
     overflow: hidden;
   }
   body {
@@ -5014,34 +5274,102 @@ const FLOAT_CSS = `
     color: #1a1a1a;
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
+  .prompt-float.is-collapsed {
+    height: fit-content;
+    min-height: 0;
+    gap: 0;
+    padding: 6px 8px;
+    overflow: hidden;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
   .prompt-float__sheet {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
     border: 2px dashed rgba(20, 20, 22, 0.45);
     border-radius: 14px;
     background: #fff;
-    overflow: auto;
+    overflow: hidden;
   }
   .prompt-float__sheet:focus-within {
     border-color: rgba(20, 20, 22, 0.72);
   }
+  .prompt-float.is-collapsed .prompt-float__sheet {
+    flex: 0 0 auto;
+    height: fit-content;
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
   .prompt-float__head {
     position: relative;
-    flex: none;
+    flex: 0 0 auto;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
-    gap: 8px;
+    gap: 10px;
     padding: 14px 12px 12px;
     border-bottom: 1px solid rgba(20, 20, 22, 0.08);
+  }
+  .prompt-float.is-collapsed .prompt-float__head {
+    border-bottom: 0;
+    padding: 4px 2px;
+    align-items: center;
+  }
+  .prompt-float__head-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .prompt-float.is-collapsed .prompt-float__head-actions {
+    align-items: center;
+  }
+  .prompt-float__brand {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .prompt-float__head-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 1px;
+  }
+  .prompt-float__target {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px;
+    max-width: 120px;
+    min-width: 0;
+    color: rgba(26, 26, 26, 0.55);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .prompt-float__target-platform,
+  .prompt-float__target-model {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .prompt-float__target-sep {
+    opacity: 0.55;
   }
   .prompt-float__model {
     position: static;
     width: 22px;
     height: 22px;
-    margin-top: 1px;
     display: grid;
     place-items: center;
   }
@@ -5057,6 +5385,43 @@ const FLOAT_CSS = `
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  .prompt-float__collapse {
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(20, 20, 22, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #1a1a1a;
+    display: grid;
+    place-items: center;
+    overflow: visible;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .prompt-float__collapse:hover {
+    border-color: rgba(20, 20, 22, 0.28);
+  }
+  .prompt-float__collapse svg {
+    width: 16px;
+    height: 16px;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .prompt-float.is-collapsed .prompt-float__collapse {
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 2px 8px rgba(20, 20, 22, 0.1);
+  }
+  .prompt-float.is-collapsed .prompt-float__step {
+    font-size: 15px;
   }
   .prompt-float__step {
     flex: none;
@@ -5226,11 +5591,16 @@ const FLOAT_CSS = `
   }
   .prompt-drawer {
     position: relative;
-    flex: 1 0 140px;
-    min-height: 140px;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  .prompt-float .prompt-drawer {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
   .prompt-float__text h1,
   .prompt-body__editor h1 {
@@ -5591,6 +5961,7 @@ const FLOAT_CSS = `
   }
   .prompt-steps {
     position: relative;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -54,8 +54,9 @@ describe('promptPlanLimits', () => {
     expect(PRO_PROMPT_CREDITS).toBe(1400);
   });
 
-  it('keeps the preview login on the free plan', () => {
-    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'pro')).toBe('free');
+  it('keeps the founder login unlimited even on a free profile row', () => {
+    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'free')).toBe('pro');
+    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'pro')).toBe('pro');
     expect(deskPlan('someone@example.com', 'pro')).toBe('pro');
     expect(deskPlan('someone@example.com', 'free')).toBe('free');
   });

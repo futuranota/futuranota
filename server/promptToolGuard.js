@@ -1,4 +1,4 @@
-import { PROMPT_LIMITS_ENFORCED } from "../src/lib/promptPlanLimits.js";
+import { DESK_FREE_PREVIEW_EMAIL, PROMPT_LIMITS_ENFORCED } from "../src/lib/promptPlanLimits.js";
 import { getAuthedUser } from "./supabaseServer.js";
 
 const TOOL_LIMIT = "El plan gratis incluye 3 llamadas con los tools.";
@@ -30,6 +30,9 @@ export async function guardPromptToolCall(req, body) {
   if (!user || !supabase) {
     return { status: 401, body: { error: "Sign in to use this tool." } };
   }
+
+  const email = String(user.email || "").trim().toLowerCase();
+  if (email === DESK_FREE_PREVIEW_EMAIL) return null;
 
   const { data, error } = await supabase.rpc("consume_prompt_tool_call");
   if (error) {

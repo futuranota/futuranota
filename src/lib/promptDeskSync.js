@@ -56,6 +56,7 @@ function stepFromRow(row) {
       : null,
     format: row.format || 'text',
     modelIds: Array.isArray(row.model_ids) ? row.model_ids.filter((id) => typeof id === 'string' && id) : [],
+    recommendedModel: typeof row.recommended_model === 'string' ? row.recommended_model : '',
     promptSaved: Boolean(row.prompt_saved),
     ...(row.sheet_face === 0 || row.sheet_face === 1 ? { sheetFace: row.sheet_face } : {}),
   };
@@ -199,6 +200,7 @@ function stepRow(step, userId, fileId, position) {
     prompt: step.prompt || '',
     format: step.format || 'text',
     model_ids: Array.isArray(step.modelIds) ? step.modelIds : [],
+    recommended_model: typeof step.recommendedModel === 'string' ? step.recommendedModel : '',
     prompt_saved: Boolean(step.promptSaved),
     sheet_face: step.sheetFace === 0 || step.sheetFace === 1 ? step.sheetFace : null,
     image_path: step.imagePath || null,
@@ -278,10 +280,17 @@ export async function savePromptDesk(userId, folders, previous) {
   if (steps.length) {
     let rows = steps;
     let { error } = await supabase.from('prompt_steps').upsert(rows, { onConflict: 'id' });
-    if (error && /sheet_face/i.test(error.message || '')) {
+    if (error && /sheet_face|recommended_model/i.test(error.message || '')) {
+      const message = error.message || '';
+      if (/recommended_model/i.test(message)) {
+        console.warn(
+          '[prompt-desk] recommended_model column missing — run supabase_prompt_recommended_model.sql in Supabase SQL Editor',
+        );
+      }
       rows = rows.map((row) => {
         const next = { ...row };
-        delete next.sheet_face;
+        if (/sheet_face/i.test(message)) delete next.sheet_face;
+        if (/recommended_model/i.test(message)) delete next.recommended_model;
         return next;
       });
       ({ error } = await supabase.from('prompt_steps').upsert(rows, { onConflict: 'id' }));

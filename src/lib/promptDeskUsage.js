@@ -109,21 +109,24 @@ export function clearPreviewDeskUsage(email = DESK_FREE_PREVIEW_EMAIL) {
 export async function readDeskToolCalls(account) {
   const email = account?.email || '';
   const profilePlan = account?.profilePlan;
-  if (isDeskFreePreview(email)) return readPreviewClicks(email);
   if (deskPlan(email, profilePlan) === 'pro') return 0;
+  if (isDeskFreePreview(email)) return readPreviewClicks(email);
   const remote = await readPromptToolCalls(account?.userId);
   if (remote == null) return readPreviewClicks(email);
   return remote;
 }
 
 /**
- * Spend one free click. The preview login is counted in the browser.
- * Other free accounts use the lifetime counter. Pro does not spend.
+ * Spend one free click. Pro (including the founder login) does not spend.
+ * Other free accounts use the lifetime counter.
  * @param {{ userId?: string, email?: string, profilePlan?: string }} account
  */
 export async function spendDeskToolCall(account) {
   const email = account?.email || '';
   const profilePlan = account?.profilePlan;
+  if (deskPlan(email, profilePlan) === 'pro') {
+    return { ok: true, unlimited: true, toolCalls: 0 };
+  }
   if (isDeskFreePreview(email)) {
     const cap = FREE_PROMPT_LIMITS.maxToolCalls;
     const used = readPreviewClicks(email);
@@ -131,9 +134,6 @@ export async function spendDeskToolCall(account) {
     const toolCalls = used + 1;
     writePreviewClicks(email, toolCalls);
     return { ok: true, toolCalls };
-  }
-  if (deskPlan(email, profilePlan) === 'pro') {
-    return { ok: true, unlimited: true, toolCalls: 0 };
   }
   const remote = await consumePromptToolCall();
   if (remote.reason === 'error') {
@@ -226,8 +226,7 @@ export async function readPromptEmbedDay(day) {
 }
 
 /**
- * Desk-facing read. Preview (and RPC failures) use the browser day count
- * so a Pro profile row cannot hide the free 3/day meter.
+ * Desk-facing read. Free accounts use the browser day count when the RPC is missing.
  */
 export async function readDeskEmbedDay(account, day = localDayKey()) {
   const email = account?.email || '';
@@ -263,8 +262,8 @@ export async function addPromptEmbedBox(day) {
 }
 
 /**
- * Spend one Copy embed. Preview stays on the browser day key even if
- * profiles.plan is pro. Other free accounts try the RPC, then the same key.
+ * Spend one Copy embed. Pro (including the founder login) does not spend.
+ * Other free accounts try the RPC, then the browser day key.
  */
 export async function spendDeskEmbedBox(account, day = localDayKey()) {
   const email = account?.email || '';
