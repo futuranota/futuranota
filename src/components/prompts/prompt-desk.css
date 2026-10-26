@@ -2414,8 +2414,71 @@ button.prompt-embed__brand-slot {
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.prompt-pdf__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Critical: allow flex child to shrink so overflow:auto can scroll */
+  min-height: 0;
+  width: 100%;
+  height: 100%;
   overflow: auto;
+  border-radius: 8px;
+  background: #fff;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 20, 22, 0.35) rgba(20, 20, 22, 0.06);
+}
+
+.prompt-pdf__viewport.is-panning {
+  cursor: grabbing;
+}
+
+.prompt-pdf__viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.prompt-pdf__viewport::-webkit-scrollbar-track {
+  background: rgba(20, 20, 22, 0.06);
+}
+
+.prompt-pdf__viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.32);
+}
+
+.prompt-pdf__viewport::-webkit-scrollbar-corner {
+  background: rgba(20, 20, 22, 0.06);
+}
+
+.prompt-pdf__stage {
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  max-width: none;
+}
+
+.prompt-pdf__viewport img {
+  display: block;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 8px;
+  background: #fff;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .prompt-pdf__sheet {
@@ -2462,6 +2525,49 @@ button.prompt-embed__brand-slot {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.prompt-pdf__zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.prompt-pdf__zoom-btn {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(20, 20, 22, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: #151515;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prompt-pdf__zoom-btn:hover:not(:disabled) {
+  border-color: rgba(20, 20, 22, 0.28);
+}
+
+.prompt-pdf__zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.prompt-pdf__zoom-label {
+  min-width: 40px;
+  color: #151515;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .prompt-pdf__pager {
@@ -2549,10 +2655,17 @@ button.prompt-embed__brand-slot {
 }
 
 .prompt-panel__pdf--pages .prompt-panel__pdf-pages {
-  overflow: auto;
+  overflow: hidden;
+  min-height: 0;
   padding-top: 48px;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
   box-sizing: border-box;
+}
+
+.prompt-panel__pdf--pages > .prompt-pdf__foot {
+  flex: none;
+  position: relative;
+  z-index: 2;
 }
 
 .prompt-panel__pdf-text {

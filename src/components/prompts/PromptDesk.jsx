@@ -718,6 +718,77 @@ function readImageFile(file, onLoad) {
   reader.readAsDataURL(file);
 }
 
+const PDF_VIEW_MIN_ZOOM = 1;
+const PDF_VIEW_MAX_ZOOM = 6;
+
+function clampPdfZoom(value) {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return PDF_VIEW_MIN_ZOOM;
+  return Math.min(PDF_VIEW_MAX_ZOOM, Math.max(PDF_VIEW_MIN_ZOOM, next));
+}
+
+/**
+ * Display size: page width = viewport × zoom, height from aspect (not capped to viewport).
+ * Tall pages overflow → side/vertical scroll like the original preview.
+ */
+function pdfStageLayout(viewport, natural, zoom) {
+  const vw = Math.max(1, Number(viewport?.w) || 400);
+  const vh = Math.max(1, Number(viewport?.h) || 300);
+  const nw = Math.max(1, Number(natural?.w) || 1);
+  const nh = Math.max(1, Number(natural?.h) || 1);
+  const z = clampPdfZoom(zoom);
+  const width = Math.max(1, vw * z);
+  const scale = width / nw;
+  return {
+    fitScale: vw / nw,
+    scale,
+    width,
+    height: Math.max(1, nh * scale),
+    vw,
+    vh,
+    nw,
+    nh,
+  };
+}
+
+function loadPdfCropImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Couldn’t load the PDF page.'));
+    image.src = src;
+  });
+}
+
+async function cropPdfViewportToFile({ src, natural, viewportEl, viewportSize, zoom }) {
+  const layout = pdfStageLayout(viewportSize, natural, zoom);
+  const scrollLeft = Number(viewportEl?.scrollLeft) || 0;
+  const scrollTop = Number(viewportEl?.scrollTop) || 0;
+  const viewW = Math.max(1, Number(viewportEl?.clientWidth) || layout.vw);
+  const viewH = Math.max(1, Number(viewportEl?.clientHeight) || layout.vh);
+  const srcX = Math.max(0, scrollLeft / layout.scale);
+  const srcY = Math.max(0, scrollTop / layout.scale);
+  const srcW = Math.min(layout.nw - srcX, viewW / layout.scale);
+  const srcH = Math.min(layout.nh - srcY, viewH / layout.scale);
+  if (srcW < 2 || srcH < 2) {
+    throw new Error('Zoom and scroll to the area you want to keep.');
+  }
+  const image = await loadPdfCropImage(src);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(srcW));
+  canvas.height = Math.max(1, Math.round(srcH));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Couldn’t crop the PDF page.');
+  ctx.drawImage(image, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((next) => {
+      if (next) resolve(next);
+      else reject(new Error('Couldn’t encode the crop.'));
+    }, 'image/webp', 0.9);
+  });
+  return new File([blob], `pdf-crop-${Date.now()}.webp`, { type: 'image/webp' });
+}
+
 const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
   { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
@@ -2341,9 +2412,17 @@ function InstructionPanel({
   const [pdfAsk, setPdfAsk] = useState('ask');
   const [pdfPromptReady, setPdfPromptReady] = useState(false);
   const [pdfPromptLeaving, setPdfPromptLeaving] = useState(false);
+  const [pdfZoom, setPdfZoom] = useState(1);
+  const [pdfNatural, setPdfNatural] = useState({ w: 0, h: 0 });
+  const [pdfViewportSize, setPdfViewportSize] = useState({ w: 0, h: 0 });
+  const [pdfViewTouched, setPdfViewTouched] = useState(false);
+  const [pdfPanning, setPdfPanning] = useState(false);
+  const [pdfPlacing, setPdfPlacing] = useState(false);
   const pdfPagesRef = useRef([]);
   const pdfLoadedName = useRef('');
   const pdfSheetRef = useRef(null);
+  const pdfViewportRef = useRef(null);
+  const pdfPanDrag = useRef(null);
   const textPanelKept = useRef(false);
   const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
@@ -2621,6 +2700,110 @@ function InstructionPanel({
         : pdfPages.map((_, index) => current[index] === true)
     ));
   }, [pdfPages.length]);
+
+  useEffect(() => {
+    setPdfZoom(1);
+    setPdfViewTouched(false);
+    setPdfNatural({ w: 0, h: 0 });
+    const node = pdfViewportRef.current;
+    if (node) {
+      node.scrollLeft = 0;
+      node.scrollTop = 0;
+    }
+  }, [pdfPageIndex]);
+
+  useLayoutEffect(() => {
+    const node = pdfViewportRef.current;
+    if (!node) return undefined;
+    const sync = () => {
+      const w = node.clientWidth;
+      const h = node.clientHeight;
+      setPdfViewportSize((prev) => (
+        prev.w === w && prev.h === h ? prev : { w, h }
+      ));
+    };
+    sync();
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(sync)
+      : null;
+    observer?.observe(node);
+
+    const onWheel = (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      const factor = event.deltaY > 0 ? 0.9 : 1.1;
+      setPdfZoom((current) => clampPdfZoom(current * factor));
+      setPdfViewTouched(true);
+    };
+    const onScroll = () => {
+      if (node.scrollLeft > 0 || node.scrollTop > 0) {
+        setPdfViewTouched(true);
+      }
+    };
+
+    const onPointerDown = (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      node.setPointerCapture(event.pointerId);
+      pdfPanDrag.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        left: node.scrollLeft,
+        top: node.scrollTop,
+        moved: false,
+      };
+      setPdfPanning(true);
+    };
+    const onPointerMove = (event) => {
+      const drag = pdfPanDrag.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+        drag.moved = true;
+        setPdfViewTouched(true);
+      }
+      node.scrollLeft = drag.left - dx;
+      node.scrollTop = drag.top - dy;
+    };
+    const endPan = (event) => {
+      const drag = pdfPanDrag.current;
+      if (!drag || (event && drag.pointerId !== event.pointerId)) return;
+      pdfPanDrag.current = null;
+      setPdfPanning(false);
+      try {
+        node.releasePointerCapture(drag.pointerId);
+      } catch {
+        // already released
+      }
+    };
+
+    node.addEventListener('wheel', onWheel, { passive: false });
+    node.addEventListener('scroll', onScroll, { passive: true });
+    node.addEventListener('pointerdown', onPointerDown);
+    node.addEventListener('pointermove', onPointerMove);
+    node.addEventListener('pointerup', endPan);
+    node.addEventListener('pointercancel', endPan);
+    return () => {
+      observer?.disconnect();
+      node.removeEventListener('wheel', onWheel);
+      node.removeEventListener('scroll', onScroll);
+      node.removeEventListener('pointerdown', onPointerDown);
+      node.removeEventListener('pointermove', onPointerMove);
+      node.removeEventListener('pointerup', endPan);
+      node.removeEventListener('pointercancel', endPan);
+    };
+  }, [showPdfPreview, pdfPages.length, pdfPageIndex]);
+
+  function notePdfNatural(node) {
+    if (!node) return;
+    const w = node.naturalWidth || 0;
+    const h = node.naturalHeight || 0;
+    if (!w || !h) return;
+    setPdfNatural((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+  }
 
   useEffect(() => {
     if (!prompt.pdf?.name || pdfAsk !== 'ask' || prompt.pdf?.path || pdfStatus !== 'ready') {
@@ -3287,15 +3470,50 @@ function InstructionPanel({
     }
   }
 
-  function placePdfPage() {
-    if (!pdfPages.length) return;
+  function resetPdfView() {
+    setPdfZoom(1);
+    setPdfViewTouched(false);
+    const node = pdfViewportRef.current;
+    if (node) {
+      node.scrollLeft = 0;
+      node.scrollTop = 0;
+    }
+  }
+
+  function bumpPdfZoom(factor) {
+    setPdfZoom((current) => clampPdfZoom(current * factor));
+    setPdfViewTouched(true);
+  }
+
+  async function placePdfAsImage() {
+    if (!pdfPages.length || pdfPlacing || !pdfViewTouched) return;
     const page = Math.min(pdfPageIndex, pdfPages.length - 1);
-    patchStep({
-      pdfPage: page,
-      image: '',
-      imagePath: '',
-      promptSaved: false,
-    });
+    const src = pdfPages[page];
+    if (!src) return;
+    const viewport = pdfViewportRef.current;
+    const size = viewport
+      ? { w: viewport.clientWidth, h: viewport.clientHeight }
+      : pdfViewportSize;
+    if (!size.w || !size.h || !pdfNatural.w || !pdfNatural.h) {
+      setPdfError('Wait for the page to finish loading.');
+      return;
+    }
+    setPdfPlacing(true);
+    setPdfError('');
+    try {
+      const file = await cropPdfViewportToFile({
+        src,
+        natural: pdfNatural,
+        viewportEl: viewport,
+        viewportSize: size,
+        zoom: pdfZoom,
+      });
+      takeImage(file, true);
+    } catch (error) {
+      setPdfError(error instanceof Error ? error.message : 'Couldn’t crop the PDF page.');
+    } finally {
+      setPdfPlacing(false);
+    }
   }
 
   function removePageImage() {
@@ -4178,9 +4396,36 @@ function InstructionPanel({
           <div className={`prompt-panel__pdf${pdfPages.length || pdfPlain ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
               <div className="prompt-panel__pdf-pages">
-                <div className="prompt-pdf__sheet">
-                  <img src={pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)]} alt="" />
-                </div>
+                {(() => {
+                  const pageSrc = pdfPages[Math.min(pdfPageIndex, pdfPages.length - 1)];
+                  const pageKey = `pdf-page-${pdfPageIndex}`;
+                  const zoomPct = `${Math.round(clampPdfZoom(pdfZoom) * 100)}%`;
+                  return (
+                    <div
+                      ref={pdfViewportRef}
+                      className={pdfPanning ? 'prompt-pdf__viewport is-panning' : 'prompt-pdf__viewport'}
+                      title="Scroll para leer · arrastrar para mover · + / − para zoom"
+                      onDoubleClick={resetPdfView}
+                    >
+                      <div
+                        className="prompt-pdf__stage"
+                        style={{ width: zoomPct }}
+                      >
+                        <img
+                          key={pageKey}
+                          src={pageSrc}
+                          alt=""
+                          draggable={false}
+                          style={{ width: '100%', height: 'auto', display: 'block' }}
+                          onLoad={(event) => notePdfNatural(event.currentTarget)}
+                          ref={(node) => {
+                            if (node?.complete) notePdfNatural(node);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : pdfPlain ? (
               <div className="prompt-pdf__sheet prompt-pdf__sheet--text">
@@ -4257,6 +4502,27 @@ function InstructionPanel({
                   />
                 </label>
                 <div className="prompt-pdf__chrome">
+                  <div className="prompt-pdf__zoom" role="group" aria-label="Zoom">
+                    <button
+                      type="button"
+                      className="prompt-pdf__zoom-btn"
+                      aria-label="Zoom out"
+                      disabled={pdfZoom <= PDF_VIEW_MIN_ZOOM}
+                      onClick={() => bumpPdfZoom(1 / 1.2)}
+                    >
+                      −
+                    </button>
+                    <span className="prompt-pdf__zoom-label">{`${Math.round(pdfZoom * 100)}%`}</span>
+                    <button
+                      type="button"
+                      className="prompt-pdf__zoom-btn"
+                      aria-label="Zoom in"
+                      disabled={pdfZoom >= PDF_VIEW_MAX_ZOOM}
+                      onClick={() => bumpPdfZoom(1.2)}
+                    >
+                      +
+                    </button>
+                  </div>
                   <PdfPager
                     index={pdfPageIndex}
                     count={pdfPages.length}
@@ -4283,9 +4549,20 @@ function InstructionPanel({
                         {pdfImproving ? 'Mejorando…' : 'Mejorar con IA'}
                       </button>
                     ) : null}
-                    <button type="button" className="prompt-video__extract" onClick={placePdfPage}>
-                      {stepHasImage(step) ? 'Replace' : 'Add as image'}
-                    </button>
+                    {pdfViewTouched ? (
+                      <button
+                        type="button"
+                        className="prompt-video__extract"
+                        disabled={pdfPlacing}
+                        onClick={() => { void placePdfAsImage(); }}
+                      >
+                        {pdfPlacing
+                          ? 'Colocando…'
+                          : stepHasImage(step)
+                            ? 'Replace'
+                            : 'Add as image'}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -5101,6 +5378,15 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
                 </svg>
               )}
             </span>
+          </div>
+          <div className="prompt-float__head-copy">
+            <PromptTitleField
+              titleRef={titleRef}
+              className="prompt-float__step"
+              value={step.title || ''}
+              placeholder={prompt.name || 'Title'}
+              onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
+            />
             {(floatPlatformLabel || floatRecommended) ? (
               <p className="prompt-float__target">
                 {floatPlatformLabel ? (
@@ -5114,15 +5400,6 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
                 ) : null}
               </p>
             ) : null}
-          </div>
-          <div className="prompt-float__head-copy">
-            <PromptTitleField
-              titleRef={titleRef}
-              className="prompt-float__step"
-              value={step.title || ''}
-              placeholder={prompt.name || 'Title'}
-              onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
-            />
           </div>
           <div className="prompt-float__head-actions">
             <button
@@ -5332,17 +5609,18 @@ const FLOAT_CSS = `
     align-items: center;
   }
   .prompt-float__brand {
-    min-width: 0;
+    flex: none;
+    width: 22px;
     display: flex;
-    flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    justify-content: center;
+    padding-top: 2px;
   }
   .prompt-float__head-copy {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     padding-top: 1px;
   }
   .prompt-float__target {
@@ -5351,7 +5629,6 @@ const FLOAT_CSS = `
     flex-wrap: wrap;
     align-items: baseline;
     gap: 4px;
-    max-width: 120px;
     min-width: 0;
     color: rgba(26, 26, 26, 0.55);
     font-size: 10px;
