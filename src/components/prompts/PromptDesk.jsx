@@ -14,7 +14,6 @@ import {
   removePromptBrandLogo,
   savePromptDesk,
   uploadPromptCover,
-  uploadPromptDocument,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
 import { applyPreviewUsageEpoch, clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
@@ -52,19 +51,13 @@ import {
 } from '../../lib/promptStructure.js';
 import {
   appendOrganizedSheets,
-  blankInstructionStep,
   blankPromptStep,
-  isInstructionIndex,
   isTranscriptPrompt,
   normalizePromptFile,
-  promptPagesAreSplit,
-  readInstructionSections,
   stepsFromOrganizedSheets,
   visibleStepTitle,
-  writeInstructionSections,
   filePageCaption,
 } from '../../lib/promptPages.js';
-import PromptInstructionStepper from './PromptInstructionStepper.jsx';
 import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
 import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
 import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
@@ -512,28 +505,6 @@ function DescriptionField({
   );
 }
 
-function FloatInstructions({ value }) {
-  const ref = useRef(null);
-  useLayoutEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (!String(value || '').trim()) {
-      node.replaceChildren();
-      node.dataset.empty = 'true';
-      return;
-    }
-    delete node.dataset.empty;
-    paintMarked(node, value, [], { chips: false });
-  }, [value]);
-  return (
-    <div
-      ref={ref}
-      className="prompt-float__text prompt-float__instructions-body"
-      data-placeholder="Write your instruction"
-    />
-  );
-}
-
 function TranslateControl({ busy, note, onTarget }) {
   return (
     <span className="prompt-translate">
@@ -565,7 +536,7 @@ function TranslateControl({ busy, note, onTarget }) {
   );
 }
 
-function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Title' }) {
+function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Title', readOnly = false }) {
   return (
     <textarea
       ref={titleRef}
@@ -574,7 +545,11 @@ function PromptTitleField({ className, value, onChange, titleRef, placeholder = 
       placeholder={placeholder}
       aria-label="Title"
       rows={1}
-      onChange={(event) => onChange(event.target.value)}
+      readOnly={readOnly}
+      onChange={(event) => {
+        if (readOnly) return;
+        onChange(event.target.value);
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.preventDefault();
       }}
@@ -613,7 +588,7 @@ function blankPrompt() {
     coverPath: '',
     coverSkipped: false,
     assets: [],
-    steps: [blankInstructionStep(), blankPromptStep()],
+    steps: [blankPromptStep()],
   };
 }
 
@@ -669,7 +644,7 @@ function coverImage(prompt) {
 function stepAt(prompt) {
   const steps = prompt.steps?.length
     ? prompt.steps
-    : (isTranscriptPrompt(prompt) ? [blankStep()] : [blankInstructionStep(), blankPromptStep()]);
+    : [isTranscriptPrompt(prompt) ? blankStep() : blankPromptStep()];
   const index = Math.min(Math.max(prompt.stepIndex || 0, 0), steps.length - 1);
   return { steps, index, step: steps[index] };
 }
@@ -2408,10 +2383,6 @@ function InstructionPanel({
   const organizeSheets = useRef([]);
   const organizeMode = useRef('replace');
   const [pdfPlain, setPdfPlain] = useState('');
-  const [pdfSaving, setPdfSaving] = useState(false);
-  const [pdfAsk, setPdfAsk] = useState('ask');
-  const [pdfPromptReady, setPdfPromptReady] = useState(false);
-  const [pdfPromptLeaving, setPdfPromptLeaving] = useState(false);
   const [pdfZoom, setPdfZoom] = useState(1);
   const [pdfNatural, setPdfNatural] = useState({ w: 0, h: 0 });
   const [pdfViewportSize, setPdfViewportSize] = useState({ w: 0, h: 0 });
@@ -2439,17 +2410,15 @@ function InstructionPanel({
   const editRoot = useRef(null);
   const editRange = useRef(null);
   const [formatOn, setFormatOn] = useState({});
-  const [instructionStep, setInstructionStep] = useState(1);
   const [translateTarget, setTranslateTarget] = useState('es');
   const [translateBusy, setTranslateBusy] = useState(false);
   const [translateNote, setTranslateNote] = useState('');
   const rightText = String(keptTranscript || pdfScan || '').trim();
-  const textBesidePrompt = Boolean(sheetOpen && rightText && !showImage && !showVideo);
-  const showPdfPreview = showPdf && !pdfFolded && !textBesidePrompt;
-  const pdfTranscriptWide = Boolean(
-    !sheetOpen && pdfFolded && rightText && !showImage && !showVideo,
-  );
-  const showSide = showImage || showVideo || showPdfPreview || textBesidePrompt;
+  // Plain-text-beside / home transcript panel retired: PDF stays fixed while editing prompts.
+  const textBesidePrompt = false;
+  const showPdfPreview = showPdf && !pdfFolded;
+  const pdfTranscriptWide = false;
+  const showSide = showImage || showVideo || showPdfPreview;
   const chipImage = step.image || coverImage(prompt);
   const cover = coverImage(prompt);
   const needCoverChoice = !cover && !prompt.coverSkipped;
@@ -2458,7 +2427,6 @@ function InstructionPanel({
     || Boolean(String(item?.image || '').trim() || String(item?.imagePath || '').trim())
     || Number.isInteger(item?.pdfPage)
   ));
-  const instructionPage = isInstructionIndex(prompt, index);
   const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
   const sideHold = useRef(false);
@@ -2490,7 +2458,8 @@ function InstructionPanel({
   }
 
   useEffect(() => {
-    setSheetOpen(false);
+    // Prompt pages only: land on the writing sheet (not the 3-card home).
+    setSheetOpen(true);
     if (index !== 0) onPatch({ stepIndex: 0 });
     setModelOpen(false);
     setRecommendedOpen(false);
@@ -2517,7 +2486,6 @@ function InstructionPanel({
     setPdfScanReading(false);
     setPdfFolded(false);
     setPdfPlain('');
-    setPdfSaving(false);
     pdfPagesRef.current = [];
     pdfLoadedName.current = '';
     textPanelKept.current = false;
@@ -2529,10 +2497,14 @@ function InstructionPanel({
     setHomeSaveAsk(false);
     savedPromptRef.current = null;
     savedStepsRef.current = {};
-    setInstructionStep(1);
-    if (!isTranscriptPrompt(prompt) && !promptPagesAreSplit(prompt.steps || [])) {
+    if (!isTranscriptPrompt(prompt)) {
       const next = normalizePromptFile(prompt);
-      onPatch({ steps: next.steps, stepIndex: 0 });
+      const prev = prompt.steps || [];
+      const changed = next.steps.length !== prev.length
+        || next.steps.some((item, itemIndex) => item.id !== prev[itemIndex]?.id);
+      if (changed) {
+        onPatch({ steps: next.steps, stepIndex: next.stepIndex });
+      }
     }
   }, [prompt.id]);
 
@@ -2562,11 +2534,12 @@ function InstructionPanel({
     setRecommendedOpen(false);
     setFormatOpen(false);
     setCustomModel('');
-    setInstructionStep(1);
   }, [step.id]);
 
   useEffect(() => {
-    if (!sheetOpen || imageHold.current || sideHold.current) return;
+    // New prompt page: release image hold so a kept PDF can show again.
+    imageHold.current = false;
+    if (!sheetOpen || sideHold.current) return;
     if (prompt.pdf?.name) {
       setShowPdf(true);
       setShowVideo(false);
@@ -2582,7 +2555,7 @@ function InstructionPanel({
     setShowPdf(false);
     setShowVideo(false);
     setShowImage(stepHasImage(step));
-    // The PDF stays beside the prompt until the file is closed.
+    // The PDF stays until Remove — Add as image only switches the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
@@ -2614,7 +2587,6 @@ function InstructionPanel({
       } else {
         setPdfScan('');
         setPdfFolded(false);
-        setPdfAsk(prompt.pdf?.path ? 'kept' : 'ask');
       }
     }
     const kind = prompt.pdf?.kind || promptDocumentKind(name);
@@ -2805,28 +2777,6 @@ function InstructionPanel({
     setPdfNatural((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
   }
 
-  useEffect(() => {
-    if (!prompt.pdf?.name || pdfAsk !== 'ask' || prompt.pdf?.path || pdfStatus !== 'ready') {
-      return undefined;
-    }
-    setPdfPromptReady(false);
-    const timer = window.setTimeout(() => setPdfPromptReady(true), 10000);
-    return () => window.clearTimeout(timer);
-  }, [prompt.pdf?.name, prompt.pdf?.path, pdfAsk, pdfStatus]);
-
-  useEffect(() => {
-    if (pdfAsk !== 'ask' || !prompt.pdf?.path) {
-      setPdfPromptLeaving(false);
-      return undefined;
-    }
-    const leave = window.setTimeout(() => setPdfPromptLeaving(true), 2200);
-    const close = window.setTimeout(() => setPdfAsk('kept'), 2800);
-    return () => {
-      window.clearTimeout(leave);
-      window.clearTimeout(close);
-    };
-  }, [pdfAsk, prompt.pdf?.path]);
-
   function takeCover(file) {
     if (!file || !file.type.startsWith('image/')) return;
     setCoverAsk(false);
@@ -2863,14 +2813,16 @@ function InstructionPanel({
     setCoverAsk(true);
   }
 
-  function takeImage(file, replace = false) {
-    if (!sheetOpen) return;
+  function takeImage(file, replace = false, options = {}) {
+    if (!options.force && !sheetOpen) return;
     if (!file || !file.type.startsWith('image/')) return;
     if (!replace && stepHasImage(step)) return;
     const stepId = step.id;
     readImageFile(file, (image) => {
       onPatch({ stepPatch: { id: stepId, image, pdfPage: null, promptSaved: false } });
       setShowImage(true);
+      setShowPdf(false);
+      setShowVideo(false);
     });
     currentPromptUserId()
       .then((userId) => {
@@ -2938,6 +2890,8 @@ function InstructionPanel({
     setShowPdf(true);
     setShowImage(false);
     setShowVideo(false);
+    // PDF only — hide the writing sheet / text panel on the right until Extract.
+    setSheetOpen(false);
     onPatch({ pdf: { name: file.name, path: '', url: '', kind } });
   }
 
@@ -2961,32 +2915,29 @@ function InstructionPanel({
     return images;
   }
 
-  function showTranscript(text) {
-    setPdfScan(text);
-    setOrganizeError('');
-    setOrganizePreview(null);
-    setOrganizeAsk(null);
-    setOrganizeLater(true);
+  function mergeExtractIntoPrompt(existing, incoming) {
+    const prev = String(existing || '').trim();
+    const next = String(incoming || '').trim();
+    if (!next) return prev;
+    if (!prev) return next;
+    return `${prev}\n\n${next}`;
   }
 
   function deliverExtract(text) {
-    if (sheetOpen && !instructionPage && !stepHasDraft(step)) {
-      setPdfScan(text);
-      patchStep({ prompt: organizePlainLists(text), promptSaved: false });
-      return;
-    }
-    showTranscript(text);
-  }
+    const cleaned = organizePlainLists(String(text || '').trim());
+    if (!cleaned) return;
+    setPdfScan(cleaned);
+    setPdfFolded(false);
+    setShowPdf(true);
+    setShowImage(false);
+    setShowVideo(false);
+    setSheetOpen(true);
+    setOrganizeAsk(null);
+    setOrganizePreview(null);
+    setOrganizeError('');
 
-  function instructionSections() {
-    return readInstructionSections(step.description);
-  }
-
-  function patchInstructionSections(next) {
-    patchStep({
-      description: writeInstructionSections(next),
-      promptSaved: false,
-    });
+    const nextPrompt = mergeExtractIntoPrompt(step.prompt, cleaned);
+    patchStep({ prompt: nextPrompt, promptSaved: false });
   }
 
   function dismissOrganize() {
@@ -3162,16 +3113,7 @@ function InstructionPanel({
   }
 
   function foldPdfPreview() {
-    const text = rightPanelText();
-    if (text) {
-      textPanelKept.current = true;
-      setKeptTranscript(text);
-      setPdfScan(text);
-      setPdfFolded(true);
-      return;
-    }
-    textPanelKept.current = false;
-    setKeptTranscript('');
+    // Manual remove only — do not fold PDF into a plain-text home panel.
     deletePdf();
   }
 
@@ -3203,7 +3145,6 @@ function InstructionPanel({
     setOrganizePreview(null);
     setOrganizeError('');
     setOrganizeLater(true);
-    setInstructionStep(1);
     setSheetOpen(true);
   }
 
@@ -3250,7 +3191,6 @@ function InstructionPanel({
     setOrganizePreview(null);
     setOrganizeError('');
     setOrganizeLater(true);
-    setInstructionStep(1);
     setSheetOpen(true);
   }
 
@@ -3270,7 +3210,6 @@ function InstructionPanel({
       if (kind !== 'pdf') {
         const text = normalizePdfExtractedText(pdfPlain || bytesToText(data));
         if (!text) {
-          setPdfScan('');
           setPdfError('Couldn’t find text in this file.');
           return;
         }
@@ -3282,23 +3221,15 @@ function InstructionPanel({
         setPdfError('Couldn’t display the PDF.');
         return;
       }
-      const anyPicked = images.some((_, index) => pdfPick[index] === true);
-      const picked = images.map((_, index) => (anyPicked ? pdfPick[index] === true : true));
+      const page = Math.min(Math.max(0, pdfPageIndex), images.length - 1);
       const extracted = await extractPdfPageTexts(data, { maxPages: images.length });
-      const texts = images.map((_, index) => (picked[index] ? (extracted.pages[index] || '') : ''));
-      const missing = texts
-        .map((text, index) => (picked[index] && !text ? index : -1))
-        .filter((index) => index >= 0);
-      if (missing.length) {
-        const recognized = await ocrPdfPageImages(missing.map((index) => images[index]));
-        missing.forEach((pageIndex, index) => {
-          texts[pageIndex] = normalizePdfExtractedText(recognized[index] || '');
-        });
-      }
-      const text = joinPdfPageTexts(texts.map((page) => normalizePdfExtractedText(page)));
+      let text = normalizePdfExtractedText(extracted.pages[page] || '');
       if (!text) {
-        setPdfScan('');
-        setPdfError('Couldn’t find text on these pages.');
+        const recognized = await ocrPdfPageImages([images[page]]);
+        text = normalizePdfExtractedText(recognized[0] || '');
+      }
+      if (!text) {
+        setPdfError('Couldn’t find text on this page.');
         return;
       }
       deliverExtract(text);
@@ -3359,9 +3290,8 @@ function InstructionPanel({
         variables: stampVariables(lifted.variables, prompt.id),
         stepPatch: {
           id: step.id,
-          ...(instructionPage
-            ? { description: nextDescription || step.description }
-            : { prompt: lifted.prompt || step.prompt }),
+          prompt: lifted.prompt || nextPrompt || step.prompt,
+          ...(nextDescription ? { description: nextDescription } : {}),
           ...(title && !String(step.title || '').trim() ? { title } : {}),
           promptSaved: false,
         },
@@ -3395,8 +3325,6 @@ function InstructionPanel({
     setPdfScanReading(false);
     setPdfFolded(false);
     setPdfPlain('');
-    setPdfSaving(false);
-    setPdfAsk('ask');
     pdfPagesRef.current = [];
     pdfLoadedName.current = '';
     setShowPdf(false);
@@ -3404,70 +3332,6 @@ function InstructionPanel({
       pdf: null,
       steps: steps.map((item) => ({ ...item, pdfPage: null })),
     });
-  }
-
-  async function saveDocument() {
-    const file = pdfFiles.get(prompt.id);
-    if (!file || pdfSaving) return;
-    setPdfSaving(true);
-    setPdfError('');
-    try {
-      const userId = await currentPromptUserId();
-      if (!userId) {
-        setPdfError('Sign in to save the document.');
-        return;
-      }
-      const uploaded = await uploadPromptDocument(file, prompt.id, userId);
-      const saved = {
-        name: file.name,
-        path: uploaded.path,
-        url: uploaded.url,
-        kind: fileDocumentKind(file) || promptDocumentKind(file.name),
-      };
-      await onPatch({ pdf: saved });
-      const { error } = await supabase
-        .from('prompt_files')
-        .update({
-          pdf_name: saved.name,
-          pdf_path: saved.path,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', prompt.id)
-        .eq('user_id', userId);
-      if (error) throw error;
-    } catch (error) {
-      console.warn('[prompt-desk] document save failed', error?.message || error);
-      setPdfError(error instanceof Error ? error.message : 'Couldn’t save the document.');
-    } finally {
-      setPdfSaving(false);
-    }
-  }
-
-  async function downloadDocument() {
-    const name = prompt.pdf?.name || 'document';
-    try {
-      const local = pdfFiles.get(prompt.id);
-      let blob = local || null;
-      if (!blob && prompt.pdf?.path) {
-        const buffer = await downloadPromptDocument(prompt.pdf.path);
-        blob = new Blob([buffer]);
-      }
-      if (!blob && prompt.pdf?.url) {
-        const response = await fetch(prompt.pdf.url);
-        if (!response.ok) throw new Error(`fetch_${response.status}`);
-        blob = await response.blob();
-      }
-      if (!blob) return;
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = href;
-      link.download = name;
-      link.click();
-      URL.revokeObjectURL(href);
-    } catch (error) {
-      console.warn('[prompt-desk] document download failed', error?.message || error);
-      setPdfError('Couldn’t download the document.');
-    }
   }
 
   function resetPdfView() {
@@ -3508,7 +3372,13 @@ function InstructionPanel({
         viewportSize: size,
         zoom: pdfZoom,
       });
-      takeImage(file, true);
+      // Show the crop as the step image; keep the PDF until Remove.
+      setSheetOpen(true);
+      imageHold.current = true;
+      takeImage(file, true, { force: true });
+      setShowPdf(false);
+      setShowImage(true);
+      setShowVideo(false);
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : 'Couldn’t crop the PDF page.');
     } finally {
@@ -3635,14 +3505,13 @@ function InstructionPanel({
       }
       return { ...item, prompt: '', description: '', title: '', promptSaved: false };
     }).filter((item, _, list) => {
-      if (list.length === 2 && item === list[0]) return true;
       if (list.length === 1) return true;
       if (item.promptSaved) return true;
       return stepHasWork(item);
     });
-    const nextSteps = restored.length > 1 || isTranscriptPrompt(prompt)
-      ? (restored.length ? restored : [blankInstructionStep(), blankPromptStep()])
-      : [blankInstructionStep(), blankPromptStep()];
+    const nextSteps = restored.length
+      ? restored
+      : [blankPromptStep()];
     const file = savedPromptRef.current;
     onPatch({
       ...(file ? {
@@ -3682,7 +3551,7 @@ function InstructionPanel({
       onPatch({ stepIndex: index + 1 });
       return;
     }
-    if (instructionPage || !stepHasDraft(step)) return;
+    if (!stepHasDraft(step)) return;
     if (!canAddPromptPage(steps.length, plan)) {
       setLimitNote(PROMPT_LIMIT_COPY.page);
       return;
@@ -3694,15 +3563,10 @@ function InstructionPanel({
   }
 
   function deleteIndex() {
-    if (instructionPage) {
-      patchInstructionSections([{ title: 'Step 1', body: '' }]);
-      return;
-    }
-    if (steps.length <= 2) {
-      const instruction = steps[0] || blankInstructionStep();
+    if (steps.length <= 1) {
       onPatch({
-        steps: [instruction, blankPromptStep(step.id)],
-        stepIndex: 1,
+        steps: [blankPromptStep(step.id)],
+        stepIndex: 0,
       });
       return;
     }
@@ -3928,7 +3792,7 @@ function InstructionPanel({
             </div>
           ) : null}
           <div className="prompt-models">
-            {onOpenStorage ? (
+            {!sheetOpen && onOpenStorage ? (
               <button type="button" className="prompt-models__item" onClick={onOpenStorage}>
                 <span className="prompt-models__glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -3938,22 +3802,6 @@ function InstructionPanel({
                 </span>
                 <span>Settings</span>
               </button>
-            ) : null}
-            {sheetOpen && instructionPage ? (
-            <ModelPicker
-              modelIds={step.modelIds}
-              open={modelOpen}
-              onToggle={() => {
-                setModelOpen((open) => !open);
-                setRecommendedOpen(false);
-                setFormatOpen(false);
-              }}
-              onChange={(modelIds) => {
-                patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
-                setCustomModel('');
-                setModelOpen(false);
-              }}
-            />
             ) : null}
             {sheetOpen ? (
               <button
@@ -3968,16 +3816,6 @@ function InstructionPanel({
               >
                 {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
               </button>
-            ) : null}
-            {sheetOpen ? (
-            <button type="button" className="prompt-models__item prompt-models__item--compact" onClick={compress}>
-              <span className="prompt-models__glyph" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
-                </svg>
-              </span>
-              <span>Compress</span>
-            </button>
             ) : null}
             {(showPdf && prompt.pdf?.name) || (showVideo && prompt.video?.embedSrc) ? (
               <button type="button" className="prompt-models__item" onClick={hideSide}>
@@ -4140,52 +3978,6 @@ function InstructionPanel({
                 <span>Auto variables</span>
               </button>
             ) : null}
-            {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                onClick={() => { prepareHomeFile(); }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 7h16M4 12h10M4 17h13" />
-                  </svg>
-                </span>
-                <span>Arreglar texto</span>
-              </button>
-            ) : null}
-            {!sheetOpen && (pdfScan.trim() || keptTranscript.trim()) ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                disabled={organizeAsk === 'busy' || toolsLocked}
-                onClick={() => { void beginOrganize(); }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 7h4l2 4 3-8 2 4h5" />
-                    <path d="M4 17h16" />
-                  </svg>
-                </span>
-                <span>Auto Organize</span>
-              </button>
-            ) : null}
-            {!sheetOpen && transcriptHasMarkers(pdfScan) ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                disabled={organizeAsk === 'busy'}
-                onClick={placeReviewedMarkers}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M8 6h11M8 12h11M8 18h11" />
-                    <path d="M4 6h.01M4 12h.01M4 18h.01" />
-                  </svg>
-                </span>
-                <span>Colocar en prompts</span>
-              </button>
-            ) : null}
             {sheetOpen ? null : (
               <button
                 type="button"
@@ -4232,50 +4024,6 @@ function InstructionPanel({
               </div>
             </div>,
             document.body,
-          ) : null}
-          {!parked && organizeAsk ? createPortal(
-            <div className="prompt-home-save-layer">
-              <div className="prompt-organize" role="dialog" aria-label="Auto Organize">
-                {organizeAsk === 'busy' ? <p>Organizando instrucciones y prompts…</p> : null}
-                {organizeAsk === 'preview' ? (
-                  <>
-                    <p>{`Encontré ${organizePreview?.length || 0} páginas`}</p>
-                    <ul>
-                      {(organizePreview || []).map((page, pageIndex) => (
-                        <li key={`${page.model}-${pageIndex}`}>
-                          <span>{page.label}</span>
-                          <span>{page.snippet}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div>
-                      <button type="button" onClick={acceptOrganize}>Aceptar</button>
-                      <button type="button" onClick={dismissOrganize}>Cancelar</button>
-                    </div>
-                  </>
-                ) : null}
-                {organizeAsk === 'error' ? (
-                  <>
-                    <p>{organizeError || 'No pude organizarlo automáticamente'}</p>
-                    <div>
-                      <button type="button" onClick={dismissOrganize}>Cerrar</button>
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </div>,
-            document.body,
-          ) : null}
-          {sheetOpen && modelOpen && instructionPage ? (
-            <ModelMenu
-              customDraft={customModel}
-              onCustomDraft={setCustomModel}
-              onChange={(modelIds) => {
-                patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
-                setCustomModel('');
-                setModelOpen(false);
-              }}
-            />
           ) : null}
           {formatOpen ? (
             <div className="prompt-drop" role="listbox" aria-label="Formato">
@@ -4456,32 +4204,13 @@ function InstructionPanel({
             )}
             {pdfPages.length || pdfPlain ? (
               <div className="prompt-pdf__corner">
-                {pdfAsk === 'later' && !prompt.pdf?.path ? (
-                  <button
-                    type="button"
-                    className="prompt-pdf__save"
-                    disabled={pdfSaving}
-                    onClick={() => { void saveDocument(); }}
-                  >
-                    {pdfSaving ? 'Saving…' : 'save document'}
-                  </button>
-                ) : null}
-                {pdfAsk === 'later' && prompt.pdf?.path ? (
-                  <button type="button" className="prompt-pdf__save" onClick={() => { void downloadDocument(); }}>
-                    Download
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="prompt-pdf__extract"
-                  disabled={pdfReading || pdfImproving || organizeAsk === 'busy'}
+                  disabled={pdfReading || pdfImproving}
                   onClick={() => { void extractPdf(); }}
                 >
-                  {pdfReading
-                    ? 'Reading…'
-                    : pdfPickCount
-                      ? `extract ${pdfPickCount} ${pdfPickCount === 1 ? 'file' : 'files'}`
-                      : 'Extract all'}
+                  {pdfReading ? 'Reading…' : 'Extract page'}
                 </button>
               </div>
             ) : null}
@@ -4567,32 +4296,6 @@ function InstructionPanel({
                 ) : null}
               </div>
             ) : null}
-            {(pdfPages.length || pdfPlain) && pdfAsk === 'ask' && (pdfPromptReady || prompt.pdf?.path) ? (
-              <div className={pdfPromptLeaving ? 'prompt-pdf__popover is-leaving' : 'prompt-pdf__popover'} role="dialog" aria-label="Save this file">
-                {prompt.pdf?.path ? (
-                  <>
-                    <p>Saved in this section. You can download it.</p>
-                    <div className="prompt-pdf__popover-actions">
-                      <button type="button" onClick={() => { void downloadDocument(); }}>Download</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p>This document is not saved permanently. Use it as a reference to create or insert your prompts.</p>
-                    <p>Would you like to save this file?</p>
-                    {pdfError ? <p className="prompt-pdf__popover-error" role="alert">{pdfError}</p> : null}
-                    <div className="prompt-pdf__popover-actions">
-                      <button type="button" disabled={pdfSaving} onClick={() => { void saveDocument(); }}>
-                        {pdfSaving ? 'Saving…' : 'Yes'}
-                      </button>
-                      <button type="button" disabled={pdfSaving} onClick={() => { setPdfError(''); setPdfAsk('later'); }}>
-                        Save later
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
             {pdfError ? <p className="prompt-pdf__inline-error" role="alert">{pdfError}</p> : null}
           </div>
         ) : null}
@@ -4606,65 +4309,25 @@ function InstructionPanel({
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen ? (
           <div className="prompt-sheet">
-            <PromptTitleField
-              className="prompt-sheet__title"
-              value={step.title || ''}
-              placeholder={prompt.name || 'Title'}
-              onChange={(title) => patchStep({ title })}
-            />
-            {instructionPage ? (
-              <PromptInstructionStepper
-                sections={instructionSections()}
-                activeStep={instructionStep}
-                onActiveStep={(step) => {
-                  const current = instructionSections();
-                  if (step > current.length) {
-                    const next = [...current, { title: `Step ${current.length + 1}`, body: '' }];
-                    patchInstructionSections(next);
-                    setInstructionStep(next.length);
-                    return;
-                  }
-                  setInstructionStep(step);
-                }}
-                readOnly={Boolean(step.promptSaved)}
-                onRemove={(sectionIndex) => {
-                  const current = instructionSections();
-                  if (current.length <= 1) return;
-                  const next = current
-                    .filter((_, itemIndex) => itemIndex !== sectionIndex)
-                    .map((section, itemIndex) => ({
-                      ...section,
-                      title: /^(?:step|paso)\s+\d+$/i.test(section.title || '')
-                        ? `Step ${itemIndex + 1}`
-                        : section.title,
-                    }));
-                  patchInstructionSections(next);
-                  setInstructionStep((active) => {
-                    if (active > next.length) return next.length;
-                    if (active === sectionIndex + 1) return Math.max(1, sectionIndex);
-                    if (active > sectionIndex + 1) return active - 1;
-                    return active;
-                  });
-                }}
-                renderBody={(section, sectionIndex) => (
-                  <DescriptionField
-                    className="prompt-sheet__description"
-                    value={section.body || ''}
-                    readOnly={Boolean(step.promptSaved)}
-                    label={`Step ${sectionIndex + 1} instructions`}
-                    placeholder="Write your instruction"
-                    onChange={(body) => {
-                      const next = instructionSections().map((item, itemIndex) => (
-                        itemIndex === sectionIndex ? { ...item, body } : item
-                      ));
-                      patchInstructionSections(next);
-                    }}
-                    onEditFocus={trackEdit}
-                    onUrlPaste={setUrlOffer}
-                  />
-                )}
+            <div className="prompt-sheet__head">
+              <PromptTitleField
+                className="prompt-sheet__title"
+                value={step.title || ''}
+                placeholder={prompt.name || 'Title'}
+                onChange={(title) => patchStep({ title })}
               />
-            ) : (
+              <button
+                type="button"
+                className="prompt-sheet__compress"
+                onClick={compress}
+                aria-label="Compress"
+                title="Compress"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
+                </svg>
+              </button>
+            </div>
             <div className="prompt-drawer">
             {(!step.promptSaved
               || (step.modelIds || []).length > 0
@@ -4795,10 +4458,7 @@ function InstructionPanel({
             ) : null}
             </PromptBody>
             </div>
-            )}
           </div>
-          ) : ((showPdf && prompt.pdf?.name) || (pdfFolded && rightText)) ? (
-          renderPdfTextSheet(false)
           ) : (
           <div className="prompt-home">
           <div className="prompt-index">
@@ -4984,7 +4644,7 @@ function InstructionPanel({
               type="button"
               className="prompt-steps__arrow"
               aria-label="Next prompt"
-              disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+              disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
               onClick={goForward}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -5230,17 +4890,11 @@ async function copyInView(plain, html, view) {
 }
 
 function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
-  const email = useAuthStore((state) => state.user?.email || '');
-  const profilePlan = usePlanStore((state) => state.profile.plan);
-  const plan = deskPlan(email, profilePlan);
   const { steps, index, step } = stepAt(prompt);
   const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
   const plain = plainCopy(step.prompt, ownedVariables);
-  const canCopy = Boolean(step.promptSaved && plain);
+  const canCopy = Boolean(plain);
   const [copied, setCopied] = useState(false);
-  const [limitNote, setLimitNote] = useState('');
-  const [instructionStep, setInstructionStep] = useState(1);
-  const [urlOffer, setUrlOffer] = useState('');
   const [bodyCollapsed, setBodyCollapsed] = useState(false);
   const floatModelName = (step.modelIds || [])[0] || '';
   const floatModel = PROMPT_MODELS.find((model) => model.id === floatModelName) || null;
@@ -5248,7 +4902,6 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
   const floatRecommended = String(step.recommendedModel || '').trim();
   const titleRef = useRef(null);
   const floatRootRef = useRef(null);
-  const instructionPage = isInstructionIndex(prompt, index);
   const floatHost = hostWindow || view || null;
   const floatClassName = bodyCollapsed ? 'prompt-float is-collapsed' : 'prompt-float';
 
@@ -5274,7 +4927,6 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
   }, [step.title, prompt.name, bodyCollapsed]);
 
   useEffect(() => {
-    setInstructionStep(1);
     setBodyCollapsed(false);
   }, [step.id]);
 
@@ -5302,52 +4954,14 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
     };
   }, [bodyCollapsed, floatHost, step.title, floatPlatformLabel, floatRecommended]);
 
-  function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
-    if (keepSaved) {
-      onPatch({ stepPatch: { id: step.id, prompt: nextPrompt } });
-      return;
-    }
-    if (variables && nextPrompt != null) {
-      onPatch({
-        variables: stampVariables(variables, prompt.id),
-        stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false },
-      });
-      return;
-    }
-    if (variables) {
-      onPatch(markStepUnsaved(step.id, { variables: stampVariables(variables, prompt.id) }));
-      return;
-    }
-    onPatch({ stepPatch: { id: step.id, prompt: nextPrompt, promptSaved: false } });
-  }
-
-  function saveAllPrompts() {
-    onPatch({ steps: stepsAfterSave(prompt) });
-  }
-
-  function editFloatStep() {
-    onPatch({ stepPatch: { id: step.id, promptSaved: false } });
-  }
-
   function goBack() {
     if (index <= 0) return;
     onPatch({ stepIndex: index - 1 });
   }
 
   function goForward() {
-    if (index < steps.length - 1) {
-      onPatch({ stepIndex: index + 1 });
-      return;
-    }
-    if (instructionPage || !stepHasDraft(step)) return;
-    if (!canAddPromptPage(steps.length, plan)) {
-      setLimitNote(PROMPT_LIMIT_COPY.page);
-      return;
-    }
-    onPatch({
-      steps: [...steps, blankPromptStep()],
-      stepIndex: steps.length,
-    });
+    if (index >= steps.length - 1) return;
+    onPatch({ stepIndex: index + 1 });
   }
 
   async function copyPrompt() {
@@ -5385,7 +4999,8 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
               className="prompt-float__step"
               value={step.title || ''}
               placeholder={prompt.name || 'Title'}
-              onChange={(title) => onPatch({ stepPatch: { id: step.id, title } })}
+              readOnly
+              onChange={() => {}}
             />
             {(floatPlatformLabel || floatRecommended) ? (
               <p className="prompt-float__target">
@@ -5420,70 +5035,35 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
             </button>
           </div>
         </div>
-        {urlOffer && !bodyCollapsed ? (
-          <div className="prompt-url-offer" role="status">
-            <p>Guardar este link en Url?</p>
-            <button
-              type="button"
-              onClick={() => {
-                onPatch({ referenceUrl: urlOffer });
-                setUrlOffer('');
-              }}
-            >
-              Guardar
-            </button>
-            <button type="button" onClick={() => setUrlOffer('')}>No</button>
-          </div>
-        ) : null}
         {!bodyCollapsed ? (
           <div className="prompt-drawer">
-            {instructionPage ? (
-              <PromptInstructionStepper
-                sections={readInstructionSections(step.description)}
-                activeStep={instructionStep}
-                onActiveStep={setInstructionStep}
-                readOnly
-                renderBody={(section) => <FloatInstructions value={section.body || ''} />}
-              />
-            ) : (
-              <PromptBody
-                key={`${prompt.id}:${step.id}`}
-                prompt={step.prompt}
-                documentId={prompt.id}
-                variables={ownedVariables}
-                placeholder={'Write your prompt (press "#+space" for upper case)'}
-                readOnly={Boolean(step.promptSaved)}
-                onCommit={commitBody}
-                onUrlPaste={setUrlOffer}
-                className="prompt-float__text"
-              >
-                {canCopy ? (
-                  <button
-                    type="button"
-                    className="prompt-copy"
-                    onClick={() => { void copyPrompt(); }}
-                    aria-label={copied ? 'Copiado' : 'Copiar'}
-                    title={copied ? 'Copiado' : 'Copiar'}
-                  >
-                    {copied ? '✓' : '⧉'}
-                  </button>
-                ) : null}
-              </PromptBody>
-            )}
+            <PromptBody
+              key={`${prompt.id}:${step.id}`}
+              prompt={step.prompt}
+              documentId={prompt.id}
+              variables={ownedVariables}
+              placeholder="Prompt"
+              readOnly
+              onCommit={() => {}}
+              className="prompt-float__text"
+            >
+              {canCopy ? (
+                <button
+                  type="button"
+                  className="prompt-copy"
+                  onClick={() => { void copyPrompt(); }}
+                  aria-label={copied ? 'Copiado' : 'Copiar'}
+                  title={copied ? 'Copiado' : 'Copiar'}
+                >
+                  {copied ? '✓' : '⧉'}
+                </button>
+              ) : null}
+            </PromptBody>
           </div>
         ) : null}
       </div>
       {!bodyCollapsed ? (
         <div className="prompt-steps">
-          {promptNeedsSave(prompt, step) ? (
-            <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
-              Guardar
-            </button>
-          ) : step.promptSaved ? (
-            <button type="button" className="prompt-steps__save" onClick={editFloatStep}>
-              Editar
-            </button>
-          ) : null}
           <button
             type="button"
             className="prompt-steps__arrow"
@@ -5496,12 +5076,11 @@ function FloatCard({ prompt, view, hostWindow = null, onPatch }) {
             </svg>
           </button>
           <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
-          {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
           <button
             type="button"
             className="prompt-steps__arrow"
             aria-label="Next prompt"
-            disabled={index >= steps.length - 1 && (instructionPage || !stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+            disabled={index >= steps.length - 1}
             onClick={goForward}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -5566,13 +5145,10 @@ const FLOAT_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
-    border: 2px dashed rgba(20, 20, 22, 0.45);
+    border: 0;
     border-radius: 14px;
-    background: #fff;
+    background: transparent;
     overflow: hidden;
-  }
-  .prompt-float__sheet:focus-within {
-    border-color: rgba(20, 20, 22, 0.72);
   }
   .prompt-float.is-collapsed .prompt-float__sheet {
     flex: 0 0 auto;
@@ -5591,8 +5167,8 @@ const FLOAT_CSS = `
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
     gap: 10px;
-    padding: 14px 12px 12px;
-    border-bottom: 1px solid rgba(20, 20, 22, 0.08);
+    padding: 10px 4px 10px;
+    border-bottom: 0;
   }
   .prompt-float.is-collapsed .prompt-float__head {
     border-bottom: 0;
@@ -5877,7 +5453,20 @@ const FLOAT_CSS = `
   .prompt-float .prompt-drawer {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 14px;
+    background: #F1F1F1;
+  }
+  .prompt-float .prompt-body,
+  .prompt-float .prompt-body__frame {
+    min-height: 0;
+    background: transparent;
+  }
+  .prompt-float .prompt-body__editor {
     overflow: auto;
+    background: transparent;
+    color: #111;
   }
   .prompt-float__text h1,
   .prompt-body__editor h1 {
@@ -6174,9 +5763,9 @@ const FLOAT_CSS = `
     resize: none;
     overflow: auto;
     border: 0;
-    border-radius: 0;
-    padding: 16px 10px;
-    background: #fff;
+    border-radius: 14px;
+    padding: 16px 14px;
+    background: #F1F1F1;
     color: #111;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 14px;
@@ -6186,7 +5775,7 @@ const FLOAT_CSS = `
   }
   .prompt-float__text::placeholder { color: rgba(20, 20, 22, 0.38); }
   .prompt-float__text.prompt-float__instructions-body {
-    background: #F5F5F5;
+    background: #F1F1F1;
     color: #1a1a1a;
     white-space: pre-wrap;
   }
@@ -6210,10 +5799,10 @@ const FLOAT_CSS = `
   }
   .prompt-float__text {
     scrollbar-width: thin;
-    scrollbar-color: rgba(20, 20, 22, 0.28) #fff;
+    scrollbar-color: rgba(20, 20, 22, 0.28) #F1F1F1;
   }
   .prompt-float__text::-webkit-scrollbar { width: 8px; height: 8px; }
-  .prompt-float__text::-webkit-scrollbar-track { background: #fff; }
+  .prompt-float__text::-webkit-scrollbar-track { background: #F1F1F1; }
   .prompt-float__text::-webkit-scrollbar-thumb {
     border-radius: 8px;
     background: rgba(20, 20, 22, 0.28);

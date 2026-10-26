@@ -1,11 +1,11 @@
 ---
-description: Saved stepper for prompt-file instructions. Page 1 = steps; later pages = pure prompts. Card title defaults from the file name and stays editable.
+description: Prompt files are prompt pages only. Instruction page + stepper retired.
 alwaysApply: true
 ---
 
-# Prompt stepper + file pages
+# Prompt pages (no instruction page)
 
-Saved paste: `.cursor/saved/prompt-stepper/`. Live port: `PromptInstructionStepper.jsx` on prompt-file page 1.
+Saved paste (archive): `.cursor/saved/prompt-stepper/`. `PromptInstructionStepper.jsx` is unused in the live desk.
 
 ## Title
 
@@ -15,12 +15,12 @@ Saved paste: `.cursor/saved/prompt-stepper/`. Live port: `PromptInstructionStepp
 
 ## Pages
 
-- **Page 1** = instructions. Render the saved vertical stepper; each instruction section is Step 1, 2, 3…
-- **Pages 2+** = pure prompts (no instruction/prompt face mix on those pages).
+- **All pages = prompts** (1-based caption). No leading instruction / Step 1 stepper page.
+- Legacy files with an instruction page are normalized on open (`normalizePromptFile`) to prompt-only steps.
+- PDF is a fixed reference; Extract page writes into the current prompt. Do not offer “save document” in this flow.
 
-## Port rules (when the user asks to place it)
+## Port rules (when the user asks to place related UI)
 
 - JSX + CSS in the prompt desk. No `lucide-react`, `cn`, or `@/` aliases.
 - Surface = `var(--surface-base)`.
 - Do not confuse with document `StepSequenceBlockView`.
-- Page 1 of a prompt file mounts this stepper. Do not reuse document `StepSequenceBlockView`.
