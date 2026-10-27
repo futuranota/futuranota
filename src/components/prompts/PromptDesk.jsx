@@ -16,6 +16,7 @@ import {
   uploadPromptCover,
   uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
+import PromptFileAssets from './PromptFileAssets.jsx';
 import { applyPreviewUsageEpoch, clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
@@ -2418,7 +2419,8 @@ function InstructionPanel({
   const textBesidePrompt = false;
   const showPdfPreview = showPdf && !pdfFolded;
   const pdfTranscriptWide = false;
-  const showSide = showImage || showVideo || showPdfPreview;
+  const showAssetsSide = !showImage && !showVideo && !showPdfPreview;
+  const showSide = showImage || showVideo || showPdfPreview || showAssetsSide;
   const chipImage = step.image || coverImage(prompt);
   const cover = coverImage(prompt);
   const needCoverChoice = !cover && !prompt.coverSkipped;
@@ -4045,6 +4047,13 @@ function InstructionPanel({
             </div>
           ) : null}
         </div>
+        {showAssetsSide ? (
+          <PromptFileAssets
+            prompt={prompt}
+            onPatch={onPatch}
+            onNote={setLimitNote}
+          />
+        ) : null}
         {sheetOpen && showImage ? (
           <div className="prompt-panel__stage">
             {step.image ? (
@@ -4468,7 +4477,7 @@ function InstructionPanel({
                 const isFront = place === 1;
                 const picture = isFront
                   ? (cover || HOME_FRAMES[place])
-                  : (page?.image || (!text ? HOME_FRAMES[place] : ''));
+                  : (page?.image || HOME_FRAMES[place]);
                 const coverClass = isFront && cover
                   ? 'prompt-index__cover'
                   : ((isFront ? cover : page?.image) ? undefined : 'prompt-index__default');

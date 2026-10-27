@@ -23,6 +23,7 @@ export function promptFileBytes(prompt, sizesByPath = {}) {
   if (prompt?.coverPath) paths.push(prompt.coverPath);
   for (const asset of prompt?.assets || []) {
     if (asset?.path) paths.push(asset.path);
+    if (asset?.coverPath) paths.push(asset.coverPath);
   }
   for (const step of prompt?.steps || []) {
     if (step?.imagePath) paths.push(step.imagePath);

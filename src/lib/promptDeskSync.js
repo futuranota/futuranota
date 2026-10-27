@@ -1,4 +1,5 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
+import { detectPromptAssetKind } from './promptAssets.js';
 import { EMBED_BRAND_MAX_BYTES, PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
 import { normalizePromptFile } from './promptPages.js';
 import { storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
@@ -130,17 +131,30 @@ export async function loadPromptDesk(userId) {
   return foldersFromRows(collections.data, files.data, steps.data);
 }
 
+const ASSET_KINDS = new Set(['image', 'svg', 'pdf', 'audio', 'font', 'other']);
+
+function normalizeAssetKind(value) {
+  const kind = String(value || '').toLowerCase();
+  return ASSET_KINDS.has(kind) ? kind : 'other';
+}
+
 function assetsFromRow(value) {
   if (!Array.isArray(value)) return [];
   return value
     .filter((item) => item && item.id && item.path)
-    .map((item) => ({
-      id: String(item.id),
-      name: String(item.name || 'Image'),
-      kind: item.kind === 'svg' ? 'svg' : 'image',
-      path: String(item.path),
-      url: promptImageUrl(item.path),
-    }));
+    .map((item) => {
+      const coverPath = String(item.coverPath || item.cover_path || '');
+      return {
+        id: String(item.id),
+        name: String(item.name || 'Asset'),
+        kind: normalizeAssetKind(item.kind),
+        path: String(item.path),
+        url: promptImageUrl(item.path),
+        mime: String(item.mime || ''),
+        coverPath,
+        coverUrl: coverPath ? promptImageUrl(coverPath) : '',
+      };
+    });
 }
 
 function assetRows(assets) {
@@ -148,9 +162,11 @@ function assetRows(assets) {
     .filter((item) => item && item.id && item.path)
     .map((item) => ({
       id: String(item.id),
-      name: String(item.name || 'Image'),
-      kind: item.kind === 'svg' ? 'svg' : 'image',
+      name: String(item.name || 'Asset'),
+      kind: normalizeAssetKind(item.kind),
       path: String(item.path),
+      mime: String(item.mime || ''),
+      coverPath: String(item.coverPath || '') || undefined,
     }));
 }
 
@@ -231,6 +247,7 @@ function imagePaths(folders) {
       if (prompt.coverPath) paths.add(prompt.coverPath);
       for (const asset of prompt.assets || []) {
         if (asset.path) paths.add(asset.path);
+        if (asset.coverPath) paths.add(asset.coverPath);
       }
       for (const step of prompt.steps || []) {
         if (step.imagePath) paths.add(step.imagePath);
@@ -344,11 +361,19 @@ export async function assertStorageRoom(userId, incomingBytes, replacePath = '')
   }
 }
 
+function assetExtFromName(name, fallback = 'bin') {
+  const match = String(name || '').match(/\.([a-z0-9]+)$/i);
+  return match ? match[1].toLowerCase() : fallback;
+}
+
 export async function uploadPromptAsset(file, fileId, userId) {
-  const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
-  if (isSvg) {
+  if (!file) throw new Error('Choose a file.');
+  const kind = detectPromptAssetKind(file);
+  const id = crypto.randomUUID();
+
+  if (kind === 'svg') {
     await assertStorageRoom(userId, file.size);
-    const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.svg`;
+    const path = `${userId}/${fileId}/assets/${id}.svg`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
       contentType: 'image/svg+xml',
       upsert: false,
@@ -356,32 +381,79 @@ export async function uploadPromptAsset(file, fileId, userId) {
     });
     if (error) throw error;
     return {
+      id,
       name: file.name || 'image.svg',
       kind: 'svg',
       path,
       url: promptImageUrl(path),
-      file,
+      mime: 'image/svg+xml',
+      coverPath: '',
+      coverUrl: '',
     };
   }
-  const converted = await convertFileToWebpData(file);
-  if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
-  await assertStorageRoom(userId, converted.blob.size);
-  const path = `${userId}/${fileId}/assets/${crypto.randomUUID()}.webp`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
-    contentType: 'image/webp',
+
+  if (kind === 'image') {
+    const converted = await convertFileToWebpData(file);
+    if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
+    await assertStorageRoom(userId, converted.blob.size);
+    const path = `${userId}/${fileId}/assets/${id}.webp`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
+      contentType: 'image/webp',
+      upsert: false,
+      cacheControl: '3600',
+    });
+    if (error) throw error;
+    const stem = (file.name || 'image').replace(/\.[^.]+$/, '');
+    const name = `${stem}.webp`;
+    return {
+      id,
+      name,
+      kind: 'image',
+      path,
+      url: promptImageUrl(path),
+      mime: 'image/webp',
+      coverPath: '',
+      coverUrl: '',
+    };
+  }
+
+  await assertStorageRoom(userId, file.size);
+  const ext = assetExtFromName(file.name, kind === 'pdf' ? 'pdf' : kind === 'audio' ? 'mp3' : kind === 'font' ? 'ttf' : 'bin');
+  const path = `${userId}/${fileId}/assets/${id}.${ext}`;
+  const contentType = file.type || 'application/octet-stream';
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    contentType,
     upsert: false,
     cacheControl: '3600',
   });
   if (error) throw error;
-  const stem = (file.name || 'image').replace(/\.[^.]+$/, '');
-  const name = `${stem}.webp`;
   return {
-    name,
-    kind: 'image',
+    id,
+    name: file.name || `asset.${ext}`,
+    kind,
     path,
     url: promptImageUrl(path),
-    file: new File([converted.blob], name, { type: 'image/webp' }),
+    mime: contentType,
+    coverPath: '',
+    coverUrl: '',
   };
+}
+
+export async function uploadPromptAssetCover(file, fileId, assetId, userId, replacePath = '') {
+  const converted = await convertFileToWebpData(file);
+  if (!converted?.blob) throw new Error('No se pudo leer la portada.');
+  await assertStorageRoom(userId, converted.blob.size, replacePath);
+  const path = `${userId}/${fileId}/assets/${assetId}-cover.webp`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
+    contentType: 'image/webp',
+    upsert: true,
+    cacheControl: '3600',
+  });
+  if (error) throw error;
+  if (replacePath && replacePath !== path) {
+    await supabase.storage.from(BUCKET).remove([replacePath]);
+  }
+  return { path, url: promptImageUrl(path) };
 }
 
 export async function uploadPromptImage(file, stepId, userId) {

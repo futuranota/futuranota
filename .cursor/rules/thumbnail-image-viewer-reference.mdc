@@ -1,0 +1,8 @@
+# Thumbnail Image Viewer reference
+
+Archive paste only. Do not build or port until the user asks.
+
+- Archive: `.cursor/saved/thumbnail-image-viewer/`
+- Original: `ThumbnailImageViewer.original.tsx` + demo + `CURSOR_BRIEF.md`
+
+When that pass starts, port stage + thumb strip + prev/next into this repo’s JSX and CSS. Do not add `cn`, `@/` aliases, `lucide-react`, or shadcn tokens as-is. Prefer wiring real prompt asset URLs over demo placeholders.
