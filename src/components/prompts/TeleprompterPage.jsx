@@ -10,9 +10,34 @@ const FLOAT_CSS = `
     margin: 0;
     width: 100%;
     height: 100%;
-    background: #151515;
-    color: #fff;
     font: 16px/1.55 ui-sans-serif, system-ui, sans-serif;
+  }
+  html, body {
+    background: var(--tp-bg, #151515);
+    color: var(--tp-ink, #fff);
+  }
+  html, body, #tp-float-root, .tp-float {
+    --tp-bg: #151515;
+    --tp-ink: #fff;
+    --tp-muted: rgba(255, 255, 255, 0.45);
+    --tp-line: rgba(255, 255, 255, 0.14);
+    --tp-reader: #151515;
+    --tp-done: #6ee7a8;
+    --tp-cursor-bg: rgba(110, 231, 168, 0.28);
+    --tp-scroll-thumb: rgba(255, 255, 255, 0.18);
+  }
+  html[data-tp-theme="light"],
+  html[data-tp-theme="light"] body,
+  html[data-tp-theme="light"] #tp-float-root,
+  html[data-tp-theme="light"] .tp-float {
+    --tp-bg: #f4f1eb;
+    --tp-ink: #1a1a1a;
+    --tp-muted: rgba(20, 20, 22, 0.45);
+    --tp-line: rgba(20, 20, 22, 0.14);
+    --tp-reader: #f4f1eb;
+    --tp-done: #0d7a45;
+    --tp-cursor-bg: rgba(13, 122, 69, 0.18);
+    --tp-scroll-thumb: rgba(20, 20, 22, 0.18);
   }
   .tp-float {
     box-sizing: border-box;
@@ -21,6 +46,8 @@ const FLOAT_CSS = `
     height: 100%;
     padding: 12px;
     gap: 10px;
+    background: var(--tp-bg);
+    color: var(--tp-ink);
   }
   .tp-float.is-collapsed {
     padding: 8px 10px;
@@ -35,12 +62,12 @@ const FLOAT_CSS = `
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    opacity: 0.7;
+    color: var(--tp-muted);
   }
   .tp-float__head button {
     height: 28px;
     padding: 0 10px;
-    border: 1px solid rgba(255,255,255,0.14);
+    border: 1px solid var(--tp-line);
     border-radius: 6px;
     background: transparent;
     color: inherit;
@@ -53,31 +80,129 @@ const FLOAT_CSS = `
     overflow: auto;
     padding: 12px;
     border-radius: 12px;
-    background: #1c1c1c;
+    background: var(--tp-reader);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-size: 18px;
     line-height: 1.6;
+    scrollbar-width: thin;
+    scrollbar-color: var(--tp-scroll-thumb) var(--tp-reader);
+  }
+  .tp-float__reader::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .tp-float__reader::-webkit-scrollbar-track {
+    background: var(--tp-reader);
+  }
+  .tp-float__reader::-webkit-scrollbar-thumb {
+    background: var(--tp-scroll-thumb);
+    border-radius: 999px;
+    border: 2px solid var(--tp-reader);
+  }
+  .tp-float__reader::-webkit-scrollbar-thumb:hover {
+    background: var(--tp-muted);
   }
   .tp-float.is-collapsed .tp-float__reader,
   .tp-float.is-collapsed .tp-float__meta {
     display: none;
   }
-  .tp-char { color: rgba(255,255,255,0.35); }
-  .tp-char.is-done { color: #6ee7a8; }
+  .tp-char { color: var(--tp-muted); }
+  .tp-char.is-done { color: var(--tp-done); }
   .tp-char.is-cursor {
-    color: #fff;
-    background: rgba(110, 231, 168, 0.28);
+    color: var(--tp-ink);
+    background: var(--tp-cursor-bg);
     border-radius: 2px;
   }
   .tp-float__meta {
     display: flex;
     justify-content: space-between;
     font-size: 12px;
-    opacity: 0.65;
+    color: var(--tp-muted);
     font-variant-numeric: tabular-nums;
   }
 `;
+
+const CPS_MIN = 5;
+const CPS_MAX = 40;
+const THEME_STORE = 'fn-teleprompter-theme';
+
+function readStoredTheme() {
+  try {
+    const value = localStorage.getItem(THEME_STORE);
+    return value === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+function IconSun() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" />
+    </svg>
+  );
+}
+
+function IconMoon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 14.2A7.4 7.4 0 0 1 9.8 4 7.5 7.5 0 1 0 20 14.2Z" />
+    </svg>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8.2 5.6v12.8L19 12Z" />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg className="is-pause" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6.5" y="5.5" width="4" height="13" rx="1" />
+      <rect x="13.5" y="5.5" width="4" height="13" rx="1" />
+    </svg>
+  );
+}
+
+function IconReset() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.8 12a7.2 7.2 0 1 0 2.1-5.1" />
+      <path d="M4.8 4.8v4.4H9.2" />
+    </svg>
+  );
+}
+
+function IconExpand() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 4.5H4.5V9M15 4.5h4.5V9M9 19.5H4.5V15M15 19.5h4.5V15" />
+    </svg>
+  );
+}
+
+function IconCollapse() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 9H4.5M9 9V4.5M9 9 4.8 4.8M15 9h4.5M15 9V4.5M15 9l4.2-4.2M9 15H4.5M9 15v4.5M9 15l-4.2 4.2M15 15h4.5M15 15v4.5M15 15l4.2 4.2" />
+    </svg>
+  );
+}
+
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 19.5h4L19 9l-4-4L4.5 15.5v4Z" />
+      <path d="m13.2 6.8 4 4" />
+    </svg>
+  );
+}
 
 function formatDuration(totalSeconds) {
   const safe = Math.max(0, Math.ceil(Number(totalSeconds) || 0));
@@ -130,12 +255,16 @@ function FloatSurface({
   elapsedLabel,
   playing,
   collapsed,
+  theme,
   onToggleCollapse,
   onPlay,
   onPause,
 }) {
   return (
-    <div className={collapsed ? 'tp-float is-collapsed' : 'tp-float'}>
+    <div
+      className={collapsed ? 'tp-float is-collapsed' : 'tp-float'}
+      data-tp-theme={theme}
+    >
       <div className="tp-float__head">
         <p className="tp-float__title">Teleprompter</p>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -156,11 +285,51 @@ function FloatSurface({
       </div>
       <CharReader text={text} cursor={cursor} className="tp-float__reader" />
       <div className="tp-float__meta">
-        <span>{cps} chars/s</span>
+        <span>{cps}</span>
         <span>{elapsedLabel} / {durationLabel}</span>
       </div>
     </div>
   );
+}
+
+function applyFloatTheme(hostWindow, theme) {
+  if (!hostWindow?.document) return;
+  const next = theme === 'light' ? 'light' : 'dark';
+  hostWindow.document.documentElement.setAttribute('data-tp-theme', next);
+  if (hostWindow.document.body) {
+    hostWindow.document.body.setAttribute('data-tp-theme', next);
+  }
+}
+
+function resizeFloatWindow(hostWindow, collapsed) {
+  if (!hostWindow || typeof hostWindow.resizeTo !== 'function') return;
+  const width = collapsed ? 280 : FLOAT_SIZE.width;
+  const height = collapsed ? 72 : FLOAT_SIZE.height;
+  try {
+    hostWindow.resizeTo(width, height);
+  } catch {
+    /* Some hosts ignore resizeTo; CSS still shrinks the card. */
+  }
+}
+
+function mountFloatDocument(hostWindow, theme) {
+  const doc = hostWindow.document;
+  doc.title = 'Teleprompter';
+  let style = doc.getElementById('tp-float-css');
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = 'tp-float-css';
+    doc.head.appendChild(style);
+  }
+  style.textContent = FLOAT_CSS;
+  let mount = doc.getElementById('tp-float-root');
+  if (!mount) {
+    mount = doc.createElement('div');
+    mount.id = 'tp-float-root';
+    doc.body.replaceChildren(mount);
+  }
+  applyFloatTheme(hostWindow, theme);
+  return mount;
 }
 
 /**
@@ -175,8 +344,10 @@ export default function TeleprompterPage() {
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
   const [floatCollapsed, setFloatCollapsed] = useState(false);
+  const [theme, setTheme] = useState(readStoredTheme);
 
   const floatRef = useRef(null);
+  const themeRef = useRef(theme);
   const playingRef = useRef(false);
   const cursorRef = useRef(0);
   const textRef = useRef('');
@@ -199,6 +370,19 @@ export default function TeleprompterPage() {
   useEffect(() => {
     cpsRef.current = cps;
   }, [cps]);
+
+  useEffect(() => {
+    themeRef.current = theme;
+    try {
+      localStorage.setItem(THEME_STORE, theme);
+    } catch {
+      /* Private mode */
+    }
+  }, [theme]);
+
+  function bumpCps(delta) {
+    setCps((value) => Math.min(CPS_MAX, Math.max(CPS_MIN, value + delta)));
+  }
 
   useEffect(() => {
     playingRef.current = playing;
@@ -269,58 +453,106 @@ export default function TeleprompterPage() {
     const slot = floatRef.current;
     if (!slot) return;
     floatRef.current = null;
-    slot.root.unmount();
-    slot.window.close();
+    try {
+      slot.root.unmount();
+    } catch {
+      /* already gone */
+    }
+    try {
+      slot.window.close();
+    } catch {
+      /* already closed */
+    }
     setFloating(false);
     setFloatCollapsed(false);
   }
 
+  function bindFloatWindow(hostWindow) {
+    const mount = mountFloatDocument(hostWindow, themeRef.current);
+    const root = createRoot(mount);
+    const onHide = () => {
+      hostWindow.removeEventListener('pagehide', onHide);
+      if (floatRef.current?.window !== hostWindow) return;
+      floatRef.current = null;
+      try {
+        root.unmount();
+      } catch {
+        /* already gone */
+      }
+      setFloating(false);
+      setFloatCollapsed(false);
+    };
+    hostWindow.addEventListener('pagehide', onHide);
+    floatRef.current = { window: hostWindow, root };
+    setFloatCollapsed(false);
+    setFloating(true);
+    resizeFloatWindow(hostWindow, false);
+  }
+
   async function openFloat() {
-    const api = window.documentPictureInPicture;
-    if (!api?.requestWindow) {
-      window.alert('Tu Chrome no soporta Document Picture-in-Picture. Actualizá el navegador.');
-      return;
-    }
     const openSlot = floatRef.current;
     if (openSlot?.window && !openSlot.window.closed) {
-      openSlot.window.focus();
+      try {
+        openSlot.window.focus();
+      } catch {
+        /* ignore */
+      }
       setFloating(true);
+      resizeFloatWindow(openSlot.window, false);
+      setFloatCollapsed(false);
       return;
     }
-    try {
-      const pipWindow = await api.requestWindow({
-        width: FLOAT_SIZE.width,
-        height: FLOAT_SIZE.height,
-      });
-      const doc = pipWindow.document;
-      doc.title = 'Teleprompter';
-      const style = doc.createElement('style');
-      style.id = 'tp-float-css';
-      style.textContent = FLOAT_CSS;
-      doc.head.appendChild(style);
-      const mount = doc.createElement('div');
-      mount.id = 'tp-float-root';
-      doc.body.replaceChildren(mount);
-      const root = createRoot(mount);
-      const onHide = () => {
-        pipWindow.removeEventListener('pagehide', onHide);
-        if (floatRef.current?.window !== pipWindow) return;
-        floatRef.current = null;
-        root.unmount();
-        setFloating(false);
-        setFloatCollapsed(false);
-      };
-      pipWindow.addEventListener('pagehide', onHide);
-      floatRef.current = { window: pipWindow, root };
-      setFloating(true);
-    } catch {
-      window.alert('No se pudo abrir el float. Permití Picture-in-Picture e intentá de nuevo.');
+
+    const api = window.documentPictureInPicture;
+    if (api?.requestWindow) {
+      try {
+        const pipWindow = await api.requestWindow({
+          width: FLOAT_SIZE.width,
+          height: FLOAT_SIZE.height,
+        });
+        bindFloatWindow(pipWindow);
+        return;
+      } catch (error) {
+        console.warn('[teleprompter] Document PiP failed', error);
+        window.alert(
+          error?.message
+            ? `No se pudo expandir: ${error.message}`
+            : 'No se pudo abrir el float. Permití Picture-in-Picture e intentá de nuevo.',
+        );
+        return;
+      }
     }
+
+    // No PiP API — open a real popup in the same user-gesture turn (no await above).
+    const popup = window.open(
+      '',
+      'fn-teleprompter-float',
+      `popup=yes,width=${FLOAT_SIZE.width},height=${FLOAT_SIZE.height}`,
+    );
+    if (!popup) {
+      window.alert('No se pudo abrir el float. Este Chrome no soporta Document PiP; permití popups.');
+      return;
+    }
+    bindFloatWindow(popup);
+  }
+
+  function toggleFloatCollapsed() {
+    setFloatCollapsed((value) => {
+      const next = !value;
+      resizeFloatWindow(floatRef.current?.window, next);
+      return next;
+    });
   }
 
   useEffect(() => {
     const slot = floatRef.current;
     if (!slot?.root || !floating) return;
+    if (slot.window?.closed) {
+      floatRef.current = null;
+      setFloating(false);
+      return;
+    }
+    applyFloatTheme(slot.window, theme);
     slot.root.render(
       <FloatSurface
         text={text}
@@ -330,24 +562,13 @@ export default function TeleprompterPage() {
         elapsedLabel={elapsedLabel}
         playing={playing}
         collapsed={floatCollapsed}
-        onToggleCollapse={() => setFloatCollapsed((value) => !value)}
+        theme={theme}
+        onToggleCollapse={toggleFloatCollapsed}
         onPlay={startPlay}
         onPause={pausePlay}
       />,
     );
-  }, [floating, text, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed]);
-
-  useEffect(() => {
-    const slot = floatRef.current;
-    if (!slot?.window || slot.window.closed) return;
-    const height = floatCollapsed ? 56 : FLOAT_SIZE.height;
-    const width = floatCollapsed ? 280 : FLOAT_SIZE.width;
-    try {
-      slot.window.resizeTo(width, height);
-    } catch {
-      /* Some browsers block resizeTo on PiP. */
-    }
-  }, [floatCollapsed, floating]);
+  }, [floating, text, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, theme]);
 
   useEffect(() => () => {
     stopLoop();
@@ -363,13 +584,37 @@ export default function TeleprompterPage() {
   }, []);
 
   return (
-    <div className="tp-page">
+    <div className="tp-page" data-tp-theme={theme}>
       <div className="tp-shell">
         <div className="tp-left">
           <div className="tp-paste">
-            <label className="tp-paste__label" htmlFor="tp-prompt">
-              Pega tu prompt
-            </label>
+            <div className="tp-paste__top">
+              <label className="tp-paste__label" htmlFor="tp-prompt">
+                Pega tu prompt
+              </label>
+              <div className="tp-theme" role="group" aria-label="Tema de color">
+                <button
+                  type="button"
+                  className={theme === 'dark' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
+                  aria-pressed={theme === 'dark'}
+                  aria-label="Tema oscuro"
+                  title="Oscuro"
+                  onClick={() => setTheme('dark')}
+                >
+                  <IconMoon />
+                </button>
+                <button
+                  type="button"
+                  className={theme === 'light' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
+                  aria-pressed={theme === 'light'}
+                  aria-label="Tema claro"
+                  title="Claro"
+                  onClick={() => setTheme('light')}
+                >
+                  <IconSun />
+                </button>
+              </div>
+            </div>
             {showReader ? (
               <CharReader text={text} cursor={cursor} className="tp-reader scroll-match-bg" />
             ) : (
@@ -386,65 +631,102 @@ export default function TeleprompterPage() {
               />
             )}
             <p className="tp-paste__hint">
-              Al Play, el timer calcula la duración · cada carácter se colorea a {cps} chars/s
+              Al Play, el timer calcula la duración · el texto se colorea al ritmo del counter
             </p>
           </div>
 
           <div className="tp-toolkit" aria-label="Toolkit">
-            <label className="tp-tool" htmlFor="tp-cps">
-              <span>Velocidad</span>
-              <input
-                id="tp-cps"
-                type="range"
-                min={5}
-                max={40}
-                value={cps}
-                onChange={(event) => setCps(Number(event.target.value) || DEFAULT_CPS)}
-              />
-              <output htmlFor="tp-cps">{cps} chars/s</output>
-            </label>
+            <div className="tp-toolkit__meta">
+              <div className="tp-counter" aria-label="Velocidad">
+                <button
+                  type="button"
+                  className="tp-counter__btn"
+                  aria-label="Bajar velocidad"
+                  disabled={cps <= CPS_MIN}
+                  onClick={() => bumpCps(-1)}
+                >
+                  −
+                </button>
+                <span className="tp-counter__value" aria-live="polite">{cps}</span>
+                <button
+                  type="button"
+                  className="tp-counter__btn"
+                  aria-label="Subir velocidad"
+                  disabled={cps >= CPS_MAX}
+                  onClick={() => bumpCps(1)}
+                >
+                  +
+                </button>
+              </div>
 
-            <div className="tp-tool tp-tool--time" aria-live="polite">
-              <span>Duración</span>
-              <strong>
-                {elapsedLabel} / {durationLabel}
-              </strong>
+              <div className="tp-tool--time" aria-live="polite">
+                <span>Duración</span>
+                <strong>
+                  {elapsedLabel} / {durationLabel}
+                </strong>
+              </div>
             </div>
 
-            <div className="tp-tool-actions">
+            <div className="tp-toolkit__play">
               {playing ? (
-                <button type="button" className="tp-btn" onClick={pausePlay}>
-                  Pause
+                <button
+                  type="button"
+                  className="tp-btn-play"
+                  onClick={pausePlay}
+                  aria-label="Pause"
+                  title="Pause"
+                >
+                  <IconPause />
                 </button>
               ) : (
-                <button type="button" className="tp-btn" onClick={startPlay} disabled={!text.trim()}>
-                  Play
+                <button
+                  type="button"
+                  className="tp-btn-play"
+                  onClick={startPlay}
+                  disabled={!text.trim()}
+                  aria-label="Play"
+                  title="Play"
+                >
+                  <IconPlay />
                 </button>
               )}
-              <button type="button" className="tp-btn tp-btn--ghost" onClick={resetPlay} disabled={!text && cursor === 0}>
-                Reset
+            </div>
+
+            <div className="tp-toolkit__actions">
+              <button
+                type="button"
+                className="tp-icon-btn tp-icon-btn--reset"
+                onClick={resetPlay}
+                disabled={!text && cursor === 0}
+                aria-label="Reset"
+                title="Reset"
+              >
+                <IconReset />
               </button>
               {showReader && !playing ? (
                 <button
                   type="button"
-                  className="tp-btn tp-btn--ghost"
-                  onClick={() => {
-                    resetPlay();
-                  }}
+                  className="tp-icon-btn"
+                  onClick={resetPlay}
+                  aria-label="Editar"
+                  title="Editar"
                 >
-                  Editar
+                  <IconEdit />
                 </button>
               ) : null}
               <button
                 type="button"
-                className="tp-btn tp-btn--ghost"
+                className="tp-icon-btn"
                 onClick={() => {
-                  if (floating) closeFloat();
+                  const slot = floatRef.current;
+                  const open = Boolean(slot?.window && !slot.window.closed);
+                  if (open) closeFloat();
                   else void openFloat();
                 }}
-                title="Comprimir / expandir en Chrome (cualquier página)"
+                aria-label={floating ? 'Cerrar float' : 'Expandir en Chrome'}
+                title={floating ? 'Cerrar float' : 'Expandir en Chrome'}
               >
-                {floating ? 'Cerrar float' : 'Float'}
+                {floating ? <IconCollapse /> : <IconExpand />}
               </button>
             </div>
           </div>

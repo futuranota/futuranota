@@ -14,9 +14,7 @@ import {
   removePromptBrandLogo,
   savePromptDesk,
   uploadPromptCover,
-  uploadPromptImage,
 } from '../../lib/promptDeskSync.js';
-import PromptFileAssets from './PromptFileAssets.jsx';
 import { applyPreviewUsageEpoch, clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
@@ -726,44 +724,6 @@ function pdfStageLayout(viewport, natural, zoom) {
     nw,
     nh,
   };
-}
-
-function loadPdfCropImage(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Couldn’t load the PDF page.'));
-    image.src = src;
-  });
-}
-
-async function cropPdfViewportToFile({ src, natural, viewportEl, viewportSize, zoom }) {
-  const layout = pdfStageLayout(viewportSize, natural, zoom);
-  const scrollLeft = Number(viewportEl?.scrollLeft) || 0;
-  const scrollTop = Number(viewportEl?.scrollTop) || 0;
-  const viewW = Math.max(1, Number(viewportEl?.clientWidth) || layout.vw);
-  const viewH = Math.max(1, Number(viewportEl?.clientHeight) || layout.vh);
-  const srcX = Math.max(0, scrollLeft / layout.scale);
-  const srcY = Math.max(0, scrollTop / layout.scale);
-  const srcW = Math.min(layout.nw - srcX, viewW / layout.scale);
-  const srcH = Math.min(layout.nh - srcY, viewH / layout.scale);
-  if (srcW < 2 || srcH < 2) {
-    throw new Error('Zoom and scroll to the area you want to keep.');
-  }
-  const image = await loadPdfCropImage(src);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(srcW));
-  canvas.height = Math.max(1, Math.round(srcH));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Couldn’t crop the PDF page.');
-  ctx.drawImage(image, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise((resolve, reject) => {
-    canvas.toBlob((next) => {
-      if (next) resolve(next);
-      else reject(new Error('Couldn’t encode the crop.'));
-    }, 'image/webp', 0.9);
-  });
-  return new File([blob], `pdf-crop-${Date.now()}.webp`, { type: 'image/webp' });
 }
 
 const DESK_VIEWS = [
@@ -2362,7 +2322,6 @@ function InstructionPanel({
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showImage, setShowImage] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [pdfFolded, setPdfFolded] = useState(false);
@@ -2401,14 +2360,12 @@ function InstructionPanel({
   const [pdfViewportSize, setPdfViewportSize] = useState({ w: 0, h: 0 });
   const [pdfViewTouched, setPdfViewTouched] = useState(false);
   const [pdfPanning, setPdfPanning] = useState(false);
-  const [pdfPlacing, setPdfPlacing] = useState(false);
   const pdfPagesRef = useRef([]);
   const pdfLoadedName = useRef('');
   const pdfSheetRef = useRef(null);
   const pdfViewportRef = useRef(null);
   const pdfPanDrag = useRef(null);
   const textPanelKept = useRef(false);
-  const [dragImage, setDragImage] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
   const [videoError, setVideoError] = useState('');
   const [homeSaveAsk, setHomeSaveAsk] = useState(false);
@@ -2431,9 +2388,9 @@ function InstructionPanel({
   const textBesidePrompt = false;
   const showPdfPreview = showPdf && !pdfFolded;
   const pdfTranscriptWide = false;
-  const showAssetsSide = !showImage && !showVideo && !showPdfPreview;
-  const showSide = showImage || showVideo || showPdfPreview || showAssetsSide;
-  const chipImage = step.image || coverImage(prompt);
+  // Image upload + Assets panel retired — side only for video / PDF preview.
+  const showSide = showVideo || showPdfPreview;
+  const chipImage = coverImage(prompt);
   const cover = coverImage(prompt);
   const needCoverChoice = !cover && !prompt.coverSkipped;
   const promptCount = savedPromptCount(steps, (item) => (
@@ -2441,7 +2398,6 @@ function InstructionPanel({
     || Boolean(String(item?.image || '').trim() || String(item?.imagePath || '').trim())
     || Number.isInteger(item?.pdfPage)
   ));
-  const pageImageCount = stepHasImage(step) ? 1 : 0;
   const imageHold = useRef(false);
   const sideHold = useRef(false);
   const savedStepsRef = useRef({});
@@ -2452,7 +2408,10 @@ function InstructionPanel({
     openedFor.current = prompt.id;
     openedStepIds.current = new Set(steps.map((item) => item.id));
   }
-  const homeLogo = PROMPT_MODELS.find((model) => model.id === (step.modelIds || [])[0]) || null;
+  const sheetModelName = (step.modelIds || [])[0] || '';
+  const homeLogo = PROMPT_MODELS.find((model) => model.id === sheetModelName) || null;
+  const sheetPlatformLabel = homeLogo?.label || sheetModelName || '';
+  const sheetRecommended = String(step.recommendedModel || '').trim();
   const pdfPickCount = pdfPick.filter(Boolean).length;
 
   function patchStep(patch) {
@@ -2505,7 +2464,6 @@ function InstructionPanel({
     textPanelKept.current = false;
     imageHold.current = false;
     sideHold.current = false;
-    setShowImage(false);
     setShowVideo(false);
     setShowPdf(false);
     setHomeSaveAsk(false);
@@ -2557,19 +2515,15 @@ function InstructionPanel({
     if (prompt.pdf?.name) {
       setShowPdf(true);
       setShowVideo(false);
-      setShowImage(false);
       return;
     }
     if (prompt.video?.embedSrc) {
       setShowVideo(true);
       setShowPdf(false);
-      setShowImage(false);
       return;
     }
     setShowPdf(false);
     setShowVideo(false);
-    setShowImage(stepHasImage(step));
-    // The PDF stays until Remove — Add as image only switches the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
@@ -2827,40 +2781,6 @@ function InstructionPanel({
     setCoverAsk(true);
   }
 
-  function takeImage(file, replace = false, options = {}) {
-    if (!options.force && !sheetOpen) return;
-    if (!file || !file.type.startsWith('image/')) return;
-    if (!replace && stepHasImage(step)) return;
-    const stepId = step.id;
-    readImageFile(file, (image) => {
-      onPatch({ stepPatch: { id: stepId, image, pdfPage: null, promptSaved: false } });
-      setShowImage(true);
-      setShowPdf(false);
-      setShowVideo(false);
-    });
-    currentPromptUserId()
-      .then((userId) => {
-        if (!userId) return null;
-        return uploadPromptImage(file, stepId, userId);
-      })
-      .then((uploaded) => {
-        if (!uploaded) return;
-        onPatch({
-          stepPatch: {
-            id: stepId,
-            image: uploaded.url,
-            imagePath: uploaded.path,
-            pdfPage: null,
-            promptSaved: false,
-          },
-        });
-      })
-      .catch((error) => {
-        console.warn('[prompt-desk] image upload failed', error?.message || error);
-        setLimitNote(error instanceof Error ? error.message : PROMPT_LIMIT_COPY.storage);
-      });
-  }
-
   function saveVideo(raw) {
     const parsed = parseVideoEmbedInput(raw);
     if (parsed.error || !parsed.embedSrc) {
@@ -2885,7 +2805,6 @@ function InstructionPanel({
     sideHold.current = false;
     setShowVideo(true);
     setShowPdf(false);
-    setShowImage(false);
     onPatch({ video: null });
   }
 
@@ -2902,7 +2821,6 @@ function InstructionPanel({
     setPdfPasted(false);
     setPdfPlain('');
     setShowPdf(true);
-    setShowImage(false);
     setShowVideo(false);
     // PDF only — hide the writing sheet / text panel on the right until Extract.
     setSheetOpen(false);
@@ -2943,7 +2861,6 @@ function InstructionPanel({
     setPdfScan(cleaned);
     setPdfFolded(false);
     setShowPdf(true);
-    setShowImage(false);
     setShowVideo(false);
     setSheetOpen(true);
     setOrganizeAsk(null);
@@ -3322,7 +3239,6 @@ function InstructionPanel({
     sideHold.current = true;
     setShowPdf(false);
     setShowVideo(false);
-    setShowImage(false);
   }
 
   function deletePdf() {
@@ -3363,80 +3279,11 @@ function InstructionPanel({
     setPdfViewTouched(true);
   }
 
-  async function placePdfAsImage() {
-    if (!pdfPages.length || pdfPlacing || !pdfViewTouched) return;
-    const page = Math.min(pdfPageIndex, pdfPages.length - 1);
-    const src = pdfPages[page];
-    if (!src) return;
-    const viewport = pdfViewportRef.current;
-    const size = viewport
-      ? { w: viewport.clientWidth, h: viewport.clientHeight }
-      : pdfViewportSize;
-    if (!size.w || !size.h || !pdfNatural.w || !pdfNatural.h) {
-      setPdfError('Wait for the page to finish loading.');
-      return;
-    }
-    setPdfPlacing(true);
-    setPdfError('');
-    try {
-      const file = await cropPdfViewportToFile({
-        src,
-        natural: pdfNatural,
-        viewportEl: viewport,
-        viewportSize: size,
-        zoom: pdfZoom,
-      });
-      // Show the crop as the step image; keep the PDF until Remove.
-      setSheetOpen(true);
-      imageHold.current = true;
-      takeImage(file, true, { force: true });
-      setShowPdf(false);
-      setShowImage(true);
-      setShowVideo(false);
-    } catch (error) {
-      setPdfError(error instanceof Error ? error.message : 'Couldn’t crop the PDF page.');
-    } finally {
-      setPdfPlacing(false);
-    }
-  }
-
-  function removePageImage() {
-    imageHold.current = false;
-    setShowImage(false);
-    patchStep({ image: '', imagePath: '', pdfPage: null, promptSaved: false });
-  }
-
-  function hideImage() {
-    imageHold.current = false;
-    setShowImage(false);
-    if (prompt.pdf?.name) {
-      setShowPdf(true);
-      setShowVideo(false);
-    } else if (prompt.video?.embedSrc) {
-      setShowVideo(true);
-      setShowPdf(false);
-    }
-  }
-
-  function revealImage() {
-    if (!stepHasImage(step)) return;
-    imageHold.current = true;
-    setShowImage(true);
-    setShowVideo(false);
-    setShowPdf(false);
-  }
-
   function openBuiltPrompt() {
     imageHold.current = false;
     setSheetOpen(true);
-    if ((prompt.pdf?.name || prompt.video?.embedSrc) && stepHasImage(step)) {
+    if (prompt.pdf?.name || prompt.video?.embedSrc) {
       showIndexMedia();
-      return;
-    }
-    if (stepHasImage(step)) {
-      setShowImage(true);
-      setShowVideo(false);
-      setShowPdf(false);
     }
   }
 
@@ -3445,16 +3292,13 @@ function InstructionPanel({
     if (sideHold.current) {
       setShowPdf(false);
       setShowVideo(false);
-      setShowImage(false);
       return;
     }
     if (prompt.pdf?.name) {
       setShowPdf(true);
-      setShowImage(false);
       setShowVideo(false);
     } else if (prompt.video?.embedSrc) {
       setShowVideo(true);
-      setShowImage(false);
       setShowPdf(false);
     }
   }
@@ -3470,7 +3314,6 @@ function InstructionPanel({
   function finishHome() {
     setHomeSaveAsk(false);
     setSheetOpen(false);
-    setShowImage(false);
     setModelOpen(false);
     setRecommendedOpen(false);
     setFormatOpen(false);
@@ -3758,13 +3601,6 @@ function InstructionPanel({
         showSide || pdfTranscriptWide ? 'prompt-panel--wide' : '',
       ].filter(Boolean).join(' ')}
       aria-label="Prompt"
-      onPaste={(event) => {
-        if (!sheetOpen) return;
-        const item = [...event.clipboardData.items].find((entry) => entry.type.startsWith('image/'));
-        if (!item) return;
-        event.preventDefault();
-        takeImage(item.getAsFile());
-      }}
     >
       <button type="button" className="prompt-panel__close" onClick={requestClose} aria-label="Cerrar">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3805,213 +3641,166 @@ function InstructionPanel({
               <button type="button" onClick={() => setUrlOffer('')}>No</button>
             </div>
           ) : null}
-          <div className="prompt-models">
-            {!sheetOpen && onOpenStorage ? (
-              <button type="button" className="prompt-models__item" onClick={onOpenStorage}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 3.5v2.2M12 18.3v2.2M4.8 6.2l1.6 1.6M17.6 16.2l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.8 17.8l1.6-1.6M17.6 7.8l1.6-1.6" />
-                  </svg>
-                </span>
-                <span>Settings</span>
-              </button>
-            ) : null}
+          <div className={sheetOpen ? 'prompt-models prompt-models--sheet' : 'prompt-models'}>
             {sheetOpen ? (
-              <button
-                type="button"
-                className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
-                aria-expanded={formatOpen}
-                onClick={() => {
-                  setFormatOpen((open) => !open);
-                  setModelOpen(false);
-                  setRecommendedOpen(false);
-                }}
-              >
-                {PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
-              </button>
-            ) : null}
-            {(showPdf && prompt.pdf?.name) || (showVideo && prompt.video?.embedSrc) ? (
-              <button type="button" className="prompt-models__item" onClick={hideSide}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.7A3 3 0 0 0 12 16a3 3 0 0 0 2.2-1" />
-                    <path d="M9.9 5.2A11 11 0 0 1 12 5c5 0 8.5 4.2 9.5 7a18 18 0 0 1-2.4 3.4" />
-                    <path d="M6.1 6.2C4 7.7 2.6 9.8 2 12c.8 2 4.2 6.5 9.2 7a12 12 0 0 0 4.2-1" />
-                  </svg>
-                </span>
-                <span>Hide</span>
-              </button>
-            ) : null}
-            {sheetOpen && showImage && stepHasImage(step) ? (
-              <button type="button" className="prompt-models__item" onClick={hideImage}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.7A3 3 0 0 0 12 16a3 3 0 0 0 2.2-1" />
-                    <path d="M9.9 5.2A11 11 0 0 1 12 5c5 0 8.5 4.2 9.5 7a18 18 0 0 1-2.4 3.4" />
-                    <path d="M6.1 6.2C4 7.7 2.6 9.8 2 12c.8 2 4.2 6.5 9.2 7a12 12 0 0 0 4.2-1" />
-                  </svg>
-                </span>
-                <span>Hide</span>
-              </button>
-            ) : null}
-            {sheetOpen && !stepHasImage(step) && !showImage ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                onClick={() => {
-                  setShowImage(true);
-                  setShowVideo(false);
-                  setShowPdf(false);
-                }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-                <span>Add image</span>
-              </button>
-            ) : null}
-            {sheetOpen ? (
-              <button type="button" className="prompt-models__item" onClick={goHome}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 10.5 12 4l8 6.5V20H4Z" />
-                  </svg>
-                </span>
-                <span>Home</span>
-              </button>
-            ) : null}
-            {sheetOpen ? (
-              <button type="button" className="prompt-models__item" onClick={() => setVarsOpen(true)}>
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M7 7h4M7 12h10M7 17h7" />
-                  </svg>
-                </span>
-                <span>Variables</span>
-              </button>
-            ) : null}
-            {sheetOpen ? <FormatBar active={formatOn} onApply={applyTextFormat} /> : null}
-            {sheetOpen && !(showImage && stepHasImage(step)) ? (
-              <button
-                type="button"
-                className={pageImageCount ? 'prompt-models__item is-counted' : 'prompt-models__item is-counted is-empty'}
-                onClick={revealImage}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">{pageImageCount}</span>
-                <span>image</span>
-              </button>
-            ) : null}
-            {sheetOpen || showVideo ? null : (
-              <button
-                type="button"
-                className="prompt-models__item"
-                onClick={() => {
-                  sideHold.current = false;
-                  setShowVideo(true);
-                  setShowImage(false);
-                  setShowPdf(false);
-                }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path className="prompt-models__play" d="M9 7v10l8-5-8-5z" />
-                  </svg>
-                </span>
-                <span>Embed video</span>
-              </button>
-            )}
-            {sheetOpen || (showPdfPreview && !prompt.pdf?.path) ? null : (
-              <button
-                type="button"
-                className={prompt.pdf?.path ? 'prompt-models__item is-counted' : 'prompt-models__item'}
-                onClick={() => {
-                  sideHold.current = false;
-                  setPdfFolded(false);
-                  setShowPdf(true);
-                  setShowImage(false);
-                  setShowVideo(false);
-                }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M7 3h7l5 5v13H7z" />
-                    <path d="M14 3v5h5" />
-                  </svg>
-                </span>
-                <span>Add File</span>
-              </button>
-            )}
-            {sheetOpen ? null : (
-            <button
-              type="button"
-              className={promptCount ? 'prompt-models__item is-counted' : 'prompt-models__item is-counted is-empty'}
-              onClick={openBuiltPrompt}
-            >
-              <span className="prompt-models__glyph" aria-hidden="true">{promptCount}</span>
-              <span>{promptCount ? 'List of Prompts' : 'Create Prompt'}</span>
-            </button>
-            )}
-            {showTextTranslate || showPromptTranslate ? (
-              <TranslateControl
-                busy={translateBusy}
-                note={translateNote}
-                onTarget={(lang) => { void runTranslate(lang); }}
-              />
-            ) : null}
-            {sheetOpen && stepHasDraft(step) ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                onClick={() => { fixOpenPrompt(); }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 7h16M4 12h10M4 17h13" />
-                  </svg>
-                </span>
-                <span>Fix Text</span>
-              </button>
-            ) : null}
-            {sheetOpen && promptHasText(step.prompt) ? (
-              <button
-                type="button"
-                className="prompt-models__item"
-                onClick={() => { addAutoVariables(); }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M8 7h.01M16 7h.01M9 12h6M8 17h.01M16 17h.01" />
-                    <path d="M7 5v14M17 5v14" />
-                  </svg>
-                </span>
-                <span>Auto variables</span>
-              </button>
-            ) : null}
-            {sheetOpen ? null : (
-              <button
-                type="button"
-                className={String(prompt.referenceUrl || '').trim() ? 'prompt-models__item is-counted' : 'prompt-models__item'}
-                onClick={() => {
-                  setUrlName('');
-                  setUrlDraft('');
-                  setUrlEditing(false);
-                  setUrlCopied(false);
-                  setUrlOpen(true);
-                }}
-              >
-                <span className="prompt-models__glyph" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M10 13a5 5 0 0 0 7.1.7l2.1-2.1a5 5 0 0 0-7.1-7.1L10.8 5.8" />
-                    <path d="M14 11a5 5 0 0 0-7.1-.7l-2.1 2.1a5 5 0 0 0 7.1 7.1l1.3-1.3" />
-                  </svg>
-                </span>
-                <span>URL</span>
-              </button>
+              <>
+                <div className="prompt-models__row" role="toolbar" aria-label="Prompt tools">
+                  <button type="button" className="prompt-models__item" onClick={goHome}>
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M4 10.5 12 4l8 6.5V20H4Z" />
+                      </svg>
+                    </span>
+                    <span>Home</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
+                    aria-expanded={formatOpen}
+                    aria-label="Language"
+                    title={PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
+                    onClick={() => {
+                      setFormatOpen((open) => !open);
+                      setModelOpen(false);
+                      setRecommendedOpen(false);
+                    }}
+                  >
+                    Language
+                  </button>
+                  <button type="button" className="prompt-models__item" onClick={() => setVarsOpen(true)}>
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M7 7h4M7 12h10M7 17h7" />
+                      </svg>
+                    </span>
+                    <span>Variables</span>
+                  </button>
+                  {stepHasDraft(step) ? (
+                    <button
+                      type="button"
+                      className="prompt-models__item"
+                      onClick={() => { fixOpenPrompt(); }}
+                    >
+                      <span className="prompt-models__glyph" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M4 7h16M4 12h10M4 17h13" />
+                        </svg>
+                      </span>
+                      <span>Fix Text</span>
+                    </button>
+                  ) : null}
+                  {promptHasText(step.prompt) ? (
+                    <button
+                      type="button"
+                      className="prompt-models__item"
+                      onClick={() => { addAutoVariables(); }}
+                    >
+                      <span className="prompt-models__glyph" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M8 7h.01M16 7h.01M9 12h6M8 17h.01M16 17h.01" />
+                          <path d="M7 5v14M17 5v14" />
+                        </svg>
+                      </span>
+                      <span>Auto Variable</span>
+                    </button>
+                  ) : null}
+                </div>
+                <div className="prompt-models__row prompt-models__row--toolbar">
+                  <FormatBar active={formatOn} onApply={applyTextFormat} />
+                </div>
+              </>
+            ) : (
+              <>
+                {onOpenStorage ? (
+                  <button type="button" className="prompt-models__item" onClick={onOpenStorage}>
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 3.5v2.2M12 18.3v2.2M4.8 6.2l1.6 1.6M17.6 16.2l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.8 17.8l1.6-1.6M17.6 7.8l1.6-1.6" />
+                      </svg>
+                    </span>
+                    <span>Settings</span>
+                  </button>
+                ) : null}
+                {(showPdf && prompt.pdf?.name) || (showVideo && prompt.video?.embedSrc) ? (
+                  <button type="button" className="prompt-models__item" onClick={hideSide}>
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.7A3 3 0 0 0 12 16a3 3 0 0 0 2.2-1" />
+                        <path d="M9.9 5.2A11 11 0 0 1 12 5c5 0 8.5 4.2 9.5 7a18 18 0 0 1-2.4 3.4" />
+                        <path d="M6.1 6.2C4 7.7 2.6 9.8 2 12c.8 2 4.2 6.5 9.2 7a12 12 0 0 0 4.2-1" />
+                      </svg>
+                    </span>
+                    <span>Hide</span>
+                  </button>
+                ) : null}
+                {showVideo ? null : (
+                  <button
+                    type="button"
+                    className="prompt-models__item"
+                    onClick={() => {
+                      sideHold.current = false;
+                      setShowVideo(true);
+                      setShowPdf(false);
+                    }}
+                  >
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path className="prompt-models__play" d="M9 7v10l8-5-8-5z" />
+                      </svg>
+                    </span>
+                    <span>Embed video</span>
+                  </button>
+                )}
+                {showPdfPreview && !prompt.pdf?.path ? null : (
+                  <button
+                    type="button"
+                    className={prompt.pdf?.path ? 'prompt-models__item is-counted' : 'prompt-models__item'}
+                    onClick={() => {
+                      sideHold.current = false;
+                      setPdfFolded(false);
+                      setShowPdf(true);
+                      setShowVideo(false);
+                    }}
+                  >
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M7 3h7l5 5v13H7z" />
+                        <path d="M14 3v5h5" />
+                      </svg>
+                    </span>
+                    <span>Add File</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={promptCount ? 'prompt-models__item is-counted' : 'prompt-models__item is-counted is-empty'}
+                  onClick={openBuiltPrompt}
+                >
+                  <span className="prompt-models__glyph" aria-hidden="true">{promptCount}</span>
+                  <span>{promptCount ? 'List of Prompts' : 'Create Prompt'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={String(prompt.referenceUrl || '').trim() ? 'prompt-models__item is-counted' : 'prompt-models__item'}
+                  onClick={() => {
+                    setUrlName('');
+                    setUrlDraft('');
+                    setUrlEditing(false);
+                    setUrlCopied(false);
+                    setUrlOpen(true);
+                  }}
+                >
+                  <span className="prompt-models__glyph" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M10 13a5 5 0 0 0 7.1.7l2.1-2.1a5 5 0 0 0-7.1-7.1L10.8 5.8" />
+                      <path d="M14 11a5 5 0 0 0-7.1-.7l-2.1 2.1a5 5 0 0 0 7.1 7.1l1.3-1.3" />
+                    </svg>
+                  </span>
+                  <span>URL</span>
+                </button>
+              </>
             )}
           </div>
           {homeSaveAsk ? createPortal(
@@ -4059,71 +3848,6 @@ function InstructionPanel({
             </div>
           ) : null}
         </div>
-        {showAssetsSide ? (
-          <PromptFileAssets
-            prompt={prompt}
-            onPatch={onPatch}
-            onNote={setLimitNote}
-          />
-        ) : null}
-        {sheetOpen && showImage ? (
-          <div className="prompt-panel__stage">
-            {step.image ? (
-              <div className="prompt-panel__image">
-                <img key={step.image} src={step.image} alt="" />
-              </div>
-            ) : Number.isInteger(step.pdfPage) ? (
-              <div className="prompt-panel__image">
-                {pdfPages[step.pdfPage] ? (
-                  <img key={`pdf-${step.pdfPage}`} src={pdfPages[step.pdfPage]} alt="" />
-                ) : (
-                  <span>Opening the page…</span>
-                )}
-              </div>
-            ) : (
-              <label
-                className={dragImage ? 'prompt-panel__image is-dragging' : 'prompt-panel__image'}
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  setDragImage(true);
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragImage(true);
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget)) return;
-                  setDragImage(false);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragImage(false);
-                  takeImage(event.dataTransfer.files?.[0]);
-                }}
-              >
-                <span className="prompt-panel__drop">
-                  <span className="prompt-panel__drop-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 16V5" />
-                      <path d="m7.5 9.5 4.5-4.5 4.5 4.5" />
-                      <path d="M5 19h14" />
-                    </svg>
-                  </span>
-                  <span className="prompt-panel__drop-title">Elige una imagen o suéltala aquí</span>
-                  <span className="prompt-panel__drop-hint">JPG, PNG y WEBP</span>
-                </span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/*"
-                  onChange={(event) => {
-                    takeImage(event.target.files?.[0]);
-                    event.target.value = '';
-                  }}
-                />
-              </label>
-            )}
-          </div>
-        ) : null}
         {showVideo ? (
           <div className="prompt-panel__video">
             {prompt.video?.embedSrc ? (
@@ -4299,20 +4023,6 @@ function InstructionPanel({
                         {pdfImproving ? 'Mejorando…' : 'Mejorar con IA'}
                       </button>
                     ) : null}
-                    {pdfViewTouched ? (
-                      <button
-                        type="button"
-                        className="prompt-video__extract"
-                        disabled={pdfPlacing}
-                        onClick={() => { void placePdfAsImage(); }}
-                      >
-                        {pdfPlacing
-                          ? 'Colocando…'
-                          : stepHasImage(step)
-                            ? 'Replace'
-                            : 'Add as image'}
-                      </button>
-                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -4329,81 +4039,144 @@ function InstructionPanel({
         ) : null}
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen ? (
-          <div className="prompt-sheet">
-            <div className="prompt-sheet__head">
-              <PromptTitleField
-                className="prompt-sheet__title"
-                value={step.title || ''}
-                placeholder={prompt.name || 'Title'}
-                onChange={(title) => patchStep({ title })}
-              />
-              <button
-                type="button"
-                className="prompt-sheet__compress"
-                onClick={compress}
-                aria-label="Compress"
-                title="Compress"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
-                </svg>
-              </button>
-            </div>
-            <div className="prompt-drawer">
-            {(!step.promptSaved
-              || (step.modelIds || []).length > 0
-              || String(step.recommendedModel || '').trim()) ? (
-              <div className="prompt-target-float" aria-label="Destino del prompt">
-                <div className="prompt-target-float__chip">
-                  <ModelPicker
-                    modelIds={step.modelIds}
-                    open={modelOpen}
-                    readOnly={Boolean(step.promptSaved)}
-                    onToggle={() => {
-                      if (step.promptSaved) return;
-                      setModelOpen((open) => !open);
-                      setRecommendedOpen(false);
-                      setFormatOpen(false);
-                    }}
-                    onChange={(modelIds) => {
-                      if (step.promptSaved) return;
-                      patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
-                      setCustomModel('');
-                      setModelOpen(false);
-                    }}
+          <div className={step.promptSaved ? 'prompt-sheet prompt-sheet--saved' : 'prompt-sheet'}>
+            {step.promptSaved ? (
+              <div className="prompt-drawer">
+                <div className="prompt-sheet__saved-head">
+                  <div className="prompt-sheet__brand">
+                    <span
+                      className="prompt-sheet__model"
+                      title={sheetPlatformLabel || 'Plataforma objetivo'}
+                    >
+                      {homeLogo ? <img src={homeLogo.src} alt="" /> : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="7" />
+                          <path d="M12 9v3l2 2" />
+                        </svg>
+                      )}
+                    </span>
+                  </div>
+                  <div className="prompt-sheet__head-copy">
+                    <PromptTitleField
+                      className="prompt-sheet__title"
+                      value={step.title || ''}
+                      placeholder={prompt.name || 'Title'}
+                      onChange={(title) => patchStep({ title })}
+                    />
+                    {(sheetPlatformLabel || sheetRecommended) ? (
+                      <p className="prompt-sheet__target">
+                        {sheetPlatformLabel ? (
+                          <span className="prompt-sheet__target-platform">{sheetPlatformLabel}</span>
+                        ) : null}
+                        {sheetPlatformLabel && sheetRecommended ? (
+                          <span className="prompt-sheet__target-sep" aria-hidden="true">|</span>
+                        ) : null}
+                        {sheetRecommended ? (
+                          <span className="prompt-sheet__target-model">{sheetRecommended}</span>
+                        ) : null}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="prompt-sheet__compress"
+                    onClick={compress}
+                    aria-label="Compress"
+                    title="Compress"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
+                    </svg>
+                  </button>
+                </div>
+                <PromptBody
+                  key={`${prompt.id}:${step.id}:saved`}
+                  prompt={step.prompt}
+                  documentId={prompt.id}
+                  variables={ownedVariables}
+                  placeholder={'Write your prompt (press "#+space" for upper case)'}
+                  readOnly
+                  onCommit={commitBody}
+                  onUrlPaste={setUrlOffer}
+                  className={
+                    step.format && step.format !== 'text'
+                      ? 'prompt-panel__body prompt-panel__body--code'
+                      : 'prompt-panel__body'
+                  }
+                  spellCheck={!step.format || step.format === 'text'}
+                  onEditFocus={trackEdit}
+                >
+                  {canCopy ? (
+                    <button
+                      type="button"
+                      className="prompt-copy"
+                      onClick={() => { void copyPrompt(); }}
+                      aria-label={copied ? 'Copiado' : 'Copiar'}
+                      title={copied ? 'Copiado' : 'Copiar'}
+                    >
+                      {copied ? '✓' : '⧉'}
+                    </button>
+                  ) : null}
+                </PromptBody>
+              </div>
+            ) : (
+              <>
+                <div className="prompt-sheet__head">
+                  <PromptTitleField
+                    className="prompt-sheet__title"
+                    value={step.title || ''}
+                    placeholder={prompt.name || 'Title'}
+                    onChange={(title) => patchStep({ title })}
                   />
-                  {!step.promptSaved && modelOpen ? (
-                    <div className="prompt-target-float__menu">
-                      <ModelMenu
-                        customDraft={customModel}
-                        onCustomDraft={setCustomModel}
+                  <button
+                    type="button"
+                    className="prompt-sheet__compress"
+                    onClick={compress}
+                    aria-label="Compress"
+                    title="Compress"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="prompt-drawer">
+                  <div className="prompt-target-float" aria-label="Destino del prompt">
+                    <div className="prompt-target-float__chip">
+                      <ModelPicker
+                        modelIds={step.modelIds}
+                        open={modelOpen}
+                        readOnly={false}
+                        onToggle={() => {
+                          setModelOpen((open) => !open);
+                          setRecommendedOpen(false);
+                          setFormatOpen(false);
+                        }}
                         onChange={(modelIds) => {
                           patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
                           setCustomModel('');
                           setModelOpen(false);
                         }}
                       />
+                      {modelOpen ? (
+                        <div className="prompt-target-float__menu">
+                          <ModelMenu
+                            customDraft={customModel}
+                            onCustomDraft={setCustomModel}
+                            onChange={(modelIds) => {
+                              patchStep({ modelIds: modelIds.slice(0, 1), promptSaved: false });
+                              setCustomModel('');
+                              setModelOpen(false);
+                            }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-                <div className="prompt-target-float__chip">
-                  {step.promptSaved ? (
-                    String(step.recommendedModel || '').trim() ? (
-                      <span className="prompt-models__item is-selected is-readonly">
-                        <span className="prompt-models__glyph" aria-hidden="true">
-                          <svg viewBox="0 0 24 24">
-                            <path d="M4 7h16M4 12h10M4 17h7" />
-                          </svg>
-                        </span>
-                        <span>{String(step.recommendedModel || '').trim()}</span>
-                      </span>
-                    ) : null
-                  ) : (
-                    <>
+                    <div className="prompt-target-float__chip">
                       <button
                         type="button"
                         className={
-                          recommendedOpen || String(step.recommendedModel || '').trim()
+                          recommendedOpen || sheetRecommended
                             ? 'prompt-models__item is-selected'
                             : 'prompt-models__item prompt-models__item--tip'
                         }
@@ -4420,9 +4193,7 @@ function InstructionPanel({
                             <path d="M4 7h16M4 12h10M4 17h7" />
                           </svg>
                         </span>
-                        <span>
-                          {String(step.recommendedModel || '').trim() || 'Modelo recomendado'}
-                        </span>
+                        <span>{sheetRecommended || 'Modelo recomendado'}</span>
                       </button>
                       {recommendedOpen ? (
                         <div className="prompt-target-float__pop" role="dialog" aria-label="Modelo recomendado">
@@ -4444,41 +4215,28 @@ function InstructionPanel({
                           />
                         </div>
                       ) : null}
-                    </>
-                  )}
+                    </div>
+                  </div>
+                  <PromptBody
+                    key={`${prompt.id}:${step.id}`}
+                    prompt={step.prompt}
+                    documentId={prompt.id}
+                    variables={ownedVariables}
+                    placeholder={'Write your prompt (press "#+space" for upper case)'}
+                    readOnly={false}
+                    onCommit={commitBody}
+                    onUrlPaste={setUrlOffer}
+                    className={
+                      step.format && step.format !== 'text'
+                        ? 'prompt-panel__body prompt-panel__body--code'
+                        : 'prompt-panel__body'
+                    }
+                    spellCheck={!step.format || step.format === 'text'}
+                    onEditFocus={trackEdit}
+                  />
                 </div>
-              </div>
-            ) : null}
-            <PromptBody
-              key={`${prompt.id}:${step.id}`}
-              prompt={step.prompt}
-              documentId={prompt.id}
-              variables={ownedVariables}
-              placeholder={'Write your prompt (press "#+space" for upper case)'}
-              readOnly={Boolean(step.promptSaved)}
-              onCommit={commitBody}
-              onUrlPaste={setUrlOffer}
-              className={
-                step.format && step.format !== 'text'
-                  ? 'prompt-panel__body prompt-panel__body--code'
-                  : 'prompt-panel__body'
-              }
-              spellCheck={!step.format || step.format === 'text'}
-              onEditFocus={trackEdit}
-            >
-            {canCopy ? (
-              <button
-                type="button"
-                className="prompt-copy"
-                onClick={() => { void copyPrompt(); }}
-                aria-label={copied ? 'Copiado' : 'Copiar'}
-                title={copied ? 'Copiado' : 'Copiar'}
-              >
-                {copied ? '✓' : '⧉'}
-              </button>
-            ) : null}
-            </PromptBody>
-            </div>
+              </>
+            )}
           </div>
           ) : (
           <div className="prompt-home">
@@ -4624,21 +4382,6 @@ function InstructionPanel({
             <div className="prompt-panel__step-actions">
               {step.promptSaved ? (
                 <button type="button" onClick={editStep}>Editar</button>
-              ) : stepHasImage(step) ? (
-                <label className="prompt-panel__step-file">
-                  Editar
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/*"
-                    onChange={(event) => {
-                      takeImage(event.target.files?.[0], true);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-              ) : null}
-              {stepHasImage(step) ? (
-                <button type="button" onClick={removePageImage}>Remover</button>
               ) : null}
               <button type="button" onClick={deleteIndex}>Eliminar</button>
             </div>
