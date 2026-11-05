@@ -78,6 +78,7 @@ import { API_ROUTES } from '../../api/routes.js';
 import { PromptBody, VariableDeck, applyBulletPoint, applyTitleShortcut, caretInBullet, continueBullet, insertSanitizedPaste, paintMarked, readMarked } from './PromptBody.jsx';
 import EmbedHtml from './EmbedHtml.jsx';
 import StorageDistrict from './StorageDistrict.jsx';
+import TeleprompterPage from './TeleprompterPage.jsx';
 import './prompt-desk.css';
 
 const pdfFiles = new Map();
@@ -769,6 +770,7 @@ const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
   { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
   { id: 'embed', label: 'Embed Html', to: '/app/embed' },
+  { id: 'teleprompter', label: 'Teleprompter', to: '/app/teleprompter' },
 ];
 
 const SETTINGS_PANES = [
@@ -808,6 +810,7 @@ function viewFromPath(pathname) {
   if (pathname.startsWith('/app/settings')) return 'settings';
   if (pathname.startsWith('/app/embed')) return 'embed';
   if (pathname.startsWith('/app/transcribe')) return 'transcribe';
+  if (pathname.startsWith('/app/teleprompter')) return 'teleprompter';
   return 'home';
 }
 
@@ -833,6 +836,14 @@ function SideIcon({ name }) {
         <path d="M7 3h7l5 5v13H7z" />
         <path d="M14 3v5h5" />
         <path d="M9 13h6M9 17h4" />
+      </svg>
+    );
+  }
+  if (name === 'teleprompter') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="5" width="16" height="14" rx="2" />
+        <path d="M8 9h8M8 12h8M8 15h5" />
       </svg>
     );
   }
@@ -1582,7 +1593,7 @@ function CreditGlass({ credits, ready, empty }) {
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
-  useKofiOverlay(view === 'home' || view === 'transcribe' || view === 'embed');
+  useKofiOverlay(view === 'home' || view === 'transcribe' || view === 'embed' || view === 'teleprompter');
   const settingsPane = settingsPaneFromPath(location.pathname);
   const storageFocus = storageFocusFromPath(location.pathname);
   const navigate = useNavigate();
@@ -2138,6 +2149,7 @@ export default function PromptDesk() {
         />
       ) : null}
       {view === 'embed' ? <EmbedHtml plan={plan} email={email} profilePlan={profilePlan} /> : null}
+      {view === 'teleprompter' ? <TeleprompterPage /> : null}
       {view === 'transcribe' ? (
         <>
           {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
