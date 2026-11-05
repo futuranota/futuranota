@@ -1,9 +1,25 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { copyToClipboard } from '../../lib/copyToClipboard.js';
+import { TRANSCRIPT_FOLDER_LABEL } from '../../lib/promptPlanLimits.js';
+import {
+  blankTextNode,
+  deskFoldersForTeleprompter,
+  joinScriptText,
+  makeTpId,
+  nextBlockPause,
+  resolveBlockCopyText,
+  scriptOffsets,
+  stepInsertLabel,
+  stepPlainBody,
+} from '../../lib/teleprompterScript.js';
 import './teleprompter-page.css';
 
 const DEFAULT_CPS = 14;
 const FLOAT_SIZE = { width: 420, height: 480 };
+const CPS_MIN = 5;
+const CPS_MAX = 40;
+const THEME_STORE = 'fn-teleprompter-theme';
 
 const FLOAT_CSS = `
   html, body, #tp-float-root {
@@ -49,9 +65,7 @@ const FLOAT_CSS = `
     background: var(--tp-bg);
     color: var(--tp-ink);
   }
-  .tp-float.is-collapsed {
-    padding: 8px 10px;
-  }
+  .tp-float.is-collapsed { padding: 8px 10px; }
   .tp-float__head {
     display: flex;
     align-items: center;
@@ -81,31 +95,17 @@ const FLOAT_CSS = `
     padding: 12px;
     border-radius: 12px;
     background: var(--tp-reader);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 18px;
-    line-height: 1.6;
-    scrollbar-width: thin;
-    scrollbar-color: var(--tp-scroll-thumb) var(--tp-reader);
-  }
-  .tp-float__reader::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  .tp-float__reader::-webkit-scrollbar-track {
-    background: var(--tp-reader);
-  }
-  .tp-float__reader::-webkit-scrollbar-thumb {
-    background: var(--tp-scroll-thumb);
-    border-radius: 999px;
-    border: 2px solid var(--tp-reader);
-  }
-  .tp-float__reader::-webkit-scrollbar-thumb:hover {
-    background: var(--tp-muted);
+    font-size: 17px;
+    line-height: 1.55;
   }
   .tp-float.is-collapsed .tp-float__reader,
-  .tp-float.is-collapsed .tp-float__meta {
-    display: none;
+  .tp-float.is-collapsed .tp-float__meta { display: none; }
+  .tp-float__meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--tp-muted);
+    font-variant-numeric: tabular-nums;
   }
   .tp-char { color: var(--tp-muted); }
   .tp-char.is-done { color: var(--tp-done); }
@@ -114,18 +114,33 @@ const FLOAT_CSS = `
     background: var(--tp-cursor-bg);
     border-radius: 2px;
   }
-  .tp-float__meta {
+  .tp-block {
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--tp-line);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    font-size: 12px;
-    color: var(--tp-muted);
-    font-variant-numeric: tabular-nums;
+    gap: 8px;
+  }
+  .tp-block.is-active {
+    border-color: var(--tp-done);
+    box-shadow: 0 0 0 1px var(--tp-done);
+  }
+  .tp-block__copy {
+    flex: none;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--tp-line);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
   }
 `;
-
-const CPS_MIN = 5;
-const CPS_MAX = 40;
-const THEME_STORE = 'fn-teleprompter-theme';
 
 function readStoredTheme() {
   try {
@@ -215,10 +230,56 @@ function countChars(value) {
   return Array.from(String(value || '')).length;
 }
 
-function CharReader({ text, cursor, className }) {
+function CharSpan({ text, cursor, baseOffset = 0, cursorRef }) {
   const chars = useMemo(() => Array.from(String(text || '')), [text]);
+  return chars.map((ch, index) => {
+    const global = baseOffset + index;
+    const done = global < cursor;
+    const active = global === cursor;
+    return (
+      <span
+        key={`${global}-${ch}`}
+        ref={active ? cursorRef : null}
+        className={done ? 'tp-char is-done' : active ? 'tp-char is-cursor' : 'tp-char'}
+      >
+        {ch}
+      </span>
+    );
+  });
+}
+
+function blockCopyLabel(flash, nodeId) {
+  if (!flash || flash.id !== nodeId) return 'Copy';
+  if (flash.kind === 'copied') return 'Copied';
+  if (flash.kind === 'empty') return 'Empty';
+  return 'Failed';
+}
+
+function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing }) {
+  return (
+    <div className={active ? 'tp-block is-active' : 'tp-block'}>
+      <div className="tp-block__meta">
+        <span className="tp-block__kind">{node.type === 'url' ? 'URL' : 'Prompt'}</span>
+        <strong className="tp-block__title">{node.title || node.href || 'Bloque'}</strong>
+      </div>
+      <div className="tp-block__actions">
+        <button type="button" className="tp-block__copy" onClick={onCopy}>
+          {copyLabel}
+        </button>
+        {editing ? (
+          <button type="button" className="tp-block__remove" onClick={onRemove} aria-label="Quitar bloque">
+            ×
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ScriptReader({ nodes, cursor, activeBlockId, copyFlash, onCopyBlock, className }) {
   const scrollerRef = useRef(null);
   const cursorRef = useRef(null);
+  const offsets = useMemo(() => scriptOffsets(nodes), [nodes]);
 
   useLayoutEffect(() => {
     const node = cursorRef.current;
@@ -226,21 +287,28 @@ function CharReader({ text, cursor, className }) {
     if (!node || !scroller) return;
     const top = node.offsetTop - scroller.clientHeight * 0.35;
     scroller.scrollTop = Math.max(0, top);
-  }, [cursor]);
+  }, [cursor, activeBlockId]);
 
   return (
     <div ref={scrollerRef} className={className} aria-live="off">
-      {chars.map((ch, index) => {
-        const done = index < cursor;
-        const active = index === cursor;
+      {nodes.map((node, index) => {
+        const meta = offsets[index];
+        if (node.type === 'text') {
+          return (
+            <div key={node.id} className="tp-script__text">
+              <CharSpan text={node.body} cursor={cursor} baseOffset={meta.start} cursorRef={cursorRef} />
+            </div>
+          );
+        }
         return (
-          <span
-            key={`${index}-${ch}`}
-            ref={active ? cursorRef : null}
-            className={done ? 'tp-char is-done' : active ? 'tp-char is-cursor' : 'tp-char'}
-          >
-            {ch}
-          </span>
+          <ScriptBlockCard
+            key={node.id}
+            node={node}
+            active={activeBlockId === node.id}
+            copyLabel={blockCopyLabel(copyFlash, node.id)}
+            onCopy={() => onCopyBlock(node)}
+            editing={false}
+          />
         );
       })}
     </div>
@@ -248,7 +316,7 @@ function CharReader({ text, cursor, className }) {
 }
 
 function FloatSurface({
-  text,
+  nodes,
   cursor,
   cps,
   durationLabel,
@@ -256,22 +324,23 @@ function FloatSurface({
   playing,
   collapsed,
   theme,
+  activeBlockId,
+  copyFlash,
+  canPlay,
   onToggleCollapse,
   onPlay,
   onPause,
+  onCopyBlock,
 }) {
   return (
-    <div
-      className={collapsed ? 'tp-float is-collapsed' : 'tp-float'}
-      data-tp-theme={theme}
-    >
+    <div className={collapsed ? 'tp-float is-collapsed' : 'tp-float'} data-tp-theme={theme}>
       <div className="tp-float__head">
         <p className="tp-float__title">Teleprompter</p>
         <div style={{ display: 'flex', gap: 6 }}>
           {playing ? (
             <button type="button" onClick={onPause}>Pause</button>
           ) : (
-            <button type="button" onClick={onPlay} disabled={!text}>Play</button>
+            <button type="button" onClick={onPlay} disabled={!canPlay}>Play</button>
           )}
           <button
             type="button"
@@ -283,7 +352,14 @@ function FloatSurface({
           </button>
         </div>
       </div>
-      <CharReader text={text} cursor={cursor} className="tp-float__reader" />
+      <ScriptReader
+        nodes={nodes}
+        cursor={cursor}
+        activeBlockId={activeBlockId}
+        copyFlash={copyFlash}
+        onCopyBlock={onCopyBlock}
+        className="tp-float__reader"
+      />
       <div className="tp-float__meta">
         <span>{cps}</span>
         <span>{elapsedLabel} / {durationLabel}</span>
@@ -308,7 +384,7 @@ function resizeFloatWindow(hostWindow, collapsed) {
   try {
     hostWindow.resizeTo(width, height);
   } catch {
-    /* Some hosts ignore resizeTo; CSS still shrinks the card. */
+    /* ignore */
   }
 }
 
@@ -332,40 +408,227 @@ function mountFloatDocument(hostWindow, theme) {
   return mount;
 }
 
+function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
+  const [query, setQuery] = useState('');
+  const [folderId, setFolderId] = useState(null);
+  const [fileId, setFileId] = useState(null);
+
+  const list = useMemo(
+    () => deskFoldersForTeleprompter(folders, TRANSCRIPT_FOLDER_LABEL),
+    [folders],
+  );
+
+  const filteredFolders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((folder) => {
+      if (String(folder.label || '').toLowerCase().includes(q)) return true;
+      return (folder.prompts || []).some((file) => String(file.name || '').toLowerCase().includes(q));
+    });
+  }, [list, query]);
+
+  const folder = filteredFolders.find((item) => item.id === folderId) || null;
+  const file = (folder?.prompts || []).find((item) => item.id === fileId) || null;
+  const steps = (file?.steps || []).filter((step) => String(step.prompt || '').replace(/<[^>]+>/g, '').trim());
+  const fileUrl = String(file?.referenceUrl || '').trim();
+
+  return (
+    <div className="tp-browser">
+      <div className="tp-browser__head">
+        <p className="tp-browser__title">Biblioteca</p>
+        <input
+          className="tp-browser__search"
+          type="search"
+          value={query}
+          placeholder="Buscar folder o file"
+          aria-label="Buscar folder o file"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+
+      <div className="tp-browser__nav">
+        <button
+          type="button"
+          className={!folderId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+          onClick={() => {
+            setFolderId(null);
+            setFileId(null);
+          }}
+        >
+          Folders
+        </button>
+        {folder ? (
+          <>
+            <span className="tp-browser__sep" aria-hidden="true">/</span>
+            <button
+              type="button"
+              className={!fileId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+              onClick={() => setFileId(null)}
+            >
+              {folder.label || 'Folder'}
+            </button>
+          </>
+        ) : null}
+        {file ? (
+          <>
+            <span className="tp-browser__sep" aria-hidden="true">/</span>
+            <span className="tp-browser__crumb is-current">{file.name || 'File'}</span>
+          </>
+        ) : null}
+      </div>
+
+      <div className="tp-browser__list scroll-match-bg">
+        {!folder ? (
+          filteredFolders.length ? filteredFolders.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="tp-browser__row"
+              onClick={() => {
+                setFolderId(item.id);
+                setFileId(null);
+              }}
+            >
+              <span>{item.label || 'Folder'}</span>
+              <span className="tp-browser__count">{(item.prompts || []).length}</span>
+            </button>
+          )) : (
+            <p className="tp-browser__empty">No hay folders en el desk.</p>
+          )
+        ) : !file ? (
+          (folder.prompts || []).length ? (folder.prompts || []).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="tp-browser__row"
+              onClick={() => setFileId(item.id)}
+            >
+              <span>{item.name || 'Untitled'}</span>
+              <span className="tp-browser__count">{(item.steps || []).length}</span>
+            </button>
+          )) : (
+            <p className="tp-browser__empty">Este folder no tiene files.</p>
+          )
+        ) : (
+          <>
+            {fileUrl ? (
+              <div className="tp-browser__item">
+                <div className="tp-browser__item-copy">
+                  <span className="tp-browser__badge">URL</span>
+                  <strong>{file.referenceName || fileUrl}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="tp-browser__insert"
+                  onClick={() => onInsertUrl({
+                    href: fileUrl,
+                    title: file.referenceName || fileUrl,
+                    body: fileUrl,
+                  })}
+                >
+                  Insertar
+                </button>
+              </div>
+            ) : null}
+            {steps.length ? steps.map((step, index) => {
+              const plain = stepPlainBody(file, step);
+              return (
+              <div key={step.id} className="tp-browser__item">
+                <div className="tp-browser__item-copy">
+                  <span className="tp-browser__badge">Prompt {index + 1}</span>
+                  <strong>{stepInsertLabel(file, step)}</strong>
+                  <p>{plain.slice(0, 120) || 'Sin texto'}</p>
+                </div>
+                <button
+                  type="button"
+                  className="tp-browser__insert"
+                  disabled={!plain}
+                  onClick={() => onInsertPrompt({
+                    folderId: folder.id,
+                    fileId: file.id,
+                    stepId: step.id,
+                    title: stepInsertLabel(file, step),
+                    body: plain,
+                  })}
+                >
+                  Insertar
+                </button>
+              </div>
+              );
+            }) : (
+              <p className="tp-browser__empty">Esta hoja no tiene prompts con texto.</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Dedicated teleprompter page: paste prompt, toolkit (chars/s + timer),
- * character coloring on Play, Document PiP float (compress / expand on any page).
- * Right panel is a placeholder until product defines it.
+ * Teleprompter page: script nodes (text + linked prompt/url blocks),
+ * desk browser on the right, play coloring + Copy on blocks.
  */
-export default function TeleprompterPage() {
-  const [text, setText] = useState('');
+export default function TeleprompterPage({ folders = [] }) {
+  const [nodes, setNodes] = useState(() => [blankTextNode('')]);
   const [cps, setCps] = useState(DEFAULT_CPS);
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
   const [floatCollapsed, setFloatCollapsed] = useState(false);
   const [theme, setTheme] = useState(readStoredTheme);
+  const [copyFlash, setCopyFlash] = useState({ id: '', kind: '' });
+  const [pausedBlockId, setPausedBlockId] = useState('');
+  const copyFlashTimerRef = useRef(0);
 
   const floatRef = useRef(null);
   const themeRef = useRef(theme);
   const playingRef = useRef(false);
   const cursorRef = useRef(0);
   const textRef = useRef('');
+  const nodesRef = useRef(nodes);
   const cpsRef = useRef(DEFAULT_CPS);
   const rafRef = useRef(0);
   const lastTickRef = useRef(0);
   const carryRef = useRef(0);
+  const clearedBlocksRef = useRef(new Set());
+  const pausedBlockIdRef = useRef('');
 
-  const totalChars = countChars(text);
+  const playText = useMemo(() => joinScriptText(nodes), [nodes]);
+  const offsets = useMemo(() => scriptOffsets(nodes), [nodes]);
+  const totalChars = countChars(playText);
   const durationSec = cps > 0 ? totalChars / cps : 0;
   const elapsedSec = cps > 0 ? cursor / cps : 0;
   const durationLabel = formatDuration(durationSec);
   const elapsedLabel = formatDuration(elapsedSec);
   const showReader = playing || cursor > 0;
+  const canPlay = Boolean(playText.trim()) || nodes.some((node) => node.type !== 'text');
+
+  const activeBlockId = useMemo(() => {
+    if (pausedBlockId) return pausedBlockId;
+    for (let i = 0; i < offsets.length; i += 1) {
+      const meta = offsets[i];
+      const node = nodes[i];
+      if (!node || node.type === 'text') continue;
+      if (meta.start === cursor) return node.id;
+    }
+    let current = '';
+    for (let i = 0; i < offsets.length; i += 1) {
+      const meta = offsets[i];
+      const node = nodes[i];
+      if (!node || node.type === 'text') continue;
+      if (cursor > meta.start) current = node.id;
+    }
+    return current;
+  }, [cursor, nodes, offsets, pausedBlockId]);
 
   useEffect(() => {
-    textRef.current = text;
-  }, [text]);
+    textRef.current = playText;
+  }, [playText]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(() => {
     cpsRef.current = cps;
@@ -380,10 +643,6 @@ export default function TeleprompterPage() {
     }
   }, [theme]);
 
-  function bumpCps(delta) {
-    setCps((value) => Math.min(CPS_MAX, Math.max(CPS_MIN, value + delta)));
-  }
-
   useEffect(() => {
     playingRef.current = playing;
   }, [playing]);
@@ -392,11 +651,25 @@ export default function TeleprompterPage() {
     cursorRef.current = cursor;
   }, [cursor]);
 
+  function bumpCps(delta) {
+    setCps((value) => Math.min(CPS_MAX, Math.max(CPS_MIN, value + delta)));
+  }
+
   function stopLoop() {
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     }
+  }
+
+  function pauseAtBlock(blockId, at) {
+    cursorRef.current = at;
+    setCursor(at);
+    pausedBlockIdRef.current = blockId || '';
+    setPausedBlockId(blockId || '');
+    playingRef.current = false;
+    setPlaying(false);
+    stopLoop();
   }
 
   function tick(now) {
@@ -409,10 +682,16 @@ export default function TeleprompterPage() {
     const steps = Math.floor(carryRef.current);
     if (steps > 0) {
       carryRef.current -= steps;
-      const next = Math.min(countChars(textRef.current), cursorRef.current + steps);
-      cursorRef.current = next;
-      setCursor(next);
-      if (next >= countChars(textRef.current)) {
+      const from = cursorRef.current;
+      const rawNext = Math.min(countChars(textRef.current), from + steps);
+      const gate = nextBlockPause(nodesRef.current, from, rawNext, clearedBlocksRef.current);
+      if (gate) {
+        pauseAtBlock(gate.blockId, gate.at);
+        return;
+      }
+      cursorRef.current = rawNext;
+      setCursor(rawNext);
+      if (rawNext >= countChars(textRef.current)) {
         playingRef.current = false;
         setPlaying(false);
         stopLoop();
@@ -423,11 +702,35 @@ export default function TeleprompterPage() {
   }
 
   function startPlay() {
-    if (!textRef.current) return;
+    const list = nodesRef.current || [];
+    const hasBlocks = list.some((node) => node.type !== 'text');
+    if (!textRef.current.trim() && !hasBlocks) return;
+
+    if (pausedBlockIdRef.current) {
+      clearedBlocksRef.current.add(pausedBlockIdRef.current);
+      pausedBlockIdRef.current = '';
+      setPausedBlockId('');
+    }
+
+    if (!textRef.current.trim()) {
+      /* Blocks only: highlight first uncleared gate, no char motion. */
+      const gate = nextBlockPause(list, cursorRef.current, cursorRef.current, clearedBlocksRef.current);
+      if (gate) {
+        pauseAtBlock(gate.blockId, gate.at);
+        return;
+      }
+      setPlaying(false);
+      return;
+    }
+
     if (cursorRef.current >= countChars(textRef.current)) {
       cursorRef.current = 0;
       setCursor(0);
+      clearedBlocksRef.current = new Set();
+      pausedBlockIdRef.current = '';
+      setPausedBlockId('');
     }
+
     carryRef.current = 0;
     lastTickRef.current = 0;
     playingRef.current = true;
@@ -446,7 +749,107 @@ export default function TeleprompterPage() {
     pausePlay();
     cursorRef.current = 0;
     carryRef.current = 0;
+    clearedBlocksRef.current = new Set();
+    pausedBlockIdRef.current = '';
+    setPausedBlockId('');
     setCursor(0);
+  }
+
+  function resetGates() {
+    clearedBlocksRef.current = new Set();
+    pausedBlockIdRef.current = '';
+    setPausedBlockId('');
+  }
+
+  function updateTextNode(id, body) {
+    setNodes((prev) => prev.map((node) => (
+      node.id === id && node.type === 'text' ? { ...node, body } : node
+    )));
+    resetGates();
+    setCursor(0);
+  }
+
+  function removeNode(id) {
+    setNodes((prev) => {
+      const next = prev.filter((node) => node.id !== id);
+      return next.length ? next : [blankTextNode('')];
+    });
+    resetGates();
+    setCursor(0);
+  }
+
+  function insertPromptBlock(payload) {
+    setNodes((prev) => {
+      const block = {
+        id: makeTpId(),
+        type: 'prompt',
+        folderId: payload.folderId,
+        fileId: payload.fileId,
+        stepId: payload.stepId,
+        title: payload.title,
+        body: String(payload.body || ''),
+      };
+      const last = prev[prev.length - 1];
+      if (last?.type === 'text' && !String(last.body || '').trim()) {
+        return [...prev.slice(0, -1), block, blankTextNode('')];
+      }
+      return [...prev, block, blankTextNode('')];
+    });
+    resetGates();
+    setCursor(0);
+  }
+
+  function insertUrlBlock(payload) {
+    setNodes((prev) => {
+      const href = String(payload.href || '').trim();
+      const block = {
+        id: makeTpId(),
+        type: 'url',
+        href,
+        title: payload.title || href,
+        body: String(payload.body || href),
+      };
+      const last = prev[prev.length - 1];
+      if (last?.type === 'text' && !String(last.body || '').trim()) {
+        return [...prev.slice(0, -1), block, blankTextNode('')];
+      }
+      return [...prev, block, blankTextNode('')];
+    });
+    resetGates();
+    setCursor(0);
+  }
+
+  function flashCopy(nodeId, kind) {
+    if (copyFlashTimerRef.current) {
+      window.clearTimeout(copyFlashTimerRef.current);
+      copyFlashTimerRef.current = 0;
+    }
+    setCopyFlash({ id: nodeId, kind });
+    copyFlashTimerRef.current = window.setTimeout(() => {
+      setCopyFlash((current) => (current.id === nodeId ? { id: '', kind: '' } : current));
+      copyFlashTimerRef.current = 0;
+    }, 1400);
+  }
+
+  async function copyBlock(node, hostWindow) {
+    const plain = resolveBlockCopyText(node, folders);
+    if (!plain) {
+      flashCopy(node.id, 'empty');
+      return;
+    }
+    if (node.type !== 'text' && plain !== String(node.body || '').trim()) {
+      setNodes((prev) => prev.map((item) => (
+        item.id === node.id ? { ...item, body: plain } : item
+      )));
+    }
+    const host = hostWindow && !hostWindow.closed ? hostWindow : window;
+    try {
+      host.focus?.();
+    } catch {
+      /* ignore */
+    }
+    const ok = await copyToClipboard(plain, host);
+    flashCopy(node.id, ok ? 'copied' : 'fail');
   }
 
   function closeFloat() {
@@ -523,7 +926,6 @@ export default function TeleprompterPage() {
       }
     }
 
-    // No PiP API — open a real popup in the same user-gesture turn (no await above).
     const popup = window.open(
       '',
       'fn-teleprompter-float',
@@ -555,7 +957,7 @@ export default function TeleprompterPage() {
     applyFloatTheme(slot.window, theme);
     slot.root.render(
       <FloatSurface
-        text={text}
+        nodes={nodes}
         cursor={cursor}
         cps={cps}
         durationLabel={durationLabel}
@@ -563,12 +965,16 @@ export default function TeleprompterPage() {
         playing={playing}
         collapsed={floatCollapsed}
         theme={theme}
+        activeBlockId={activeBlockId}
+        copyFlash={copyFlash}
+        canPlay={canPlay}
         onToggleCollapse={toggleFloatCollapsed}
         onPlay={startPlay}
         onPause={pausePlay}
+        onCopyBlock={(node) => { void copyBlock(node, slot.window); }}
       />,
     );
-  }, [floating, text, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, theme]);
+  }, [floating, nodes, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, theme, activeBlockId, copyFlash, canPlay, folders]);
 
   useEffect(() => () => {
     stopLoop();
@@ -589,8 +995,8 @@ export default function TeleprompterPage() {
         <div className="tp-left">
           <div className="tp-paste">
             <div className="tp-paste__top">
-              <label className="tp-paste__label" htmlFor="tp-prompt">
-                Pega tu prompt
+              <label className="tp-paste__label">
+                Script del teleprompter
               </label>
               <div className="tp-theme" role="group" aria-label="Tema de color">
                 <button
@@ -615,23 +1021,44 @@ export default function TeleprompterPage() {
                 </button>
               </div>
             </div>
+
             {showReader ? (
-              <CharReader text={text} cursor={cursor} className="tp-reader scroll-match-bg" />
-            ) : (
-              <textarea
-                id="tp-prompt"
-                className="tp-paste__field scroll-match-bg"
-                placeholder="Pega aquí el texto del teleprompter…"
-                value={text}
-                rows={12}
-                onChange={(event) => {
-                  setText(event.target.value);
-                  setCursor(0);
-                }}
+              <ScriptReader
+                nodes={nodes}
+                cursor={cursor}
+                activeBlockId={activeBlockId}
+                copyFlash={copyFlash}
+                onCopyBlock={(node) => { void copyBlock(node, window); }}
+                className="tp-reader scroll-match-bg"
               />
+            ) : (
+              <div className="tp-script scroll-match-bg">
+                {nodes.map((node) => (
+                  node.type === 'text' ? (
+                    <textarea
+                      key={node.id}
+                      className="tp-script__field"
+                      placeholder="Escribí o pegá el guion…"
+                      value={node.body}
+                      rows={4}
+                      onChange={(event) => updateTextNode(node.id, event.target.value)}
+                    />
+                  ) : (
+                    <ScriptBlockCard
+                      key={node.id}
+                      node={node}
+                      active={false}
+                      copyLabel={blockCopyLabel(copyFlash, node.id)}
+                      onCopy={() => { void copyBlock(node, window); }}
+                      onRemove={() => removeNode(node.id)}
+                      editing
+                    />
+                  )
+                ))}
+              </div>
             )}
             <p className="tp-paste__hint">
-              Al Play, el timer calcula la duración · el texto se colorea al ritmo del counter
+              Insertá prompts o URLs desde la biblioteca · Play se pausa en cada bloque para Copy · reanudá con Play
             </p>
           </div>
 
@@ -683,7 +1110,7 @@ export default function TeleprompterPage() {
                   type="button"
                   className="tp-btn-play"
                   onClick={startPlay}
-                  disabled={!text.trim()}
+                  disabled={!canPlay}
                   aria-label="Play"
                   title="Play"
                 >
@@ -697,7 +1124,7 @@ export default function TeleprompterPage() {
                 type="button"
                 className="tp-icon-btn tp-icon-btn--reset"
                 onClick={resetPlay}
-                disabled={!text && cursor === 0}
+                disabled={!playText && cursor === 0 && !nodes.some((node) => node.type !== 'text')}
                 aria-label="Reset"
                 title="Reset"
               >
@@ -732,11 +1159,12 @@ export default function TeleprompterPage() {
           </div>
         </div>
 
-        <div className="tp-right" aria-label="Panel derecho — pendiente">
-          <div className="tp-right__placeholder">
-            <p>Panel derecho</p>
-            <p className="tp-right__muted">Contenido por definir</p>
-          </div>
+        <div className="tp-right" aria-label="Biblioteca de prompts">
+          <DeskBrowser
+            folders={folders}
+            onInsertPrompt={insertPromptBlock}
+            onInsertUrl={insertUrlBlock}
+          />
         </div>
       </div>
     </div>

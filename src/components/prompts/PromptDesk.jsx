@@ -2109,7 +2109,11 @@ export default function PromptDesk() {
         />
       ) : null}
       {view === 'embed' ? <EmbedHtml plan={plan} email={email} profilePlan={profilePlan} /> : null}
-      {view === 'teleprompter' ? <TeleprompterPage /> : null}
+      {view === 'teleprompter' ? (
+        <TeleprompterPage
+          folders={(folders || []).filter((folder) => !isTranscriptFolder(folder))}
+        />
+      ) : null}
       {view === 'transcribe' ? (
         <>
           {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
