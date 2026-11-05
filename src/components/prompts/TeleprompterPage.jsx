@@ -18,6 +18,13 @@ import {
   stepInsertLabel,
   stepPlainBody,
 } from '../../lib/teleprompterScript.js';
+import {
+  VAD_THRESHOLD,
+  VOICE_CPS,
+  closeVadMic,
+  openVadMic,
+  vadLevel,
+} from '../../lib/teleprompterVad.js';
 import './teleprompter-page.css';
 
 const DEFAULT_CPS = 14;
@@ -25,6 +32,16 @@ const FLOAT_SIZE = { width: 420, height: 480 };
 const CPS_MIN = 5;
 const CPS_MAX = 40;
 const THEME_STORE = 'fn-teleprompter-theme';
+const PACE_MODE_STORE = 'fn-teleprompter-pace-mode';
+
+function readStoredPaceMode() {
+  try {
+    const value = localStorage.getItem(PACE_MODE_STORE);
+    return value === 'voice' ? 'voice' : 'speed';
+  } catch {
+    return 'speed';
+  }
+}
 
 const FLOAT_CSS = `
   html, body, #tp-float-root {
@@ -764,6 +781,9 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
 export default function TeleprompterPage({ folders = [] }) {
   const [nodes, setNodes] = useState(() => [blankTextNode('')]);
   const [cps, setCps] = useState(DEFAULT_CPS);
+  const [paceMode, setPaceMode] = useState(readStoredPaceMode);
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [voiceNote, setVoiceNote] = useState('');
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
@@ -780,6 +800,8 @@ export default function TeleprompterPage({ folders = [] }) {
   const textRef = useRef('');
   const nodesRef = useRef(nodes);
   const cpsRef = useRef(DEFAULT_CPS);
+  const paceModeRef = useRef(paceMode);
+  const vadRef = useRef(null);
   const rafRef = useRef(0);
   const lastTickRef = useRef(0);
   const carryRef = useRef(0);
@@ -828,6 +850,15 @@ export default function TeleprompterPage({ folders = [] }) {
   }, [cps]);
 
   useEffect(() => {
+    paceModeRef.current = paceMode;
+    try {
+      localStorage.setItem(PACE_MODE_STORE, paceMode);
+    } catch {
+      /* Private mode */
+    }
+  }, [paceMode]);
+
+  useEffect(() => {
     themeRef.current = theme;
     try {
       localStorage.setItem(THEME_STORE, theme);
@@ -844,6 +875,11 @@ export default function TeleprompterPage({ folders = [] }) {
     cursorRef.current = cursor;
   }, [cursor]);
 
+  useEffect(() => () => {
+    closeVadMic(vadRef.current);
+    vadRef.current = null;
+  }, []);
+
   function bumpCps(delta) {
     setCps((value) => Math.min(CPS_MAX, Math.max(CPS_MIN, value + delta)));
   }
@@ -853,6 +889,54 @@ export default function TeleprompterPage({ folders = [] }) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     }
+  }
+
+  function releaseVad() {
+    closeVadMic(vadRef.current);
+    vadRef.current = null;
+    setVoiceReady(false);
+  }
+
+  async function ensureVad() {
+    if (vadRef.current) {
+      if (vadRef.current.ctx?.state === 'suspended') {
+        try {
+          await vadRef.current.ctx.resume();
+        } catch {
+          /* ignore */
+        }
+      }
+      setVoiceReady(true);
+      return true;
+    }
+    try {
+      vadRef.current = await openVadMic();
+      setVoiceReady(true);
+      setVoiceNote('');
+      return true;
+    } catch (error) {
+      setVoiceReady(false);
+      setVoiceNote(error?.message || 'Microphone permission is required for Voice mode.');
+      return false;
+    }
+  }
+
+  async function selectPaceMode(next) {
+    const mode = next === 'voice' ? 'voice' : 'speed';
+    if (mode === paceMode) return;
+    pausePlay();
+    if (mode === 'voice') {
+      const ok = await ensureVad();
+      if (!ok) {
+        setPaceMode('speed');
+        return;
+      }
+      setPaceMode('voice');
+      return;
+    }
+    releaseVad();
+    setVoiceNote('');
+    setPaceMode('speed');
   }
 
   function pauseAtBlock(blockId, at) {
@@ -865,35 +949,52 @@ export default function TeleprompterPage({ folders = [] }) {
     stopLoop();
   }
 
-  function tick(now) {
-    if (!playingRef.current) return;
-    const rate = Math.max(1, cpsRef.current);
-    if (!lastTickRef.current) lastTickRef.current = now;
-    const delta = (now - lastTickRef.current) / 1000;
-    lastTickRef.current = now;
-    carryRef.current += delta * rate;
-    const chars = Array.from(String(textRef.current || ''));
-    const end = chars.length;
-    let from = cursorRef.current;
+  function advanceCursor(from, end, chars) {
+    let next = from;
     let moved = false;
-    while (from < end) {
-      const cost = charPaceWeight(chars[from]);
+    while (next < end) {
+      const cost = charPaceWeight(chars[next]);
       if (carryRef.current < cost) break;
-      const rawNext = from + 1;
-      const gate = nextBlockPause(nodesRef.current, from, rawNext, clearedBlocksRef.current);
+      const rawNext = next + 1;
+      const gate = nextBlockPause(nodesRef.current, next, rawNext, clearedBlocksRef.current);
       if (gate) {
         carryRef.current = 0;
         pauseAtBlock(gate.blockId, gate.at);
-        return;
+        return { from: gate.at, moved: true, gated: true };
       }
       carryRef.current -= cost;
-      from = rawNext;
+      next = rawNext;
       moved = true;
     }
-    if (moved) {
-      cursorRef.current = from;
-      setCursor(from);
-      if (from >= end) {
+    return { from: next, moved, gated: false };
+  }
+
+  function tick(now) {
+    if (!playingRef.current) return;
+    if (!lastTickRef.current) lastTickRef.current = now;
+    const delta = (now - lastTickRef.current) / 1000;
+    lastTickRef.current = now;
+
+    const voiceMode = paceModeRef.current === 'voice';
+    if (voiceMode) {
+      const level = vadLevel(vadRef.current);
+      if (level < VAD_THRESHOLD) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      carryRef.current += delta * VOICE_CPS;
+    } else {
+      carryRef.current += delta * Math.max(1, cpsRef.current);
+    }
+
+    const chars = Array.from(String(textRef.current || ''));
+    const end = chars.length;
+    const result = advanceCursor(cursorRef.current, end, chars);
+    if (result.gated) return;
+    if (result.moved) {
+      cursorRef.current = result.from;
+      setCursor(result.from);
+      if (result.from >= end) {
         playingRef.current = false;
         setPlaying(false);
         stopLoop();
@@ -903,10 +1004,19 @@ export default function TeleprompterPage({ folders = [] }) {
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  function startPlay() {
+  async function startPlay() {
     const list = nodesRef.current || [];
     const hasBlocks = list.some((node) => node.type !== 'text');
     if (!textRef.current.trim() && !hasBlocks) return;
+
+    if (paceModeRef.current === 'voice') {
+      const ok = await ensureVad();
+      if (!ok) {
+        setPaceMode('speed');
+        paceModeRef.current = 'speed';
+        return;
+      }
+    }
 
     if (pausedBlockIdRef.current) {
       clearedBlocksRef.current.add(pausedBlockIdRef.current);
@@ -1265,37 +1375,68 @@ export default function TeleprompterPage({ folders = [] }) {
               </div>
             )}
             <p className="tp-paste__hint">
-              Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play
+              {paceMode === 'voice'
+                ? 'Voice mode · scroll advances while you speak · Play pauses on each block for Copy'
+                : 'Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play'}
             </p>
+            {voiceNote ? <p className="tp-paste__hint tp-paste__hint--alert" role="status">{voiceNote}</p> : null}
           </div>
 
           <div className="tp-toolkit" aria-label="Toolkit">
             <div className="tp-toolkit__meta">
-              <div className="tp-counter" aria-label="Speed">
-                <span className="tp-counter__label">SPEED</span>
+              <div className="tp-pace" role="group" aria-label="Pace mode">
                 <button
                   type="button"
-                  className="tp-counter__btn"
-                  aria-label="Decrease speed"
-                  disabled={cps <= CPS_MIN}
-                  onClick={() => bumpCps(-1)}
+                  className={paceMode === 'speed' ? 'tp-pace__btn is-active' : 'tp-pace__btn'}
+                  aria-pressed={paceMode === 'speed'}
+                  onClick={() => { void selectPaceMode('speed'); }}
                 >
-                  −
+                  Speed
                 </button>
-                <span className="tp-counter__value" aria-live="polite">{cps}</span>
                 <button
                   type="button"
-                  className="tp-counter__btn"
-                  aria-label="Increase speed"
-                  disabled={cps >= CPS_MAX}
-                  onClick={() => bumpCps(1)}
+                  className={paceMode === 'voice' ? 'tp-pace__btn is-active' : 'tp-pace__btn'}
+                  aria-pressed={paceMode === 'voice'}
+                  onClick={() => { void selectPaceMode('voice'); }}
                 >
-                  +
+                  Voice
                 </button>
               </div>
 
+              {paceMode === 'speed' ? (
+                <div className="tp-counter" aria-label="Speed">
+                  <span className="tp-counter__label">SPEED</span>
+                  <button
+                    type="button"
+                    className="tp-counter__btn"
+                    aria-label="Decrease speed"
+                    disabled={cps <= CPS_MIN}
+                    onClick={() => bumpCps(-1)}
+                  >
+                    −
+                  </button>
+                  <span className="tp-counter__value" aria-live="polite">{cps}</span>
+                  <button
+                    type="button"
+                    className="tp-counter__btn"
+                    aria-label="Increase speed"
+                    disabled={cps >= CPS_MAX}
+                    onClick={() => bumpCps(1)}
+                  >
+                    +
+                  </button>
+                </div>
+              ) : (
+                <div className="tp-voice-meta" aria-live="polite">
+                  <span className="tp-counter__label">VOICE</span>
+                  <span className={voiceReady ? 'tp-voice-meta__state is-ready' : 'tp-voice-meta__state'}>
+                    {voiceReady ? 'Mic on' : 'Mic off'}
+                  </span>
+                </div>
+              )}
+
               <div className="tp-tool--time" aria-live="polite">
-                <span>Duration</span>
+                <span>{paceMode === 'voice' ? 'Estimate' : 'Duration'}</span>
                 <strong>
                   {elapsedLabel} / {durationLabel}
                 </strong>
