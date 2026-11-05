@@ -1,3 +1,4 @@
+import { stepModelCardMeta } from './promptModels.js';
 import { documentVariables, resolvePrompt } from './promptVariables.js';
 import { visibleStepTitle } from './promptPages.js';
 
@@ -42,6 +43,44 @@ export function joinScriptText(nodes) {
     .filter((node) => node?.type === 'text')
     .map((node) => String(node.body || ''))
     .join('\n\n');
+}
+
+/**
+ * Relative cost of one script character for teleprompter pacing.
+ * Base letter/space = 1; punctuation costs more so CPS still means
+ * “letter units / s” while sentences breathe.
+ * @param {string} ch
+ * @returns {number}
+ */
+export function charPaceWeight(ch) {
+  const c = String(ch || '');
+  if (c === '.' || c === '…' || c === '?' || c === '!') return 4;
+  if (c === ',' || c === ';' || c === ':') return 2.2;
+  if (
+    c === '"'
+    || c === "'"
+    || c === '\u201c'
+    || c === '\u201d'
+    || c === '\u2018'
+    || c === '\u2019'
+  ) return 1.6;
+  if (c === '\n') return 2;
+  if (c === '—' || c === '–') return 1.8;
+  return 1;
+}
+
+/**
+ * Sum of pace weights for `text[0 .. endExclusive)`.
+ * @param {string} text
+ * @param {number} [endExclusive]
+ * @returns {number}
+ */
+export function pacedUnitsInText(text, endExclusive = Number.POSITIVE_INFINITY) {
+  const chars = Array.from(String(text || ''));
+  const limit = Math.min(chars.length, Math.max(0, Number(endExclusive) || 0));
+  let units = 0;
+  for (let i = 0; i < limit; i += 1) units += charPaceWeight(chars[i]);
+  return units;
 }
 
 /**
@@ -124,6 +163,30 @@ export function stepInsertLabel(file, step) {
 export function stepPlainBody(file, step) {
   const variables = documentVariables(file);
   return plainPromptCopy(step?.prompt || '', variables);
+}
+
+/**
+ * Payload fields for inserting a prompt block into the teleprompter script.
+ * @param {object} folder
+ * @param {object} file
+ * @param {object} step
+ */
+export function buildPromptInsertPayload(folder, file, step) {
+  const plain = stepPlainBody(file, step);
+  const title = stepInsertLabel(file, step);
+  const meta = stepModelCardMeta(file, step);
+  return {
+    folderId: folder?.id,
+    fileId: file?.id,
+    stepId: step?.id,
+    title,
+    body: plain,
+    preview: plain.slice(0, 180),
+    modelId: meta.modelId,
+    modelLabel: meta.modelLabel,
+    modelSrc: meta.modelSrc,
+    recommendedModel: meta.recommendedModel,
+  };
 }
 
 /**

@@ -57,6 +57,13 @@ import {
   visibleStepTitle,
   filePageCaption,
 } from '../../lib/promptPages.js';
+import {
+  blankReference,
+  legacyFieldsFromReferences,
+  normalizeReferences,
+  promptHasReferences,
+  withNormalizedReferences,
+} from '../../lib/promptReferences.js';
 import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
 import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
 import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
@@ -231,16 +238,24 @@ function stepHasWork(item) {
     || Boolean(item.format && item.format !== 'text');
 }
 
+const DEFAULT_PROMPT_NAME = 'Title Description';
+
+function promptDisplayName(prompt) {
+  const name = String(prompt?.name || '').trim();
+  if (!name || name === 'Untitled') return DEFAULT_PROMPT_NAME;
+  return name;
+}
+
 function promptLevelWork(prompt) {
   const name = String(prompt?.name || '').trim();
-  const named = Boolean(name) && name !== 'Untitled';
+  const named = Boolean(name) && name !== 'Untitled' && name !== DEFAULT_PROMPT_NAME;
   const hasVars = documentVariables(prompt).some((variable) => (
     String(variable?.name || '').trim() || String(variable?.value || '').trim()
   ));
   const hasMedia = Boolean(
     prompt?.video?.embedSrc
     || prompt?.pdf?.name
-    || String(prompt?.referenceUrl || '').trim()
+    || promptHasReferences(prompt)
   );
   return named || hasVars || hasMedia;
 }
@@ -573,9 +588,9 @@ function playbackSrc(video) {
 }
 
 function blankPrompt() {
-  return {
+  return withNormalizedReferences({
     id: uid(),
-    name: 'Untitled',
+    name: '',
     meta: 'Prompt',
     modelId: '',
     variables: [],
@@ -584,12 +599,13 @@ function blankPrompt() {
     video: null,
     referenceUrl: '',
     referenceName: '',
+    references: [],
     cover: '',
     coverPath: '',
     coverSkipped: false,
     assets: [],
     steps: [blankPromptStep()],
-  };
+  });
 }
 
 function blankFolder(index) {
@@ -650,7 +666,7 @@ function stepAt(prompt) {
 }
 
 function fileTitle(prompt) {
-  return prompt.name || 'Untitled';
+  return promptDisplayName(prompt);
 }
 
 function promptsForSearch(prompts, query) {
@@ -1126,6 +1142,7 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
   const [bytesById, setBytesById] = useState({});
   const [brandBytes, setBrandBytes] = useState(0);
   const [note, setNote] = useState('');
+  const [deleteAsk, setDeleteAsk] = useState(null);
   const root = useMemo(() => {
     const tree = storageTreeFromDesk(folders || []);
     const children = brandBytes > 0
@@ -1171,7 +1188,27 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
   function handleDelete(node) {
     if (!node || node.kind !== 'file') return;
     if (node.id === 'embed-brand') {
-      if (!window.confirm('¿Eliminar “Branding”?')) return;
+      setDeleteAsk({ kind: 'brand', label: 'Branding' });
+      return;
+    }
+    if (!onDeleteFile) return;
+    const folder = (folders || []).find((entry) => (
+      (entry.prompts || []).some((prompt) => prompt.id === node.id)
+    ));
+    if (!folder) return;
+    setDeleteAsk({
+      kind: 'file',
+      label: node.name || 'este archivo',
+      folderId: folder.id,
+      fileId: node.id,
+    });
+  }
+
+  function confirmDeleteAsk() {
+    const ask = deleteAsk;
+    setDeleteAsk(null);
+    if (!ask) return;
+    if (ask.kind === 'brand') {
       (async () => {
         try {
           const userId = await currentPromptUserId();
@@ -1189,15 +1226,10 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
       })();
       return;
     }
-    if (!onDeleteFile) return;
-    const folder = (folders || []).find((entry) => (
-      (entry.prompts || []).some((prompt) => prompt.id === node.id)
-    ));
-    if (!folder) return;
-    const label = node.name || 'este archivo';
-    if (!window.confirm(`¿Eliminar “${label}”?`)) return;
-    onDeleteFile(folder.id, node.id);
-    navigate('/app/settings/storage/list', { replace: true });
+    if (ask.kind === 'file' && ask.folderId && ask.fileId) {
+      onDeleteFile(ask.folderId, ask.fileId);
+      navigate('/app/settings/storage/list', { replace: true });
+    }
   }
 
   return (
@@ -1212,6 +1244,20 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
         focusFolderId={focusFolderId}
         onDelete={handleDelete}
       />
+      {deleteAsk ? createPortal(
+        <div className="prompt-home-save-layer">
+          <div className="prompt-home-save" role="dialog" aria-label="Confirmar eliminar">
+            <p>{`¿Eliminar “${deleteAsk.label}”?`}</p>
+            <div>
+              <button type="button" className="prompt-home-save__danger" onClick={confirmDeleteAsk}>
+                Eliminar
+              </button>
+              <button type="button" onClick={() => setDeleteAsk(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   );
 }
@@ -1487,7 +1533,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'coverPath' in patch || 'coverSkipped' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'references' in patch || 'coverPath' in patch || 'coverSkipped' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -1664,8 +1710,8 @@ export default function PromptDesk() {
         files[prompt.id] = {
           name: prompt.name || '',
           variables: documentVariables(prompt),
-          referenceUrl: prompt.referenceUrl || '',
-          referenceName: prompt.referenceName || '',
+          references: normalizeReferences(prompt),
+          ...legacyFieldsFromReferences(normalizeReferences(prompt)),
         };
         (prompt.steps || []).forEach((step) => {
           steps[step.id] = {
@@ -1698,8 +1744,8 @@ export default function PromptDesk() {
           committed.files[prompt.id] = {
             name: prompt.name || '',
             variables: documentVariables(prompt),
-            referenceUrl: prompt.referenceUrl || '',
-            referenceName: prompt.referenceName || '',
+            references: normalizeReferences(prompt),
+            ...legacyFieldsFromReferences(normalizeReferences(prompt)),
           };
         }
       });
@@ -1726,14 +1772,14 @@ export default function PromptDesk() {
           return step;
         });
         if (!revertFile || !file) return { ...prompt, steps };
-        return {
+        const references = normalizeReferences(file);
+        return withNormalizedReferences({
           ...prompt,
           name: file.name,
           variables: documentVariables({ id: prompt.id, variables: file.variables }),
-          referenceUrl: file.referenceUrl,
-          referenceName: file.referenceName,
+          references,
           steps,
-        };
+        });
       }),
     }));
   }
@@ -2336,13 +2382,17 @@ function InstructionPanel({
   const [pdfPasted, setPdfPasted] = useState(false);
   const [urlOffer, setUrlOffer] = useState('');
   const [urlOpen, setUrlOpen] = useState(false);
+  const [urlDrafting, setUrlDrafting] = useState(true);
   const [urlName, setUrlName] = useState('');
   const [urlDraft, setUrlDraft] = useState('');
   const [urlEditing, setUrlEditing] = useState(false);
+  const [editingRefId, setEditingRefId] = useState('');
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [urlCopied, setUrlCopied] = useState(false);
+  const [copiedRefId, setCopiedRefId] = useState('');
   const urlFieldRef = useRef(null);
+  const fileReferences = useMemo(() => normalizeReferences(prompt), [prompt]);
   const [pdfPages, setPdfPages] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
@@ -2387,6 +2437,16 @@ function InstructionPanel({
   const [translateTarget, setTranslateTarget] = useState('es');
   const [translateBusy, setTranslateBusy] = useState(false);
   const [translateNote, setTranslateNote] = useState('');
+
+  useEffect(() => {
+    if (!urlOpen) return;
+    setUrlDrafting(true);
+    setUrlName('');
+    setUrlDraft('');
+    setUrlEditing(false);
+    setEditingRefId('');
+  }, [urlOpen]);
+
   const rightText = String(keptTranscript || pdfScan || '').trim();
   // Plain-text-beside / home transcript panel retired: PDF stays fixed while editing prompts.
   const textBesidePrompt = false;
@@ -2422,15 +2482,20 @@ function InstructionPanel({
     onPatch({ stepPatch: { id: step.id, ...patch } });
   }
 
-  async function copyHref(href) {
+  async function copyHref(href, refId = '') {
     const text = String(href || '').trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
       setUrlCopied(true);
-      window.setTimeout(() => setUrlCopied(false), 1200);
+      setCopiedRefId(refId);
+      window.setTimeout(() => {
+        setUrlCopied(false);
+        setCopiedRefId('');
+      }, 1200);
     } catch {
       setUrlCopied(false);
+      setCopiedRefId('');
     }
   }
 
@@ -2496,11 +2561,12 @@ function InstructionPanel({
     }
     savedStepsRef.current = next;
     if (!promptNeedsSave(prompt, step)) {
+      const references = normalizeReferences(prompt);
       savedPromptRef.current = {
         name: prompt.name || '',
         variables: ownedVariables.map((item) => ({ ...item })),
-        referenceUrl: prompt.referenceUrl || '',
-        referenceName: prompt.referenceName || '',
+        references,
+        ...legacyFieldsFromReferences(references),
       };
     }
   }, [steps, prompt, step]);
@@ -3378,8 +3444,8 @@ function InstructionPanel({
       ...(file ? {
         name: file.name,
         variables: stampVariables(file.variables, prompt.id),
-        referenceUrl: file.referenceUrl,
-        referenceName: file.referenceName,
+        references: normalizeReferences(file),
+        ...legacyFieldsFromReferences(normalizeReferences(file)),
       } : {}),
       steps: nextSteps,
       stepIndex: Math.min(index, nextSteps.length - 1),
@@ -3550,17 +3616,59 @@ function InstructionPanel({
     onExpand();
   }
 
-  function commitReference(name, href) {
+  function commitReferences(list) {
+    const references = normalizeReferences({ references: list });
+    onPatch({
+      references,
+      ...legacyFieldsFromReferences(references),
+    });
+    return references;
+  }
+
+  function addReference(name, href) {
     const nextUrl = String(href || '').trim();
     if (!nextUrl) return false;
-    onPatch({
-      referenceName: String(name || '').trim(),
-      referenceUrl: nextUrl,
-    });
+    const next = [
+      ...normalizeReferences(prompt),
+      blankReference({ name: String(name || '').trim(), url: nextUrl }),
+    ];
+    commitReferences(next);
     setUrlName('');
     setUrlDraft('');
     setUrlEditing(false);
+    setEditingRefId('');
+    setUrlDrafting(false);
     return true;
+  }
+
+  function startUrlDraft() {
+    setUrlName('');
+    setUrlDraft('');
+    setUrlDrafting(true);
+    window.setTimeout(() => urlFieldRef.current?.focus(), 0);
+  }
+
+  function saveReferenceEdit(refId, name, href) {
+    const nextUrl = String(href || '').trim();
+    if (!nextUrl) return false;
+    const next = normalizeReferences(prompt).map((item) => (
+      item.id === refId
+        ? { ...item, name: String(name || '').trim(), url: nextUrl }
+        : item
+    ));
+    commitReferences(next);
+    setUrlEditing(false);
+    setEditingRefId('');
+    return true;
+  }
+
+  function removeReference(refId) {
+    commitReferences(normalizeReferences(prompt).filter((item) => item.id !== refId));
+    if (editingRefId === refId) {
+      setUrlEditing(false);
+      setEditingRefId('');
+    }
+    setUrlCopied(false);
   }
 
   async function copyPrompt() {
@@ -3587,7 +3695,7 @@ function InstructionPanel({
                 <path d="M12 9v3l2 2" />
               </svg>
             )}
-            <span className="prompt-chip__label">{prompt.name || 'Untitled'}</span>
+            <span className="prompt-chip__label">{promptDisplayName(prompt)}</span>
           </span>
           <span className="prompt-chip__snippet">{snippet}</span>
         </span>
@@ -3618,25 +3726,57 @@ function InstructionPanel({
             ? 'prompt-panel__split prompt-panel__split--transcript'
             : 'prompt-panel__split prompt-panel__split--prompt'
       }>
-        <div className="prompt-panel__editor-tools">
-          <textarea
-            className="prompt-panel__name"
-            value={prompt.name}
-            placeholder="Nombre"
-            aria-label="Nombre"
-            rows={1}
-            onChange={(event) => onPatch({ name: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.preventDefault();
-            }}
-          />
+        <div className={sheetOpen ? 'prompt-panel__editor-tools prompt-panel__editor-tools--sheet' : 'prompt-panel__editor-tools'}>
+          {sheetOpen ? (
+            <button
+              type="button"
+              className="prompt-panel__home"
+              onClick={goHome}
+              aria-label={`Home · ${promptDisplayName(prompt)}`}
+              title="Home"
+            >
+              <span className="prompt-panel__home-glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 10.5 12 4l8 6.5V20H4Z" />
+                </svg>
+              </span>
+              <span
+                className={
+                  String(prompt.name || '').trim()
+                    ? 'prompt-panel__home-name'
+                    : 'prompt-panel__home-name is-placeholder'
+                }
+              >
+                {promptDisplayName(prompt)}
+              </span>
+            </button>
+          ) : (
+            <textarea
+              className="prompt-panel__name"
+              value={prompt.name}
+              placeholder={DEFAULT_PROMPT_NAME}
+              aria-label="Nombre"
+              rows={1}
+              onChange={(event) => onPatch({ name: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.preventDefault();
+              }}
+            />
+          )}
           {urlOffer ? (
             <div className="prompt-url-offer" role="status">
               <p>Guardar este link en Url?</p>
               <button
                 type="button"
                 onClick={() => {
-                  onPatch({ referenceUrl: urlOffer });
+                  const next = [
+                    ...normalizeReferences(prompt),
+                    blankReference({ url: urlOffer }),
+                  ];
+                  onPatch({
+                    references: next,
+                    ...legacyFieldsFromReferences(next),
+                  });
                   setUrlOffer('');
                 }}
               >
@@ -3649,14 +3789,6 @@ function InstructionPanel({
             {sheetOpen ? (
               <>
                 <div className="prompt-models__row" role="toolbar" aria-label="Prompt tools">
-                  <button type="button" className="prompt-models__item" onClick={goHome}>
-                    <span className="prompt-models__glyph" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M4 10.5 12 4l8 6.5V20H4Z" />
-                      </svg>
-                    </span>
-                    <span>Home</span>
-                  </button>
                   <button
                     type="button"
                     className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
@@ -3708,8 +3840,6 @@ function InstructionPanel({
                       <span>Auto Variable</span>
                     </button>
                   ) : null}
-                </div>
-                <div className="prompt-models__row prompt-models__row--toolbar">
                   <FormatBar active={formatOn} onApply={applyTextFormat} />
                 </div>
               </>
@@ -3787,11 +3917,8 @@ function InstructionPanel({
                 </button>
                 <button
                   type="button"
-                  className={String(prompt.referenceUrl || '').trim() ? 'prompt-models__item is-counted' : 'prompt-models__item'}
+                  className={promptHasReferences(prompt) ? 'prompt-models__item is-counted' : 'prompt-models__item'}
                   onClick={() => {
-                    setUrlName('');
-                    setUrlDraft('');
-                    setUrlEditing(false);
                     setUrlCopied(false);
                     setUrlOpen(true);
                   }}
@@ -4047,24 +4174,11 @@ function InstructionPanel({
             {step.promptSaved ? (
               <div className="prompt-drawer">
                 <div className="prompt-sheet__saved-head">
-                  <div className="prompt-sheet__brand">
-                    <span
-                      className="prompt-sheet__model"
-                      title={sheetPlatformLabel || 'Plataforma objetivo'}
-                    >
-                      {homeLogo ? <img src={homeLogo.src} alt="" /> : (
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="7" />
-                          <path d="M12 9v3l2 2" />
-                        </svg>
-                      )}
-                    </span>
-                  </div>
                   <div className="prompt-sheet__head-copy">
                     <PromptTitleField
                       className="prompt-sheet__title"
                       value={step.title || ''}
-                      placeholder={prompt.name || 'Title'}
+                      placeholder=""
                       onChange={(title) => patchStep({ title })}
                     />
                     {(sheetPlatformLabel || sheetRecommended) ? (
@@ -4073,7 +4187,7 @@ function InstructionPanel({
                           <span className="prompt-sheet__target-platform">{sheetPlatformLabel}</span>
                         ) : null}
                         {sheetPlatformLabel && sheetRecommended ? (
-                          <span className="prompt-sheet__target-sep" aria-hidden="true">|</span>
+                          <span className="prompt-sheet__target-sep" aria-hidden="true">·</span>
                         ) : null}
                         {sheetRecommended ? (
                           <span className="prompt-sheet__target-model">{sheetRecommended}</span>
@@ -4081,24 +4195,13 @@ function InstructionPanel({
                       </p>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="prompt-sheet__compress"
-                    onClick={compress}
-                    aria-label="Compress"
-                    title="Compress"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
-                    </svg>
-                  </button>
                 </div>
                 <PromptBody
                   key={`${prompt.id}:${step.id}:saved`}
                   prompt={step.prompt}
                   documentId={prompt.id}
                   variables={ownedVariables}
-                  placeholder={'Write your prompt (press "#+space" for upper case)'}
+                  placeholder=""
                   readOnly
                   onCommit={commitBody}
                   onUrlPaste={setUrlOffer}
@@ -4132,17 +4235,6 @@ function InstructionPanel({
                     placeholder={prompt.name || 'Title'}
                     onChange={(title) => patchStep({ title })}
                   />
-                  <button
-                    type="button"
-                    className="prompt-sheet__compress"
-                    onClick={compress}
-                    aria-label="Compress"
-                    title="Compress"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M9 4H5v4M4 4l6 6M15 20h4v-4M20 20l-6-6" />
-                    </svg>
-                  </button>
                 </div>
                 <div className="prompt-drawer">
                   <div className="prompt-target-float" aria-label="Destino del prompt">
@@ -4455,118 +4547,151 @@ function InstructionPanel({
               </button>
             </header>
             <div className="prompt-library__fields">
-              {prompt.referenceUrl ? null : (
-              <div className="prompt-library__field">
-                <div className="prompt-library__label-row">
-                  <input
-                    ref={urlFieldRef}
-                    className="prompt-library__name-input"
-                    value={urlName}
-                    size={Math.max((urlName || 'Descripción').length, 1)}
-                    placeholder="Descripción"
-                    aria-label="Descripción del producto"
-                    spellCheck={false}
-                    autoFocus
-                    onChange={(event) => setUrlName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        commitReference(urlName, urlDraft);
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault();
-                        setUrlOpen(false);
-                      }
-                    }}
-                  />
-                  <button type="button" className="prompt-library__rename" aria-label="Editar descripción" onClick={() => urlFieldRef.current?.focus()}>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 20h4L18 10l-4-4L4 16v4z" />
-                      <path d="M13 7l4 4" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="prompt-library__queue"
-                    onClick={() => {
-                      if (!commitReference(urlName, urlDraft)) urlFieldRef.current?.focus();
-                    }}
-                  >
-                    Guardar
-                  </button>
-                </div>
-                <textarea
-                  rows={2}
-                  value={urlDraft}
-                  placeholder="https://"
-                  aria-label="URL de referencia"
-                  spellCheck={false}
-                  onChange={(event) => setUrlDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      commitReference(urlName, urlDraft);
-                    }
-                  }}
-                />
-              </div>
-              )}
-              {prompt.referenceUrl ? (
+              {fileReferences.map((ref) => {
+                const editing = urlEditing && editingRefId === ref.id;
+                const copied = urlCopied && copiedRefId === ref.id;
+                const showName = editing || Boolean(String(ref.name || '').trim());
+                return (
+                  <div key={ref.id} className="prompt-library__field">
+                    <div className="prompt-library__label-row">
+                      {showName ? (
+                        <input
+                          className="prompt-library__name-input"
+                          value={editing ? editName : (ref.name || '')}
+                          readOnly={!editing}
+                          size={Math.max(((editing ? editName : ref.name) || 'Descripción').length, 1)}
+                          placeholder="Descripción"
+                          aria-label="Descripción del producto"
+                          spellCheck={false}
+                          onChange={(event) => setEditName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (!editing) return;
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              saveReferenceEdit(ref.id, editName, editUrl);
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault();
+                              setUrlEditing(false);
+                              setEditingRefId('');
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="prompt-library__name-input prompt-library__name-input--spacer" aria-hidden="true" />
+                      )}
+                      <button
+                        type="button"
+                        className={editing ? 'prompt-library__queue' : 'prompt-library__rename'}
+                        aria-label={editing ? 'Guardar' : 'Editar URL'}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          if (!editing) {
+                            setEditName(ref.name || '');
+                            setEditUrl(ref.url || '');
+                            setEditingRefId(ref.id);
+                            setUrlEditing(true);
+                            return;
+                          }
+                          saveReferenceEdit(ref.id, editName, editUrl);
+                        }}
+                      >
+                        {editing ? 'Guardar' : (
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                            <path d="M13 7l4 4" />
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="prompt-library__remove"
+                        aria-label="Borrar URL"
+                        onClick={() => removeReference(ref.id)}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M4 7h16" />
+                          <path d="M9 7V5h6v2" />
+                          <path d="M7 7l1 13h8l1-13" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className={editing ? 'prompt-library__url-box' : 'prompt-library__url-box prompt-library__url-box--copy'}>
+                      <textarea
+                        rows={2}
+                        readOnly={!editing}
+                        value={editing ? editUrl : ref.url}
+                        placeholder="https://"
+                        aria-label="URL de referencia"
+                        spellCheck={false}
+                        onChange={(event) => setEditUrl(event.target.value)}
+                      />
+                      {editing ? null : (
+                        <button
+                          type="button"
+                          className="prompt-library__url-copy"
+                          aria-label={copied ? 'Copiado' : 'Copiar'}
+                          title={copied ? 'Copiado' : 'Copiar'}
+                          onClick={() => { void copyHref(ref.url, ref.id); }}
+                        >
+                          {copied ? (
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12.5 9.5 17 19 7" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <rect x="9" y="9" width="11" height="11" rx="2" />
+                              <path d="M5 15V5a2 2 0 0 1 2-2h8" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {urlDrafting ? (
                 <div className="prompt-library__field">
                   <div className="prompt-library__label-row">
                     <input
+                      ref={urlFieldRef}
                       className="prompt-library__name-input"
-                      value={urlEditing ? editName : (prompt.referenceName || '')}
-                      readOnly={!urlEditing}
-                      size={Math.max(((urlEditing ? editName : prompt.referenceName) || 'Descripción').length, 1)}
+                      value={urlName}
+                      size={Math.max((urlName || 'Descripción').length, 1)}
                       placeholder="Descripción"
                       aria-label="Descripción del producto"
                       spellCheck={false}
-                      onChange={(event) => setEditName(event.target.value)}
+                      onChange={(event) => setUrlName(event.target.value)}
                       onKeyDown={(event) => {
-                        if (!urlEditing) return;
                         if (event.key === 'Enter') {
                           event.preventDefault();
-                          if (commitReference(editName, editUrl)) return;
+                          if (!addReference(urlName, urlDraft)) urlFieldRef.current?.focus();
                         }
                         if (event.key === 'Escape') {
                           event.preventDefault();
-                          setUrlEditing(false);
+                          if (fileReferences.length) setUrlDrafting(false);
+                          else setUrlOpen(false);
                         }
                       }}
                     />
                     <button
                       type="button"
-                      className={urlEditing ? 'prompt-library__queue' : 'prompt-library__rename'}
-                      aria-label={urlEditing ? 'Guardar' : 'Editar URL'}
-                      onMouseDown={(event) => event.preventDefault()}
+                      className="prompt-library__queue"
                       onClick={() => {
-                        if (!urlEditing) {
-                          setEditName(prompt.referenceName || '');
-                          setEditUrl(prompt.referenceUrl || '');
-                          setUrlEditing(true);
-                          return;
-                        }
-                        commitReference(editName, editUrl);
+                        if (!addReference(urlName, urlDraft)) urlFieldRef.current?.focus();
                       }}
                     >
-                      {urlEditing ? 'Guardar' : (
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M4 20h4L18 10l-4-4L4 16v4z" />
-                          <path d="M13 7l4 4" />
-                        </svg>
-                      )}
+                      Add URL
                     </button>
                     <button
                       type="button"
                       className="prompt-library__remove"
-                      aria-label="Borrar URL"
+                      aria-label="Quitar cajón"
                       onClick={() => {
-                        onPatch({ referenceName: '', referenceUrl: '' });
-                        setEditName('');
-                        setEditUrl('');
-                        setUrlEditing(false);
-                        setUrlCopied(false);
+                        setUrlName('');
+                        setUrlDraft('');
+                        setUrlDrafting(false);
                       }}
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4577,40 +4702,30 @@ function InstructionPanel({
                       </svg>
                     </button>
                   </div>
-                  <div className={urlEditing ? 'prompt-library__url-box' : 'prompt-library__url-box prompt-library__url-box--copy'}>
-                    <textarea
-                      rows={2}
-                      readOnly={!urlEditing}
-                      value={urlEditing ? editUrl : prompt.referenceUrl}
-                      placeholder="https://"
-                      aria-label="URL de referencia"
-                      spellCheck={false}
-                      onChange={(event) => setEditUrl(event.target.value)}
-                    />
-                    {urlEditing ? null : (
-                      <button
-                        type="button"
-                        className="prompt-library__url-copy"
-                        aria-label={urlCopied ? 'Copiado' : 'Copiar'}
-                        title={urlCopied ? 'Copiado' : 'Copiar'}
-                        onClick={() => { void copyHref(prompt.referenceUrl); }}
-                      >
-                        {urlCopied ? (
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12.5 9.5 17 19 7" />
-                          </svg>
-                        ) : (
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="9" y="9" width="11" height="11" rx="2" />
-                            <path d="M5 15V5a2 2 0 0 1 2-2h8" />
-                          </svg>
-                        )}
-                      </button>
-                    )}
-                  </div>
+                  <textarea
+                    rows={2}
+                    value={urlDraft}
+                    placeholder="https://"
+                    aria-label="URL de referencia"
+                    spellCheck={false}
+                    onChange={(event) => setUrlDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        if (!addReference(urlName, urlDraft)) urlFieldRef.current?.focus();
+                      }
+                    }}
+                  />
                 </div>
               ) : null}
             </div>
+            <footer className="prompt-library__footer">
+              {urlDrafting ? null : (
+                <button type="button" className="prompt-library__create" onClick={startUrlDraft}>
+                  Add URL
+                </button>
+              )}
+            </footer>
           </div>
         </div>
       ) : null}

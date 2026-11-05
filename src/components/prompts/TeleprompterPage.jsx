@@ -2,12 +2,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import { TRANSCRIPT_FOLDER_LABEL } from '../../lib/promptPlanLimits.js';
+import { folderReferenceEntries } from '../../lib/promptReferences.js';
+import { stepModelCardMeta } from '../../lib/promptModels.js';
 import {
   blankTextNode,
+  buildPromptInsertPayload,
+  charPaceWeight,
   deskFoldersForTeleprompter,
   joinScriptText,
   makeTpId,
   nextBlockPause,
+  pacedUnitsInText,
   resolveBlockCopyText,
   scriptOffsets,
   stepInsertLabel,
@@ -116,18 +121,85 @@ const FLOAT_CSS = `
   }
   .tp-block {
     margin: 10px 0;
-    padding: 10px 12px;
+    padding: 12px;
     border: 1px solid var(--tp-line);
-    border-radius: 10px;
+    border-radius: 14px;
     background: rgba(255,255,255,0.04);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    flex-direction: column;
+    gap: 10px;
   }
   .tp-block.is-active {
     border-color: var(--tp-done);
     box-shadow: 0 0 0 1px var(--tp-done);
+  }
+  .tp-block__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .tp-block__model {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+  }
+  .tp-block__model img,
+  .tp-block__model svg {
+    width: 16px;
+    height: 16px;
+  }
+  .tp-block__model svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+  }
+  .tp-block__meta {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tp-block__kind {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--tp-muted);
+  }
+  .tp-block__title {
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .tp-block__target {
+    margin: 0;
+    font-size: 12px;
+    color: var(--tp-muted);
+  }
+  .tp-block__href,
+  .tp-block__preview {
+    font-size: 12px;
+    color: var(--tp-muted);
+    overflow-wrap: anywhere;
+  }
+  .tp-block__preview {
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tp-block__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
   }
   .tp-block__copy {
     flex: none;
@@ -255,23 +327,65 @@ function blockCopyLabel(flash, nodeId) {
   return 'Failed';
 }
 
+function ModelGlyph({ src, label }) {
+  if (src) {
+    return <img src={src} alt="" title={label || ''} />;
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="7" />
+      <path d="M12 9v3l2 2" />
+    </svg>
+  );
+}
+
 function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing }) {
+  const isUrl = node.type === 'url';
+  const targetBits = [node.modelLabel, node.recommendedModel].filter((part) => String(part || '').trim());
+  const preview = String(node.preview || node.body || '').trim();
+
   return (
     <div className={active ? 'tp-block is-active' : 'tp-block'}>
-      <div className="tp-block__meta">
-        <span className="tp-block__kind">{node.type === 'url' ? 'URL' : 'Prompt'}</span>
-        <strong className="tp-block__title">{node.title || node.href || 'Bloque'}</strong>
-      </div>
-      <div className="tp-block__actions">
-        <button type="button" className="tp-block__copy" onClick={onCopy}>
-          {copyLabel}
-        </button>
-        {editing ? (
-          <button type="button" className="tp-block__remove" onClick={onRemove} aria-label="Quitar bloque">
-            ×
+      <div className="tp-block__top">
+        {isUrl ? null : (
+          <span className="tp-block__model" title={node.modelLabel || 'Model'}>
+            <ModelGlyph src={node.modelSrc} label={node.modelLabel} />
+          </span>
+        )}
+        <div className="tp-block__meta">
+          <span className="tp-block__kind">{isUrl ? 'URL' : 'Prompt'}</span>
+          {isUrl ? (
+            <>
+              {String(node.title || '').trim() ? (
+                <strong className="tp-block__title">{node.title}</strong>
+              ) : null}
+              {node.href ? (
+                <span className="tp-block__href">{node.href}</span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <strong className="tp-block__title">{node.title || 'Prompt'}</strong>
+              {targetBits.length ? (
+                <p className="tp-block__target">{targetBits.join(' · ')}</p>
+              ) : null}
+            </>
+          )}
+        </div>
+        <div className="tp-block__actions">
+          <button type="button" className="tp-block__copy" onClick={onCopy}>
+            {copyLabel}
           </button>
-        ) : null}
+          {editing ? (
+            <button type="button" className="tp-block__remove" onClick={onRemove} aria-label="Remove block">
+              ×
+            </button>
+          ) : null}
+        </div>
       </div>
+      {!isUrl && preview ? (
+        <p className="tp-block__preview">{preview}</p>
+      ) : null}
     </div>
   );
 }
@@ -346,9 +460,9 @@ function FloatSurface({
             type="button"
             onClick={onToggleCollapse}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Expandir' : 'Comprimir'}
+            aria-label={collapsed ? 'Expand' : 'Collapse'}
           >
-            {collapsed ? 'Expand' : 'Comprimir'}
+            {collapsed ? 'Expand' : 'Collapse'}
           </button>
         </div>
       </div>
@@ -361,7 +475,7 @@ function FloatSurface({
         className="tp-float__reader"
       />
       <div className="tp-float__meta">
-        <span>{cps}</span>
+        <span>{`SPEED ${cps}`}</span>
         <span>{elapsedLabel} / {durationLabel}</span>
       </div>
     </div>
@@ -408,9 +522,19 @@ function mountFloatDocument(hostWindow, theme) {
   return mount;
 }
 
+function countFolderPrompts(folder) {
+  return (folder?.prompts || []).reduce((total, file) => {
+    const steps = (file.steps || []).filter((step) => (
+      String(step.prompt || '').replace(/<[^>]+>/g, '').trim()
+    ));
+    return total + steps.length;
+  }, 0);
+}
+
 function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
   const [query, setQuery] = useState('');
   const [folderId, setFolderId] = useState(null);
+  const [branch, setBranch] = useState(null); /* 'prompts' | 'urls' | null */
   const [fileId, setFileId] = useState(null);
 
   const list = useMemo(
@@ -430,18 +554,40 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
   const folder = filteredFolders.find((item) => item.id === folderId) || null;
   const file = (folder?.prompts || []).find((item) => item.id === fileId) || null;
   const steps = (file?.steps || []).filter((step) => String(step.prompt || '').replace(/<[^>]+>/g, '').trim());
-  const fileUrl = String(file?.referenceUrl || '').trim();
+  const urlEntries = useMemo(
+    () => (folder ? folderReferenceEntries(folder) : []),
+    [folder],
+  );
+  const promptCount = folder ? countFolderPrompts(folder) : 0;
+  const urlCount = urlEntries.length;
+
+  function resetToFolders() {
+    setFolderId(null);
+    setBranch(null);
+    setFileId(null);
+  }
+
+  function openFolder(id) {
+    setFolderId(id);
+    setBranch(null);
+    setFileId(null);
+  }
+
+  function openBranch(next) {
+    setBranch(next);
+    setFileId(null);
+  }
 
   return (
     <div className="tp-browser">
       <div className="tp-browser__head">
-        <p className="tp-browser__title">Biblioteca</p>
+        <p className="tp-browser__title">Library</p>
         <input
           className="tp-browser__search"
           type="search"
           value={query}
-          placeholder="Buscar folder o file"
-          aria-label="Buscar folder o file"
+          placeholder="Search folder or file"
+          aria-label="Search folder or file"
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
@@ -450,10 +596,7 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
         <button
           type="button"
           className={!folderId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
-          onClick={() => {
-            setFolderId(null);
-            setFileId(null);
-          }}
+          onClick={resetToFolders}
         >
           Folders
         </button>
@@ -462,11 +605,29 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
             <span className="tp-browser__sep" aria-hidden="true">/</span>
             <button
               type="button"
-              className={!fileId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
-              onClick={() => setFileId(null)}
+              className={!branch ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+              onClick={() => openBranch(null)}
             >
               {folder.label || 'Folder'}
             </button>
+          </>
+        ) : null}
+        {branch === 'prompts' ? (
+          <>
+            <span className="tp-browser__sep" aria-hidden="true">/</span>
+            <button
+              type="button"
+              className={!fileId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+              onClick={() => setFileId(null)}
+            >
+              Prompts
+            </button>
+          </>
+        ) : null}
+        {branch === 'urls' ? (
+          <>
+            <span className="tp-browser__sep" aria-hidden="true">/</span>
+            <span className="tp-browser__crumb is-current">URLs</span>
           </>
         ) : null}
         {file ? (
@@ -484,81 +645,112 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
               key={item.id}
               type="button"
               className="tp-browser__row"
-              onClick={() => {
-                setFolderId(item.id);
-                setFileId(null);
-              }}
+              onClick={() => openFolder(item.id)}
             >
               <span>{item.label || 'Folder'}</span>
               <span className="tp-browser__count">{(item.prompts || []).length}</span>
             </button>
           )) : (
-            <p className="tp-browser__empty">No hay folders en el desk.</p>
+            <p className="tp-browser__empty">No folders on the desk.</p>
           )
-        ) : !file ? (
-          (folder.prompts || []).length ? (folder.prompts || []).map((item) => (
+        ) : !branch ? (
+          <>
             <button
-              key={item.id}
               type="button"
               className="tp-browser__row"
-              onClick={() => setFileId(item.id)}
+              onClick={() => openBranch('prompts')}
             >
-              <span>{item.name || 'Untitled'}</span>
-              <span className="tp-browser__count">{(item.steps || []).length}</span>
+              <span>Prompts</span>
+              <span className="tp-browser__count">{promptCount}</span>
             </button>
+            <button
+              type="button"
+              className="tp-browser__row"
+              onClick={() => openBranch('urls')}
+            >
+              <span>URLs</span>
+              <span className="tp-browser__count">{urlCount}</span>
+            </button>
+          </>
+        ) : branch === 'urls' ? (
+          urlEntries.length ? urlEntries.map((entry) => (
+            <div key={`${entry.fileId}-${entry.id}`} className="tp-browser__item">
+              <div className="tp-browser__item-copy">
+                <span className="tp-browser__badge">URL</span>
+                {String(entry.name || '').trim() ? (
+                  <strong>{entry.name}</strong>
+                ) : null}
+                <p className="tp-browser__href">{entry.url}</p>
+              </div>
+              <button
+                type="button"
+                className="tp-browser__insert"
+                onClick={() => onInsertUrl({
+                  href: entry.url,
+                  title: String(entry.name || '').trim(),
+                  body: entry.url,
+                })}
+              >
+                Insert
+              </button>
+            </div>
           )) : (
-            <p className="tp-browser__empty">Este folder no tiene files.</p>
+            <p className="tp-browser__empty">This folder has no URLs.</p>
+          )
+        ) : !file ? (
+          (folder.prompts || []).length ? (folder.prompts || []).map((item) => {
+            const n = (item.steps || []).filter((step) => (
+              String(step.prompt || '').replace(/<[^>]+>/g, '').trim()
+            )).length;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="tp-browser__row"
+                onClick={() => setFileId(item.id)}
+              >
+                <span>{item.name || 'Untitled'}</span>
+                <span className="tp-browser__count">{n}</span>
+              </button>
+            );
+          }) : (
+            <p className="tp-browser__empty">This folder has no files.</p>
           )
         ) : (
-          <>
-            {fileUrl ? (
-              <div className="tp-browser__item">
+          steps.length ? steps.map((step, index) => {
+            const plain = stepPlainBody(file, step);
+            const meta = stepModelCardMeta(file, step);
+            const targetBits = [meta.modelLabel, meta.recommendedModel].filter(Boolean);
+            return (
+              <div key={step.id} className="tp-browser__item tp-browser__item--prompt">
                 <div className="tp-browser__item-copy">
-                  <span className="tp-browser__badge">URL</span>
-                  <strong>{file.referenceName || fileUrl}</strong>
-                </div>
-                <button
-                  type="button"
-                  className="tp-browser__insert"
-                  onClick={() => onInsertUrl({
-                    href: fileUrl,
-                    title: file.referenceName || fileUrl,
-                    body: fileUrl,
-                  })}
-                >
-                  Insertar
-                </button>
-              </div>
-            ) : null}
-            {steps.length ? steps.map((step, index) => {
-              const plain = stepPlainBody(file, step);
-              return (
-              <div key={step.id} className="tp-browser__item">
-                <div className="tp-browser__item-copy">
-                  <span className="tp-browser__badge">Prompt {index + 1}</span>
-                  <strong>{stepInsertLabel(file, step)}</strong>
-                  <p>{plain.slice(0, 120) || 'Sin texto'}</p>
+                  <div className="tp-browser__prompt-head">
+                    <span className="tp-block__model" title={meta.modelLabel || 'Model'}>
+                      <ModelGlyph src={meta.modelSrc} label={meta.modelLabel} />
+                    </span>
+                    <div>
+                      <span className="tp-browser__badge">Prompt {index + 1}</span>
+                      <strong>{stepInsertLabel(file, step)}</strong>
+                      {targetBits.length ? (
+                        <p className="tp-browser__target">{targetBits.join(' · ')}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <p>{plain.slice(0, 120) || 'No text'}</p>
                 </div>
                 <button
                   type="button"
                   className="tp-browser__insert"
                   disabled={!plain}
-                  onClick={() => onInsertPrompt({
-                    folderId: folder.id,
-                    fileId: file.id,
-                    stepId: step.id,
-                    title: stepInsertLabel(file, step),
-                    body: plain,
-                  })}
+                  onClick={() => onInsertPrompt(buildPromptInsertPayload(folder, file, step))}
                 >
-                  Insertar
+                  Insert
                 </button>
               </div>
-              );
-            }) : (
-              <p className="tp-browser__empty">Esta hoja no tiene prompts con texto.</p>
-            )}
-          </>
+            );
+          }) : (
+            <p className="tp-browser__empty">This file has no prompts with text.</p>
+          )
         )}
       </div>
     </div>
@@ -596,9 +788,10 @@ export default function TeleprompterPage({ folders = [] }) {
 
   const playText = useMemo(() => joinScriptText(nodes), [nodes]);
   const offsets = useMemo(() => scriptOffsets(nodes), [nodes]);
-  const totalChars = countChars(playText);
-  const durationSec = cps > 0 ? totalChars / cps : 0;
-  const elapsedSec = cps > 0 ? cursor / cps : 0;
+  const totalPaceUnits = useMemo(() => pacedUnitsInText(playText), [playText]);
+  const elapsedPaceUnits = useMemo(() => pacedUnitsInText(playText, cursor), [playText, cursor]);
+  const durationSec = cps > 0 ? totalPaceUnits / cps : 0;
+  const elapsedSec = cps > 0 ? elapsedPaceUnits / cps : 0;
   const durationLabel = formatDuration(durationSec);
   const elapsedLabel = formatDuration(elapsedSec);
   const showReader = playing || cursor > 0;
@@ -679,19 +872,28 @@ export default function TeleprompterPage({ folders = [] }) {
     const delta = (now - lastTickRef.current) / 1000;
     lastTickRef.current = now;
     carryRef.current += delta * rate;
-    const steps = Math.floor(carryRef.current);
-    if (steps > 0) {
-      carryRef.current -= steps;
-      const from = cursorRef.current;
-      const rawNext = Math.min(countChars(textRef.current), from + steps);
+    const chars = Array.from(String(textRef.current || ''));
+    const end = chars.length;
+    let from = cursorRef.current;
+    let moved = false;
+    while (from < end) {
+      const cost = charPaceWeight(chars[from]);
+      if (carryRef.current < cost) break;
+      const rawNext = from + 1;
       const gate = nextBlockPause(nodesRef.current, from, rawNext, clearedBlocksRef.current);
       if (gate) {
+        carryRef.current = 0;
         pauseAtBlock(gate.blockId, gate.at);
         return;
       }
-      cursorRef.current = rawNext;
-      setCursor(rawNext);
-      if (rawNext >= countChars(textRef.current)) {
+      carryRef.current -= cost;
+      from = rawNext;
+      moved = true;
+    }
+    if (moved) {
+      cursorRef.current = from;
+      setCursor(from);
+      if (from >= end) {
         playingRef.current = false;
         setPlaying(false);
         stopLoop();
@@ -788,6 +990,11 @@ export default function TeleprompterPage({ folders = [] }) {
         stepId: payload.stepId,
         title: payload.title,
         body: String(payload.body || ''),
+        preview: String(payload.preview || payload.body || '').slice(0, 180),
+        modelId: payload.modelId || '',
+        modelLabel: payload.modelLabel || '',
+        modelSrc: payload.modelSrc || '',
+        recommendedModel: payload.recommendedModel || '',
       };
       const last = prev[prev.length - 1];
       if (last?.type === 'text' && !String(last.body || '').trim()) {
@@ -996,15 +1203,15 @@ export default function TeleprompterPage({ folders = [] }) {
           <div className="tp-paste">
             <div className="tp-paste__top">
               <label className="tp-paste__label">
-                Script del teleprompter
+                Teleprompter script
               </label>
-              <div className="tp-theme" role="group" aria-label="Tema de color">
+              <div className="tp-theme" role="group" aria-label="Color theme">
                 <button
                   type="button"
                   className={theme === 'dark' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
                   aria-pressed={theme === 'dark'}
-                  aria-label="Tema oscuro"
-                  title="Oscuro"
+                  aria-label="Dark theme"
+                  title="Dark"
                   onClick={() => setTheme('dark')}
                 >
                   <IconMoon />
@@ -1013,8 +1220,8 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className={theme === 'light' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
                   aria-pressed={theme === 'light'}
-                  aria-label="Tema claro"
-                  title="Claro"
+                  aria-label="Light theme"
+                  title="Light"
                   onClick={() => setTheme('light')}
                 >
                   <IconSun />
@@ -1038,7 +1245,7 @@ export default function TeleprompterPage({ folders = [] }) {
                     <textarea
                       key={node.id}
                       className="tp-script__field"
-                      placeholder="Escribí o pegá el guion…"
+                      placeholder="Write or paste your script…"
                       value={node.body}
                       rows={4}
                       onChange={(event) => updateTextNode(node.id, event.target.value)}
@@ -1058,17 +1265,18 @@ export default function TeleprompterPage({ folders = [] }) {
               </div>
             )}
             <p className="tp-paste__hint">
-              Insertá prompts o URLs desde la biblioteca · Play se pausa en cada bloque para Copy · reanudá con Play
+              Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play
             </p>
           </div>
 
           <div className="tp-toolkit" aria-label="Toolkit">
             <div className="tp-toolkit__meta">
-              <div className="tp-counter" aria-label="Velocidad">
+              <div className="tp-counter" aria-label="Speed">
+                <span className="tp-counter__label">SPEED</span>
                 <button
                   type="button"
                   className="tp-counter__btn"
-                  aria-label="Bajar velocidad"
+                  aria-label="Decrease speed"
                   disabled={cps <= CPS_MIN}
                   onClick={() => bumpCps(-1)}
                 >
@@ -1078,7 +1286,7 @@ export default function TeleprompterPage({ folders = [] }) {
                 <button
                   type="button"
                   className="tp-counter__btn"
-                  aria-label="Subir velocidad"
+                  aria-label="Increase speed"
                   disabled={cps >= CPS_MAX}
                   onClick={() => bumpCps(1)}
                 >
@@ -1087,7 +1295,7 @@ export default function TeleprompterPage({ folders = [] }) {
               </div>
 
               <div className="tp-tool--time" aria-live="polite">
-                <span>Duración</span>
+                <span>Duration</span>
                 <strong>
                   {elapsedLabel} / {durationLabel}
                 </strong>
@@ -1135,8 +1343,8 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className="tp-icon-btn"
                   onClick={resetPlay}
-                  aria-label="Editar"
-                  title="Editar"
+                  aria-label="Edit"
+                  title="Edit"
                 >
                   <IconEdit />
                 </button>
@@ -1150,8 +1358,8 @@ export default function TeleprompterPage({ folders = [] }) {
                   if (open) closeFloat();
                   else void openFloat();
                 }}
-                aria-label={floating ? 'Cerrar float' : 'Expandir en Chrome'}
-                title={floating ? 'Cerrar float' : 'Expandir en Chrome'}
+                aria-label={floating ? 'Close float' : 'Expand in Chrome'}
+                title={floating ? 'Close float' : 'Expand in Chrome'}
               >
                 {floating ? <IconCollapse /> : <IconExpand />}
               </button>
@@ -1159,7 +1367,7 @@ export default function TeleprompterPage({ folders = [] }) {
           </div>
         </div>
 
-        <div className="tp-right" aria-label="Biblioteca de prompts">
+        <div className="tp-right" aria-label="Prompt library">
           <DeskBrowser
             folders={folders}
             onInsertPrompt={insertPromptBlock}

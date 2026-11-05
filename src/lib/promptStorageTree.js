@@ -8,6 +8,7 @@ function utf8Bytes(value) {
 export function promptTextBytes(prompt) {
   let total = utf8Bytes(prompt?.name) + utf8Bytes(prompt?.meta);
   total += utf8Bytes(prompt?.referenceUrl) + utf8Bytes(prompt?.referenceName);
+  total += utf8Bytes(JSON.stringify(prompt?.references || []));
   total += utf8Bytes(JSON.stringify(prompt?.variables || []));
   for (const step of prompt?.steps || []) {
     total += utf8Bytes(step?.title) + utf8Bytes(step?.description) + utf8Bytes(step?.prompt);
@@ -58,7 +59,7 @@ export function storageTreeFromDesk(folders, sizesByPath = {}) {
     modifiedAt: folder.updatedAt || null,
     children: (folder.prompts || []).map((prompt) => ({
       id: prompt.id,
-      name: prompt.name || 'Untitled',
+      name: prompt.name || 'Title Description',
       kind: 'file',
       modifiedAt: prompt.updatedAt || null,
       bytes: promptFileBytes(prompt, sizesByPath),

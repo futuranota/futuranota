@@ -2,6 +2,11 @@ import { convertFileToWebpData } from './convertImageToWebp.js';
 import { detectPromptAssetKind } from './promptAssets.js';
 import { EMBED_BRAND_MAX_BYTES, PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
 import { normalizePromptFile } from './promptPages.js';
+import {
+  legacyFieldsFromReferences,
+  normalizeReferences,
+  withNormalizedReferences,
+} from './promptReferences.js';
 import { storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 import { claimDocumentVariables, normalizeVariables } from './promptVariables.js';
 import { supabase } from './supabaseClient.js';
@@ -87,7 +92,7 @@ export function foldersFromRows(collections, files, steps) {
       .sort((a, b) => a.position - b.position)
       .map((file) => ({
         id: file.id,
-        name: file.name || 'Untitled',
+        name: file.name || '',
         meta: file.meta || 'Prompt',
         updatedAt: file.updated_at || null,
         modelId: file.model_id || '',
@@ -104,6 +109,7 @@ export function foldersFromRows(collections, files, steps) {
         video: null,
         referenceUrl: typeof file.reference_url === 'string' ? file.reference_url : '',
         referenceName: typeof file.reference_name === 'string' ? file.reference_name : '',
+        references: Array.isArray(file.url_references) ? file.url_references : [],
         cover: promptImageUrl(file.cover_path || ''),
         coverPath: file.cover_path || '',
         coverSkipped: Boolean(file.cover_skipped),
@@ -114,7 +120,7 @@ export function foldersFromRows(collections, files, steps) {
             const step = stepFromRow(row);
             return { ...step, video: null, pdf: null };
           }),
-      })).map((file) => normalizePromptFile(file)),
+      })).map((file) => normalizePromptFile(withNormalizedReferences(file))),
   }));
   return claimDocumentVariables(built);
 }
@@ -184,19 +190,22 @@ function collectionRow(folder, userId, position) {
 }
 
 function fileRow(prompt, userId, collectionId, position) {
+  const references = normalizeReferences(prompt);
+  const legacy = legacyFieldsFromReferences(references);
   return {
     id: prompt.id,
     user_id: userId,
     collection_id: collectionId,
-    name: prompt.name || 'Untitled',
+    name: prompt.name || '',
     meta: prompt.meta || 'Prompt',
     model_id: prompt.modelId || '',
     variables: normalizeVariables(prompt.variables),
     step_index: Number(prompt.stepIndex) || 0,
     pdf_name: prompt.pdf?.path ? (prompt.pdf.name || null) : null,
     pdf_path: prompt.pdf?.path || null,
-    reference_url: typeof prompt.referenceUrl === 'string' ? prompt.referenceUrl : '',
-    reference_name: typeof prompt.referenceName === 'string' ? prompt.referenceName : '',
+    reference_url: legacy.referenceUrl,
+    reference_name: legacy.referenceName,
+    url_references: references,
     cover_path: prompt.coverPath || null,
     cover_skipped: Boolean(prompt.coverSkipped),
     assets: assetRows(prompt.assets),
@@ -278,12 +287,18 @@ export async function savePromptDesk(userId, folders, previous) {
   if (files.length) {
     let rows = files;
     let { error } = await supabase.from('prompt_files').upsert(rows, { onConflict: 'id' });
-    if (error && /reference_url|reference_name|pdf_name|pdf_path|cover_path|cover_skipped/i.test(error.message || '')) {
+    if (error && /reference_url|reference_name|url_references|pdf_name|pdf_path|cover_path|cover_skipped/i.test(error.message || '')) {
       const message = error.message || '';
+      if (/url_references/i.test(message)) {
+        console.warn(
+          '[prompt-desk] url_references column missing — run supabase_prompt_file_references.sql in Supabase SQL Editor',
+        );
+      }
       rows = rows.map((row) => {
         const next = { ...row };
         if (/reference_url/i.test(message)) delete next.reference_url;
         if (/reference_name/i.test(message)) delete next.reference_name;
+        if (/url_references/i.test(message)) delete next.url_references;
         if (/pdf_name/i.test(message)) delete next.pdf_name;
         if (/pdf_path/i.test(message)) delete next.pdf_path;
         if (/cover_path/i.test(message)) delete next.cover_path;

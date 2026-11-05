@@ -1017,13 +1017,22 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
   }, [renamingId]);
 
   useEffect(() => {
-    if (open) return;
-    setDrafts([]);
-    setRenamingId(null);
-    setEditName('');
-    setEditValue('');
-    editNameRef.current = '';
-    editValueRef.current = '';
+    if (!open) {
+      setDrafts([]);
+      setRenamingId(null);
+      setEditName('');
+      setEditValue('');
+      editNameRef.current = '';
+      editValueRef.current = '';
+      return;
+    }
+    /* On open: one placeholder draft even if the queue is empty. */
+    setDrafts((prev) => {
+      if (prev.length) return prev;
+      const id = crypto.randomUUID();
+      pendingFocusId.current = id;
+      return [{ id, name: '', value: '' }];
+    });
   }, [open]);
 
   useEffect(() => {
@@ -1034,9 +1043,14 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
   }, [drafts]);
 
   function startDraft() {
+    if (drafts.length) {
+      const last = drafts[drafts.length - 1];
+      draftInputRefs.current.get(last.id)?.focus();
+      return;
+    }
     const id = crypto.randomUUID();
     pendingFocusId.current = id;
-    setDrafts((prev) => [...prev, { id, name: '', value: '' }]);
+    setDrafts([{ id, name: '', value: '' }]);
   }
 
   function patchDraft(id, patch) {
@@ -1113,57 +1127,6 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
         </button>
       </header>
       <div className="prompt-library__fields">
-        {drafts.map((draft) => (
-          <div key={draft.id} className="prompt-library__field">
-            <div className="prompt-library__label-row">
-              <input
-                ref={(node) => {
-                  if (node) draftInputRefs.current.set(draft.id, node);
-                  else draftInputRefs.current.delete(draft.id);
-                }}
-                className="prompt-library__name-input"
-                value={draft.name}
-                size={Math.max((draft.name || 'Variable name').length, 1)}
-                placeholder="Variable name"
-                aria-label="Variable name"
-                onChange={(event) => patchDraft(draft.id, { name: event.target.value })}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    pushDraft(draft.id);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="prompt-library__rename"
-                aria-label="Edit variable name"
-                onClick={() => draftInputRefs.current.get(draft.id)?.focus()}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 20h4L18 10l-4-4L4 16v4z" />
-                  <path d="M13 7l4 4" />
-                </svg>
-              </button>
-              <button type="button" className="prompt-library__queue" onClick={() => pushDraft(draft.id)}>
-                Save
-              </button>
-            </div>
-            <textarea
-              rows={2}
-              value={draft.value}
-              placeholder={draft.name.trim() ? `[ ${draft.name.trim()} ]` : ''}
-              aria-label="Product"
-              onChange={(event) => patchDraft(draft.id, { value: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  pushDraft(draft.id);
-                }
-              }}
-            />
-          </div>
-        ))}
         {list.map((variable) => {
           const editing = renamingId === variable.id;
           return (
@@ -1237,12 +1200,78 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
             </div>
           );
         })}
+        {drafts.map((draft) => (
+          <div key={draft.id} className="prompt-library__field">
+            <div className="prompt-library__label-row">
+              <input
+                ref={(node) => {
+                  if (node) draftInputRefs.current.set(draft.id, node);
+                  else draftInputRefs.current.delete(draft.id);
+                }}
+                className="prompt-library__name-input"
+                value={draft.name}
+                size={Math.max((draft.name || 'Variable name').length, 1)}
+                placeholder="Variable name"
+                aria-label="Variable name"
+                onChange={(event) => patchDraft(draft.id, { name: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    pushDraft(draft.id);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="prompt-library__rename"
+                aria-label="Edit variable name"
+                onClick={() => draftInputRefs.current.get(draft.id)?.focus()}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                  <path d="M13 7l4 4" />
+                </svg>
+              </button>
+              <button type="button" className="prompt-library__queue" onClick={() => pushDraft(draft.id)}>
+                Add Variable
+              </button>
+              <button
+                type="button"
+                className="prompt-library__remove"
+                aria-label="Quitar cajón"
+                onClick={() => setDrafts((prev) => prev.filter((item) => item.id !== draft.id))}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16" />
+                  <path d="M9 7V5h6v2" />
+                  <path d="M7 7l1 13h8l1-13" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
+              </button>
+            </div>
+            <textarea
+              rows={2}
+              value={draft.value}
+              placeholder={draft.name.trim() ? `[ ${draft.name.trim()} ]` : ''}
+              aria-label="Product"
+              onChange={(event) => patchDraft(draft.id, { value: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  pushDraft(draft.id);
+                }
+              }}
+            />
+          </div>
+        ))}
       </div>
       <footer className="prompt-library__footer">
         <p className="prompt-library__info">This queue belongs only to this document. Type @ in the prompt to place it.</p>
-        <button type="button" className="prompt-library__create" onClick={startDraft}>
-          Create Variable
-        </button>
+        {drafts.length ? null : (
+          <button type="button" className="prompt-library__create" onClick={startDraft}>
+            Add Variable
+          </button>
+        )}
       </footer>
     </>
   );
