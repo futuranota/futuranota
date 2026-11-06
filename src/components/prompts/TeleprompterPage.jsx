@@ -264,9 +264,10 @@ const FLOAT_CSS = `
 function readStoredTheme() {
   try {
     const value = localStorage.getItem(THEME_STORE);
-    return value === 'light' ? 'light' : 'dark';
+    if (value === 'dark') return 'dark';
+    return 'light';
   } catch {
-    return 'dark';
+    return 'light';
   }
 }
 

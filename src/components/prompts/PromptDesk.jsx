@@ -3803,11 +3803,12 @@ function InstructionPanel({
               aria-label={`Home · ${promptDisplayName(prompt)}`}
               title="Home"
             >
-              <span className="prompt-panel__home-glyph" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M4 10.5 12 4l8 6.5V20H4Z" />
-                </svg>
-              </span>
+              <img
+                className="prompt-panel__home-glyph"
+                src="/uploads/Home%20Info.svg"
+                alt=""
+                aria-hidden="true"
+              />
               <span
                 className={
                   String(prompt.name || '').trim()

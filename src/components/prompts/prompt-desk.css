@@ -2166,6 +2166,7 @@ button.prompt-embed__brand-slot {
   justify-content: stretch;
   width: min(920px, 100%);
   margin-inline: auto;
+  row-gap: 25px;
 }
 
 .prompt-panel__split--steps > .prompt-panel__editor-tools {
@@ -2197,19 +2198,24 @@ button.prompt-embed__brand-slot {
   grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
   column-gap: 16px;
   align-items: start;
-  justify-items: stretch;
-  padding-left: 0;
+  padding-top: 2px;
 }
 
 .prompt-panel__split--steps .prompt-panel__step-actions {
   grid-column: 2;
   justify-self: start;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 2px;
 }
 
 .prompt-panel__split--steps .prompt-steps {
   grid-column: 1 / -1;
+}
+
+/* Match listing stroke on the prompt card */
+.prompt-panel__split--steps > .prompt-sheet.prompt-sheet--saved .prompt-drawer {
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  box-sizing: border-box;
 }
 
 .prompt-step-rail {
@@ -2403,41 +2409,36 @@ button.prompt-embed__brand-slot {
   align-self: flex-start;
   max-width: min(100%, 280px);
   margin: 0;
-  padding: 2px 10px 2px 3px;
-  border: 1px solid rgba(20, 20, 22, 0.14);
-  border-radius: 999px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   color: #111;
   font: inherit;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 800;
   line-height: 1.2;
-  min-height: 26px;
+  min-height: 0;
   cursor: pointer;
 }
 
-.prompt-panel__home:hover {
-  border-color: rgba(20, 20, 22, 0.28);
+.prompt-panel__home:hover,
+.prompt-panel__home:hover .prompt-panel__home-name,
+.prompt-panel__home:hover .prompt-panel__home-name.is-placeholder {
+  color: rgba(20, 20, 22, 0.45);
+}
+
+.prompt-panel__home:hover .prompt-panel__home-glyph {
+  opacity: 0.45;
+  filter: none;
 }
 
 .prompt-panel__home-glyph {
   flex: none;
   width: 20px;
   height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: rgba(20, 20, 22, 0.06);
-}
-
-.prompt-panel__home-glyph svg {
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  display: block;
+  object-fit: contain;
 }
 
 .prompt-panel__home-name {
@@ -2445,12 +2446,14 @@ button.prompt-embed__brand-slot {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 800;
 }
 
 .prompt-panel__home-name.is-placeholder {
   color: rgba(20, 20, 22, 0.42);
-  font-weight: 560;
+  font-weight: 700;
 }
+
 
 .prompt-panel__split--prompt .prompt-panel__editor-tools {
   padding-right: 0;
