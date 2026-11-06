@@ -1,10 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import {
   FREE_TELEPROMPT_MAX,
-  PROMPT_LIMIT_COPY,
   TRANSCRIPT_FOLDER_LABEL,
   canAddTeleprompt,
   canEditTeleprompt,
@@ -43,6 +41,7 @@ import {
   readTelepromptLibrary,
   writeTelepromptLibrary,
 } from '../../lib/teleprompterLibrary.js';
+import { startProCheckout } from '../../lib/billingApi.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
 import './teleprompter-page.css';
@@ -608,6 +607,71 @@ const EMPTY_LIST_ROWS = 4;
 const SCRIPT_TITLE_MAX = 72;
 const UNTITLED_SCRIPT_NAME = 'Untitled script';
 
+function TelepromptUpgradeModal({ open, busy, onClose, onUpgrade }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    function onKey(event) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="tp-upgrade" role="dialog" aria-modal="true" aria-labelledby="tp-upgrade-title">
+      <button type="button" className="tp-upgrade__scrim" aria-label="Close" onClick={onClose} />
+      <div className="tp-upgrade__card">
+        <button type="button" className="tp-upgrade__close" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <h2 id="tp-upgrade-title">Need unlimited teleprompter scripts?</h2>
+        <p className="tp-upgrade__lead">
+          The Free plan includes {FREE_TELEPROMPT_MAX} scripts. Upgrade to Pro to create more and keep editing without limits.
+        </p>
+        <div className="tp-upgrade__compare">
+          <div className="tp-upgrade__col">
+            <div className="tp-upgrade__col-head">
+              <h3>Free</h3>
+              <span className="tp-upgrade__badge">Current plan</span>
+            </div>
+            <p className="tp-upgrade__tag">Best for trying Futura Nota teleprompter</p>
+            <p className="tp-upgrade__section">Free, but limited</p>
+            <ul className="tp-upgrade__list">
+              <li>{FREE_TELEPROMPT_MAX} teleprompter scripts</li>
+              <li>Edit within 5 hours after create</li>
+              <li>Speed and Voice playback</li>
+            </ul>
+          </div>
+          <div className="tp-upgrade__col tp-upgrade__col--pro">
+            <div className="tp-upgrade__col-head">
+              <h3>Pro</h3>
+            </div>
+            <p className="tp-upgrade__tag">Best for daily scripts and long sessions</p>
+            <p className="tp-upgrade__price">
+              $10.99<span>/mo</span>
+            </p>
+            <p className="tp-upgrade__section">Everything unlocked</p>
+            <ul className="tp-upgrade__list">
+              <li>Unlimited teleprompter scripts</li>
+              <li>Unlimited editing window</li>
+              <li>Full desk Pro features</li>
+            </ul>
+            <button
+              type="button"
+              className="tp-upgrade__cta"
+              disabled={busy}
+              onClick={onUpgrade}
+            >
+              {busy ? 'Opening checkout…' : 'Upgrade to Pro'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TelepromptList({
   items,
   activeId,
@@ -618,10 +682,6 @@ function TelepromptList({
   canCreate,
   createCapped = false,
   createPulse = false,
-  createGateOpen = false,
-  createGateMessage = '',
-  onCloseCreateGate,
-  onUpgrade,
   showQuota = false,
   quotaUsed = 0,
   quotaMax = FREE_TELEPROMPT_MAX,
@@ -646,25 +706,12 @@ function TelepromptList({
               createPulse ? 'is-pulse' : '',
               createFrozen ? 'is-capped' : '',
             ].filter(Boolean).join(' ')}
-            disabled={!canCreate || createFrozen}
+            disabled={!canCreate}
             onClick={onCreateNew}
           >
             <IconEdit />
             <span>Create new</span>
           </button>
-          {createFrozen || createGateOpen ? (
-            <div className="tp-plan-popover tp-plan-popover--list" role="status">
-              <p>{createGateMessage}</p>
-              <div className="tp-plan-popover__actions">
-                {createGateOpen && !createFrozen ? (
-                  <button type="button" onClick={onCloseCreateGate}>OK</button>
-                ) : null}
-                <button type="button" className="tp-plan-popover__upgrade" onClick={onUpgrade}>
-                  Upgrade
-                </button>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
       <div className="tp-list__table-wrap scroll-match-bg">
@@ -1013,7 +1060,6 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, canInsert = true })
  * desk browser on the right, play coloring + Copy on blocks.
  */
 export default function TeleprompterPage({ folders = [] }) {
-  const navigate = useNavigate();
   const email = useAuthStore((state) => state.user?.email || '');
   const profilePlan = usePlanStore((state) => state.profile.plan);
   const plan = deskPlan(email, profilePlan);
@@ -1025,6 +1071,7 @@ export default function TeleprompterPage({ folders = [] }) {
   const [library, setLibrary] = useState(() => readTelepromptLibrary());
   const [activeTelepromptId, setActiveTelepromptId] = useState('');
   const [createGateOpen, setCreateGateOpen] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [rightTab, setRightTab] = useState(readStoredRightTab);
   const [cps, setCps] = useState(DEFAULT_CPS);
   const [paceMode, setPaceMode] = useState(readStoredPaceMode);
@@ -1430,6 +1477,22 @@ export default function TeleprompterPage({ folders = [] }) {
     setSessionOpen(true);
     setIsEditing(true);
     setRightTab('list');
+  }
+
+  async function upgradeToProCheckout() {
+    if (upgradeBusy) return;
+    setUpgradeBusy(true);
+    try {
+      const { url } = await startProCheckout('monthly', { cancelReturn: 'app' });
+      if (url) {
+        window.location.assign(url);
+        return;
+      }
+      throw new Error('No checkout URL');
+    } catch (error) {
+      console.warn('[teleprompter] checkout failed', error?.message || error);
+      setUpgradeBusy(false);
+    }
   }
 
   function discardSession() {
@@ -2072,13 +2135,6 @@ export default function TeleprompterPage({ folders = [] }) {
               canCreate={!isEditing}
               createCapped={!telepromptSlotsOpen}
               createPulse={createPulse}
-              createGateOpen={createGateOpen}
-              createGateMessage={PROMPT_LIMIT_COPY.teleprompt}
-              onCloseCreateGate={() => setCreateGateOpen(false)}
-              onUpgrade={() => {
-                setCreateGateOpen(false);
-                navigate('/app/plans');
-              }}
               showQuota={isFreePlan}
               quotaUsed={Math.min(createdCount, FREE_TELEPROMPT_MAX)}
               quotaMax={FREE_TELEPROMPT_MAX}
@@ -2093,6 +2149,15 @@ export default function TeleprompterPage({ folders = [] }) {
           )}
         </div>
       </div>
+      <TelepromptUpgradeModal
+        open={createGateOpen}
+        busy={upgradeBusy}
+        onClose={() => {
+          if (upgradeBusy) return;
+          setCreateGateOpen(false);
+        }}
+        onUpgrade={() => { void upgradeToProCheckout(); }}
+      />
     </div>
   );
 }

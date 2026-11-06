@@ -440,6 +440,12 @@
   --scroll-thumb: var(--tp-scroll-thumb);
 }
 
+/* Same soft banner gray as prompt saved-head (#fafafa) */
+.tp-page[data-tp-theme='light'] .tp-list__table-wrap {
+  background: #fafafa;
+  --scroll-bg: #fafafa;
+}
+
 .tp-list__table {
   width: 100%;
   border-collapse: collapse;
@@ -939,7 +945,7 @@
 .tp-script__field {
   width: 100%;
   flex: none;
-  height: min(42vh, 340px);
+  height: 240px;
   min-height: 120px;
   box-sizing: border-box;
   resize: vertical;
@@ -1389,5 +1395,201 @@
   .tp-toolkit__actions {
     width: 100%;
     justify-content: center;
+  }
+}
+
+/* Upgrade compare modal (teleprompter free cap → Stripe) */
+.tp-upgrade {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.tp-upgrade__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(20, 20, 22, 0.28);
+  cursor: pointer;
+}
+
+.tp-upgrade__card {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  box-sizing: border-box;
+  padding: 28px 28px 24px;
+  border-radius: 18px;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+}
+
+.tp-upgrade__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(20, 20, 22, 0.55);
+  font: 500 22px/1 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.tp-upgrade__close:hover {
+  background: rgba(20, 20, 22, 0.06);
+  color: #1a1a1a;
+}
+
+.tp-upgrade__card > h2 {
+  margin: 0 36px 8px 0;
+  font: 700 22px/1.25 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.tp-upgrade__lead {
+  margin: 0 0 20px;
+  max-width: 46ch;
+  color: rgba(20, 20, 22, 0.58);
+  font: 500 14px/1.45 ui-sans-serif, system-ui, sans-serif;
+}
+
+.tp-upgrade__compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid rgba(20, 20, 22, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.tp-upgrade__col {
+  padding: 18px 18px 20px;
+  background: #fff;
+}
+
+.tp-upgrade__col--pro {
+  border-left: 1px solid rgba(20, 20, 22, 0.12);
+  background: #fafafa;
+}
+
+.tp-upgrade__col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tp-upgrade__col-head h3 {
+  margin: 0;
+  font: 700 16px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
+.tp-upgrade__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.06);
+  color: rgba(20, 20, 22, 0.62);
+  font: 650 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.tp-upgrade__tag {
+  margin: 0 0 14px;
+  color: rgba(20, 20, 22, 0.55);
+  font: 500 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+
+.tp-upgrade__price {
+  margin: 0 0 14px;
+  font: 750 28px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.tp-upgrade__price span {
+  margin-left: 2px;
+  color: rgba(20, 20, 22, 0.5);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tp-upgrade__section {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(20, 20, 22, 0.1);
+  color: rgba(20, 20, 22, 0.72);
+  font: 650 12px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+
+.tp-upgrade__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tp-upgrade__list li {
+  position: relative;
+  padding-left: 18px;
+  color: rgba(20, 20, 22, 0.78);
+  font: 500 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+
+.tp-upgrade__list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(20, 20, 22, 0.28);
+}
+
+.tp-upgrade__col--pro .tp-upgrade__list li::before {
+  background: #1a1a1a;
+}
+
+.tp-upgrade__cta {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #fff;
+  font: 700 14px/1 ui-sans-serif, system-ui, sans-serif;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.tp-upgrade__cta:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
+.tp-upgrade__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 700px) {
+  .tp-upgrade__compare {
+    grid-template-columns: 1fr;
+  }
+
+  .tp-upgrade__col--pro {
+    border-left: 0;
+    border-top: 1px solid rgba(20, 20, 22, 0.12);
   }
 }

@@ -845,14 +845,11 @@ function DeskSidebar({ view, settingsPane }) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
-  const profilePlan = usePlanStore((state) => state.profile.plan);
   const [loggingOut, setLoggingOut] = useState(false);
   const [open, setOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(view === 'settings');
   const email = user?.email || '';
   const initial = (email[0] || 'F').toUpperCase();
-  const plan = deskPlan(email, profilePlan);
-  const isPro = plan === 'pro';
 
   useEffect(() => {
     function onKey(event) {
@@ -969,18 +966,6 @@ function DeskSidebar({ view, settingsPane }) {
             >
               {loggingOut ? t('common.signingOut') : t('common.signOut')}
             </button>
-            {isPro ? (
-              <span className="prompt-desk__plan-chip is-pro" title="Pro">Pro</span>
-            ) : (
-              <button
-                type="button"
-                className="prompt-desk__plan-chip is-free"
-                title="Upgrade to Pro"
-                onClick={() => navigate('/app/plans')}
-              >
-                Free
-              </button>
-            )}
           </span>
         </span>
       </div>
