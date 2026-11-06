@@ -54,7 +54,6 @@ import {
   isTranscriptPrompt,
   normalizePromptFile,
   stepsFromOrganizedSheets,
-  visibleStepTitle,
   filePageCaption,
 } from '../../lib/promptPages.js';
 import {
@@ -98,6 +97,9 @@ const HOME_FRAMES = [
 
 const FLOAT_OPEN_SIZE = { width: 400, height: 360 };
 const FLOAT_COLLAPSED_WIDTH = 340;
+
+/** Temporary A/B: open-file sheet = left step list + right prompt body. Set false to revert. */
+const PROMPT_SPLIT_LAYOUT = true;
 
 function resizeFloatHost(host, width, height) {
   if (!host || typeof host.resizeTo !== 'function') return;
@@ -553,7 +555,7 @@ function TranslateControl({ busy, note, onTarget }) {
   );
 }
 
-function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Prompt Title', readOnly = false }) {
+function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Prompt title', readOnly = false }) {
   return (
     <textarea
       ref={titleRef}
@@ -746,9 +748,9 @@ function pdfStageLayout(viewport, natural, zoom) {
 
 const DESK_VIEWS = [
   { id: 'home', label: 'Home', to: '/app' },
-  { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
-  { id: 'embed', label: 'Embed Html', to: '/app/embed' },
   { id: 'teleprompter', label: 'Teleprompter', to: '/app/teleprompter' },
+  { id: 'embed', label: 'Embed Prompt', to: '/app/embed' },
+  { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
 ];
 
 const SETTINGS_PANES = [
@@ -1622,7 +1624,8 @@ function CreditGlass({ credits, ready, empty }) {
 export default function PromptDesk() {
   const location = useLocation();
   const view = viewFromPath(location.pathname);
-  useKofiOverlay(view === 'home' || view === 'transcribe' || view === 'embed' || view === 'teleprompter');
+  // Support me (Ko-fi): free zones only — Home + Embed Prompt.
+  useKofiOverlay(view === 'home' || view === 'embed');
   const settingsPane = settingsPaneFromPath(location.pathname);
   const storageFocus = storageFocusFromPath(location.pathname);
   const navigate = useNavigate();
@@ -3528,19 +3531,42 @@ function InstructionPanel({
     });
   }
 
-  function deleteIndex() {
+  /** Split-layout rail: always append a new prompt under the free/pro page cap. */
+  function addPromptStep() {
+    imageHold.current = false;
+    if (!canAddPromptPage(steps.length, plan)) {
+      setLimitNote(PROMPT_LIMIT_COPY.page);
+      return;
+    }
+    onPatch({
+      steps: [...steps, blankPromptStep()],
+      stepIndex: steps.length,
+    });
+  }
+
+  function deleteStepAt(itemIndex) {
+    imageHold.current = false;
     if (steps.length <= 1) {
       onPatch({
-        steps: [blankPromptStep(step.id)],
+        steps: [blankPromptStep(steps[0]?.id)],
         stepIndex: 0,
       });
       return;
     }
-    const nextSteps = steps.filter((_, itemIndex) => itemIndex !== index);
+    const nextSteps = steps.filter((_, i) => i !== itemIndex);
+    const nextIndex = itemIndex < index
+      ? index - 1
+      : itemIndex === index
+        ? Math.min(index, nextSteps.length - 1)
+        : index;
     onPatch({
       steps: nextSteps,
-      stepIndex: Math.min(index, nextSteps.length - 1),
+      stepIndex: Math.max(0, Math.min(nextIndex, nextSteps.length - 1)),
     });
+  }
+
+  function deleteIndex() {
+    deleteStepAt(index);
   }
 
   function fixOpenPrompt() {
@@ -3763,7 +3789,10 @@ function InstructionPanel({
           ? 'prompt-panel__split prompt-panel__split--side'
           : pdfTranscriptWide
             ? 'prompt-panel__split prompt-panel__split--transcript'
-            : 'prompt-panel__split prompt-panel__split--prompt'
+            : [
+                'prompt-panel__split prompt-panel__split--prompt',
+                sheetOpen && PROMPT_SPLIT_LAYOUT ? 'prompt-panel__split--steps' : '',
+              ].filter(Boolean).join(' ')
       }>
         <div className={sheetOpen ? 'prompt-panel__editor-tools prompt-panel__editor-tools--sheet' : 'prompt-panel__editor-tools'}>
           {sheetOpen ? (
@@ -4199,6 +4228,69 @@ function InstructionPanel({
           </div>
         ) : null}
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
+          {sheetOpen && PROMPT_SPLIT_LAYOUT ? (
+            <aside className="prompt-step-rail" aria-label="Prompt list">
+              <p className="prompt-step-rail__label">Prompts</p>
+              <ul className="prompt-step-rail__list">
+                {steps.map((item, itemIndex) => {
+                  const named = String(item.title || '').trim();
+                  const label = named || 'Prompt title';
+                  const activeRow = itemIndex === index;
+                  const rowClass = [
+                    'prompt-step-rail__row',
+                    activeRow ? 'is-active' : '',
+                    named ? '' : 'is-placeholder',
+                  ].filter(Boolean).join(' ');
+                  const itemClass = [
+                    'prompt-step-rail__item',
+                    activeRow ? 'is-active' : '',
+                    named ? '' : 'is-placeholder',
+                  ].filter(Boolean).join(' ');
+                  return (
+                    <li key={item.id} className={rowClass}>
+                      <button
+                        type="button"
+                        className={itemClass}
+                        aria-current={activeRow ? 'true' : undefined}
+                        onClick={() => {
+                          if (itemIndex === index) return;
+                          imageHold.current = false;
+                          onPatch({ stepIndex: itemIndex });
+                        }}
+                      >
+                        <span className="prompt-step-rail__dot" aria-hidden="true" />
+                        <span className="prompt-step-rail__title">{label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="prompt-step-rail__delete"
+                        aria-label={`Eliminar ${label}`}
+                        title="Eliminar"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          deleteStepAt(itemIndex);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <button
+                type="button"
+                className="prompt-step-rail__add"
+                disabled={!canAddPromptPage(steps.length, plan)}
+                onClick={addPromptStep}
+              >
+                + New prompt
+              </button>
+              {!canAddPromptPage(steps.length, plan) ? (
+                <p className="prompt-desk__limit" role="status">{PROMPT_LIMIT_COPY.page}</p>
+              ) : null}
+            </aside>
+          ) : null}
           {sheetOpen ? (
           <div className={step.promptSaved ? 'prompt-sheet prompt-sheet--saved' : 'prompt-sheet'}>
             {step.promptSaved ? (
@@ -4208,7 +4300,7 @@ function InstructionPanel({
                     <PromptTitleField
                       className="prompt-sheet__title"
                       value={step.title || ''}
-                      placeholder="Prompt Title"
+                      placeholder="Prompt title"
                       readOnly
                       onChange={() => {}}
                     />
@@ -4263,7 +4355,7 @@ function InstructionPanel({
                   <PromptTitleField
                     className="prompt-sheet__title"
                     value={step.title || ''}
-                    placeholder="Prompt Title"
+                    placeholder="Prompt title"
                     onChange={(title) => patchStep({ title })}
                   />
                 </div>
@@ -4349,7 +4441,7 @@ function InstructionPanel({
                     prompt={step.prompt}
                     documentId={prompt.id}
                     variables={ownedVariables}
-                    placeholder={'Write your prompt (press "#+space" for upper case)'}
+                    placeholder="Prompt Description"
                     readOnly={false}
                     onCommit={commitBody}
                     onUrlPaste={setUrlOffer}
@@ -4538,30 +4630,36 @@ function InstructionPanel({
                 Guardar
               </button>
             ) : null}
-            <button
-              type="button"
-              className="prompt-steps__arrow"
-              aria-label="Paso anterior"
-              disabled={index <= 0}
-              onClick={goBack}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M14.5 6.5 9 12l5.5 5.5" />
-              </svg>
-            </button>
-            <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
+            {PROMPT_SPLIT_LAYOUT ? null : (
+              <>
+                <button
+                  type="button"
+                  className="prompt-steps__arrow"
+                  aria-label="Paso anterior"
+                  disabled={index <= 0}
+                  onClick={goBack}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14.5 6.5 9 12l5.5 5.5" />
+                  </svg>
+                </button>
+                <span className="prompt-steps__count">{filePageCaption(prompt, index, steps.length)}</span>
+              </>
+            )}
             {limitNote ? <p className="prompt-desk__limit" role="status">{limitNote}</p> : null}
-            <button
-              type="button"
-              className="prompt-steps__arrow"
-              aria-label="Next prompt"
-              disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
-              onClick={goForward}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9.5 6.5 15 12l-5.5 5.5" />
-              </svg>
-            </button>
+            {PROMPT_SPLIT_LAYOUT ? null : (
+              <button
+                type="button"
+                className="prompt-steps__arrow"
+                aria-label="Next prompt"
+                disabled={index >= steps.length - 1 && (!stepHasDraft(step) || !canAddPromptPage(steps.length, plan))}
+                onClick={goForward}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9.5 6.5 15 12l-5.5 5.5" />
+                </svg>
+              </button>
+            )}
           </div>
           </div>
           ) : null}

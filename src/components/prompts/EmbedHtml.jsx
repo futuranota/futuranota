@@ -1296,7 +1296,7 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
   return (
     <div className="prompt-desk__page prompt-embed">
       <header className="prompt-desk__bar">
-        <h1 className="prompt-desk__mark">Embed Html</h1>
+        <h1 className="prompt-desk__mark">Embed Prompt</h1>
       </header>
       <div className="prompt-embed__board">
         <EmbedSideSheet

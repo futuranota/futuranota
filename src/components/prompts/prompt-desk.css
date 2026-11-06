@@ -2160,6 +2160,206 @@ button.prompt-embed__brand-slot {
   grid-column: 1;
 }
 
+/* Temporary test: step list | prompt body (PROMPT_SPLIT_LAYOUT) */
+.prompt-panel__split--prompt.prompt-panel__split--steps {
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  justify-content: stretch;
+  width: min(920px, 100%);
+  margin-inline: auto;
+}
+
+.prompt-panel__split--steps > .prompt-panel__editor-tools {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.prompt-panel__split--steps > .prompt-step-rail {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: stretch;
+  min-height: 0;
+}
+
+.prompt-panel__split--steps > .prompt-sheet {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-width: none;
+}
+
+.prompt-panel__split--steps > .prompt-panel__foot {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.prompt-step-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 8px 12px;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  box-sizing: border-box;
+}
+
+.prompt-step-rail__label {
+  margin: 0 6px 2px;
+  font: 650 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(26, 26, 26, 0.45);
+}
+
+.prompt-step-rail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.prompt-step-rail__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.prompt-step-rail__row:hover,
+.prompt-step-rail__row.is-active {
+  background: rgba(20, 20, 22, 0.05);
+}
+
+.prompt-step-rail__row.is-active {
+  background: rgba(20, 20, 22, 0.08);
+}
+
+.prompt-step-rail__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 4px 8px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #3d3b3b;
+  font: 500 13px/1.25 ui-sans-serif, system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prompt-step-rail__item.is-active {
+  font-weight: 650;
+}
+
+.prompt-step-rail__item.is-placeholder,
+.prompt-step-rail__item.is-placeholder.is-active {
+  color: rgba(61, 59, 59, 0.42);
+  font-weight: 500;
+}
+
+.prompt-step-rail__item.is-placeholder .prompt-step-rail__dot,
+.prompt-step-rail__item.is-placeholder.is-active .prompt-step-rail__dot {
+  border-color: rgba(20, 20, 22, 0.18);
+  background: transparent;
+}
+
+.prompt-step-rail__delete {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: 0 4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(26, 26, 26, 0.4);
+  font: 600 18px/1 ui-sans-serif, system-ui, sans-serif;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.prompt-step-rail__row:hover .prompt-step-rail__delete,
+.prompt-step-rail__row.is-active .prompt-step-rail__delete,
+.prompt-step-rail__delete:focus-visible {
+  opacity: 1;
+}
+
+.prompt-step-rail__delete:hover {
+  color: #c62828;
+  background: rgba(198, 40, 40, 0.08);
+}
+
+.prompt-step-rail__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(20, 20, 22, 0.28);
+  background: transparent;
+}
+
+.prompt-step-rail__item.is-active .prompt-step-rail__dot {
+  border-color: #1a1a1a;
+  background: #1a1a1a;
+}
+
+.prompt-step-rail__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-step-rail__add {
+  flex: none;
+  margin: 4px 4px 0;
+  padding: 8px 10px;
+  border: 1px dashed rgba(20, 20, 22, 0.18);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(26, 26, 26, 0.72);
+  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.prompt-step-rail__add:hover:not(:disabled) {
+  border-color: rgba(20, 20, 22, 0.35);
+  color: #1a1a1a;
+}
+
+.prompt-step-rail__add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Match left rail height: fill the grid cell; scroll inside the body */
+.prompt-panel__split--steps .prompt-sheet .prompt-drawer {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+}
+
+.prompt-panel__split--steps .prompt-sheet .prompt-panel__body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
 .prompt-panel__blank {
   min-height: 0;
 }
