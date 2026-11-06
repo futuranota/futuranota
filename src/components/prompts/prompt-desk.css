@@ -2198,7 +2198,9 @@ button.prompt-embed__brand-slot {
   grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
   column-gap: 16px;
   align-items: start;
-  padding-top: 2px;
+  padding-top: 0;
+  /* Pull Edit/Delete up against the sheet (offsets split row-gap) */
+  margin-top: -18px;
 }
 
 .prompt-panel__split--steps .prompt-panel__step-actions {
@@ -2398,7 +2400,7 @@ button.prompt-embed__brand-slot {
 }
 
 .prompt-panel__editor-tools--sheet {
-  gap: 10px;
+  gap: 12px;
   padding-bottom: 10px;
 }
 
@@ -2414,11 +2416,11 @@ button.prompt-embed__brand-slot {
   border-radius: 0;
   background: transparent;
   color: #111;
-  font: inherit;
+  font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
-  min-height: 0;
+  font-weight: 500;
+  line-height: 20px;
+  min-height: 20px;
   cursor: pointer;
 }
 
@@ -2439,6 +2441,7 @@ button.prompt-embed__brand-slot {
   height: 20px;
   display: block;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .prompt-panel__home-name {
@@ -2446,12 +2449,15 @@ button.prompt-embed__brand-slot {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 800;
+  font-weight: 500;
+  line-height: 20px;
+  /* Optically sit on the house base (icon mass is lower than the 20×20 box) */
+  transform: translateY(2px);
 }
 
 .prompt-panel__home-name.is-placeholder {
   color: rgba(20, 20, 22, 0.42);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 
@@ -3484,18 +3490,14 @@ button.prompt-embed__brand-slot {
 
 .prompt-models--sheet .prompt-models__item,
 .prompt-models--sheet .prompt-format__btn {
-  min-height: 30px;
-  padding: 4px 12px 4px 4px;
+  min-height: 36px;
+  padding: 6px 14px;
   font-size: 13px;
-}
-
-.prompt-models--sheet .prompt-format__btn {
-  padding: 4px 12px;
 }
 
 .prompt-models--sheet .prompt-formatbar {
   margin-left: 2px;
-  min-height: 30px;
+  min-height: 36px;
   padding: 0 3px;
 }
 
@@ -5622,7 +5624,7 @@ button.prompt-embed__brand-slot {
   font: inherit;
   font-size: 13px;
   font-weight: 650;
-  padding: 6px 12px;
+  padding: 4px 10px;
   cursor: pointer;
 }
 
