@@ -30,15 +30,16 @@
   background: transparent;
 }
 
+/* Light: cream shell (not desk, not gray); white panels; stronger player bar */
 .tp-page[data-tp-theme='light'] {
-  --tp-surface: #f4f1eb;
+  --tp-surface: #fff;
   --tp-ink: #1a1a1a;
   --tp-muted: rgba(20, 20, 22, 0.45);
   --tp-line: rgba(20, 20, 22, 0.12);
   --tp-done: #0d7a45;
   --tp-shell: #faf8f4;
-  --tp-panel: #f4f1eb;
-  --tp-toolkit: #efeae2;
+  --tp-panel: #fff;
+  --tp-toolkit: rgba(26, 26, 26, 0.22);
   --tp-play: #1a1a1a;
   --tp-play-ink: #fff;
   --tp-icon-hover: rgba(20, 20, 22, 0.06);
@@ -743,6 +744,28 @@
   padding: 14px 16px;
   border-top: 1px solid var(--tp-line);
   background: var(--tp-toolkit);
+}
+
+/* Light: soft glass player — component that fits the cream/white stage */
+.tp-page[data-tp-theme='light'] .tp-toolkit {
+  margin: 0 10px 10px;
+  border: 1px solid rgba(20, 20, 22, 0.1);
+  border-radius: 16px;
+  border-top: 1px solid rgba(20, 20, 22, 0.1);
+  background: rgba(26, 26, 26, 0.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow:
+    0 8px 24px rgba(20, 20, 22, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #1a1a1a;
+  --tp-ink: #1a1a1a;
+  --tp-muted: rgba(20, 20, 22, 0.55);
+  --tp-line: rgba(20, 20, 22, 0.14);
+  --tp-icon-hover: rgba(20, 20, 22, 0.08);
+  --tp-play: #1a1a1a;
+  --tp-play-ink: #fff;
+  --tp-focus: rgba(20, 20, 22, 0.2);
 }
 
 .tp-toolkit__meta {
