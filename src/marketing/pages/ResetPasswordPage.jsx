@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore.js';
 import { PATHS } from '../lib/paths.js';
-import { applyMarketingTheme } from '../lib/theme.js';
+import { applyAuthLightCanvas } from '../lib/theme.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 import { supabase } from '../../lib/supabaseClient.js';
@@ -35,23 +35,25 @@ export function ResetPasswordPage() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-  // Captura el token del hash que viene en el link de reset
-  const hashParams = new URLSearchParams(window.location.hash.slice(1));
-  const accessToken = hashParams.get('access_token');
-  const refreshToken = hashParams.get('refresh_token');
-  const type = hashParams.get('type');
+  useEffect(() => applyAuthLightCanvas(), []);
 
-  if (type === 'recovery' && accessToken) {
-    supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken || '',
-    }).catch((err) => {
-      setErrorMessage('Invalid or expired reset link. Please request a new one.');
-      console.error(err);
-    });
-  }
-}, []);
+  useEffect(() => {
+    // Captura el token del hash que viene en el link de reset
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const type = hashParams.get('type');
+
+    if (type === 'recovery' && accessToken) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      }).catch((err) => {
+        setErrorMessage('Invalid or expired reset link. Please request a new one.');
+        console.error(err);
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

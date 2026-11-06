@@ -2,16 +2,12 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Terms } from '../sections/Terms.jsx';
 import { PATHS } from '../lib/paths.js';
-import { applyMarketingTheme } from '../lib/theme.js';
+import { applyAuthLightCanvas } from '../lib/theme.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
 export function TermsPage() {
-  useEffect(() => {
-    applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
-    document.body.classList.add('marketing-body');
-    return () => document.body.classList.remove('marketing-body');
-  }, []);
+  useEffect(() => applyAuthLightCanvas(), []);
 
   return (
     <div className="auth-split-wrap auth-terms-wrap" data-screen-label="signup-terms">

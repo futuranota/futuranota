@@ -28,8 +28,16 @@ import PromptDesk from './components/prompts/PromptDesk.jsx';
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore();
   if (loading) return (
-    <div className="landing">
-      <div className="landing-card glass" style={{ maxWidth: 300, textAlign: 'center' }}>
+    <div
+      className="landing"
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        background: '#f4f1eb',
+      }}
+    >
+      <div className="landing-card glass" style={{ maxWidth: 300, textAlign: 'center', background: '#fff' }}>
         <MarkLoading />
       </div>
     </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore.js';
 import { PATHS } from '../lib/paths.js';
-import { applyMarketingTheme } from '../lib/theme.js';
+import { applyAuthLightCanvas } from '../lib/theme.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -13,11 +13,7 @@ export function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  useEffect(() => {
-    applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
-    document.body.classList.add('marketing-body');
-    return () => document.body.classList.remove('marketing-body');
-  }, []);
+  useEffect(() => applyAuthLightCanvas(), []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthSignupCard } from '../components/AuthSignupCard.jsx';
 import { PATHS, authPath } from '../lib/paths.js';
-import { applyMarketingTheme } from '../lib/theme.js';
+import { applyAuthLightCanvas } from '../lib/theme.js';
 import { getHome } from '../lib/content.js';
 import { PRICING_PLANS_DEFAULT } from '../lib/pricingDefaults.js';
 import { useAuthStore } from '../../stores/authStore.js';
@@ -45,6 +45,7 @@ export function WelcomePage() {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const planId = searchParams.get('plan');
+  const billing = 'monthly';
 
   const selectedPlan = useMemo(() => {
     if (!planId) return null;
@@ -60,8 +61,8 @@ export function WelcomePage() {
 
   useEffect(() => {
     captureReferralFromSearch(searchParams);
-    syncPendingProCheckoutFromParams(planId, 'monthly');
-  }, [searchParams, planId]);
+    syncPendingProCheckoutFromParams(planId, billing);
+  }, [searchParams, planId, billing]);
 
   useEffect(() => {
     if (authLoading || !user || !onAuthPage) return;
@@ -70,11 +71,7 @@ export function WelcomePage() {
     }
   }, [authLoading, user, onAuthPage, navigate]);
 
-  useEffect(() => {
-    applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
-    document.body.classList.add('marketing-body');
-    return () => document.body.classList.remove('marketing-body');
-  }, []);
+  useLayoutEffect(() => applyAuthLightCanvas(), []);
 
   useEffect(() => {
     const onHash = () => setTab(location.hash === '#signin' ? 'signin' : 'signup');

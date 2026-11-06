@@ -8221,6 +8221,12 @@ textarea.note-form-field {
   background: rgba(8, 10, 14, 0.72);
 }
 
+/* Auth / desk beige canvas — "Signing in…" must not flash charcoal. */
+body.marketing-body--auth .mark-loading-overlay__backdrop,
+body.prompt-desk-body .mark-loading-overlay__backdrop {
+  background: rgba(244, 241, 235, 0.92);
+}
+
 .mark-loading-overlay__card {
   position: relative;
   z-index: 1;
@@ -8229,6 +8235,19 @@ textarea.note-form-field {
   border-radius: 14px;
   text-align: center;
   box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
+}
+
+body.marketing-body--auth .mark-loading-overlay__card,
+body.prompt-desk-body .mark-loading-overlay__card {
+  background: #fff;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  box-shadow: 0 16px 40px rgba(26, 26, 26, 0.12);
+  color: #1a1a1a;
+}
+
+body.marketing-body--auth .mark-loading__label,
+body.prompt-desk-body .mark-loading__label {
+  color: #5c5a5a;
 }
 
 .mark-loading {

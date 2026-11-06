@@ -164,6 +164,27 @@ body.marketing-body {
   overflow-x: hidden;
 }
 
+/* Login / signup / password — same beige as prompt desk (not charcoal marketing --bg). */
+body.marketing-body.marketing-body--auth,
+/* :has() so first paint is beige even before useLayoutEffect adds --auth */
+body:has(.auth-split-wrap),
+html:has(.auth-split-wrap) body {
+  background: #f4f1eb !important;
+  background-image: none !important;
+  color: #3D3B3B;
+}
+
+body:has(.auth-split-wrap) .mark-loading-overlay__backdrop {
+  background: rgba(244, 241, 235, 0.92) !important;
+}
+
+body:has(.auth-split-wrap) .mark-loading-overlay__card {
+  background: #fff !important;
+  border: 1px solid rgba(20, 20, 22, 0.08);
+  box-shadow: 0 16px 40px rgba(26, 26, 26, 0.12);
+  color: #1a1a1a;
+}
+
 /* faint dot-grid canvas + warm accent glow up top */
 .canvas-bg {
   position: fixed;

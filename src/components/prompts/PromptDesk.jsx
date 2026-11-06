@@ -870,6 +870,10 @@ function DeskSidebar({ view, settingsPane }) {
   async function handleSignOut() {
     if (loggingOut) return;
     setLoggingOut(true);
+    // Paint beige auth canvas before unmount so /app → /login does not flash dark.
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.body.style.background = '#f4f1eb';
+    document.body.style.backgroundImage = 'none';
     try {
       await signOut();
     } catch (error) {
@@ -1623,6 +1627,18 @@ export default function PromptDesk() {
   const storageFocus = storageFocusFromPath(location.pathname);
   const navigate = useNavigate();
   useStripeCheckoutReturn();
+
+  useEffect(() => {
+    document.body.classList.add('prompt-desk-body');
+    document.body.style.background = '#f4f1eb';
+    document.body.style.backgroundImage = 'none';
+    return () => {
+      document.body.classList.remove('prompt-desk-body');
+      document.body.style.background = '';
+      document.body.style.backgroundImage = '';
+    };
+  }, []);
+
   const [folders, setFolders] = useState(null);
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');

@@ -9,9 +9,7 @@ import {
   canAddTeleprompt,
   canEditTeleprompt,
   deskPlan,
-  formatTelepromptEditCountdown,
   isPromptPro,
-  telepromptEditRemainingMs,
 } from '../../lib/promptPlanLimits.js';
 import { normalizeReferences } from '../../lib/promptReferences.js';
 import { stepModelCardMeta } from '../../lib/promptModels.js';
@@ -39,7 +37,9 @@ import {
 import {
   TELEPROMPT_STATUS,
   blankTeleprompt,
+  bumpTelepromptCreatedCount,
   formatTelepromptUploaded,
+  readTelepromptCreatedCount,
   readTelepromptLibrary,
   writeTelepromptLibrary,
 } from '../../lib/teleprompterLibrary.js';
@@ -625,12 +625,13 @@ function TelepromptList({
   quotaUsed = 0,
   quotaMax = FREE_TELEPROMPT_MAX,
 }) {
+  const createFrozen = Boolean(createCapped);
   return (
     <div className="tp-list">
       <div className="tp-list__toolbar">
         {showQuota ? (
           <p
-            className={createCapped ? 'tp-list__quota is-capped' : 'tp-list__quota'}
+            className={createFrozen ? 'tp-list__quota is-capped' : 'tp-list__quota'}
             aria-label={`Scripts ${quotaUsed} of ${quotaMax}`}
           >
             Scripts <strong>{quotaUsed}/{quotaMax}</strong>
@@ -642,19 +643,21 @@ function TelepromptList({
             className={[
               'tp-list__btn tp-list__btn--create',
               createPulse ? 'is-pulse' : '',
-              createCapped ? 'is-capped' : '',
+              createFrozen ? 'is-capped' : '',
             ].filter(Boolean).join(' ')}
-            disabled={!canCreate}
+            disabled={!canCreate || createFrozen}
             onClick={onCreateNew}
           >
             <IconEdit />
             <span>Create new</span>
           </button>
-          {createGateOpen ? (
+          {createFrozen || createGateOpen ? (
             <div className="tp-plan-popover tp-plan-popover--list" role="status">
               <p>{createGateMessage}</p>
               <div className="tp-plan-popover__actions">
-                <button type="button" onClick={onCloseCreateGate}>OK</button>
+                {createGateOpen && !createFrozen ? (
+                  <button type="button" onClick={onCloseCreateGate}>OK</button>
+                ) : null}
                 <button type="button" className="tp-plan-popover__upgrade" onClick={onUpgrade}>
                   Upgrade
                 </button>
@@ -1020,7 +1023,6 @@ export default function TeleprompterPage({ folders = [] }) {
   const [isEditing, setIsEditing] = useState(false);
   const [library, setLibrary] = useState(() => readTelepromptLibrary());
   const [activeTelepromptId, setActiveTelepromptId] = useState('');
-  const [editGateOpen, setEditGateOpen] = useState(false);
   const [createGateOpen, setCreateGateOpen] = useState(false);
   const [rightTab, setRightTab] = useState(readStoredRightTab);
   const [cps, setCps] = useState(DEFAULT_CPS);
@@ -1036,7 +1038,7 @@ export default function TeleprompterPage({ folders = [] }) {
   const [saveFlash, setSaveFlash] = useState(false);
   const [createPulse, setCreatePulse] = useState(false);
   const [pausedBlockId, setPausedBlockId] = useState('');
-  const [editRemainMs, setEditRemainMs] = useState(0);
+  const [createdCount, setCreatedCount] = useState(() => readTelepromptCreatedCount());
   const copyFlashTimerRef = useRef(0);
   const saveFlashTimerRef = useRef(0);
   const createPulseTimerRef = useRef(0);
@@ -1071,27 +1073,13 @@ export default function TeleprompterPage({ folders = [] }) {
   const canPlay = sessionOpen && hasScriptBody;
   const canEditContent = sessionOpen && isEditing;
   const canSaveTeleprompt = canEditContent && hasScriptBody;
-  const telepromptSlotsOpen = canAddTeleprompt(library, plan);
+  const telepromptSlotsOpen = canAddTeleprompt(createdCount, plan);
   const isFreePlan = !isPromptPro(plan);
   const activeLibraryItem = useMemo(
     () => library.find((entry) => entry.id === activeTelepromptId) || null,
     [library, activeTelepromptId],
   );
   const editAllowedForActive = !activeLibraryItem || canEditTeleprompt(activeLibraryItem, plan);
-
-  useEffect(() => {
-    if (!isFreePlan || !activeLibraryItem?.createdAt) {
-      setEditRemainMs(0);
-      return undefined;
-    }
-    const tick = () => setEditRemainMs(telepromptEditRemainingMs(activeLibraryItem));
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [isFreePlan, activeLibraryItem]);
-
-  const showEditCountdown = Boolean(isFreePlan && sessionOpen && activeLibraryItem?.createdAt);
-  const editCountdownLabel = formatTelepromptEditCountdown(editRemainMs);
 
   const activeBlockId = useMemo(() => {
     if (pausedBlockId) return pausedBlockId;
@@ -1395,7 +1383,7 @@ export default function TeleprompterPage({ folders = [] }) {
   function nudgeCreateNew() {
     if (sessionOpen) return;
     setRightTab('list');
-    if (!canAddTeleprompt(library, plan)) {
+    if (!canAddTeleprompt(createdCount, plan)) {
       setCreateGateOpen(true);
       return;
     }
@@ -1431,7 +1419,7 @@ export default function TeleprompterPage({ folders = [] }) {
 
   function createNewTeleprompt() {
     if (isEditing) return;
-    if (!canAddTeleprompt(library, plan)) {
+    if (!canAddTeleprompt(createdCount, plan)) {
       setCreateGateOpen(true);
       setRightTab('list');
       return;
@@ -1455,11 +1443,7 @@ export default function TeleprompterPage({ folders = [] }) {
 
   function beginEditSession() {
     if (!sessionOpen || isEditing) return;
-    if (activeLibraryItem && !canEditTeleprompt(activeLibraryItem, plan)) {
-      setEditGateOpen(true);
-      return;
-    }
-    setEditGateOpen(false);
+    if (activeLibraryItem && !canEditTeleprompt(activeLibraryItem, plan)) return;
     setIsEditing(true);
   }
 
@@ -1486,14 +1470,11 @@ export default function TeleprompterPage({ folders = [] }) {
     const existing = activeTelepromptId
       ? library.find((entry) => entry.id === activeTelepromptId)
       : null;
-    if (!existing && !canAddTeleprompt(library, plan)) {
+    if (!existing && !canAddTeleprompt(createdCount, plan)) {
       setCreateGateOpen(true);
       return;
     }
-    if (existing && !canEditTeleprompt(existing, plan)) {
-      setEditGateOpen(true);
-      return;
-    }
+    if (existing && !canEditTeleprompt(existing, plan)) return;
     const name = String(scriptTitle || '').trim() || UNTITLED_SCRIPT_NAME;
     const now = new Date().toISOString();
     const nextItem = blankTeleprompt({
@@ -1506,6 +1487,9 @@ export default function TeleprompterPage({ folders = [] }) {
     });
     const without = library.filter((entry) => entry.id !== nextItem.id);
     persistLibrary([nextItem, ...without]);
+    if (!existing) {
+      setCreatedCount(bumpTelepromptCreatedCount());
+    }
     setScriptTitle(nextItem.name);
     setActiveTelepromptId(nextItem.id);
     setIsEditing(false);
@@ -1796,46 +1780,18 @@ export default function TeleprompterPage({ folders = [] }) {
           >
             {sessionOpen ? (
               <div className="tp-float-actions" role="toolbar" aria-label="Script actions">
-                {showEditCountdown ? (
-                  <p
-                    className={editRemainMs > 0 ? 'tp-edit-countdown' : 'tp-edit-countdown is-ended'}
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {editRemainMs > 0
-                      ? `Edit ends in: ${editCountdownLabel}`
-                      : 'Edit locked'}
-                  </p>
-                ) : null}
                 {!isEditing ? (
                   <div className="tp-edit-wrap">
                     <button
                       type="button"
                       className={editAllowedForActive ? 'tp-title-action' : 'tp-title-action is-gated'}
                       aria-label="Edit"
-                      title={editAllowedForActive ? 'Edit' : 'Paid plan'}
+                      title={editAllowedForActive ? 'Edit' : 'Upgrade to Pro to edit'}
+                      disabled={!editAllowedForActive}
                       onClick={beginEditSession}
                     >
                       <IconEdit />
                     </button>
-                    {editGateOpen ? (
-                      <div className="tp-plan-popover" role="status">
-                        <p>{PROMPT_LIMIT_COPY.telepromptEdit}</p>
-                        <div className="tp-plan-popover__actions">
-                          <button type="button" onClick={() => setEditGateOpen(false)}>OK</button>
-                          <button
-                            type="button"
-                            className="tp-plan-popover__upgrade"
-                            onClick={() => {
-                              setEditGateOpen(false);
-                              navigate('/app/plans');
-                            }}
-                          >
-                            Upgrade
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
                 ) : null}
                 <button
@@ -2123,7 +2079,7 @@ export default function TeleprompterPage({ folders = [] }) {
                 navigate('/app/plans');
               }}
               showQuota={isFreePlan}
-              quotaUsed={library.length}
+              quotaUsed={Math.min(createdCount, FREE_TELEPROMPT_MAX)}
               quotaMax={FREE_TELEPROMPT_MAX}
             />
           ) : (

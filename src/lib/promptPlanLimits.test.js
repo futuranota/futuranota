@@ -54,25 +54,26 @@ describe('promptPlanLimits', () => {
     expect(canAddPromptPage(40, 'pro')).toBe(true);
   });
 
-  it('caps free teleprompts at 6 and edit within 2 hours', () => {
+  it('caps free teleprompts at 6 lifetime creates and edit within 5 hours', () => {
     expect(FREE_TELEPROMPT_MAX).toBe(6);
-    expect(FREE_TELEPROMPT_EDIT_MS).toBe(2 * 60 * 60 * 1000);
-    const six = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}` }));
-    expect(canAddTeleprompt(six, 'free')).toBe(false);
-    expect(canAddTeleprompt(six.slice(0, 5), 'free')).toBe(true);
-    expect(canAddTeleprompt(six, 'pro')).toBe(true);
+    expect(FREE_TELEPROMPT_EDIT_MS).toBe(5 * 60 * 60 * 1000);
+    expect(canAddTeleprompt(6, 'free')).toBe(false);
+    expect(canAddTeleprompt(5, 'free')).toBe(true);
+    expect(canAddTeleprompt(6, 'pro')).toBe(true);
+    // Legacy array arg still works (length).
+    expect(canAddTeleprompt(Array.from({ length: 6 }, (_, i) => ({ id: `t${i}` })), 'free')).toBe(false);
 
     const createdAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const old = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
     expect(canEditTeleprompt({ createdAt }, 'free')).toBe(true);
     expect(canEditTeleprompt({ createdAt: old }, 'free')).toBe(false);
     expect(canEditTeleprompt({ createdAt: old }, 'pro')).toBe(true);
 
     const now = Date.now();
     const halfHourAgo = new Date(now - 30 * 60 * 1000).toISOString();
-    expect(telepromptEditRemainingMs({ createdAt: halfHourAgo }, now)).toBe(90 * 60 * 1000);
+    expect(telepromptEditRemainingMs({ createdAt: halfHourAgo }, now)).toBe(270 * 60 * 1000);
     expect(telepromptEditRemainingMs({ createdAt: old }, now)).toBe(0);
-    expect(formatTelepromptEditCountdown(90 * 60 * 1000)).toBe('1:30');
+    expect(formatTelepromptEditCountdown(270 * 60 * 1000)).toBe('4:30');
     expect(formatTelepromptEditCountdown(45 * 1000)).toBe('0:01');
     expect(formatTelepromptEditCountdown(0)).toBe('0:00');
   });
@@ -86,8 +87,9 @@ describe('promptPlanLimits', () => {
     expect(PRO_PROMPT_CREDITS).toBe(1400);
   });
 
-  it('keeps the founder login unlimited even on a free profile row', () => {
-    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'free')).toBe('pro');
+  it('follows profile.plan for the founder login unless VITE_DESK_FOUNDER_PRO is on', () => {
+    // Default in tests: founder bypass off → free profile stays free.
+    expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'free')).toBe('free');
     expect(deskPlan(DESK_FREE_PREVIEW_EMAIL, 'pro')).toBe('pro');
     expect(deskPlan('someone@example.com', 'pro')).toBe('pro');
     expect(deskPlan('someone@example.com', 'free')).toBe('free');

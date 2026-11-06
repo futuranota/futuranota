@@ -114,24 +114,16 @@
   margin: 0 0 2px;
 }
 
-.tp-edit-countdown {
-  margin: 0 auto 0 0;
-  font: 550 11px/1.2 ui-sans-serif, system-ui, sans-serif;
-  color: color-mix(in srgb, var(--tp-ink) 62%, transparent);
-  white-space: nowrap;
-}
-
-.tp-edit-countdown.is-ended {
-  color: color-mix(in srgb, var(--tp-ink) 45%, transparent);
-}
-
 .tp-edit-wrap {
   position: relative;
   display: inline-flex;
 }
 
-.tp-title-action.is-gated {
-  opacity: 0.55;
+.tp-title-action.is-gated,
+.tp-title-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .tp-plan-popover {

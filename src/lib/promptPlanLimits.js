@@ -14,10 +14,20 @@ export const CREDITS_PER_CLICK = 7;
 export const PRO_PROMPT_CREDITS = 200 * CREDITS_PER_CLICK;
 
 /**
- * Founder / development login. The desk treats this email as unlimited Pro
- * so Organizar, Mejorar, embeds and the credit glass stay open while testing.
+ * Founder / development login. When VITE_DESK_FOUNDER_PRO=true, the desk treats
+ * this email as unlimited Pro (Organizar, embeds, credit glass). Default off so
+ * Free vs Pro freemium can be tested with the real profile.plan.
  */
 export const DESK_FREE_PREVIEW_EMAIL = 'contact.fnota@gmail.com';
+
+/** @returns {boolean} */
+export function isDeskFounderProEnabled() {
+  try {
+    return String(import.meta.env.VITE_DESK_FOUNDER_PRO || '').trim() === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
 
@@ -33,7 +43,7 @@ export const FREE_PROMPT_LIMITS = {
 export const FREE_TELEPROMPT_MAX = 6;
 
 /** Free users may keep editing a saved teleprompt for this long after createdAt. */
-export const FREE_TELEPROMPT_EDIT_MS = 2 * 60 * 60 * 1000;
+export const FREE_TELEPROMPT_EDIT_MS = 5 * 60 * 60 * 1000;
 
 export const PRO_PROMPT_LIMITS = {
   maxFolders: Infinity,
@@ -51,8 +61,8 @@ export const PROMPT_LIMIT_COPY = {
   storage: 'Llegaste al tope de 5 GB.',
   embed: 'El plan gratis incluye 3 embeds por día. Mañana podés crear otro.',
   usage: 'No pude revisar las llamadas del plan gratis.',
-  teleprompt: 'El plan gratis incluye 6 teleprompts. Subí a Pro para crear más.',
-  telepromptEdit: 'Después de 2 horas, editar teleprompts es solo para el plan de pago.',
+  teleprompt: 'Create a new file or Upgrade to Pro to Unlock unlimited Features',
+  telepromptEdit: 'Upgrade to Pro to keep editing this script.',
 };
 
 /** @param {string} [plan] */
@@ -62,11 +72,12 @@ export function isPromptPro(plan) {
 
 /** @param {string} [email] */
 export function isDeskFreePreview(email) {
+  if (!isDeskFounderProEnabled()) return false;
   return String(email || '').trim().toLowerCase() === DESK_FREE_PREVIEW_EMAIL;
 }
 
 /**
- * Plan the desk enforces. The founder login is always unlimited (Pro).
+ * Plan the desk enforces. Founder email is Pro only when VITE_DESK_FOUNDER_PRO=true.
  * @param {string} [email]
  * @param {string} [profilePlan]
  */
@@ -126,12 +137,16 @@ export function canAddPromptFile(folders, plan, _folderId) {
 }
 
 /**
- * @param {Array<{ id?: string }>} [items]
+ * Free: lifetime create counter (not live library length). Pro: always.
+ * @param {number | Array<{ id?: string }>} createdCountOrItems
  * @param {string} [plan]
  */
-export function canAddTeleprompt(items, plan) {
+export function canAddTeleprompt(createdCountOrItems, plan) {
   if (isPromptPro(plan)) return true;
-  return (items || []).length < FREE_TELEPROMPT_MAX;
+  const used = Array.isArray(createdCountOrItems)
+    ? createdCountOrItems.length
+    : Math.max(0, Math.floor(Number(createdCountOrItems) || 0));
+  return used < FREE_TELEPROMPT_MAX;
 }
 
 /**

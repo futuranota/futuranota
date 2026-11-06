@@ -47,3 +47,36 @@ export function clearMarketingTheme() {
   document.documentElement.removeAttribute('data-site');
   document.documentElement.removeAttribute('data-texture');
 }
+
+/** Beige auth canvas (login / signup / password) — matches prompt desk, avoids dark flash. */
+export const AUTH_CANVAS_BG = '#f4f1eb';
+
+/**
+ * Light marketing canvas for standalone auth pages (outside MarketingLayout home).
+ * @returns {() => void} cleanup
+ */
+export function applyAuthLightCanvas() {
+  applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
+  const root = document.documentElement;
+  root.setAttribute('data-theme', 'light');
+  document.body.classList.add('marketing-body', 'marketing-body--auth');
+  document.body.style.background = AUTH_CANVAS_BG;
+  document.body.style.backgroundImage = 'none';
+  document.body.style.color = '#3D3B3B';
+  return () => {
+    document.body.classList.remove('marketing-body', 'marketing-body--auth');
+    document.body.style.background = '';
+    document.body.style.backgroundImage = '';
+    document.body.style.color = '';
+    // Restore app theme preference (do not leave auth "light" sticky).
+    let preferred = 'dark';
+    try {
+      const stored = localStorage.getItem('futuranota-theme');
+      if (stored === 'light' || stored === 'dark') preferred = stored;
+    } catch {
+      /* ignore */
+    }
+    if (preferred === 'light') root.setAttribute('data-theme', 'light');
+    else root.removeAttribute('data-theme');
+  };
+}

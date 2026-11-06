@@ -2,6 +2,9 @@
 
 export const TELEPROMPTER_LIBRARY_STORE = 'fn-teleprompter-library-v1';
 
+/** Lifetime free creates (does not decrease on delete). */
+export const TELEPROMPTER_CREATED_STORE = 'fn-teleprompter-created-v1';
+
 export const TELEPROMPT_STATUS = {
   pending: 'pending',
   completed: 'completed',
@@ -77,6 +80,41 @@ export function writeTelepromptLibrary(items) {
     /* Private mode / quota */
   }
   return next;
+}
+
+/**
+ * Free plan lifetime create counter. Seeded once from library length if unset.
+ * @returns {number}
+ */
+export function readTelepromptCreatedCount() {
+  try {
+    const raw = localStorage.getItem(TELEPROMPTER_CREATED_STORE);
+    if (raw != null && raw !== '') {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+    }
+  } catch {
+    /* ignore */
+  }
+  const seeded = readTelepromptLibrary().length;
+  writeTelepromptCreatedCount(seeded);
+  return seeded;
+}
+
+/** @param {number} count @returns {number} */
+export function writeTelepromptCreatedCount(count) {
+  const next = Math.max(0, Math.floor(Number(count) || 0));
+  try {
+    localStorage.setItem(TELEPROMPTER_CREATED_STORE, String(next));
+  } catch {
+    /* Private mode / quota */
+  }
+  return next;
+}
+
+/** @returns {number} */
+export function bumpTelepromptCreatedCount() {
+  return writeTelepromptCreatedCount(readTelepromptCreatedCount() + 1);
 }
 
 /**
