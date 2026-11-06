@@ -50,9 +50,11 @@ const DEFAULT_CPS = 14;
 const FLOAT_SIZE = { width: 420, height: 480 };
 const CPS_MIN = 5;
 const CPS_MAX = 40;
-const THEME_STORE = 'fn-teleprompter-theme';
 const PACE_MODE_STORE = 'fn-teleprompter-pace-mode';
 const RIGHT_TAB_STORE = 'fn-teleprompter-right-tab';
+/** Legacy key — cleared so old dark preference cannot stick. */
+const LEGACY_THEME_STORE = 'fn-teleprompter-theme';
+const TP_THEME = 'light';
 
 function readStoredPaceMode() {
   try {
@@ -80,23 +82,10 @@ const FLOAT_CSS = `
     font: 16px/1.55 ui-sans-serif, system-ui, sans-serif;
   }
   html, body {
-    background: var(--tp-bg, #151515);
-    color: var(--tp-ink, #fff);
+    background: var(--tp-bg, #f4f1eb);
+    color: var(--tp-ink, #1a1a1a);
   }
   html, body, #tp-float-root, .tp-float {
-    --tp-bg: #151515;
-    --tp-ink: #fff;
-    --tp-muted: rgba(255, 255, 255, 0.45);
-    --tp-line: rgba(255, 255, 255, 0.14);
-    --tp-reader: #151515;
-    --tp-done: #6ee7a8;
-    --tp-cursor-bg: rgba(110, 231, 168, 0.28);
-    --tp-scroll-thumb: rgba(255, 255, 255, 0.18);
-  }
-  html[data-tp-theme="light"],
-  html[data-tp-theme="light"] body,
-  html[data-tp-theme="light"] #tp-float-root,
-  html[data-tp-theme="light"] .tp-float {
     --tp-bg: #f4f1eb;
     --tp-ink: #1a1a1a;
     --tp-muted: rgba(20, 20, 22, 0.45);
@@ -259,16 +248,6 @@ const FLOAT_CSS = `
     font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
   }
 `;
-
-function readStoredTheme() {
-  try {
-    const value = localStorage.getItem(THEME_STORE);
-    if (value === 'dark') return 'dark';
-    return 'light';
-  } catch {
-    return 'light';
-  }
-}
 
 function IconPlay() {
   return (
@@ -467,7 +446,6 @@ function FloatSurface({
   elapsedLabel,
   playing,
   collapsed,
-  theme,
   activeBlockId,
   copyFlash,
   canPlay,
@@ -477,7 +455,7 @@ function FloatSurface({
   onCopyBlock,
 }) {
   return (
-    <div className={collapsed ? 'tp-float is-collapsed' : 'tp-float'} data-tp-theme={theme}>
+    <div className={collapsed ? 'tp-float is-collapsed' : 'tp-float'} data-tp-theme={TP_THEME}>
       <div className="tp-float__head">
         <p className="tp-float__title">Teleprompter</p>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -512,12 +490,11 @@ function FloatSurface({
   );
 }
 
-function applyFloatTheme(hostWindow, theme) {
+function applyFloatTheme(hostWindow) {
   if (!hostWindow?.document) return;
-  const next = theme === 'light' ? 'light' : 'dark';
-  hostWindow.document.documentElement.setAttribute('data-tp-theme', next);
+  hostWindow.document.documentElement.setAttribute('data-tp-theme', TP_THEME);
   if (hostWindow.document.body) {
-    hostWindow.document.body.setAttribute('data-tp-theme', next);
+    hostWindow.document.body.setAttribute('data-tp-theme', TP_THEME);
   }
 }
 
@@ -532,7 +509,7 @@ function resizeFloatWindow(hostWindow, collapsed) {
   }
 }
 
-function mountFloatDocument(hostWindow, theme) {
+function mountFloatDocument(hostWindow) {
   const doc = hostWindow.document;
   doc.title = 'Teleprompter';
   let style = doc.getElementById('tp-float-css');
@@ -548,7 +525,7 @@ function mountFloatDocument(hostWindow, theme) {
     mount.id = 'tp-float-root';
     doc.body.replaceChildren(mount);
   }
-  applyFloatTheme(hostWindow, theme);
+  applyFloatTheme(hostWindow);
   return mount;
 }
 
@@ -1081,7 +1058,6 @@ export default function TeleprompterPage({ folders = [] }) {
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
   const [floatCollapsed, setFloatCollapsed] = useState(false);
-  const [theme] = useState(readStoredTheme);
   const [copyFlash, setCopyFlash] = useState({ id: '', kind: '' });
   const [saveFlash, setSaveFlash] = useState(false);
   const [createPulse, setCreatePulse] = useState(false);
@@ -1094,7 +1070,6 @@ export default function TeleprompterPage({ folders = [] }) {
   const libraryRef = useRef(library);
 
   const floatRef = useRef(null);
-  const themeRef = useRef(theme);
   const playingRef = useRef(false);
   const cursorRef = useRef(0);
   const textRef = useRef('');
@@ -1185,13 +1160,12 @@ export default function TeleprompterPage({ folders = [] }) {
   }, [rightTab]);
 
   useEffect(() => {
-    themeRef.current = theme;
     try {
-      localStorage.setItem(THEME_STORE, theme);
+      localStorage.removeItem(LEGACY_THEME_STORE);
     } catch {
       /* Private mode */
     }
-  }, [theme]);
+  }, []);
 
   useEffect(() => {
     playingRef.current = playing;
@@ -1712,7 +1686,7 @@ export default function TeleprompterPage({ folders = [] }) {
   }
 
   function bindFloatWindow(hostWindow) {
-    const mount = mountFloatDocument(hostWindow, themeRef.current);
+    const mount = mountFloatDocument(hostWindow);
     const root = createRoot(mount);
     const onHide = () => {
       hostWindow.removeEventListener('pagehide', onHide);
@@ -1795,7 +1769,7 @@ export default function TeleprompterPage({ folders = [] }) {
       setFloating(false);
       return;
     }
-    applyFloatTheme(slot.window, theme);
+    applyFloatTheme(slot.window);
     slot.root.render(
       <FloatSurface
         nodes={nodes}
@@ -1805,7 +1779,6 @@ export default function TeleprompterPage({ folders = [] }) {
         elapsedLabel={elapsedLabel}
         playing={playing}
         collapsed={floatCollapsed}
-        theme={theme}
         activeBlockId={activeBlockId}
         copyFlash={copyFlash}
         canPlay={canPlay}
@@ -1815,7 +1788,7 @@ export default function TeleprompterPage({ folders = [] }) {
         onCopyBlock={(node) => { void copyBlock(node, slot.window); }}
       />,
     );
-  }, [floating, nodes, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, theme, activeBlockId, copyFlash, canPlay, folders]);
+  }, [floating, nodes, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, activeBlockId, copyFlash, canPlay, folders]);
 
   useEffect(() => () => {
     stopLoop();
@@ -1831,7 +1804,7 @@ export default function TeleprompterPage({ folders = [] }) {
   }, []);
 
   return (
-    <div className="tp-page" data-tp-theme={theme}>
+    <div className="tp-page" data-tp-theme={TP_THEME}>
       <div className="tp-shell">
         <div className="tp-left">
           <div
