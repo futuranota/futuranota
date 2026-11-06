@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import {
@@ -686,8 +686,6 @@ function EmbedCodeSheet({
   card,
   text,
   markup,
-  logoSrc,
-  logoAlt,
   copied,
   disabled,
   onCopy,
@@ -722,15 +720,6 @@ function EmbedCodeSheet({
               )}
             </div>
             <div className="prompt-embed__actions">
-              {logoSrc ? (
-                <img
-                  className="prompt-embed__brand-preview"
-                  src={logoSrc}
-                  alt={logoAlt || ''}
-                  width={40}
-                  height={40}
-                />
-              ) : null}
               <button
                 type="button"
                 tabIndex={-1}
@@ -824,68 +813,18 @@ function DesignThumb({ design, selected, label, onChoose, onRemove }) {
   );
 }
 
-function BrandingCard({ src, alt, note, saved, open, onOpen, onFile, onAlt, onSave, onRemove, onHow }) {
-  const fileId = useId();
-  const showSlot = Boolean(src) || open;
-  const showAlt = Boolean(src) && !saved;
+function BrandingPlaceholder({ onHow }) {
   return (
-    <section className="prompt-embed__branding" aria-label="Branding">
-      <h2>Branding</h2>
-      {showSlot ? (
-        <>
-          <div className="prompt-embed__brand-row">
-            <label className={src ? 'prompt-embed__brand-slot has-file' : 'prompt-embed__brand-slot'} htmlFor={fileId}>
-              <span className="prompt-embed__brand-sr">Logo (optional)</span>
-              <input
-                id={fileId}
-                type="file"
-                accept="image/jpeg,.jpg,.jpeg,image/png,.png,image/svg+xml,.svg"
-                onChange={onFile}
-              />
-              {src ? (
-                <img src={src} alt="" width={64} height={64} />
-              ) : (
-                <span className="prompt-embed__brand-plus" aria-hidden="true">+</span>
-              )}
-            </label>
-            {showAlt ? (
-              <input
-                className="prompt-embed__brand-alt"
-                type="text"
-                value={alt}
-                placeholder="ALT"
-                aria-label="ALT"
-                onChange={(event) => onAlt(event.target.value)}
-              />
-            ) : null}
-          </div>
-          {saved ? null : (
-            <p className="prompt-embed__brand-hint">
-              Optional · SVG, PNG or JPG 1080px x 1080px · 5 MB <strong>no background</strong>
-            </p>
-          )}
-          <div className="prompt-embed__brand-actions">
-            {showAlt ? (
-              <button type="button" className="prompt-embed__brand-save" onClick={onSave}>
-                Save
-              </button>
-            ) : null}
-            <button type="button" className="prompt-embed__brand-remove" onClick={onRemove}>
-              Quitar
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <button type="button" className="prompt-embed__brand-add" onClick={onOpen}>
-            Add logo
-          </button>
-          <p className="prompt-embed__brand-hint">
-            Optional · SVG, PNG or JPG
-          </p>
-        </>
-      )}
-      {note ? <p className="prompt-embed__note" role="status">{note}</p> : null}
+    <section className="prompt-embed__branding" aria-label="Guide">
+      <h2>Guide</h2>
+      <div className="prompt-embed__brand-row" aria-hidden="true">
+        <div className="prompt-embed__brand-slot">
+          <span className="prompt-embed__brand-plus">+</span>
+        </div>
+      </div>
+      <p className="prompt-embed__brand-hint">
+        Logo branding is retired. Use Learn how it work for the embed steps.
+      </p>
       <button type="button" className="prompt-embed__brand-how" onClick={onHow}>
         Learn how it work
       </button>
@@ -921,37 +860,11 @@ function EmbedAllowance({ plan, used = 0 }) {
   );
 }
 
-function EmbedSideSheet({
-  plan,
-  used,
-  src,
-  alt,
-  note,
-  saved,
-  open,
-  onOpen,
-  onFile,
-  onAlt,
-  onSave,
-  onRemove,
-  onHow,
-}) {
+function EmbedSideSheet({ plan, used, onHow }) {
   return (
     <aside className="prompt-embed__rail">
       <EmbedAllowance plan={plan} used={used} />
-      <BrandingCard
-        src={src}
-        alt={alt}
-        note={note}
-        saved={saved}
-        open={open}
-        onOpen={onOpen}
-        onFile={onFile}
-        onAlt={onAlt}
-        onSave={onSave}
-        onRemove={onRemove}
-        onHow={onHow}
-      />
+      <BrandingPlaceholder onHow={onHow} />
     </aside>
   );
 }
@@ -1011,10 +924,8 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
       metaTitle,
       metaDescription,
       metaKeywords,
-      logoSrc,
-      logoAlt,
     }),
-    [text, markup, background, color, button, metaTitle, metaDescription, metaKeywords, logoSrc, logoAlt],
+    [text, markup, background, color, button, metaTitle, metaDescription, metaKeywords],
   );
   const card = promptCardStyles(background, color, button);
   const overflow = text.length > SCROLL_AT;
@@ -1302,16 +1213,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
         <EmbedSideSheet
           plan={plan}
           used={embedUsed}
-          src={logoSrc}
-          alt={logoAlt}
-          note={brandNote}
-          saved={logoSaved}
-          open={brandOpen}
-          onOpen={() => setBrandOpen(true)}
-          onFile={(event) => { void handleBrandFile(event); }}
-          onAlt={setLogoAlt}
-          onSave={() => { void saveBrand(); }}
-          onRemove={() => { void removeBrand(); }}
           onHow={openHow}
         />
         <div className="prompt-embed__main">
@@ -1344,15 +1245,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
             {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
           </div>
           <div className="prompt-embed__actions">
-            {logoSrc ? (
-              <img
-                className="prompt-embed__brand-preview"
-                src={logoSrc}
-                alt={logoAlt || ''}
-                width={40}
-                height={40}
-              />
-            ) : null}
             <button
               type="button"
               style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
@@ -1436,8 +1328,6 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
           card={card}
           text={text}
           markup={markup}
-          logoSrc={logoSrc}
-          logoAlt={logoAlt}
           copied={copiedEmbed}
           disabled={copyLocked}
           onCopy={copyEmbed}

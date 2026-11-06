@@ -37,7 +37,14 @@ import { savedPromptCount, stepsMarkedAfterSave } from '../../lib/promptStepSave
 import { hasHighlightBackground } from '../../lib/promptInlineMark.js';
 import { translateDeskText } from '../../lib/promptTranslate.js';
 import { organizePlainLists } from '../../lib/promptTextRepair.js';
-import { documentVariables, liftPromptPlaceholders, resolvePrompt, stampVariables } from '../../lib/promptVariables.js';
+import {
+  documentVariables,
+  liftDocumentPlaceholders,
+  liftPromptPlaceholders,
+  resetDocumentPlaceholders,
+  resolvePrompt,
+  stampVariables,
+} from '../../lib/promptVariables.js';
 import {
   STRUCTURE_MODEL_IDS,
   joinParagraphs,
@@ -747,7 +754,7 @@ function pdfStageLayout(viewport, natural, zoom) {
 }
 
 const DESK_VIEWS = [
-  { id: 'home', label: 'Home', to: '/app' },
+  { id: 'home', label: 'Prompt Library', to: '/app' },
   { id: 'teleprompter', label: 'Teleprompter', to: '/app/teleprompter' },
   { id: 'embed', label: 'Embed Prompt', to: '/app/embed' },
   { id: 'settings', label: 'Settings', to: '/app/settings/storage' },
@@ -845,11 +852,13 @@ function DeskSidebar({ view, settingsPane }) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
+  const profilePlan = usePlanStore((state) => state.profile.plan);
   const [loggingOut, setLoggingOut] = useState(false);
   const [open, setOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(view === 'settings');
   const email = user?.email || '';
   const initial = (email[0] || 'F').toUpperCase();
+  const isPro = deskPlan(email, profilePlan) === 'pro';
 
   useEffect(() => {
     function onKey(event) {
@@ -966,6 +975,12 @@ function DeskSidebar({ view, settingsPane }) {
             >
               {loggingOut ? t('common.signingOut') : t('common.signOut')}
             </button>
+            <span
+              className={isPro ? 'prompt-desk__plan-chip is-pro' : 'prompt-desk__plan-chip'}
+              title={isPro ? 'Pro' : 'Free'}
+            >
+              {isPro ? 'Pro' : 'Free'}
+            </span>
           </span>
         </span>
       </div>
@@ -2523,8 +2538,8 @@ function InstructionPanel({
   }
 
   useEffect(() => {
-    // Prompt pages only: land on the writing sheet (not the 3-card home).
-    setSheetOpen(true);
+    // Always land on the 3-card home; user opens the writing sheet from there.
+    setSheetOpen(false);
     if (index !== 0) onPatch({ stepIndex: 0 });
     setModelOpen(false);
     setRecommendedOpen(false);
@@ -2600,6 +2615,10 @@ function InstructionPanel({
     setFormatOpen(false);
     setCustomModel('');
   }, [step.id]);
+
+  useEffect(() => {
+    if (step.promptSaved) setFormatOpen(false);
+  }, [step.promptSaved]);
 
   useEffect(() => {
     // New prompt page: release image hold so a kept PDF can show again.
@@ -3397,6 +3416,9 @@ function InstructionPanel({
   }
 
   function saveAllPrompts() {
+    setFormatOpen(false);
+    setModelOpen(false);
+    setRecommendedOpen(false);
     onPatch({ steps: stepsAfterSave(prompt) });
   }
 
@@ -3567,15 +3589,33 @@ function InstructionPanel({
   }
 
   function addAutoVariables() {
-    if (!promptHasText(step.prompt)) return;
-    const lifted = liftPromptPlaceholders(step.prompt, ownedVariables);
+    const hasAny = (steps || []).some((item) => (
+      promptHasText(item?.prompt) || promptHasText(item?.description)
+    ));
+    if (!hasAny) return;
+    const lifted = liftDocumentPlaceholders(steps, ownedVariables);
+    const nextSteps = lifted.steps.map((item, itemIndex) => {
+      const prev = steps[itemIndex];
+      const changed = prev?.prompt !== item.prompt || prev?.description !== item.description;
+      return changed ? { ...item, promptSaved: false } : item;
+    });
     onPatch({
       variables: stampVariables(lifted.variables, prompt.id),
-      stepPatch: {
-        id: step.id,
-        prompt: lifted.prompt,
-        promptSaved: false,
-      },
+      steps: nextSteps,
+    });
+  }
+
+  function resetAutoVariables() {
+    if (!ownedVariables.length) return;
+    const reset = resetDocumentPlaceholders(steps, ownedVariables);
+    const nextSteps = reset.steps.map((item, itemIndex) => {
+      const prev = steps[itemIndex];
+      const changed = prev?.prompt !== item.prompt || prev?.description !== item.description;
+      return changed ? { ...item, promptSaved: false } : item;
+    });
+    onPatch({
+      variables: [],
+      steps: nextSteps,
     });
   }
 
@@ -3865,7 +3905,6 @@ function InstructionPanel({
                 <button
                   type="button"
                   className="prompt-models__item"
-                  disabled={step.promptSaved}
                   onClick={() => setVarsOpen(true)}
                 >
                   <span className="prompt-models__glyph" aria-hidden="true">
@@ -3890,7 +3929,7 @@ function InstructionPanel({
                     <span>Fix Text</span>
                   </button>
                 ) : null}
-                {promptHasText(step.prompt) ? (
+                {(steps || []).some((item) => promptHasText(item?.prompt) || promptHasText(item?.description)) ? (
                   <button
                     type="button"
                     className="prompt-models__item"
@@ -4004,7 +4043,7 @@ function InstructionPanel({
             </div>,
             document.body,
           ) : null}
-          {formatOpen ? (
+          {formatOpen && !step.promptSaved ? (
             <div className="prompt-drop" role="listbox" aria-label="Formato">
               {PROMPT_FORMATS.map((entry) => {
                 const selected = (step.format || 'text') === entry.id;
@@ -4015,7 +4054,10 @@ function InstructionPanel({
                     role="option"
                     aria-selected={selected}
                     className={selected ? 'prompt-drop__choice is-selected' : 'prompt-drop__choice'}
-                    onClick={() => patchStep({ format: entry.id, promptSaved: false })}
+                    onClick={() => {
+                      patchStep({ format: entry.id, promptSaved: false });
+                      setFormatOpen(false);
+                    }}
                   >
                     {entry.label}
                   </button>
@@ -4661,6 +4703,7 @@ function InstructionPanel({
         variables={ownedVariables}
         documentId={prompt.id}
         onChange={(next) => onPatch(markStepUnsaved(step.id, { variables: stampVariables(next, prompt.id) }))}
+        onResetPlaceholders={resetAutoVariables}
         onClose={() => setVarsOpen(false)}
       />
       {urlOpen ? (

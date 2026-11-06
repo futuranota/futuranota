@@ -15,7 +15,7 @@
   --tp-done: #0d7a45;
   --tp-shell: #faf8f4;
   --tp-panel: #fff;
-  --tp-toolkit: rgba(26, 26, 26, 0.12);
+  --tp-toolkit: #f1f1f1;
   --tp-play: #1a1a1a;
   --tp-play-ink: #fff;
   --tp-icon-hover: rgba(20, 20, 22, 0.06);
@@ -415,8 +415,8 @@
   overflow: auto;
   border: 1px solid var(--tp-line);
   border-radius: 12px;
-  background: #fafafa;
-  --scroll-bg: #fafafa;
+  background: #f3f1eb;
+  --scroll-bg: #f3f1eb;
   --scroll-thumb: var(--tp-scroll-thumb);
 }
 
@@ -721,7 +721,7 @@
   padding: 14px 16px;
   border: 1px solid rgba(20, 20, 22, 0.1);
   border-radius: 16px;
-  background: rgba(26, 26, 26, 0.12);
+  background: var(--tp-toolkit);
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
   box-shadow:

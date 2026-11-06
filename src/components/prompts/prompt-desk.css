@@ -272,15 +272,6 @@
   background: rgba(20, 20, 22, 0.04);
 }
 
-button.prompt-desk__plan-chip {
-  cursor: pointer;
-}
-
-button.prompt-desk__plan-chip:hover {
-  border-color: rgba(20, 20, 22, 0.28);
-  color: rgba(26, 26, 26, 0.9);
-}
-
 .prompt-desk__plan-chip.is-pro {
   border-color: transparent;
   background: #151515;
@@ -3507,7 +3498,9 @@ button.prompt-embed__brand-slot {
 }
 
 
-.prompt-models__row.is-locked {
+.prompt-models__row.is-locked > .prompt-models__item:disabled,
+.prompt-models__row.is-locked > .prompt-format__btn:disabled,
+.prompt-models__row.is-locked > .prompt-formatbar {
   opacity: 0.45;
 }
 
@@ -4970,6 +4963,48 @@ button.prompt-embed__brand-slot {
 .prompt-library__footer .prompt-library__info {
   flex: 1;
   min-width: 0;
+}
+
+.prompt-library__footer-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: none;
+}
+
+.prompt-library__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(20, 20, 22, 0.62);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.prompt-library__reset svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.prompt-library__reset:hover {
+  color: #1a1a1a;
 }
 
 .prompt-library__create {

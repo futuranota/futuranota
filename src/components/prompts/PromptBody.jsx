@@ -997,7 +997,16 @@ function fixedHost(root) {
   return doc.documentElement;
 }
 
-export function VariableDeck({ open, title, variables, documentId = '', onChange, onClose, inline = false }) {
+export function VariableDeck({
+  open,
+  title,
+  variables,
+  documentId = '',
+  onChange,
+  onResetPlaceholders,
+  onClose,
+  inline = false,
+}) {
   const list = useMemo(
     () => documentVariables({ id: documentId, variables }),
     [documentId, variables],
@@ -1267,11 +1276,33 @@ export function VariableDeck({ open, title, variables, documentId = '', onChange
       </div>
       <footer className="prompt-library__footer">
         <p className="prompt-library__info">This queue belongs only to this document. Type @ in the prompt to place it.</p>
-        {drafts.length ? null : (
-          <button type="button" className="prompt-library__create" onClick={startDraft}>
-            Add Variable
-          </button>
-        )}
+        <div className="prompt-library__footer-actions">
+          {list.length && onResetPlaceholders ? (
+            <button
+              type="button"
+              className="prompt-library__reset"
+              aria-label="Reset"
+              onClick={() => {
+                onResetPlaceholders();
+                setDrafts([{ id: crypto.randomUUID(), name: '', value: '' }]);
+                setRenamingId(null);
+                setEditName('');
+                setEditValue('');
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 12a8 8 0 0 1 13.66-5.66M20 12a8 8 0 0 1-13.66 5.66" />
+                <path d="M17 3v4h-4M7 21v-4h4" />
+              </svg>
+              <span>Reset</span>
+            </button>
+          ) : null}
+          {drafts.length ? null : (
+            <button type="button" className="prompt-library__create" onClick={startDraft}>
+              Add Variable
+            </button>
+          )}
+        </div>
       </footer>
     </>
   );
