@@ -2193,6 +2193,23 @@ button.prompt-embed__brand-slot {
 .prompt-panel__split--steps > .prompt-panel__foot {
   grid-column: 1 / -1;
   grid-row: 3;
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: start;
+  justify-items: stretch;
+  padding-left: 0;
+}
+
+.prompt-panel__split--steps .prompt-panel__step-actions {
+  grid-column: 2;
+  justify-self: start;
+  margin: 0;
+  padding: 0;
+}
+
+.prompt-panel__split--steps .prompt-steps {
+  grid-column: 1 / -1;
 }
 
 .prompt-step-rail {
@@ -5582,7 +5599,8 @@ button.prompt-embed__brand-slot {
 
 .prompt-panel__split:has(.prompt-sheet:hover) .prompt-panel__step-actions,
 .prompt-panel__foot:hover .prompt-panel__step-actions,
-.prompt-panel__step-actions:focus-within {
+.prompt-panel__step-actions:focus-within,
+.prompt-panel__step-actions:has(.prompt-panel__step-btn--save) {
   opacity: 1;
   pointer-events: auto;
 }

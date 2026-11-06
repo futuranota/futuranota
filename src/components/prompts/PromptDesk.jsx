@@ -4613,6 +4613,16 @@ function InstructionPanel({
                   </svg>
                   <span>Editar</span>
                 </button>
+              ) : promptNeedsSave(prompt, step) ? (
+                <button
+                  type="button"
+                  className="prompt-panel__step-btn prompt-panel__step-btn--save"
+                  aria-label="Guardar"
+                  title="Guardar"
+                  onClick={saveAllPrompts}
+                >
+                  Guardar
+                </button>
               ) : null}
               <button
                 type="button"
@@ -4625,11 +4635,6 @@ function InstructionPanel({
               </button>
             </div>
           <div className="prompt-steps">
-            {promptNeedsSave(prompt, step) ? (
-              <button type="button" className="prompt-steps__save" onClick={saveAllPrompts}>
-                Guardar
-              </button>
-            ) : null}
             {PROMPT_SPLIT_LAYOUT ? null : (
               <>
                 <button
