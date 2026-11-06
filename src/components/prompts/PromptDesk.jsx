@@ -398,9 +398,9 @@ function toggleTextFormat(root, command) {
   doc.execCommand(command, false, null);
 }
 
-function FormatBar({ active, onApply }) {
+function FormatBar({ active, onApply, disabled = false }) {
   return (
-    <div className="prompt-formatbar" role="toolbar" aria-label="Text format">
+    <div className={disabled ? 'prompt-formatbar is-locked' : 'prompt-formatbar'} role="toolbar" aria-label="Text format">
       {FORMAT_TOOLS.map((item) => (
         <button
           key={item.id}
@@ -409,8 +409,10 @@ function FormatBar({ active, onApply }) {
           aria-label={item.label}
           aria-pressed={Boolean(active?.[item.command])}
           title={item.label}
+          disabled={disabled}
           onMouseDown={(event) => {
             event.preventDefault();
+            if (disabled) return;
             onApply(item.command);
           }}
         >
@@ -551,7 +553,7 @@ function TranslateControl({ busy, note, onTarget }) {
   );
 }
 
-function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Title', readOnly = false }) {
+function PromptTitleField({ className, value, onChange, titleRef, placeholder = 'Prompt Title', readOnly = false }) {
   return (
     <textarea
       ref={titleRef}
@@ -841,11 +843,14 @@ function DeskSidebar({ view, settingsPane }) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
+  const profilePlan = usePlanStore((state) => state.profile.plan);
   const [loggingOut, setLoggingOut] = useState(false);
   const [open, setOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(view === 'settings');
   const email = user?.email || '';
   const initial = (email[0] || 'F').toUpperCase();
+  const plan = deskPlan(email, profilePlan);
+  const isPro = plan === 'pro';
 
   useEffect(() => {
     function onKey(event) {
@@ -949,14 +954,28 @@ function DeskSidebar({ view, settingsPane }) {
         <span className="prompt-desk__avatar" aria-hidden="true">{initial}</span>
         <span className="prompt-desk__account-copy">
           {email ? <span className="prompt-desk__email">{email}</span> : null}
-          <button
-            type="button"
-            className="prompt-desk__signout"
-            onClick={() => { void handleSignOut(); }}
-            disabled={loggingOut}
-          >
-            {loggingOut ? t('common.signingOut') : t('common.signOut')}
-          </button>
+          <span className="prompt-desk__account-row">
+            <button
+              type="button"
+              className="prompt-desk__signout"
+              onClick={() => { void handleSignOut(); }}
+              disabled={loggingOut}
+            >
+              {loggingOut ? t('common.signingOut') : t('common.signOut')}
+            </button>
+            {isPro ? (
+              <span className="prompt-desk__plan-chip is-pro" title="Pro">Pro</span>
+            ) : (
+              <button
+                type="button"
+                className="prompt-desk__plan-chip is-free"
+                title="Upgrade to Pro"
+                onClick={() => navigate('/app/plans')}
+              >
+                Free
+              </button>
+            )}
+          </span>
         </span>
       </div>
     </aside>
@@ -1065,7 +1084,7 @@ function BillingSettings() {
           <p className="prompt-billing__kicker">{pro ? t('deskBilling.pro') : t('deskBilling.free')}</p>
           <h2 id="prompt-billing-plan" className="prompt-billing__plan">{t('deskBilling.planName')}</h2>
           <p className="prompt-billing__price">
-            $5<span>{t('deskBilling.priceSuffix')}</span>
+            $10.99<span>{t('deskBilling.priceSuffix')}</span>
           </p>
           <p className="prompt-billing__note">{t('deskBilling.desc')}</p>
           <ul className="prompt-billing__list" role="list">
@@ -3378,6 +3397,10 @@ function InstructionPanel({
   }
 
   function editStep() {
+    setFormatOpen(false);
+    setModelOpen(false);
+    setRecommendedOpen(false);
+    setVarsOpen(false);
     patchStep({ promptSaved: false });
   }
 
@@ -3787,62 +3810,73 @@ function InstructionPanel({
           ) : null}
           <div className={sheetOpen ? 'prompt-models prompt-models--sheet' : 'prompt-models'}>
             {sheetOpen ? (
-              <>
-                <div className="prompt-models__row" role="toolbar" aria-label="Prompt tools">
+              <div
+                className={step.promptSaved ? 'prompt-models__row is-locked' : 'prompt-models__row'}
+                role="toolbar"
+                aria-label="Prompt tools"
+                aria-disabled={step.promptSaved}
+              >
+                <button
+                  type="button"
+                  className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
+                  aria-expanded={formatOpen}
+                  aria-label="Language"
+                  title={PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
+                  disabled={step.promptSaved}
+                  onClick={() => {
+                    setFormatOpen((open) => !open);
+                    setModelOpen(false);
+                    setRecommendedOpen(false);
+                  }}
+                >
+                  Language
+                </button>
+                <button
+                  type="button"
+                  className="prompt-models__item"
+                  disabled={step.promptSaved}
+                  onClick={() => setVarsOpen(true)}
+                >
+                  <span className="prompt-models__glyph" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M7 7h4M7 12h10M7 17h7" />
+                    </svg>
+                  </span>
+                  <span>Variables</span>
+                </button>
+                {stepHasDraft(step) ? (
                   <button
                     type="button"
-                    className={formatOpen ? 'prompt-format__btn is-selected' : 'prompt-format__btn'}
-                    aria-expanded={formatOpen}
-                    aria-label="Language"
-                    title={PROMPT_FORMATS.find((entry) => entry.id === (step.format || 'text'))?.label || 'Text'}
-                    onClick={() => {
-                      setFormatOpen((open) => !open);
-                      setModelOpen(false);
-                      setRecommendedOpen(false);
-                    }}
+                    className="prompt-models__item"
+                    disabled={step.promptSaved}
+                    onClick={() => { fixOpenPrompt(); }}
                   >
-                    Language
-                  </button>
-                  <button type="button" className="prompt-models__item" onClick={() => setVarsOpen(true)}>
                     <span className="prompt-models__glyph" aria-hidden="true">
                       <svg viewBox="0 0 24 24">
-                        <path d="M7 7h4M7 12h10M7 17h7" />
+                        <path d="M4 7h16M4 12h10M4 17h13" />
                       </svg>
                     </span>
-                    <span>Variables</span>
+                    <span>Fix Text</span>
                   </button>
-                  {stepHasDraft(step) ? (
-                    <button
-                      type="button"
-                      className="prompt-models__item"
-                      onClick={() => { fixOpenPrompt(); }}
-                    >
-                      <span className="prompt-models__glyph" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path d="M4 7h16M4 12h10M4 17h13" />
-                        </svg>
-                      </span>
-                      <span>Fix Text</span>
-                    </button>
-                  ) : null}
-                  {promptHasText(step.prompt) ? (
-                    <button
-                      type="button"
-                      className="prompt-models__item"
-                      onClick={() => { addAutoVariables(); }}
-                    >
-                      <span className="prompt-models__glyph" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path d="M8 7h.01M16 7h.01M9 12h6M8 17h.01M16 17h.01" />
-                          <path d="M7 5v14M17 5v14" />
-                        </svg>
-                      </span>
-                      <span>Auto Variable</span>
-                    </button>
-                  ) : null}
-                  <FormatBar active={formatOn} onApply={applyTextFormat} />
-                </div>
-              </>
+                ) : null}
+                {promptHasText(step.prompt) ? (
+                  <button
+                    type="button"
+                    className="prompt-models__item"
+                    disabled={step.promptSaved}
+                    onClick={() => { addAutoVariables(); }}
+                  >
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M8 7h.01M16 7h.01M9 12h6M8 17h.01M16 17h.01" />
+                        <path d="M7 5v14M17 5v14" />
+                      </svg>
+                    </span>
+                    <span>Auto Variable</span>
+                  </button>
+                ) : null}
+                <FormatBar active={formatOn} disabled={step.promptSaved} onApply={applyTextFormat} />
+              </div>
             ) : (
               <>
                 {onOpenStorage ? (
@@ -3885,26 +3919,6 @@ function InstructionPanel({
                       </svg>
                     </span>
                     <span>Embed video</span>
-                  </button>
-                )}
-                {showPdfPreview && !prompt.pdf?.path ? null : (
-                  <button
-                    type="button"
-                    className={prompt.pdf?.path ? 'prompt-models__item is-counted' : 'prompt-models__item'}
-                    onClick={() => {
-                      sideHold.current = false;
-                      setPdfFolded(false);
-                      setShowPdf(true);
-                      setShowVideo(false);
-                    }}
-                  >
-                    <span className="prompt-models__glyph" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M7 3h7l5 5v13H7z" />
-                        <path d="M14 3v5h5" />
-                      </svg>
-                    </span>
-                    <span>Add File</span>
                   </button>
                 )}
                 <button
@@ -4178,8 +4192,9 @@ function InstructionPanel({
                     <PromptTitleField
                       className="prompt-sheet__title"
                       value={step.title || ''}
-                      placeholder=""
-                      onChange={(title) => patchStep({ title })}
+                      placeholder="Prompt Title"
+                      readOnly
+                      onChange={() => {}}
                     />
                     {(sheetPlatformLabel || sheetRecommended) ? (
                       <p className="prompt-sheet__target">
@@ -4232,7 +4247,7 @@ function InstructionPanel({
                   <PromptTitleField
                     className="prompt-sheet__title"
                     value={step.title || ''}
-                    placeholder={prompt.name || 'Title'}
+                    placeholder="Prompt Title"
                     onChange={(title) => patchStep({ title })}
                   />
                 </div>
@@ -4477,9 +4492,29 @@ function InstructionPanel({
           <div className="prompt-panel__foot">
             <div className="prompt-panel__step-actions">
               {step.promptSaved ? (
-                <button type="button" onClick={editStep}>Editar</button>
+                <button
+                  type="button"
+                  className="prompt-panel__step-btn"
+                  aria-label="Editar"
+                  title="Editar"
+                  onClick={editStep}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 20h4L18 10l-4-4L4 16v4z" />
+                    <path d="M13 7l4 4" />
+                  </svg>
+                  <span>Editar</span>
+                </button>
               ) : null}
-              <button type="button" onClick={deleteIndex}>Eliminar</button>
+              <button
+                type="button"
+                className="prompt-panel__step-btn"
+                aria-label="Eliminar"
+                title="Eliminar"
+                onClick={deleteIndex}
+              >
+                Eliminar
+              </button>
             </div>
           <div className="prompt-steps">
             {promptNeedsSave(prompt, step) ? (

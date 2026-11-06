@@ -22,12 +22,18 @@ export const DESK_FREE_PREVIEW_EMAIL = 'contact.fnota@gmail.com';
 export const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
 
 export const FREE_PROMPT_LIMITS = {
-  maxFolders: 1,
-  maxFiles: 2,
-  maxPagesPerFile: 6,
+  maxFolders: Infinity,
+  maxFiles: 6,
+  maxPagesPerFile: 10,
   maxToolCalls: 3,
   maxEmbedBoxesPerDay: 3,
 };
+
+/** Free teleprompter Script list cap. */
+export const FREE_TELEPROMPT_MAX = 6;
+
+/** Free users may keep editing a saved teleprompt for this long after createdAt. */
+export const FREE_TELEPROMPT_EDIT_MS = 2 * 60 * 60 * 1000;
 
 export const PRO_PROMPT_LIMITS = {
   maxFolders: Infinity,
@@ -38,13 +44,15 @@ export const PRO_PROMPT_LIMITS = {
 };
 
 export const PROMPT_LIMIT_COPY = {
-  folder: 'El plan gratis incluye 1 folder.',
-  file: 'El plan gratis incluye 2 files.',
-  page: 'El plan gratis incluye 6 páginas por file.',
+  folder: 'El plan gratis permite carpetas ilimitadas.',
+  file: 'El plan gratis incluye 6 files en total.',
+  page: 'El plan gratis incluye 10 páginas por file.',
   tools: 'Se acabaron los 3 clics del plan gratis.',
   storage: 'Llegaste al tope de 5 GB.',
   embed: 'El plan gratis incluye 3 embeds por día. Mañana podés crear otro.',
   usage: 'No pude revisar las llamadas del plan gratis.',
+  teleprompt: 'El plan gratis incluye 6 teleprompts. Subí a Pro para crear más.',
+  telepromptEdit: 'Después de 2 horas, editar teleprompts es solo para el plan de pago.',
 };
 
 /** @param {string} [plan] */
@@ -105,16 +113,59 @@ export function canAddPromptFolder(folders, plan) {
   return (folders || []).filter(isDeskFolder).length < promptLimits(plan).maxFolders;
 }
 
-/** @param {Array<{ id?: string, prompts?: unknown[] }>} [folders] @param {string} [plan] @param {string} [folderId] */
-export function canAddPromptFile(folders, plan, folderId) {
+/**
+ * Free shelf: 6 files total across all folders (folders stay unlimited).
+ * @param {Array<{ id?: string, prompts?: unknown[] }>} [folders]
+ * @param {string} [plan]
+ * @param {string} [_folderId]
+ */
+export function canAddPromptFile(folders, plan, _folderId) {
   const cap = promptLimits(plan).maxFiles;
   if (!Number.isFinite(cap)) return true;
-  if (folderId) {
-    const folder = (folders || []).find((item) => item.id === folderId);
-    if (!folder || !isDeskFolder(folder)) return true;
-    return (folder.prompts?.length || 0) < cap;
-  }
   return countPromptFiles(folders) < cap;
+}
+
+/**
+ * @param {Array<{ id?: string }>} [items]
+ * @param {string} [plan]
+ */
+export function canAddTeleprompt(items, plan) {
+  if (isPromptPro(plan)) return true;
+  return (items || []).length < FREE_TELEPROMPT_MAX;
+}
+
+/**
+ * Free: edit allowed only within FREE_TELEPROMPT_EDIT_MS of createdAt.
+ * Pro: always.
+ * @param {{ createdAt?: string } | null | undefined} item
+ * @param {string} [plan]
+ * @param {number} [now]
+ */
+export function canEditTeleprompt(item, plan, now = Date.now()) {
+  if (isPromptPro(plan)) return true;
+  return telepromptEditRemainingMs(item, now) > 0;
+}
+
+/**
+ * Free edit window left after createdAt. Pro / missing date → 0 (UI hides countdown).
+ * @param {{ createdAt?: string } | null | undefined} item
+ * @param {number} [now]
+ */
+export function telepromptEditRemainingMs(item, now = Date.now()) {
+  const created = new Date(item?.createdAt || '').getTime();
+  if (!Number.isFinite(created)) return 0;
+  return Math.max(0, FREE_TELEPROMPT_EDIT_MS - (now - created));
+}
+
+/**
+ * @param {number} ms
+ * @returns {string} H:MM (hours can be 0–2 for the free window; minutes ceil remaining)
+ */
+export function formatTelepromptEditCountdown(ms) {
+  const totalMin = Math.max(0, Math.ceil(Number(ms) / 60000) || 0);
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 
 /** @param {number} pageCount @param {string} [plan] */

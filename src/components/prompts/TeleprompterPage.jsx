@@ -1,8 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { useNavigate } from 'react-router-dom';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
-import { TRANSCRIPT_FOLDER_LABEL } from '../../lib/promptPlanLimits.js';
-import { folderReferenceEntries } from '../../lib/promptReferences.js';
+import {
+  FREE_TELEPROMPT_MAX,
+  PROMPT_LIMIT_COPY,
+  TRANSCRIPT_FOLDER_LABEL,
+  canAddTeleprompt,
+  canEditTeleprompt,
+  deskPlan,
+  formatTelepromptEditCountdown,
+  isPromptPro,
+  telepromptEditRemainingMs,
+} from '../../lib/promptPlanLimits.js';
+import { normalizeReferences } from '../../lib/promptReferences.js';
 import { stepModelCardMeta } from '../../lib/promptModels.js';
 import {
   blankTextNode,
@@ -25,6 +36,15 @@ import {
   openVadMic,
   vadLevel,
 } from '../../lib/teleprompterVad.js';
+import {
+  TELEPROMPT_STATUS,
+  blankTeleprompt,
+  formatTelepromptUploaded,
+  readTelepromptLibrary,
+  writeTelepromptLibrary,
+} from '../../lib/teleprompterLibrary.js';
+import { useAuthStore } from '../../stores/authStore.js';
+import { usePlanStore } from '../../stores/planStore.js';
 import './teleprompter-page.css';
 
 const DEFAULT_CPS = 14;
@@ -33,6 +53,7 @@ const CPS_MIN = 5;
 const CPS_MAX = 40;
 const THEME_STORE = 'fn-teleprompter-theme';
 const PACE_MODE_STORE = 'fn-teleprompter-pace-mode';
+const RIGHT_TAB_STORE = 'fn-teleprompter-right-tab';
 
 function readStoredPaceMode() {
   try {
@@ -40,6 +61,15 @@ function readStoredPaceMode() {
     return value === 'voice' ? 'voice' : 'speed';
   } catch {
     return 'speed';
+  }
+}
+
+function readStoredRightTab() {
+  try {
+    const value = localStorage.getItem(RIGHT_TAB_STORE);
+    return value === 'folders' ? 'folders' : 'list';
+  } catch {
+    return 'list';
   }
 }
 
@@ -238,23 +268,6 @@ function readStoredTheme() {
   } catch {
     return 'dark';
   }
-}
-
-function IconSun() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" />
-    </svg>
-  );
-}
-
-function IconMoon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M20 14.2A7.4 7.4 0 0 1 9.8 4 7.5 7.5 0 1 0 20 14.2Z" />
-    </svg>
-  );
 }
 
 function IconPlay() {
@@ -539,20 +552,187 @@ function mountFloatDocument(hostWindow, theme) {
   return mount;
 }
 
-function countFolderPrompts(folder) {
-  return (folder?.prompts || []).reduce((total, file) => {
-    const steps = (file.steps || []).filter((step) => (
-      String(step.prompt || '').replace(/<[^>]+>/g, '').trim()
-    ));
-    return total + steps.length;
-  }, 0);
+const FILE_NAME_FALLBACK = 'Title Description';
+
+function fileDisplayName(file) {
+  const name = String(file?.name || '').trim();
+  if (!name || name === 'Untitled') return FILE_NAME_FALLBACK;
+  return name;
 }
 
-function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
+function countFilePrompts(file) {
+  return (file?.steps || []).filter((step) => (
+    String(step.prompt || '').replace(/<[^>]+>/g, '').trim()
+  )).length;
+}
+
+function IconFolder() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 7.5h6l1.5 1.5H20.5v9.5a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18Z" />
+      <path d="M3.5 7.5V6A1.5 1.5 0 0 1 5 4.5h4l1.5 1.5" />
+    </svg>
+  );
+}
+
+function IconFile() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3.5h7l4.5 4.5V20a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5Z" />
+      <path d="M14 3.5V9h5.5" />
+    </svg>
+  );
+}
+
+function IconChevron() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m9.5 6.5 5.5 5.5-5.5 5.5" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+const EMPTY_LIST_ROWS = 4;
+const SCRIPT_TITLE_MAX = 72;
+const UNTITLED_SCRIPT_NAME = 'Untitled script';
+
+function TelepromptList({
+  items,
+  activeId,
+  onOpen,
+  onToggleStatus,
+  onDelete,
+  onCreateNew,
+  canCreate,
+  createCapped = false,
+  createPulse = false,
+  createGateOpen = false,
+  createGateMessage = '',
+  onCloseCreateGate,
+  onUpgrade,
+  showQuota = false,
+  quotaUsed = 0,
+  quotaMax = FREE_TELEPROMPT_MAX,
+}) {
+  return (
+    <div className="tp-list">
+      <div className="tp-list__toolbar">
+        {showQuota ? (
+          <p
+            className={createCapped ? 'tp-list__quota is-capped' : 'tp-list__quota'}
+            aria-label={`Scripts ${quotaUsed} of ${quotaMax}`}
+          >
+            Scripts <strong>{quotaUsed}/{quotaMax}</strong>
+          </p>
+        ) : <span className="tp-list__quota-spacer" aria-hidden="true" />}
+        <div className="tp-list__create-wrap">
+          <button
+            type="button"
+            className={[
+              'tp-list__btn tp-list__btn--create',
+              createPulse ? 'is-pulse' : '',
+              createCapped ? 'is-capped' : '',
+            ].filter(Boolean).join(' ')}
+            disabled={!canCreate}
+            onClick={onCreateNew}
+          >
+            <IconEdit />
+            <span>Create new</span>
+          </button>
+          {createGateOpen ? (
+            <div className="tp-plan-popover tp-plan-popover--list" role="status">
+              <p>{createGateMessage}</p>
+              <div className="tp-plan-popover__actions">
+                <button type="button" onClick={onCloseCreateGate}>OK</button>
+                <button type="button" className="tp-plan-popover__upgrade" onClick={onUpgrade}>
+                  Upgrade
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="tp-list__table-wrap scroll-match-bg">
+        <table className="tp-list__table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Uploaded</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="tp-list__th-action">
+                <span className="tp-list__sr">Delete</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length ? items.map((item) => {
+              const active = item.id === activeId;
+              const completed = item.status === TELEPROMPT_STATUS.completed;
+              return (
+                <tr key={item.id} className={active ? 'is-active' : undefined}>
+                  <td>
+                    <button
+                      type="button"
+                      className="tp-list__name"
+                      onClick={() => onOpen(item.id)}
+                    >
+                      {item.name || UNTITLED_SCRIPT_NAME}
+                    </button>
+                  </td>
+                  <td>{formatTelepromptUploaded(item.createdAt)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className={completed ? 'tp-list__status is-done' : 'tp-list__status is-unfinished'}
+                      aria-pressed={completed}
+                      onClick={() => onToggleStatus(item.id)}
+                    >
+                      {completed ? 'Done' : 'Unfinished'}
+                    </button>
+                  </td>
+                  <td className="tp-list__action">
+                    <button
+                      type="button"
+                      className="tp-list__delete"
+                      aria-label={`Delete ${item.name || 'teleprompt'}`}
+                      onClick={() => onDelete(item.id)}
+                    >
+                      <IconTrash />
+                    </button>
+                  </td>
+                </tr>
+              );
+            }) : Array.from({ length: EMPTY_LIST_ROWS }, (_, index) => (
+              <tr key={`empty-${index}`} className="tp-list__empty-row" aria-hidden="true">
+                <td />
+                <td />
+                <td />
+                <td className="tp-list__action" />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, canInsert = true }) {
   const [query, setQuery] = useState('');
   const [folderId, setFolderId] = useState(null);
-  const [branch, setBranch] = useState(null); /* 'prompts' | 'urls' | null */
   const [fileId, setFileId] = useState(null);
+  const [leaf, setLeaf] = useState(null); /* 'prompt' | 'urls' | null */
 
   const list = useMemo(
     () => deskFoldersForTeleprompter(folders, TRANSCRIPT_FOLDER_LABEL),
@@ -569,31 +749,51 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
   }, [list, query]);
 
   const folder = filteredFolders.find((item) => item.id === folderId) || null;
-  const file = (folder?.prompts || []).find((item) => item.id === fileId) || null;
+  const files = folder?.prompts || [];
+  const file = files.find((item) => item.id === fileId) || null;
   const steps = (file?.steps || []).filter((step) => String(step.prompt || '').replace(/<[^>]+>/g, '').trim());
   const urlEntries = useMemo(
-    () => (folder ? folderReferenceEntries(folder) : []),
-    [folder],
+    () => (file ? normalizeReferences(file).filter((item) => String(item.url || '').trim()) : []),
+    [file],
   );
-  const promptCount = folder ? countFolderPrompts(folder) : 0;
+  const promptCount = file ? countFilePrompts(file) : 0;
   const urlCount = urlEntries.length;
 
   function resetToFolders() {
     setFolderId(null);
-    setBranch(null);
     setFileId(null);
+    setLeaf(null);
   }
 
   function openFolder(id) {
     setFolderId(id);
-    setBranch(null);
     setFileId(null);
+    setLeaf(null);
   }
 
-  function openBranch(next) {
-    setBranch(next);
-    setFileId(null);
+  function openFile(id) {
+    setFileId(id);
+    setLeaf(null);
   }
+
+  function backToFileRoot() {
+    setLeaf(null);
+  }
+
+  function goBack() {
+    if (leaf) {
+      setLeaf(null);
+      return;
+    }
+    if (fileId) {
+      setFileId(null);
+      setLeaf(null);
+      return;
+    }
+    if (folderId) resetToFolders();
+  }
+
+  const canGoBack = Boolean(folderId);
 
   return (
     <div className="tp-browser">
@@ -622,35 +822,35 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
             <span className="tp-browser__sep" aria-hidden="true">/</span>
             <button
               type="button"
-              className={!branch ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
-              onClick={() => openBranch(null)}
+              className={!fileId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+              onClick={() => openFolder(folder.id)}
             >
               {folder.label || 'Folder'}
             </button>
           </>
         ) : null}
-        {branch === 'prompts' ? (
+        {file ? (
           <>
             <span className="tp-browser__sep" aria-hidden="true">/</span>
             <button
               type="button"
-              className={!fileId ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
-              onClick={() => setFileId(null)}
+              className={!leaf ? 'tp-browser__crumb is-current' : 'tp-browser__crumb'}
+              onClick={backToFileRoot}
             >
-              Prompts
+              {fileDisplayName(file)}
             </button>
           </>
         ) : null}
-        {branch === 'urls' ? (
+        {leaf === 'prompt' ? (
+          <>
+            <span className="tp-browser__sep" aria-hidden="true">/</span>
+            <span className="tp-browser__crumb is-current">Prompt</span>
+          </>
+        ) : null}
+        {leaf === 'urls' ? (
           <>
             <span className="tp-browser__sep" aria-hidden="true">/</span>
             <span className="tp-browser__crumb is-current">URLs</span>
-          </>
-        ) : null}
-        {file ? (
-          <>
-            <span className="tp-browser__sep" aria-hidden="true">/</span>
-            <span className="tp-browser__crumb is-current">{file.name || 'File'}</span>
           </>
         ) : null}
       </div>
@@ -661,37 +861,80 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
             <button
               key={item.id}
               type="button"
-              className="tp-browser__row"
+              className="tp-browser__row tp-browser__row--nav"
               onClick={() => openFolder(item.id)}
             >
-              <span>{item.label || 'Folder'}</span>
-              <span className="tp-browser__count">{(item.prompts || []).length}</span>
+              <span className="tp-browser__row-main">
+                <span className="tp-browser__glyph" aria-hidden="true"><IconFolder /></span>
+                <span className="tp-browser__row-label">{item.label || 'Folder'}</span>
+              </span>
+              <span className="tp-browser__chevron" aria-hidden="true"><IconChevron /></span>
             </button>
           )) : (
             <p className="tp-browser__empty">No folders on the desk.</p>
           )
-        ) : !branch ? (
+        ) : !file ? (
+          files.length ? (
+            <>
+              <div className="tp-browser__section">
+                <span>Files</span>
+                <span className="tp-browser__count">{files.length}</span>
+              </div>
+              {files.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="tp-browser__row tp-browser__row--nav"
+                  onClick={() => openFile(item.id)}
+                >
+                  <span className="tp-browser__row-main">
+                    <span className="tp-browser__glyph" aria-hidden="true"><IconFile /></span>
+                    <span className="tp-browser__row-label">
+                      {fileDisplayName(item)}
+                      {index > 0 ? (
+                        <span className="tp-browser__index">{String(index + 1).padStart(2, '0')}</span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="tp-browser__chevron" aria-hidden="true"><IconChevron /></span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <p className="tp-browser__empty">This folder has no files.</p>
+          )
+        ) : !leaf ? (
           <>
             <button
               type="button"
-              className="tp-browser__row"
-              onClick={() => openBranch('prompts')}
+              className="tp-browser__row tp-browser__row--nav"
+              onClick={() => setLeaf('prompt')}
             >
-              <span>Prompts</span>
-              <span className="tp-browser__count">{promptCount}</span>
+              <span className="tp-browser__row-main">
+                <span className="tp-browser__row-label">Prompt</span>
+              </span>
+              <span className="tp-browser__trail">
+                <span className="tp-browser__count">{promptCount}</span>
+                <span className="tp-browser__chevron" aria-hidden="true"><IconChevron /></span>
+              </span>
             </button>
             <button
               type="button"
-              className="tp-browser__row"
-              onClick={() => openBranch('urls')}
+              className="tp-browser__row tp-browser__row--nav"
+              onClick={() => setLeaf('urls')}
             >
-              <span>URLs</span>
-              <span className="tp-browser__count">{urlCount}</span>
+              <span className="tp-browser__row-main">
+                <span className="tp-browser__row-label">URLs</span>
+              </span>
+              <span className="tp-browser__trail">
+                <span className="tp-browser__count">{urlCount}</span>
+                <span className="tp-browser__chevron" aria-hidden="true"><IconChevron /></span>
+              </span>
             </button>
           </>
-        ) : branch === 'urls' ? (
+        ) : leaf === 'urls' ? (
           urlEntries.length ? urlEntries.map((entry) => (
-            <div key={`${entry.fileId}-${entry.id}`} className="tp-browser__item">
+            <div key={entry.id} className="tp-browser__item">
               <div className="tp-browser__item-copy">
                 <span className="tp-browser__badge">URL</span>
                 {String(entry.name || '').trim() ? (
@@ -702,6 +945,7 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
               <button
                 type="button"
                 className="tp-browser__insert"
+                disabled={!canInsert}
                 onClick={() => onInsertUrl({
                   href: entry.url,
                   title: String(entry.name || '').trim(),
@@ -712,26 +956,7 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
               </button>
             </div>
           )) : (
-            <p className="tp-browser__empty">This folder has no URLs.</p>
-          )
-        ) : !file ? (
-          (folder.prompts || []).length ? (folder.prompts || []).map((item) => {
-            const n = (item.steps || []).filter((step) => (
-              String(step.prompt || '').replace(/<[^>]+>/g, '').trim()
-            )).length;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="tp-browser__row"
-                onClick={() => setFileId(item.id)}
-              >
-                <span>{item.name || 'Untitled'}</span>
-                <span className="tp-browser__count">{n}</span>
-              </button>
-            );
-          }) : (
-            <p className="tp-browser__empty">This folder has no files.</p>
+            <p className="tp-browser__empty">This file has no URLs.</p>
           )
         ) : (
           steps.length ? steps.map((step, index) => {
@@ -758,7 +983,7 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
                 <button
                   type="button"
                   className="tp-browser__insert"
-                  disabled={!plain}
+                  disabled={!canInsert || !plain}
                   onClick={() => onInsertPrompt(buildPromptInsertPayload(folder, file, step))}
                 >
                   Insert
@@ -769,6 +994,11 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
             <p className="tp-browser__empty">This file has no prompts with text.</p>
           )
         )}
+        {canGoBack ? (
+          <button type="button" className="tp-browser__back" onClick={goBack}>
+            Back
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -779,7 +1009,20 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl }) {
  * desk browser on the right, play coloring + Copy on blocks.
  */
 export default function TeleprompterPage({ folders = [] }) {
+  const navigate = useNavigate();
+  const email = useAuthStore((state) => state.user?.email || '');
+  const profilePlan = usePlanStore((state) => state.profile.plan);
+  const plan = deskPlan(email, profilePlan);
+
   const [nodes, setNodes] = useState(() => [blankTextNode('')]);
+  const [scriptTitle, setScriptTitle] = useState('');
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [library, setLibrary] = useState(() => readTelepromptLibrary());
+  const [activeTelepromptId, setActiveTelepromptId] = useState('');
+  const [editGateOpen, setEditGateOpen] = useState(false);
+  const [createGateOpen, setCreateGateOpen] = useState(false);
+  const [rightTab, setRightTab] = useState(readStoredRightTab);
   const [cps, setCps] = useState(DEFAULT_CPS);
   const [paceMode, setPaceMode] = useState(readStoredPaceMode);
   const [voiceReady, setVoiceReady] = useState(false);
@@ -788,10 +1031,17 @@ export default function TeleprompterPage({ folders = [] }) {
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
   const [floatCollapsed, setFloatCollapsed] = useState(false);
-  const [theme, setTheme] = useState(readStoredTheme);
+  const [theme] = useState(readStoredTheme);
   const [copyFlash, setCopyFlash] = useState({ id: '', kind: '' });
+  const [saveFlash, setSaveFlash] = useState(false);
+  const [createPulse, setCreatePulse] = useState(false);
   const [pausedBlockId, setPausedBlockId] = useState('');
+  const [editRemainMs, setEditRemainMs] = useState(0);
   const copyFlashTimerRef = useRef(0);
+  const saveFlashTimerRef = useRef(0);
+  const createPulseTimerRef = useRef(0);
+  const activeTelepromptIdRef = useRef('');
+  const libraryRef = useRef(library);
 
   const floatRef = useRef(null);
   const themeRef = useRef(theme);
@@ -816,8 +1066,32 @@ export default function TeleprompterPage({ folders = [] }) {
   const elapsedSec = cps > 0 ? elapsedPaceUnits / cps : 0;
   const durationLabel = formatDuration(durationSec);
   const elapsedLabel = formatDuration(elapsedSec);
-  const showReader = playing || cursor > 0;
-  const canPlay = Boolean(playText.trim()) || nodes.some((node) => node.type !== 'text');
+  const showReader = sessionOpen && (playing || cursor > 0);
+  const hasScriptBody = Boolean(playText.trim() || nodes.some((node) => node.type !== 'text'));
+  const canPlay = sessionOpen && hasScriptBody;
+  const canEditContent = sessionOpen && isEditing;
+  const canSaveTeleprompt = canEditContent && hasScriptBody;
+  const telepromptSlotsOpen = canAddTeleprompt(library, plan);
+  const isFreePlan = !isPromptPro(plan);
+  const activeLibraryItem = useMemo(
+    () => library.find((entry) => entry.id === activeTelepromptId) || null,
+    [library, activeTelepromptId],
+  );
+  const editAllowedForActive = !activeLibraryItem || canEditTeleprompt(activeLibraryItem, plan);
+
+  useEffect(() => {
+    if (!isFreePlan || !activeLibraryItem?.createdAt) {
+      setEditRemainMs(0);
+      return undefined;
+    }
+    const tick = () => setEditRemainMs(telepromptEditRemainingMs(activeLibraryItem));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [isFreePlan, activeLibraryItem]);
+
+  const showEditCountdown = Boolean(isFreePlan && sessionOpen && activeLibraryItem?.createdAt);
+  const editCountdownLabel = formatTelepromptEditCountdown(editRemainMs);
 
   const activeBlockId = useMemo(() => {
     if (pausedBlockId) return pausedBlockId;
@@ -846,6 +1120,14 @@ export default function TeleprompterPage({ folders = [] }) {
   }, [nodes]);
 
   useEffect(() => {
+    activeTelepromptIdRef.current = activeTelepromptId;
+  }, [activeTelepromptId]);
+
+  useEffect(() => {
+    libraryRef.current = library;
+  }, [library]);
+
+  useEffect(() => {
     cpsRef.current = cps;
   }, [cps]);
 
@@ -857,6 +1139,14 @@ export default function TeleprompterPage({ folders = [] }) {
       /* Private mode */
     }
   }, [paceMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIGHT_TAB_STORE, rightTab);
+    } catch {
+      /* Private mode */
+    }
+  }, [rightTab]);
 
   useEffect(() => {
     themeRef.current = theme;
@@ -878,6 +1168,14 @@ export default function TeleprompterPage({ folders = [] }) {
   useEffect(() => () => {
     closeVadMic(vadRef.current);
     vadRef.current = null;
+    if (saveFlashTimerRef.current) {
+      window.clearTimeout(saveFlashTimerRef.current);
+      saveFlashTimerRef.current = 0;
+    }
+    if (createPulseTimerRef.current) {
+      window.clearTimeout(createPulseTimerRef.current);
+      createPulseTimerRef.current = 0;
+    }
   }, []);
 
   function bumpCps(delta) {
@@ -998,6 +1296,7 @@ export default function TeleprompterPage({ folders = [] }) {
         playingRef.current = false;
         setPlaying(false);
         stopLoop();
+        markActiveScriptDone();
         return;
       }
     }
@@ -1073,7 +1372,181 @@ export default function TeleprompterPage({ folders = [] }) {
     setPausedBlockId('');
   }
 
+  function persistLibrary(next) {
+    const saved = writeTelepromptLibrary(next);
+    libraryRef.current = saved;
+    setLibrary(saved);
+    return saved;
+  }
+
+  function markActiveScriptDone() {
+    const id = activeTelepromptIdRef.current;
+    if (!id) return;
+    const current = libraryRef.current || [];
+    const item = current.find((entry) => entry.id === id);
+    if (!item || item.status === TELEPROMPT_STATUS.completed) return;
+    persistLibrary(current.map((entry) => (
+      entry.id === id
+        ? { ...entry, status: TELEPROMPT_STATUS.completed, updatedAt: new Date().toISOString() }
+        : entry
+    )));
+  }
+
+  function nudgeCreateNew() {
+    if (sessionOpen) return;
+    setRightTab('list');
+    if (!canAddTeleprompt(library, plan)) {
+      setCreateGateOpen(true);
+      return;
+    }
+    setCreatePulse(true);
+    if (createPulseTimerRef.current) window.clearTimeout(createPulseTimerRef.current);
+    createPulseTimerRef.current = window.setTimeout(() => {
+      setCreatePulse(false);
+      createPulseTimerRef.current = 0;
+    }, 1400);
+  }
+
+  function guardIdleEditor(event) {
+    if (sessionOpen) return false;
+    event.preventDefault();
+    event.currentTarget.blur?.();
+    nudgeCreateNew();
+    return true;
+  }
+
+  function clearEditor() {
+    pausePlay();
+    setActiveTelepromptId('');
+    setScriptTitle('');
+    setIsEditing(false);
+    setNodes([blankTextNode('')]);
+    cursorRef.current = 0;
+    carryRef.current = 0;
+    clearedBlocksRef.current = new Set();
+    pausedBlockIdRef.current = '';
+    setPausedBlockId('');
+    setCursor(0);
+  }
+
+  function createNewTeleprompt() {
+    if (isEditing) return;
+    if (!canAddTeleprompt(library, plan)) {
+      setCreateGateOpen(true);
+      setRightTab('list');
+      return;
+    }
+    setCreateGateOpen(false);
+    clearEditor();
+    setSessionOpen(true);
+    setIsEditing(true);
+    setRightTab('list');
+  }
+
+  function discardSession() {
+    if (!sessionOpen) return;
+    const id = activeTelepromptId;
+    clearEditor();
+    setSessionOpen(false);
+    if (id) {
+      persistLibrary(library.filter((entry) => entry.id !== id));
+    }
+  }
+
+  function beginEditSession() {
+    if (!sessionOpen || isEditing) return;
+    if (activeLibraryItem && !canEditTeleprompt(activeLibraryItem, plan)) {
+      setEditGateOpen(true);
+      return;
+    }
+    setEditGateOpen(false);
+    setIsEditing(true);
+  }
+
+  function openTeleprompt(id) {
+    const item = library.find((entry) => entry.id === id);
+    if (!item) return;
+    pausePlay();
+    setSessionOpen(true);
+    setIsEditing(false);
+    setActiveTelepromptId(item.id);
+    setScriptTitle(item.name || '');
+    setNodes(item.nodes?.length ? item.nodes : [blankTextNode('')]);
+    cursorRef.current = 0;
+    carryRef.current = 0;
+    clearedBlocksRef.current = new Set();
+    pausedBlockIdRef.current = '';
+    setPausedBlockId('');
+    setCursor(0);
+  }
+
+  function saveCurrentTeleprompt() {
+    if (!canEditContent) return;
+    if (!hasScriptBody) return;
+    const existing = activeTelepromptId
+      ? library.find((entry) => entry.id === activeTelepromptId)
+      : null;
+    if (!existing && !canAddTeleprompt(library, plan)) {
+      setCreateGateOpen(true);
+      return;
+    }
+    if (existing && !canEditTeleprompt(existing, plan)) {
+      setEditGateOpen(true);
+      return;
+    }
+    const name = String(scriptTitle || '').trim() || UNTITLED_SCRIPT_NAME;
+    const now = new Date().toISOString();
+    const nextItem = blankTeleprompt({
+      id: existing?.id,
+      name: name.slice(0, SCRIPT_TITLE_MAX),
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      status: existing?.status || TELEPROMPT_STATUS.pending,
+      nodes,
+    });
+    const without = library.filter((entry) => entry.id !== nextItem.id);
+    persistLibrary([nextItem, ...without]);
+    setScriptTitle(nextItem.name);
+    setActiveTelepromptId(nextItem.id);
+    setIsEditing(false);
+    setRightTab('list');
+    setSaveFlash(true);
+    if (saveFlashTimerRef.current) window.clearTimeout(saveFlashTimerRef.current);
+    saveFlashTimerRef.current = window.setTimeout(() => {
+      setSaveFlash(false);
+      saveFlashTimerRef.current = 0;
+    }, 1600);
+  }
+
+  function deleteTeleprompt(id) {
+    const next = library.filter((entry) => entry.id !== id);
+    persistLibrary(next);
+    if (activeTelepromptId === id) {
+      clearEditor();
+      setSessionOpen(false);
+    }
+  }
+
+  function patchScriptTitle(value) {
+    if (!canEditContent) return;
+    setScriptTitle(String(value || '').slice(0, SCRIPT_TITLE_MAX));
+  }
+
+  function toggleTelepromptStatus(id) {
+    persistLibrary(library.map((entry) => {
+      if (entry.id !== id) return entry;
+      return {
+        ...entry,
+        status: entry.status === TELEPROMPT_STATUS.completed
+          ? TELEPROMPT_STATUS.pending
+          : TELEPROMPT_STATUS.completed,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  }
+
   function updateTextNode(id, body) {
+    if (!canEditContent) return;
     setNodes((prev) => prev.map((node) => (
       node.id === id && node.type === 'text' ? { ...node, body } : node
     )));
@@ -1082,6 +1555,7 @@ export default function TeleprompterPage({ folders = [] }) {
   }
 
   function removeNode(id) {
+    if (!canEditContent) return;
     setNodes((prev) => {
       const next = prev.filter((node) => node.id !== id);
       return next.length ? next : [blankTextNode('')];
@@ -1091,6 +1565,7 @@ export default function TeleprompterPage({ folders = [] }) {
   }
 
   function insertPromptBlock(payload) {
+    if (!canEditContent) return;
     setNodes((prev) => {
       const block = {
         id: makeTpId(),
@@ -1117,6 +1592,7 @@ export default function TeleprompterPage({ folders = [] }) {
   }
 
   function insertUrlBlock(payload) {
+    if (!canEditContent) return;
     setNodes((prev) => {
       const href = String(payload.href || '').trim();
       const block = {
@@ -1310,32 +1786,105 @@ export default function TeleprompterPage({ folders = [] }) {
     <div className="tp-page" data-tp-theme={theme}>
       <div className="tp-shell">
         <div className="tp-left">
-          <div className="tp-paste">
+          <div
+            className="tp-paste"
+            onPointerDownCapture={(event) => {
+              if (sessionOpen) return;
+              if (event.target.closest('button, a, input, textarea')) return;
+              nudgeCreateNew();
+            }}
+          >
+            {sessionOpen ? (
+              <div className="tp-float-actions" role="toolbar" aria-label="Script actions">
+                {showEditCountdown ? (
+                  <p
+                    className={editRemainMs > 0 ? 'tp-edit-countdown' : 'tp-edit-countdown is-ended'}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {editRemainMs > 0
+                      ? `Edit ends in: ${editCountdownLabel}`
+                      : 'Edit locked'}
+                  </p>
+                ) : null}
+                {!isEditing ? (
+                  <div className="tp-edit-wrap">
+                    <button
+                      type="button"
+                      className={editAllowedForActive ? 'tp-title-action' : 'tp-title-action is-gated'}
+                      aria-label="Edit"
+                      title={editAllowedForActive ? 'Edit' : 'Paid plan'}
+                      onClick={beginEditSession}
+                    >
+                      <IconEdit />
+                    </button>
+                    {editGateOpen ? (
+                      <div className="tp-plan-popover" role="status">
+                        <p>{PROMPT_LIMIT_COPY.telepromptEdit}</p>
+                        <div className="tp-plan-popover__actions">
+                          <button type="button" onClick={() => setEditGateOpen(false)}>OK</button>
+                          <button
+                            type="button"
+                            className="tp-plan-popover__upgrade"
+                            onClick={() => {
+                              setEditGateOpen(false);
+                              navigate('/app/plans');
+                            }}
+                          >
+                            Upgrade
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  className="tp-title-action tp-title-action--danger"
+                  aria-label="Discard script"
+                  title="Discard"
+                  onClick={discardSession}
+                >
+                  <IconTrash />
+                </button>
+                {isEditing || saveFlash ? (
+                  <button
+                    type="button"
+                    className={saveFlash ? 'tp-title-save is-saved' : 'tp-title-save'}
+                    disabled={saveFlash || !canSaveTeleprompt}
+                    onClick={saveCurrentTeleprompt}
+                  >
+                    {saveFlash ? 'Saved' : 'Save'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="tp-paste__top">
-              <label className="tp-paste__label">
-                Teleprompter script
-              </label>
-              <div className="tp-theme" role="group" aria-label="Color theme">
-                <button
-                  type="button"
-                  className={theme === 'dark' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
-                  aria-pressed={theme === 'dark'}
-                  aria-label="Dark theme"
-                  title="Dark"
-                  onClick={() => setTheme('dark')}
-                >
-                  <IconMoon />
-                </button>
-                <button
-                  type="button"
-                  className={theme === 'light' ? 'tp-theme__btn is-active' : 'tp-theme__btn'}
-                  aria-pressed={theme === 'light'}
-                  aria-label="Light theme"
-                  title="Light"
-                  onClick={() => setTheme('light')}
-                >
-                  <IconSun />
-                </button>
+              <div className={canEditContent ? 'tp-title-box' : 'tp-title-box is-saved'}>
+                <textarea
+                  id="tp-script-title"
+                  className="tp-paste__title"
+                  value={scriptTitle}
+                  placeholder="Script Title"
+                  aria-label="Script title"
+                  rows={1}
+                  maxLength={SCRIPT_TITLE_MAX}
+                  readOnly={!canEditContent}
+                  onPointerDown={(event) => {
+                    if (guardIdleEditor(event)) return;
+                  }}
+                  onFocus={(event) => {
+                    if (guardIdleEditor(event)) return;
+                  }}
+                  onChange={(event) => patchScriptTitle(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (!sessionOpen) {
+                      guardIdleEditor(event);
+                      return;
+                    }
+                    if (event.key === 'Enter') event.preventDefault();
+                  }}
+                />
               </div>
             </div>
 
@@ -1349,7 +1898,14 @@ export default function TeleprompterPage({ folders = [] }) {
                 className="tp-reader scroll-match-bg"
               />
             ) : (
-              <div className="tp-script scroll-match-bg">
+              <div
+                className={canEditContent ? 'tp-script scroll-match-bg' : 'tp-script tp-script--locked scroll-match-bg'}
+                onPointerDownCapture={(event) => {
+                  if (sessionOpen) return;
+                  if (event.target.closest('textarea, button')) return;
+                  nudgeCreateNew();
+                }}
+              >
                 {nodes.map((node) => (
                   node.type === 'text' ? (
                     <textarea
@@ -1358,6 +1914,16 @@ export default function TeleprompterPage({ folders = [] }) {
                       placeholder="Write or paste your script…"
                       value={node.body}
                       rows={4}
+                      readOnly={!canEditContent}
+                      onPointerDown={(event) => {
+                        if (guardIdleEditor(event)) return;
+                      }}
+                      onFocus={(event) => {
+                        if (guardIdleEditor(event)) return;
+                      }}
+                      onKeyDown={(event) => {
+                        if (!sessionOpen) guardIdleEditor(event);
+                      }}
                       onChange={(event) => updateTextNode(node.id, event.target.value)}
                     />
                   ) : (
@@ -1368,16 +1934,20 @@ export default function TeleprompterPage({ folders = [] }) {
                       copyLabel={blockCopyLabel(copyFlash, node.id)}
                       onCopy={() => { void copyBlock(node, window); }}
                       onRemove={() => removeNode(node.id)}
-                      editing
+                      editing={canEditContent}
                     />
                   )
                 ))}
               </div>
             )}
             <p className="tp-paste__hint">
-              {paceMode === 'voice'
-                ? 'Voice mode · scroll advances while you speak · Play pauses on each block for Copy'
-                : 'Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play'}
+              {!sessionOpen
+                ? 'Press Create new to start a script'
+                : !isEditing
+                  ? 'Saved · press Edit to change this script'
+                  : paceMode === 'voice'
+                    ? 'Voice mode · scroll advances while you speak · Play pauses on each block for Copy'
+                    : 'Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play'}
             </p>
             {voiceNote ? <p className="tp-paste__hint tp-paste__hint--alert" role="status">{voiceNote}</p> : null}
           </div>
@@ -1389,6 +1959,7 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className={paceMode === 'speed' ? 'tp-pace__btn is-active' : 'tp-pace__btn'}
                   aria-pressed={paceMode === 'speed'}
+                  disabled={!sessionOpen}
                   onClick={() => { void selectPaceMode('speed'); }}
                 >
                   Speed
@@ -1397,6 +1968,7 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className={paceMode === 'voice' ? 'tp-pace__btn is-active' : 'tp-pace__btn'}
                   aria-pressed={paceMode === 'voice'}
+                  disabled={!sessionOpen}
                   onClick={() => { void selectPaceMode('voice'); }}
                 >
                   Voice
@@ -1410,7 +1982,7 @@ export default function TeleprompterPage({ folders = [] }) {
                     type="button"
                     className="tp-counter__btn"
                     aria-label="Decrease speed"
-                    disabled={cps <= CPS_MIN}
+                    disabled={!sessionOpen || cps <= CPS_MIN}
                     onClick={() => bumpCps(-1)}
                   >
                     −
@@ -1420,7 +1992,7 @@ export default function TeleprompterPage({ folders = [] }) {
                     type="button"
                     className="tp-counter__btn"
                     aria-label="Increase speed"
-                    disabled={cps >= CPS_MAX}
+                    disabled={!sessionOpen || cps >= CPS_MAX}
                     onClick={() => bumpCps(1)}
                   >
                     +
@@ -1449,6 +2021,7 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className="tp-btn-play"
                   onClick={pausePlay}
+                  disabled={!sessionOpen}
                   aria-label="Pause"
                   title="Pause"
                 >
@@ -1473,7 +2046,7 @@ export default function TeleprompterPage({ folders = [] }) {
                 type="button"
                 className="tp-icon-btn tp-icon-btn--reset"
                 onClick={resetPlay}
-                disabled={!playText && cursor === 0 && !nodes.some((node) => node.type !== 'text')}
+                disabled={!sessionOpen || (!playText && cursor === 0 && !nodes.some((node) => node.type !== 'text'))}
                 aria-label="Reset"
                 title="Reset"
               >
@@ -1484,6 +2057,7 @@ export default function TeleprompterPage({ folders = [] }) {
                   type="button"
                   className="tp-icon-btn"
                   onClick={resetPlay}
+                  disabled={!sessionOpen}
                   aria-label="Edit"
                   title="Edit"
                 >
@@ -1493,6 +2067,7 @@ export default function TeleprompterPage({ folders = [] }) {
               <button
                 type="button"
                 className="tp-icon-btn"
+                disabled={!sessionOpen}
                 onClick={() => {
                   const slot = floatRef.current;
                   const open = Boolean(slot?.window && !slot.window.closed);
@@ -1508,12 +2083,57 @@ export default function TeleprompterPage({ folders = [] }) {
           </div>
         </div>
 
-        <div className="tp-right" aria-label="Prompt library">
-          <DeskBrowser
-            folders={folders}
-            onInsertPrompt={insertPromptBlock}
-            onInsertUrl={insertUrlBlock}
-          />
+        <div className="tp-right" aria-label="Teleprompter library">
+          <div className="tp-right__tabs" role="tablist" aria-label="Library views">
+            <button
+              type="button"
+              role="tab"
+              className={rightTab === 'list' ? 'tp-right__tab is-active' : 'tp-right__tab'}
+              aria-selected={rightTab === 'list'}
+              onClick={() => setRightTab('list')}
+            >
+              Script
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={rightTab === 'folders' ? 'tp-right__tab is-active' : 'tp-right__tab'}
+              aria-selected={rightTab === 'folders'}
+              onClick={() => setRightTab('folders')}
+            >
+              Folders
+            </button>
+          </div>
+          {rightTab === 'list' ? (
+            <TelepromptList
+              items={library}
+              activeId={activeTelepromptId}
+              onOpen={openTeleprompt}
+              onToggleStatus={toggleTelepromptStatus}
+              onDelete={deleteTeleprompt}
+              onCreateNew={createNewTeleprompt}
+              canCreate={!isEditing}
+              createCapped={!telepromptSlotsOpen}
+              createPulse={createPulse}
+              createGateOpen={createGateOpen}
+              createGateMessage={PROMPT_LIMIT_COPY.teleprompt}
+              onCloseCreateGate={() => setCreateGateOpen(false)}
+              onUpgrade={() => {
+                setCreateGateOpen(false);
+                navigate('/app/plans');
+              }}
+              showQuota={isFreePlan}
+              quotaUsed={library.length}
+              quotaMax={FREE_TELEPROMPT_MAX}
+            />
+          ) : (
+            <DeskBrowser
+              folders={folders}
+              canInsert={canEditContent}
+              onInsertPrompt={insertPromptBlock}
+              onInsertUrl={insertUrlBlock}
+            />
+          )}
         </div>
       </div>
     </div>

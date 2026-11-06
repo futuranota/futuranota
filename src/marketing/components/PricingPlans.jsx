@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { authPath } from '../lib/paths.js';
@@ -39,7 +39,6 @@ function FeatureList({ plan, index, variant }) {
 
 export function PricingPlans() {
   const reduceMotion = useReducedMotion();
-  const [billing, setBilling] = useState('monthly');
   const pageTina = usePageTina();
   const { pricing } = pageTina?.document ?? getHome();
   const rawPlans = pricing?.plans?.length ? pricing.plans : PRICING_PLANS_DEFAULT;
@@ -56,12 +55,11 @@ export function PricingPlans() {
   }, [rawPlans]);
 
   const section = { ...PRICING_SECTION_DEFAULT, ...pricing };
-  const isAnnual = billing === 'annual';
-  const proPriceValue = isAnnual ? (proPlan.annualPrice ?? proPlan.price) : proPlan.price;
-  const proPriceSuffix = isAnnual ? (proPlan.annualPriceSuffix ?? proPlan.priceSuffix) : proPlan.priceSuffix;
-  const proBillingNote = isAnnual ? (proPlan.annualBillingNote ?? proPlan.billingNote) : proPlan.billingNote;
+  const proPriceValue = proPlan.price;
+  const proPriceSuffix = proPlan.priceSuffix;
+  const proBillingNote = proPlan.billingNote;
   const freeTo = authPath(undefined, { plan: 'free' });
-  const proTo = authPath(undefined, { plan: 'pro', billing });
+  const proTo = authPath(undefined, { plan: 'pro', billing: 'monthly' });
 
   const motionProps = (delay) => reduceMotion
     ? {}
@@ -131,32 +129,13 @@ export function PricingPlans() {
                 <div>
                   <div className="pricing-chart-grid__pro-head">
                     <h3 className="pricing-chart-grid__plan-name" {...pageTinaProps(`pricing.plans.${proIndex}.name`)}>
-                      {proPlan.name} Monthly Package
+                      {proPlan.name}
                     </h3>
                     {proPlan.badge ? (
                       <span className="chip chip--accent" {...pageTinaProps(`pricing.plans.${proIndex}.badge`)}>
                         {proPlan.badge}
                       </span>
                     ) : null}
-                  </div>
-
-                  <div className="pricing-billing-toggle" role="group" aria-label="Billing cycle">
-                    <button
-                      type="button"
-                      className={`pricing-billing-toggle__btn${!isAnnual ? ' is-active' : ''}`}
-                      aria-pressed={!isAnnual}
-                      onClick={() => setBilling('monthly')}
-                    >
-                      Monthly
-                    </button>
-                    <button
-                      type="button"
-                      className={`pricing-billing-toggle__btn${isAnnual ? ' is-active' : ''}`}
-                      aria-pressed={isAnnual}
-                      onClick={() => setBilling('annual')}
-                    >
-                      Annual · Save 50%
-                    </button>
                   </div>
 
                   <div className="pricing-chart-grid__price">

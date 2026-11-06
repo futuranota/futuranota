@@ -7,3 +7,4 @@ dist/
 .env.*.local
 tina/__generated__/
 .vercel
+_trash/

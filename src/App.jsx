@@ -2580,7 +2580,6 @@ function App() {
       <ProCheckoutAbandonModal
         open={proAbandon.open}
         busy={proAbandon.busy}
-        billing={proAbandon.billing}
         onCompletePayment={proAbandon.handleCompletePayment}
         onContinueStarter={proAbandon.handleContinueStarter}
       />

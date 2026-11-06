@@ -45,27 +45,23 @@ export function WelcomePage() {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const planId = searchParams.get('plan');
-  const billing = searchParams.get('billing');
 
   const selectedPlan = useMemo(() => {
     if (!planId) return null;
     const plans = getHome().pricing?.plans?.length ? getHome().pricing.plans : PRICING_PLANS_DEFAULT;
     const plan = plans.find((p) => p.id === planId);
     if (!plan) return null;
-    const isAnnual = billing === 'annual' && plan.annualPrice;
-    const price = isAnnual ? plan.annualPrice : plan.price;
-    const priceSuffix = isAnnual ? plan.annualPriceSuffix : plan.priceSuffix;
     return {
       id: plan.id,
       label: plan.shortName || plan.name,
-      priceLabel: plan.id === 'pro' && !isAnnual ? '$5/mo' : `$${price}${priceSuffix || ''}`,
+      priceLabel: plan.id === 'pro' ? '$10.99/mo' : `$${plan.price}${plan.priceSuffix || ''}`,
     };
-  }, [planId, billing]);
+  }, [planId]);
 
   useEffect(() => {
     captureReferralFromSearch(searchParams);
-    syncPendingProCheckoutFromParams(planId, billing);
-  }, [searchParams, planId, billing]);
+    syncPendingProCheckoutFromParams(planId, 'monthly');
+  }, [searchParams, planId]);
 
   useEffect(() => {
     if (authLoading || !user || !onAuthPage) return;

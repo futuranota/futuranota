@@ -56,7 +56,6 @@ export function PlansPage() {
   const [busy, setBusy] = useState(false);
   const [refillBusy, setRefillBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [billing, setBilling] = useState("monthly");
   const [affiliate, setAffiliate] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -79,13 +78,11 @@ export function PlansPage() {
   const bullets = planBullets(proPlan);
   const hasStripeSubscription = Boolean(profile.stripeSubscriptionId);
   const canCancelViaStripe = isPro && hasStripeSubscription;
-  const isAnnual = billing === "annual";
   const showUpgradeCta = !isPro;
-  const showCancelCta = canCancelViaStripe && !isAnnual;
-  const showSwitchAnnualCta = canCancelViaStripe && isAnnual;
-  const priceValue = formatPlanPrice(isAnnual ? proPlan.annualPrice : proPlan.price);
-  const priceSuffix = isAnnual ? proPlan.annualPriceSuffix : proPlan.priceSuffix;
-  const billingNote = isAnnual ? proPlan.annualBillingNote : proPlan.billingNote;
+  const showCancelCta = canCancelViaStripe;
+  const priceValue = formatPlanPrice(proPlan.price);
+  const priceSuffix = proPlan.priceSuffix;
+  const billingNote = proPlan.billingNote;
 
   useStripeCheckoutReturn();
 
@@ -120,23 +117,6 @@ export function PlansPage() {
   const handlePrimaryAction = async () => {
     if (busy) return;
     if (isPro) {
-      if (showSwitchAnnualCta) {
-        setBusy(true);
-        setError(null);
-        try {
-          const { url } = await startProCheckout("annual", { cancelReturn: "plans" });
-          if (url) {
-            window.location.replace(url);
-            return;
-          }
-          throw new Error("Stripe checkout URL missing");
-        } catch (err) {
-          setError(err instanceof Error ? err.message : t("plans.billingError"));
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
       if (!hasStripeSubscription) return;
       setCancelModalOpen(true);
       return;
@@ -144,7 +124,7 @@ export function PlansPage() {
     setBusy(true);
     setError(null);
     try {
-      const { url } = await startProCheckout(billing, { cancelReturn: "plans" });
+      const { url } = await startProCheckout("monthly", { cancelReturn: "plans" });
       if (url) {
         window.location.replace(url);
         return;
@@ -289,27 +269,6 @@ export function PlansPage() {
             <h2 className="plans-pricing-card__plan-name">{proPlan.name}</h2>
             <p className="plans-pricing-card__desc">{proPlan.desc}</p>
 
-            <div className="plans-billing-toggle" role="tablist" aria-label={t("plans.billingToggle")}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={!isAnnual}
-                className={"plans-billing-toggle__btn" + (!isAnnual ? " is-active" : "")}
-                onClick={() => setBilling("monthly")}
-              >
-                {t("plans.billingMonthly")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isAnnual}
-                className={"plans-billing-toggle__btn" + (isAnnual ? " is-active" : "")}
-                onClick={() => setBilling("annual")}
-              >
-                {t("plans.billingAnnual")}
-              </button>
-            </div>
-
             <div className="plans-pricing-card__price" aria-label={`$${priceValue}${priceSuffix || ""}`}>
               <span className="plans-pricing-card__currency">$</span>
               <span className="plans-pricing-card__amount">{priceValue}</span>
@@ -319,7 +278,7 @@ export function PlansPage() {
             </div>
 
             <div className="plans-pricing-card__cta-wrap">
-              {showUpgradeCta || showCancelCta || showSwitchAnnualCta ? (
+              {showUpgradeCta || showCancelCta ? (
                 <button
                   type="button"
                   className={"btn plans-pricing-card__cta" + (showCancelCta ? " plans-pricing-card__cta--cancel" : " primary")}
@@ -330,9 +289,7 @@ export function PlansPage() {
                     ? t("plans.processing")
                     : showCancelCta
                       ? t("plans.cancelPlan")
-                      : showSwitchAnnualCta
-                        ? t("plans.switchToAnnual")
-                        : t("plans.upgradeToPro")}
+                      : t("plans.upgradeToPro")}
                 </button>
               ) : null}
               {showVerifyCheckout ? (
@@ -353,7 +310,7 @@ export function PlansPage() {
               </p>
             ) : null}
 
-            {isPro && canCancelViaStripe && !isAnnual ? (
+            {isPro && canCancelViaStripe ? (
               <p className="plans-pricing-card__note plans-pricing-card__note--muted">
                 {t("plans.proOnMonthlyNote")}
               </p>
@@ -371,12 +328,6 @@ export function PlansPage() {
 
             {billingNote ? (
               <p className="plans-pricing-card__note">{billingNote}</p>
-            ) : null}
-
-            {isAnnual ? (
-              <p className="plans-pricing-card__note plans-pricing-card__note--muted">
-                {t("plans.annualReferralNote")}
-              </p>
             ) : null}
           </div>
 

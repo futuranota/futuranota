@@ -3,17 +3,23 @@ import {
   DESK_FREE_PREVIEW_EMAIL,
   EMBED_BRAND_MAX_BYTES,
   FREE_PROMPT_LIMITS,
+  FREE_TELEPROMPT_EDIT_MS,
+  FREE_TELEPROMPT_MAX,
   PROMPT_LIMITS_ENFORCED,
   PROMPT_STORAGE_BYTES,
   PRO_PROMPT_CREDITS,
   canAddPromptFile,
   canAddPromptFolder,
   canAddPromptPage,
+  canAddTeleprompt,
+  canEditTeleprompt,
   creditBalance,
   deskPlan,
+  formatTelepromptEditCountdown,
   localDayKey,
   promptLimits,
   promptToolCallsLeft,
+  telepromptEditRemainingMs,
 } from './promptPlanLimits.js';
 import { brandStorageBytes, promptFileBytes, storageTreeFromDesk, treeBytes } from './promptStorageTree.js';
 import { clearPreviewDeskUsage, embedCountForDay, readPreviewEmbeds, spendPreviewEmbed } from './promptDeskUsage.js';
@@ -22,27 +28,53 @@ describe('promptPlanLimits', () => {
   it('enforces the free shelf and leaves Pro open', () => {
     expect(PROMPT_LIMITS_ENFORCED).toBe(true);
     expect(EMBED_BRAND_MAX_BYTES).toBe(5 * 1024 * 1024);
-    expect(FREE_PROMPT_LIMITS.maxFolders).toBe(1);
-    expect(FREE_PROMPT_LIMITS.maxFiles).toBe(2);
-    expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(6);
+    expect(FREE_PROMPT_LIMITS.maxFolders).toBe(Infinity);
+    expect(FREE_PROMPT_LIMITS.maxFiles).toBe(6);
+    expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(10);
     expect(FREE_PROMPT_LIMITS.maxToolCalls).toBe(3);
-    expect(promptLimits('free').maxFolders).toBe(1);
-    expect(promptLimits('free').maxFiles).toBe(2);
-    expect(promptLimits('free').maxPagesPerFile).toBe(6);
+    expect(promptLimits('free').maxFolders).toBe(Infinity);
+    expect(promptLimits('free').maxFiles).toBe(6);
+    expect(promptLimits('free').maxPagesPerFile).toBe(10);
     expect(promptLimits('pro').maxFiles).toBe(Infinity);
     expect(promptLimits('pro').maxToolCalls).toBe(200);
     expect(promptLimits('free').storageBytes).toBe(PROMPT_STORAGE_BYTES);
     expect(PROMPT_STORAGE_BYTES).toBe(5 * 1024 * 1024 * 1024);
   });
 
-  it('stops the free shelf at 1 folder, 2 files, and 6 pages', () => {
-    const folders = [{ id: 'folder-1', prompts: [{}, {}] }];
-    expect(canAddPromptFolder(folders, 'free')).toBe(false);
+  it('caps free files at 6 total across folders and 10 pages per file', () => {
+    const folders = [
+      { id: 'folder-1', prompts: [{}, {}, {}] },
+      { id: 'folder-2', prompts: [{}, {}, {}] },
+    ];
+    expect(canAddPromptFolder(folders, 'free')).toBe(true);
     expect(canAddPromptFile(folders, 'free', 'folder-1')).toBe(false);
     expect(canAddPromptFile([{ id: 'folder-1', prompts: [{}] }], 'free', 'folder-1')).toBe(true);
-    expect(canAddPromptPage(6, 'free')).toBe(false);
-    expect(canAddPromptPage(5, 'free')).toBe(true);
+    expect(canAddPromptPage(10, 'free')).toBe(false);
+    expect(canAddPromptPage(9, 'free')).toBe(true);
     expect(canAddPromptPage(40, 'pro')).toBe(true);
+  });
+
+  it('caps free teleprompts at 6 and edit within 2 hours', () => {
+    expect(FREE_TELEPROMPT_MAX).toBe(6);
+    expect(FREE_TELEPROMPT_EDIT_MS).toBe(2 * 60 * 60 * 1000);
+    const six = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}` }));
+    expect(canAddTeleprompt(six, 'free')).toBe(false);
+    expect(canAddTeleprompt(six.slice(0, 5), 'free')).toBe(true);
+    expect(canAddTeleprompt(six, 'pro')).toBe(true);
+
+    const createdAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    expect(canEditTeleprompt({ createdAt }, 'free')).toBe(true);
+    expect(canEditTeleprompt({ createdAt: old }, 'free')).toBe(false);
+    expect(canEditTeleprompt({ createdAt: old }, 'pro')).toBe(true);
+
+    const now = Date.now();
+    const halfHourAgo = new Date(now - 30 * 60 * 1000).toISOString();
+    expect(telepromptEditRemainingMs({ createdAt: halfHourAgo }, now)).toBe(90 * 60 * 1000);
+    expect(telepromptEditRemainingMs({ createdAt: old }, now)).toBe(0);
+    expect(formatTelepromptEditCountdown(90 * 60 * 1000)).toBe('1:30');
+    expect(formatTelepromptEditCountdown(45 * 1000)).toBe('0:01');
+    expect(formatTelepromptEditCountdown(0)).toBe('0:00');
   });
 
   it('turns 3 free clicks into 21 credits and locks the fourth', () => {

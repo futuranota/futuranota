@@ -3,7 +3,7 @@ export const PENDING_PRO_CHECKOUT_KEY = 'fn_pending_pro_checkout';
 export const PENDING_PRO_CHECKOUT_SKIPPED_KEY = 'fn_pro_checkout_skipped';
 export const PENDING_PRO_CHECKOUT_PAUSE_KEY = 'fn_pro_checkout_pause_auto_redirect';
 
-/** @typedef {{ plan: 'pro', billing: 'monthly' | 'annual' }} PendingProCheckout */
+/** @typedef {{ plan: 'pro', billing: 'monthly' }} PendingProCheckout */
 
 /** @returns {PendingProCheckout | null} */
 export function readPendingProCheckout() {
@@ -13,8 +13,7 @@ export function readPendingProCheckout() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.plan !== 'pro') return null;
-    const billing = parsed.billing === 'annual' ? 'annual' : 'monthly';
-    return { plan: 'pro', billing };
+    return { plan: 'pro', billing: 'monthly' };
   } catch {
     return null;
   }
@@ -36,18 +35,18 @@ export function resolvePendingProCheckout(user) {
   const meta = user?.user_metadata;
   if (meta?.plan !== 'pro') return null;
 
-  const billing = meta.billing === 'annual' ? 'annual' : 'monthly';
-  return { plan: 'pro', billing };
+  return { plan: 'pro', billing: 'monthly' };
 }
 
 /**
- * @param {'monthly' | 'annual' | null | undefined} [billing]
+ * Pro is monthly-only. Billing arg kept for call-site compatibility.
+ * @param {'monthly' | 'annual' | null | undefined} [_billing]
  */
-export function markPendingProCheckout(billing) {
+export function markPendingProCheckout(_billing) {
   localStorage.removeItem(PENDING_PRO_CHECKOUT_SKIPPED_KEY);
   const payload = {
     plan: 'pro',
-    billing: billing === 'annual' ? 'annual' : 'monthly',
+    billing: 'monthly',
   };
   sessionStorage.setItem(PENDING_PRO_CHECKOUT_KEY, JSON.stringify(payload));
   localStorage.setItem(PENDING_PRO_CHECKOUT_KEY, JSON.stringify(payload));
@@ -55,7 +54,7 @@ export function markPendingProCheckout(billing) {
 
 /** @param {PendingProCheckout} pending */
 export function persistPendingProCheckout(pending) {
-  markPendingProCheckout(pending.billing);
+  markPendingProCheckout(pending?.billing);
 }
 
 export function clearPendingProCheckout() {
@@ -85,24 +84,22 @@ export function isAutoProCheckoutRedirectPaused() {
 
 /**
  * @param {string | null | undefined} planId
- * @param {string | null | undefined} billing
+ * @param {string | null | undefined} [_billing]
  */
-export function syncPendingProCheckoutFromParams(planId, billing) {
+export function syncPendingProCheckoutFromParams(planId, _billing) {
   if (planId === 'pro') {
-    markPendingProCheckout(billing);
+    markPendingProCheckout('monthly');
   }
 }
 
 /**
  * Query string for email confirmation redirect (keeps plan intent on /login).
  * @param {string | null | undefined} planId
- * @param {string | null | undefined} billing
+ * @param {string | null | undefined} [_billing]
  */
-export function buildCheckoutLoginQuery(planId, billing) {
+export function buildCheckoutLoginQuery(planId, _billing) {
   if (planId !== 'pro') return '';
-  const params = new URLSearchParams({ plan: 'pro' });
-  if (billing === 'annual') params.set('billing', 'annual');
-  return params.toString();
+  return new URLSearchParams({ plan: 'pro', billing: 'monthly' }).toString();
 }
 
 /** @param {{ user_metadata?: Record<string, unknown> } | null | undefined} [user] */

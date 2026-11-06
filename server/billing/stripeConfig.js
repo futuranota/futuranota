@@ -62,7 +62,7 @@ export const isStripeTestCheckoutAvailable = isStripeVerifyCheckoutAvailable;
 /** @param {unknown} raw */
 export function normalizeCheckoutBilling(raw) {
   if (raw === "verify" || raw === "test") return "verify";
-  if (raw === "annual") return "annual";
+  // Product offers Free + Pro monthly only; ignore legacy "annual" checkout requests.
   return "monthly";
 }
 

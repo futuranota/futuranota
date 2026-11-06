@@ -13,7 +13,6 @@ import {
 export function ProCheckoutAbandonModal({
   open,
   busy = false,
-  billing = "monthly",
   onCompletePayment,
   onContinueStarter,
 }) {
@@ -21,8 +20,8 @@ export function ProCheckoutAbandonModal({
   if (!open) return null;
 
   const proPlan = PRICING_PLANS_DEFAULT.find((p) => p.id === "pro");
-  const price = billing === "annual" ? proPlan?.annualPrice : proPlan?.price;
-  const suffix = billing === "annual" ? proPlan?.annualPriceSuffix : proPlan?.priceSuffix;
+  const price = proPlan?.price;
+  const suffix = proPlan?.priceSuffix;
   const priceLabel = price ? `$${price}${suffix || ""}` : "";
 
   return createPortal(

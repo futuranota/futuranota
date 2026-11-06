@@ -19,7 +19,6 @@ export function useProCheckoutAbandonPrompt() {
   const user = useAuthStore((s) => s.user);
   const handledRef = useRef(false);
   const [open, setOpen] = useState(false);
-  const [billing, setBilling] = useState("monthly");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export function useProCheckoutAbandonPrompt() {
     if (!pending || profilePlan === "pro") return;
 
     handledRef.current = true;
-    setBilling(pending.billing);
     pauseAutoProCheckoutRedirect();
     setOpen(true);
     setSearchParams({}, { replace: true });
@@ -41,7 +39,7 @@ export function useProCheckoutAbandonPrompt() {
     setBusy(true);
     try {
       clearAutoProCheckoutRedirectPause();
-      const { url } = await startProCheckout(billing, { cancelReturn: "app" });
+      const { url } = await startProCheckout("monthly", { cancelReturn: "app" });
       if (url) {
         window.location.href = url;
         return;
@@ -61,7 +59,6 @@ export function useProCheckoutAbandonPrompt() {
   return {
     open,
     busy,
-    billing,
     handleCompletePayment,
     handleContinueStarter,
   };

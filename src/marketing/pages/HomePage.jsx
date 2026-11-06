@@ -68,7 +68,7 @@ export function HomePage() {
               <h2>Placeholder</h2>
               <p>Two lines of text sit beside the box, in the same place as the reference.</p>
               {row.action ? (
-                <Link to={authPath(undefined, { plan: 'pro', billing: 'monthly' })} className="plain-signup">Pro · $5/mo</Link>
+                <Link to={authPath(undefined, { plan: 'pro', billing: 'monthly' })} className="plain-signup">Pro · $10.99/mo</Link>
               ) : null}
             </div>
           </article>

@@ -230,6 +230,13 @@
   color: rgba(26, 26, 26, 0.62);
 }
 
+.prompt-desk__account-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .prompt-desk__signout {
   border: 0;
   background: transparent;
@@ -248,6 +255,36 @@
   opacity: 0.45;
   cursor: default;
   text-decoration: none;
+}
+
+.prompt-desk__plan-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(20, 20, 22, 0.14);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font: 650 10px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(26, 26, 26, 0.72);
+  background: rgba(20, 20, 22, 0.04);
+}
+
+button.prompt-desk__plan-chip {
+  cursor: pointer;
+}
+
+button.prompt-desk__plan-chip:hover {
+  border-color: rgba(20, 20, 22, 0.28);
+  color: rgba(26, 26, 26, 0.9);
+}
+
+.prompt-desk__plan-chip.is-pro {
+  border-color: transparent;
+  background: #151515;
+  color: #fff;
 }
 
 .prompt-desk__main {
@@ -3248,10 +3285,21 @@ button.prompt-embed__brand-slot {
 }
 
 
+.prompt-models__row.is-locked {
+  opacity: 0.45;
+}
+
 .prompt-models__item:disabled,
-.prompt-models__item:has(select:disabled) {
+.prompt-models__item:has(select:disabled),
+.prompt-format__btn:disabled,
+.prompt-formatbar__btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
+}
+
+.prompt-formatbar.is-locked,
+.prompt-formatbar__btn:disabled:hover {
+  pointer-events: none;
 }
 
 .prompt-models__item {
@@ -5326,27 +5374,53 @@ button.prompt-embed__brand-slot {
 
 .prompt-panel__step-actions {
   display: flex;
-  gap: 18px;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
-.prompt-panel__step-actions button,
+.prompt-panel__split:has(.prompt-sheet:hover) .prompt-panel__step-actions,
+.prompt-panel__foot:hover .prompt-panel__step-actions,
+.prompt-panel__step-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.prompt-panel__step-btn,
 .prompt-panel__step-file {
-  border: 0;
-  background: transparent;
-  color: #111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid rgba(20, 20, 22, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
   font: inherit;
   font-size: 13px;
   font-weight: 650;
+  padding: 6px 12px;
   cursor: pointer;
-  padding: 0;
+}
+
+.prompt-panel__step-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .prompt-panel__step-file input {
   display: none;
 }
 
-.prompt-panel__step-actions button:hover {
-  color: #1a1a1a;
+.prompt-panel__step-btn:hover {
+  background: rgba(20, 20, 22, 0.05);
 }
 
 .prompt-steps {
