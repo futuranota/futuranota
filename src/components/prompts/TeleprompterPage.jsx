@@ -34,8 +34,10 @@ import {
 } from '../../lib/teleprompterVad.js';
 import {
   TELEPROMPT_STATUS,
+  applyTelepromptFreeUsageEpoch,
   blankTeleprompt,
   bumpTelepromptCreatedCount,
+  clearTelepromptFreeMeters,
   formatTelepromptUploaded,
   readTelepromptCreatedCount,
   readTelepromptLibrary,
@@ -1125,6 +1127,31 @@ export default function TeleprompterPage({ folders = [] }) {
   useEffect(() => {
     textRef.current = playText;
   }, [playText]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const forceReset = params.get('reset-tele') === '1';
+    let wiped = null;
+    if (forceReset) {
+      wiped = clearTelepromptFreeMeters();
+      params.delete('reset-tele');
+      const search = params.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash || ''}`,
+      );
+    } else if (applyTelepromptFreeUsageEpoch(email)) {
+      wiped = {
+        createdCount: readTelepromptCreatedCount(),
+        library: readTelepromptLibrary(),
+      };
+    }
+    if (!wiped) return;
+    setCreatedCount(wiped.createdCount);
+    setLibrary(wiped.library);
+    libraryRef.current = wiped.library;
+  }, [email]);
 
   useEffect(() => {
     nodesRef.current = nodes;

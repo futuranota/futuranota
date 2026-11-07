@@ -1,3 +1,5 @@
+import { DESK_FREE_PREVIEW_EMAIL } from './promptPlanLimits.js';
+
 /** Local library of saved teleprompter scripts (list + status). */
 
 export const TELEPROMPTER_LIBRARY_STORE = 'fn-teleprompter-library-v1';
@@ -115,6 +117,43 @@ export function writeTelepromptCreatedCount(count) {
 /** @returns {number} */
 export function bumpTelepromptCreatedCount() {
   return writeTelepromptCreatedCount(readTelepromptCreatedCount() + 1);
+}
+
+/**
+ * Wipe Free teleprompt create counter and reopen the edit window on saved scripts.
+ * Desk / embed meters stay untouched — teleprompt-only reset for founder testing.
+ */
+export function clearTelepromptFreeMeters() {
+  const now = new Date().toISOString();
+  const refreshed = readTelepromptLibrary().map((item) => ({
+    ...item,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  writeTelepromptLibrary(refreshed);
+  writeTelepromptCreatedCount(0);
+  return { createdCount: 0, library: refreshed };
+}
+
+const TELEPROMPT_FREE_USAGE_EPOCH = '2026-11-07-tele-free-reset';
+
+/**
+ * One-shot Free teleprompt meter wipe (create cap + edit windows).
+ * @param {string} [email]
+ * @returns {boolean} true when meters were cleared this call
+ */
+export function applyTelepromptFreeUsageEpoch(email) {
+  const who = String(email || '').trim().toLowerCase();
+  if (who !== DESK_FREE_PREVIEW_EMAIL) return false;
+  const flag = `fn-teleprompt-free-epoch:${who}`;
+  try {
+    if (localStorage.getItem(flag) === TELEPROMPT_FREE_USAGE_EPOCH) return false;
+    clearTelepromptFreeMeters();
+    localStorage.setItem(flag, TELEPROMPT_FREE_USAGE_EPOCH);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

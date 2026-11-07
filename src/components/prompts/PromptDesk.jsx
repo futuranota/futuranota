@@ -45,6 +45,7 @@ import {
   resolvePrompt,
   stampVariables,
 } from '../../lib/promptVariables.js';
+import { exportPromptDocumentMarkdown } from '../../lib/exportPromptDocumentMarkdown.js';
 import {
   STRUCTURE_MODEL_IDS,
   joinParagraphs,
@@ -989,11 +990,14 @@ function DeskSidebar({ view, settingsPane }) {
 }
 
 const PRO_BILLING_FEATURE_KEYS = [
+  'deskBilling.featureLibrary',
+  'deskBilling.featureEmbed',
+  'deskBilling.featureTeleprompt',
   'deskBilling.featureStorage',
-  'deskBilling.featureDesk',
   'deskBilling.featureAi',
   'deskBilling.featureUrlVars',
   'deskBilling.featureCopy',
+  'deskBilling.featureSales',
 ];
 
 function BillingCheckIcon() {
@@ -3529,7 +3533,6 @@ function InstructionPanel({
     }
     if (!stepHasDraft(step)) return;
     if (!canAddPromptPage(steps.length, plan)) {
-      setLimitNote(PROMPT_LIMIT_COPY.page);
       return;
     }
     onPatch({
@@ -3542,7 +3545,6 @@ function InstructionPanel({
   function addPromptStep() {
     imageHold.current = false;
     if (!canAddPromptPage(steps.length, plan)) {
-      setLimitNote(PROMPT_LIMIT_COPY.page);
       return;
     }
     onPatch({
@@ -3617,6 +3619,10 @@ function InstructionPanel({
       variables: [],
       steps: nextSteps,
     });
+  }
+
+  function exportDocumentMarkdown() {
+    exportPromptDocumentMarkdown(prompt, ownedVariables);
   }
 
   function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
@@ -3793,6 +3799,8 @@ function InstructionPanel({
     );
   }
 
+  const pageCap = promptLimits(plan).maxPagesPerFile;
+
   return (
     <>
     {sheetOpen && !parked ? <div className="prompt-focus-scrim" aria-hidden="true" /> : null}
@@ -3914,6 +3922,23 @@ function InstructionPanel({
                   </span>
                   <span>Variables</span>
                 </button>
+                {(steps || []).some((item) => promptHasText(item?.prompt) || promptHasText(item?.description) || String(item?.title || '').trim()) ? (
+                  <button
+                    type="button"
+                    className="prompt-models__item"
+                    onClick={() => { exportDocumentMarkdown(); }}
+                    title="Export all prompts as Markdown"
+                  >
+                    <span className="prompt-models__glyph" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 3v12" />
+                        <path d="m8 11 4 4 4-4" />
+                        <path d="M5 19h14" />
+                      </svg>
+                    </span>
+                    <span>Export .md</span>
+                  </button>
+                ) : null}
                 {stepHasDraft(step) ? (
                   <button
                     type="button"
@@ -4258,7 +4283,17 @@ function InstructionPanel({
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen && PROMPT_SPLIT_LAYOUT ? (
             <aside className="prompt-step-rail" aria-label="Prompt list">
-              <p className="prompt-step-rail__label">Prompts</p>
+              <p className="prompt-step-rail__label">
+                <span>Prompts</span>
+                {Number.isFinite(pageCap) ? (
+                  <span
+                    className="prompt-step-rail__quota"
+                    aria-label={`${steps.length} of ${pageCap} prompts`}
+                  >
+                    {steps.length}/{pageCap}
+                  </span>
+                ) : null}
+              </p>
               <ul className="prompt-step-rail__list">
                 {steps.map((item, itemIndex) => {
                   const named = String(item.title || '').trim();
@@ -4314,9 +4349,6 @@ function InstructionPanel({
               >
                 + New prompt
               </button>
-              {!canAddPromptPage(steps.length, plan) ? (
-                <p className="prompt-desk__limit" role="status">{PROMPT_LIMIT_COPY.page}</p>
-              ) : null}
             </aside>
           ) : null}
           {sheetOpen ? (

@@ -15,7 +15,15 @@
   --tp-done: #0d7a45;
   --tp-shell: #faf8f4;
   --tp-panel: #fff;
-  --tp-toolkit: #f1f1f1;
+  /* Frosted glass over aurora wash (GlassFolder ART_PRESETS.aurora) */
+  --tp-glass-frost: rgba(255, 255, 255, 0.38);
+  --tp-toolkit: var(--tp-glass-frost);
+  --tp-aurora:
+    radial-gradient(ellipse 90% 80% at 8% 12%, rgba(233, 194, 184, 0.72), transparent 58%),
+    radial-gradient(ellipse 75% 70% at 92% 18%, rgba(111, 151, 194, 0.55), transparent 56%),
+    radial-gradient(ellipse 70% 55% at 48% 100%, rgba(194, 67, 63, 0.18), transparent 55%),
+    radial-gradient(ellipse 55% 45% at 70% 70%, rgba(229, 237, 244, 0.85), transparent 50%),
+    linear-gradient(145deg, #f4efe9 0%, #e9c2b8 38%, #d4e0ec 72%, #e5edf4 100%);
   --tp-play: #1a1a1a;
   --tp-play-ink: #fff;
   --tp-icon-hover: rgba(20, 20, 22, 0.06);
@@ -410,43 +418,69 @@
 }
 
 .tp-list__table-wrap {
+  position: relative;
+  isolation: isolate;
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border: 1px solid var(--tp-line);
-  border-radius: 12px;
-  background: #f3f1eb;
-  --scroll-bg: #f3f1eb;
+  border: 0;
+  border-radius: 16px;
+  background: var(--tp-glass-frost);
+  backdrop-filter: blur(22px) saturate(1.45);
+  -webkit-backdrop-filter: blur(22px) saturate(1.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    0 16px 36px -14px rgba(10, 12, 20, 0.28);
+  --scroll-bg: transparent;
   --scroll-thumb: var(--tp-scroll-thumb);
 }
 
+.tp-list__table-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--tp-aurora);
+  pointer-events: none;
+}
+
 .tp-list__table {
+  position: relative;
+  z-index: 1;
   width: 100%;
   border-collapse: collapse;
-  font: 13px/1.35 ui-sans-serif, system-ui, sans-serif;
+  font: 13px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 
 .tp-list__table th,
 .tp-list__table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   text-align: left;
-  border-bottom: 1px solid var(--tp-line);
+  border-bottom: 1px solid rgba(20, 20, 22, 0.07);
   vertical-align: middle;
 }
 
 .tp-list__table th {
   color: var(--tp-muted);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 650;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: var(--tp-icon-hover);
+  background: rgba(255, 255, 255, 0.48);
   position: sticky;
   top: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.tp-list__table tr:hover td {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .tp-list__table tr.is-active td {
-  background: var(--tp-icon-hover);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .tp-list__table tr:last-child td {
@@ -713,28 +747,47 @@
 }
 
 .tp-toolkit {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
   margin: 0 10px 10px;
   padding: 14px 16px;
-  border: 1px solid rgba(20, 20, 22, 0.1);
+  border: 0;
   border-radius: 16px;
+  overflow: hidden;
   background: var(--tp-toolkit);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(24px) saturate(1.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.55);
   box-shadow:
-    0 6px 18px rgba(20, 20, 22, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(0, 0, 0, 0.14),
+    0 24px 48px -16px rgba(10, 12, 20, 0.4);
   color: #1a1a1a;
   --tp-ink: #1a1a1a;
   --tp-muted: rgba(20, 20, 22, 0.55);
-  --tp-line: rgba(20, 20, 22, 0.14);
-  --tp-icon-hover: rgba(20, 20, 22, 0.08);
+  --tp-line: rgba(20, 20, 22, 0.1);
+  --tp-icon-hover: rgba(24, 24, 27, 0.07);
   --tp-play: #1a1a1a;
   --tp-play-ink: #fff;
   --tp-focus: rgba(20, 20, 22, 0.2);
+}
+
+/* Color wash under frost — aurora palette, soft for data readability */
+.tp-toolkit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--tp-aurora);
+  pointer-events: none;
+}
+
+.tp-toolkit > * {
+  position: relative;
+  z-index: 1;
 }
 
 .tp-toolkit__meta {

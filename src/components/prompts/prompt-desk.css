@@ -2224,11 +2224,24 @@ button.prompt-embed__brand-slot {
 }
 
 .prompt-step-rail__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin: 0 6px 2px;
   font: 650 11px/1.2 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(26, 26, 26, 0.45);
+}
+
+.prompt-step-rail__quota {
+  flex: none;
+  font: 650 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  color: rgba(26, 26, 26, 0.55);
 }
 
 .prompt-step-rail__list {
