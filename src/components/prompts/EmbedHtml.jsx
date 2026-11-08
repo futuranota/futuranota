@@ -12,7 +12,7 @@ import { readDeskEmbedDay, spendDeskEmbedBox } from '../../lib/promptDeskUsage.j
 import { EMBED_BRAND_MAX_BYTES, FREE_PROMPT_LIMITS } from '../../lib/promptPlanLimits.js';
 
 const DEFAULTS = {
-  background: '#ffffff',
+  background: '#F7F6F2',
   color: '#000000',
   button: '#f4f1eb',
 };
@@ -1210,99 +1210,101 @@ export default function EmbedHtml({ plan = 'free', email = '', profilePlan }) {
         <h1 className="prompt-desk__mark">Embed Prompt</h1>
       </header>
       <div className="prompt-embed__board">
-        <EmbedSideSheet
-          plan={plan}
-          used={embedUsed}
-          onHow={openHow}
-        />
-        <div className="prompt-embed__main">
-        <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
-          <div className="prompt-embed__text-wrap">
-            <div
-              ref={editorRef}
-              className={overflow ? 'prompt-embed__text is-scroll' : 'prompt-embed__text'}
-              contentEditable
-              role="textbox"
-              aria-label="Prompt"
-              aria-multiline="true"
-              data-placeholder="Insert Prompt"
-              data-empty={text.length ? undefined : ''}
-              onMouseDown={placeCaretAtStart}
-              onInput={sync}
-              onKeyUp={sync}
-              onMouseUp={() => { saveRange(); sync(); }}
-              onPaste={(event) => {
-                const html = event.clipboardData.getData('text/html');
-                const plain = event.clipboardData.getData('text/plain');
-                event.preventDefault();
-                restoreRange();
-                if (html) document.execCommand('insertHTML', false, stripPasteColor(html));
-                else document.execCommand('insertText', false, plain);
-                sync();
-                saveRange();
-              }}
-            />
-            {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
+        <div className="prompt-embed__stage">
+          <EmbedSideSheet
+            plan={plan}
+            used={embedUsed}
+            onHow={openHow}
+          />
+          <div className="prompt-embed__main">
+            <div className="prompt-embed__box" style={{ background: card.box, color: card.ink }}>
+              <div className="prompt-embed__text-wrap">
+                <div
+                  ref={editorRef}
+                  className={overflow ? 'prompt-embed__text is-scroll' : 'prompt-embed__text'}
+                  contentEditable
+                  role="textbox"
+                  aria-label="Prompt"
+                  aria-multiline="true"
+                  data-placeholder="Insert Prompt"
+                  data-empty={text.length ? undefined : ''}
+                  onMouseDown={placeCaretAtStart}
+                  onInput={sync}
+                  onKeyUp={sync}
+                  onMouseUp={() => { saveRange(); sync(); }}
+                  onPaste={(event) => {
+                    const html = event.clipboardData.getData('text/html');
+                    const plain = event.clipboardData.getData('text/plain');
+                    event.preventDefault();
+                    restoreRange();
+                    if (html) document.execCommand('insertHTML', false, stripPasteColor(html));
+                    else document.execCommand('insertText', false, plain);
+                    sync();
+                    saveRange();
+                  }}
+                />
+                {overflow ? <div className="prompt-embed__fade" style={{ background: `linear-gradient(to top, ${card.box}, transparent)` }} /> : null}
+              </div>
+              <div className="prompt-embed__actions">
+                <button
+                  type="button"
+                  style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
+                  onClick={() => { void copyPrompt(); }}
+                >
+                  <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
+                  <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+            <div className="prompt-embed__bars">
+              <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
+                {FORMATS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={active[item.id] ? 'prompt-embed__icon is-active' : 'prompt-embed__icon'}
+                    aria-label={item.label}
+                    aria-pressed={active[item.id]}
+                    data-tip={item.label}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      applyFormat(item.command);
+                    }}
+                  >
+                    <ToolIcon name={item.id} />
+                  </button>
+                ))}
+                <CopyEmbedButton
+                  className="prompt-embed__action"
+                  disabled={copyLocked}
+                  copied={false}
+                  onCopy={() => {
+                    setHowOpen(false);
+                    setMetaOpen(false);
+                    setCodeOpen(true);
+                  }}
+                />
+                <label className="prompt-embed__tool">
+                  <span>Background</span>
+                  <input type="color" value={background} aria-label="Background" onChange={(event) => setBackground(event.target.value)} />
+                </label>
+                <label className="prompt-embed__tool">
+                  <span>Text</span>
+                  <input type="color" value={color} aria-label="Text" onChange={(event) => setColor(event.target.value)} />
+                </label>
+                <label className="prompt-embed__tool">
+                  <span>Button</span>
+                  <input type="color" value={button} aria-label="Button" onChange={(event) => setButton(event.target.value)} />
+                </label>
+                {dirty ? (
+                  <button type="button" className="prompt-embed__action" onClick={saveDesign}>
+                    Save design
+                  </button>
+                ) : null}
+              </div>
+              {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
+            </div>
           </div>
-          <div className="prompt-embed__actions">
-            <button
-              type="button"
-              style={{ background: card.fill, color: card.buttonInk, borderColor: `${card.buttonInk}33` }}
-              onClick={() => { void copyPrompt(); }}
-            >
-              <span dangerouslySetInnerHTML={{ __html: COPY_ICON }} />
-              <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-        </div>
-        <div className="prompt-embed__bars">
-          <div className="prompt-embed__toolbar" role="toolbar" aria-label="Embed tools">
-            {FORMATS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={active[item.id] ? 'prompt-embed__icon is-active' : 'prompt-embed__icon'}
-                aria-label={item.label}
-                aria-pressed={active[item.id]}
-                data-tip={item.label}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  applyFormat(item.command);
-                }}
-              >
-                <ToolIcon name={item.id} />
-              </button>
-            ))}
-            <CopyEmbedButton
-              className="prompt-embed__action"
-              disabled={copyLocked}
-              copied={false}
-              onCopy={() => {
-                setHowOpen(false);
-                setMetaOpen(false);
-                setCodeOpen(true);
-              }}
-            />
-            <label className="prompt-embed__tool">
-              <span>Background</span>
-              <input type="color" value={background} aria-label="Background" onChange={(event) => setBackground(event.target.value)} />
-            </label>
-            <label className="prompt-embed__tool">
-              <span>Text</span>
-              <input type="color" value={color} aria-label="Text" onChange={(event) => setColor(event.target.value)} />
-            </label>
-            <label className="prompt-embed__tool">
-              <span>Button</span>
-              <input type="color" value={button} aria-label="Button" onChange={(event) => setButton(event.target.value)} />
-            </label>
-            {dirty ? (
-              <button type="button" className="prompt-embed__action" onClick={saveDesign}>
-                Save design
-              </button>
-            ) : null}
-          </div>
-          {designNote ? <p className="prompt-embed__note" role="status">{designNote}</p> : null}
-        </div>
         </div>
         {designs.length ? (
           <section className="prompt-embed__designs" aria-label="My Designs">

@@ -100,7 +100,7 @@ const ARTS = ['aurora', 'ember', 'dusk', 'glacier', 'verdant'];
 
 const HOME_FRAMES = [
   '/Portada/left%20frame.png',
-  '/Portada/center-frame.png',
+  '/Portada/center-frame-lite.jpg',
   '/Portada/right%20frame.png',
 ];
 
