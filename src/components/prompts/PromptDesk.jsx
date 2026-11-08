@@ -1083,7 +1083,7 @@ function BillingSettings() {
                   key={item.key}
                   className={item.muted ? 'is-muted' : undefined}
                 >
-                  {t(item.key)}
+                  <span className="prompt-billing__feature-label">{t(item.key)}</span>
                 </li>
               ))}
             </ul>
@@ -4714,13 +4714,18 @@ function InstructionPanel({
                       ) : (
                         <button
                           type="button"
-                          className="prompt-index__cover-hit is-frozen"
-                          aria-label={coverAllowed ? 'Storage full' : 'Cover images on paid plan'}
+                          className={`prompt-index__cover-hit is-frozen${coverAllowed ? '' : ' is-upgrade'}`}
+                          aria-label={coverAllowed ? PROMPT_LIMIT_COPY.imageFrozen : PROMPT_LIMIT_COPY.coverPro}
                           aria-disabled="true"
                           onClick={askCover}
                         >
                           {inner}
                           <span className="prompt-index__cover-plus" aria-hidden="true">+</span>
+                          {!coverAllowed ? (
+                            <span className="prompt-index__cover-upgrade" aria-hidden="true">
+                              {PROMPT_LIMIT_COPY.coverPro}
+                            </span>
+                          ) : null}
                         </button>
                       )}
                       {cover && coverAllowed ? (

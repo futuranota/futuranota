@@ -67,7 +67,7 @@ export const PROMPT_LIMIT_COPY = {
   tools: 'Se acabaron los 3 clics del plan gratis.',
   storage: 'Llegaste al tope de 5 MB del plan gratis.',
   storagePro: 'Llegaste al tope de 5 GB.',
-  coverPro: 'Las imágenes de portada son del plan de pago.',
+  coverPro: 'Upgrade to add cover',
   imageFrozen: 'Sin espacio para imágenes. Liberá storage o mejorá de plan.',
   embed: 'El plan gratis incluye 3 embeds por día. Mañana podés crear otro.',
   usage: 'No pude revisar las llamadas del plan gratis.',
