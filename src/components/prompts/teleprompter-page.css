@@ -15,8 +15,19 @@
   --tp-done: #0d7a45;
   --tp-shell: #faf8f4;
   --tp-panel: #fff;
-  /* Frosted glass over aurora wash (GlassFolder ART_PRESETS.aurora) */
-  --tp-glass-frost: rgba(255, 255, 255, 0.38);
+  --tp-cream: #f4f1eb;
+  --tp-cream-soft: rgba(244, 241, 235, 0.4);
+  /* Table glass — same contrast recipe as player, beige + blue (no pink) */
+  --tp-table-base:
+    radial-gradient(ellipse 90% 80% at 8% 12%, rgba(244, 241, 235, 0.92), transparent 58%),
+    radial-gradient(ellipse 75% 70% at 92% 18%, rgba(111, 151, 194, 0.55), transparent 56%),
+    radial-gradient(ellipse 70% 55% at 48% 100%, rgba(180, 198, 220, 0.35), transparent 55%),
+    linear-gradient(145deg, #f4f1eb 0%, #e8ebe8 38%, #d4e0ec 72%, #e5edf4 100%);
+  --tp-table-frost: rgba(252, 252, 253, 0.55);
+  --tp-table-hover: rgba(244, 241, 235, 0.72);
+  --tp-table-active: rgba(244, 241, 235, 0.92);
+  /* Player glass (previous aurora recipe) */
+  --tp-glass-frost: rgba(252, 252, 253, 0.72);
   --tp-toolkit: var(--tp-glass-frost);
   --tp-aurora:
     radial-gradient(ellipse 90% 80% at 8% 12%, rgba(233, 194, 184, 0.72), transparent 58%),
@@ -172,12 +183,12 @@
   box-sizing: border-box;
   border: 1px dashed var(--tp-line);
   border-radius: 12px;
-  background: transparent;
+  background: var(--tp-cream-soft);
   padding: 4px 8px;
 }
 
 .tp-title-box.is-saved {
-  background: transparent;
+  background: var(--tp-cream-soft);
 }
 
 .tp-paste__title {
@@ -425,13 +436,13 @@
   overflow: auto;
   border: 0;
   border-radius: 16px;
-  background: var(--tp-glass-frost);
-  backdrop-filter: blur(22px) saturate(1.45);
-  -webkit-backdrop-filter: blur(22px) saturate(1.45);
+  background: var(--tp-table-frost);
+  backdrop-filter: blur(24px) saturate(1.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.55);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 0 0 0.5px rgba(0, 0, 0, 0.1),
-    0 16px 36px -14px rgba(10, 12, 20, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(0, 0, 0, 0.14),
+    0 24px 48px -16px rgba(10, 12, 20, 0.4);
   --scroll-bg: transparent;
   --scroll-thumb: var(--tp-scroll-thumb);
 }
@@ -442,7 +453,7 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--tp-aurora);
+  background: var(--tp-table-base);
   pointer-events: none;
 }
 
@@ -458,7 +469,7 @@
 .tp-list__table td {
   padding: 12px 14px;
   text-align: left;
-  border-bottom: 1px solid rgba(20, 20, 22, 0.07);
+  border-bottom: 1px solid rgba(20, 20, 22, 0.09);
   vertical-align: middle;
 }
 
@@ -468,7 +479,7 @@
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.42);
   position: sticky;
   top: 0;
   backdrop-filter: blur(10px);
@@ -476,11 +487,11 @@
 }
 
 .tp-list__table tr:hover td {
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--tp-table-hover);
 }
 
 .tp-list__table tr.is-active td {
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--tp-table-active);
 }
 
 .tp-list__table tr:last-child td {
@@ -775,7 +786,6 @@
   --tp-focus: rgba(20, 20, 22, 0.2);
 }
 
-/* Color wash under frost — aurora palette, soft for data readability */
 .tp-toolkit::before {
   content: "";
   position: absolute;
@@ -950,7 +960,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  --scroll-bg: var(--tp-panel);
+  background: var(--tp-cream-soft);
+  --scroll-bg: var(--tp-cream-soft);
   --scroll-thumb: var(--tp-scroll-thumb);
 }
 
@@ -968,7 +979,7 @@
   border: 0;
   border-radius: 10px;
   padding: 12px;
-  background: transparent;
+  background: var(--tp-cream-soft);
   color: inherit;
   font: 15px/1.55 ui-sans-serif, system-ui, sans-serif;
 }

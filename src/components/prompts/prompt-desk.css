@@ -3873,7 +3873,7 @@ button.prompt-embed__brand-slot {
 .prompt-sheet--saved .prompt-drawer {
   border: 0;
   border-radius: 14px;
-  background: #f1f1f1;
+  background: rgba(244, 241, 235, 0.4);
   overflow: hidden;
   min-height: 0;
   height: 100%;
@@ -3884,7 +3884,7 @@ button.prompt-embed__brand-slot {
   display: block;
   min-width: 0;
   padding: 0;
-  background: #fafafa;
+  background: rgba(244, 241, 235, 0.4);
 }
 
 .prompt-sheet--saved .prompt-sheet__head-copy {
@@ -3940,19 +3940,19 @@ button.prompt-embed__brand-slot {
 
 .prompt-sheet--saved .prompt-body__editor,
 .prompt-sheet--saved .prompt-panel__body {
-  background: #f1f1f1;
+  background: rgba(244, 241, 235, 0.4);
   overflow: auto;
   min-height: 0;
   height: 100%;
   padding: 10px 16px 16px;
-  --scroll-bg: #f1f1f1;
+  --scroll-bg: rgba(244, 241, 235, 0.4);
   --scroll-thumb: rgba(20, 20, 22, 0.18);
-  scrollbar-color: rgba(20, 20, 22, 0.18) #f1f1f1;
+  scrollbar-color: rgba(20, 20, 22, 0.18) rgba(244, 241, 235, 0.4);
 }
 
 .prompt-sheet--saved .prompt-body__editor::-webkit-scrollbar-track,
 .prompt-sheet--saved .prompt-panel__body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgba(244, 241, 235, 0.4);
 }
 
 .prompt-models__item input {
@@ -4825,7 +4825,8 @@ button.prompt-embed__brand-slot {
   box-sizing: border-box;
   border-radius: 0;
   padding: 16px 10px;
-  background: transparent;
+  /* Same soft cream as teleprompter script (#f4f1eb @ 40%) */
+  background: rgba(244, 241, 235, 0.4);
   color: #111;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
@@ -4833,7 +4834,7 @@ button.prompt-embed__brand-slot {
   line-height: 1.45;
   outline: none;
   scrollbar-width: thin;
-  scrollbar-color: rgba(20, 20, 22, 0.28) #fff;
+  scrollbar-color: rgba(20, 20, 22, 0.28) rgba(244, 241, 235, 0.4);
 }
 
 .prompt-panel__body::-webkit-scrollbar,
@@ -4844,7 +4845,7 @@ button.prompt-embed__brand-slot {
 
 .prompt-panel__body::-webkit-scrollbar-track,
 .prompt-body__editor::-webkit-scrollbar-track {
-  background: #fff;
+  background: rgba(244, 241, 235, 0.4);
 }
 
 .prompt-panel__body::-webkit-scrollbar-thumb,
@@ -4889,7 +4890,7 @@ button.prompt-embed__brand-slot {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.45;
-  background: transparent;
+  background: rgba(244, 241, 235, 0.4);
   color: #111;
 }
 
