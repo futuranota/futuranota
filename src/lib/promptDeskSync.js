@@ -1,6 +1,11 @@
 import { convertFileToWebpData } from './convertImageToWebp.js';
 import { detectPromptAssetKind } from './promptAssets.js';
-import { EMBED_BRAND_MAX_BYTES, PROMPT_LIMIT_COPY, PROMPT_STORAGE_BYTES } from './promptPlanLimits.js';
+import {
+  EMBED_BRAND_MAX_BYTES,
+  PROMPT_LIMIT_COPY,
+  canUsePromptCover,
+  promptStorageBytes,
+} from './promptPlanLimits.js';
 import { normalizePromptFile } from './promptPages.js';
 import {
   legacyFieldsFromReferences,
@@ -365,14 +370,25 @@ export async function loadPromptStorageTree(userId) {
   return storageTreeFromDesk(folders, sizes);
 }
 
-export async function assertStorageRoom(userId, incomingBytes, replacePath = '') {
+async function resolveDeskPlanForUser(userId) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('plan')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data?.plan === 'pro' ? 'pro' : 'free';
+}
+
+export async function assertStorageRoom(userId, incomingBytes, replacePath = '', plan) {
+  const resolved = plan || await resolveDeskPlanForUser(userId);
   const folders = await loadPromptDesk(userId);
   const sizes = await listPromptObjectSizes(userId);
   const used = treeBytes(storageTreeFromDesk(folders, sizes));
   const previous = replacePath ? (Number(sizes[replacePath]) || 0) : 0;
   const next = Math.max(0, used - previous) + Math.max(0, Number(incomingBytes) || 0);
-  if (next > PROMPT_STORAGE_BYTES) {
-    throw new Error(PROMPT_LIMIT_COPY.storage);
+  const cap = promptStorageBytes(resolved);
+  if (next > cap) {
+    throw new Error(resolved === 'pro' ? PROMPT_LIMIT_COPY.storagePro : PROMPT_LIMIT_COPY.storage);
   }
 }
 
@@ -486,9 +502,13 @@ export async function uploadPromptImage(file, stepId, userId) {
 }
 
 export async function uploadPromptCover(file, fileId, userId, replacePath = '') {
+  const plan = await resolveDeskPlanForUser(userId);
+  if (!canUsePromptCover(plan)) {
+    throw new Error(PROMPT_LIMIT_COPY.coverPro);
+  }
   const converted = await convertFileToWebpData(file);
   if (!converted?.blob) throw new Error('No se pudo leer la imagen.');
-  await assertStorageRoom(userId, converted.blob.size, replacePath);
+  await assertStorageRoom(userId, converted.blob.size, replacePath, plan);
   const path = `${userId}/${fileId}/cover-${crypto.randomUUID()}.webp`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, converted.blob, {
     contentType: 'image/webp',

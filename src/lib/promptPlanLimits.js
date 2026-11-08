@@ -3,9 +3,16 @@
 /** Free shelf, embed day, and the 3-click pool are live. Pro stays open except the credit pool. */
 export const PROMPT_LIMITS_ENFORCED = true;
 
-export const PROMPT_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
+/** Free desk storage (text + non-cover uploads). */
+export const FREE_PROMPT_STORAGE_BYTES = 5 * 1024 * 1024;
 
-/** Embed branding logo. The original file lives in the 5 GB desk quota. */
+/** Pro desk storage. */
+export const PRO_PROMPT_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
+
+/** @deprecated Prefer promptStorageBytes(plan). Alias of Pro cap for older callers. */
+export const PROMPT_STORAGE_BYTES = PRO_PROMPT_STORAGE_BYTES;
+
+/** Embed branding logo. The original file lives in the desk quota. */
 export const EMBED_BRAND_MAX_BYTES = 5 * 1024 * 1024;
 
 /** One toolbar click. 3 free clicks = 21 credits. 200 Pro clicks = 1400 credits. */
@@ -33,8 +40,8 @@ export const TRANSCRIPT_FOLDER_LABEL = 'Transcribe File';
 
 export const FREE_PROMPT_LIMITS = {
   maxFolders: Infinity,
-  maxFiles: 6,
-  maxPagesPerFile: 10,
+  maxFiles: Infinity,
+  maxPagesPerFile: 20,
   maxToolCalls: 3,
   maxEmbedBoxesPerDay: 3,
 };
@@ -55,10 +62,13 @@ export const PRO_PROMPT_LIMITS = {
 
 export const PROMPT_LIMIT_COPY = {
   folder: 'El plan gratis permite carpetas ilimitadas.',
-  file: 'El plan gratis incluye 6 files en total.',
-  page: 'El plan gratis incluye 10 páginas por file.',
+  file: 'El plan gratis permite files ilimitados.',
+  page: 'El plan gratis incluye 20 páginas por file.',
   tools: 'Se acabaron los 3 clics del plan gratis.',
-  storage: 'Llegaste al tope de 5 GB.',
+  storage: 'Llegaste al tope de 5 MB del plan gratis.',
+  storagePro: 'Llegaste al tope de 5 GB.',
+  coverPro: 'Las imágenes de portada son del plan de pago.',
+  imageFrozen: 'Sin espacio para imágenes. Liberá storage o mejorá de plan.',
   embed: 'El plan gratis incluye 3 embeds por día. Mañana podés crear otro.',
   usage: 'No pude revisar las llamadas del plan gratis.',
   teleprompt: 'Create a new file or Upgrade to Pro to Unlock unlimited Features',
@@ -102,12 +112,34 @@ const OPEN_PROMPT_LIMITS = {
 };
 
 /** @param {string} [plan] */
+export function promptStorageBytes(plan) {
+  return isPromptPro(plan) ? PRO_PROMPT_STORAGE_BYTES : FREE_PROMPT_STORAGE_BYTES;
+}
+
+/** Cover / portada images — paid plans only. */
+export function canUsePromptCover(plan) {
+  return isPromptPro(plan);
+}
+
+/**
+ * Whether an image upload may proceed (Pro cover + storage headroom).
+ * @param {string} [plan]
+ * @param {number} [usedBytes]
+ * @param {number} [incomingBytes]
+ */
+export function canAddPromptImage(plan, usedBytes = 0, incomingBytes = 0) {
+  if (!canUsePromptCover(plan)) return false;
+  const cap = promptStorageBytes(plan);
+  return (Number(usedBytes) || 0) + (Number(incomingBytes) || 0) <= cap;
+}
+
+/** @param {string} [plan] */
 export function promptLimits(plan) {
   let counts = OPEN_PROMPT_LIMITS;
   if (PROMPT_LIMITS_ENFORCED) {
     counts = isPromptPro(plan) ? PRO_PROMPT_LIMITS : FREE_PROMPT_LIMITS;
   }
-  return { ...counts, storageBytes: PROMPT_STORAGE_BYTES };
+  return { ...counts, storageBytes: promptStorageBytes(plan) };
 }
 
 function isDeskFolder(folder) {
@@ -125,7 +157,7 @@ export function canAddPromptFolder(folders, plan) {
 }
 
 /**
- * Free shelf: 6 files total across all folders (folders stay unlimited).
+ * Free/Pro: file count from promptLimits (Free = unlimited).
  * @param {Array<{ id?: string, prompts?: unknown[] }>} [folders]
  * @param {string} [plan]
  * @param {string} [_folderId]

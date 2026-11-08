@@ -26,6 +26,7 @@ import { createDebugAgentLogMiddleware } from './server/debugAgentLogHandler.js'
 import { createGinaChatMiddleware } from './server/gina/ginaChatHandler.js';
 import { createPromptPdfMiddleware } from './server/promptPdfVision.js';
 import { createUsersMeMiddleware } from './server/usersMeHandler.js';
+import { createAccountDeleteMiddleware } from './server/accountDeleteHandler.js';
 import { createKofiWebhookMiddleware } from './server/kofiWebhookHandler.js';
 
 function brandCadenceApiPlugin(env) {
@@ -53,6 +54,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createManagementMiddleware());
       server.middlewares.use(createHorizonKitsMiddleware());
       server.middlewares.use(createUsersMeMiddleware());
+      server.middlewares.use(createAccountDeleteMiddleware());
       server.middlewares.use(createOrchestratorMiddleware());
       server.middlewares.use(createCampaignAnalystMiddleware());
       server.middlewares.use(createMarketingGuideMiddleware());

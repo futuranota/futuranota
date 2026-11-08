@@ -108,6 +108,17 @@ export async function cancelProSubscription() {
   return billingFetch("/api/billing/cancel", { method: "POST" });
 }
 
+/**
+ * Permanently close the account (cancel Stripe if any, wipe user data, delete auth user).
+ * @param {string} confirm Must be exactly "DELETE"
+ */
+export async function deleteUserAccount(confirm = "DELETE") {
+  return billingFetch("/api/users/delete-account", {
+    method: "POST",
+    body: JSON.stringify({ confirm }),
+  });
+}
+
 export async function fetchAffiliateLink() {
   return billingFetch("/api/billing/affiliate", { method: "GET" });
 }

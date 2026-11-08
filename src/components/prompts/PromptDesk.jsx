@@ -18,17 +18,19 @@ import {
 import { applyPreviewUsageEpoch, clearPreviewDeskUsage, readDeskToolCalls, spendDeskToolCall } from '../../lib/promptDeskUsage.js';
 import {
   PROMPT_LIMIT_COPY,
-  PROMPT_STORAGE_BYTES,
   TRANSCRIPT_FOLDER_LABEL,
   canAddPromptFile,
   canAddPromptFolder,
+  canAddPromptImage,
   canAddPromptPage,
+  canUsePromptCover,
   creditBalance,
   deskPlan,
   promptLimits,
+  promptStorageBytes,
   promptToolCallsLeft,
 } from '../../lib/promptPlanLimits.js';
-import { storageTreeFromDesk } from '../../lib/promptStorageTree.js';
+import { storageTreeFromDesk, treeBytes } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { beautifyPastedText, prepareFileHomeText } from '../../lib/promptBeautify.js';
@@ -71,8 +73,7 @@ import {
   promptHasReferences,
   withNormalizedReferences,
 } from '../../lib/promptReferences.js';
-import { cancelProSubscription, fetchAffiliateLink, startProCheckout } from '../../lib/billingApi.js';
-import { buildPromoShareMessage, copyReferralShareMessage } from '../../lib/referralShareMessage.js';
+import { cancelProSubscription, deleteUserAccount, startProCheckout } from '../../lib/billingApi.js';
 import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
 import { useStripeCheckoutReturn } from '../../lib/useStripeCheckoutReturn.js';
 import { useAuthStore } from '../../stores/authStore.js';
@@ -764,11 +765,13 @@ const DESK_VIEWS = [
 const SETTINGS_PANES = [
   { id: 'storage', label: 'Storage', to: '/app/settings/storage' },
   { id: 'billing', label: 'Payments & Billings', to: '/app/settings/billing' },
+  { id: 'account', label: 'Account', to: '/app/settings/account' },
 ];
 
 function settingsPaneFromPath(pathname) {
   if (!pathname.startsWith('/app/settings')) return null;
   if (pathname.startsWith('/app/settings/billing')) return 'billing';
+  if (pathname.startsWith('/app/settings/account')) return 'account';
   return 'storage';
 }
 
@@ -989,33 +992,27 @@ function DeskSidebar({ view, settingsPane }) {
   );
 }
 
-const PRO_BILLING_FEATURE_KEYS = [
-  'deskBilling.featureLibrary',
-  'deskBilling.featureEmbed',
-  'deskBilling.featureTeleprompt',
-  'deskBilling.featureStorage',
-  'deskBilling.featureAi',
-  'deskBilling.featureUrlVars',
-  'deskBilling.featureCopy',
-  'deskBilling.featureSales',
+const FREE_BILLING_FEATURES = [
+  { key: 'deskBilling.freeFeatureFolders' },
+  { key: 'deskBilling.freeFeatureFiles' },
+  { key: 'deskBilling.freeFeatureTeleprompt' },
+  { key: 'deskBilling.freeFeatureEmbed' },
+  { key: 'deskBilling.freeFeatureStorage' },
+  { key: 'deskBilling.freeFeatureCover', muted: true },
 ];
 
-function BillingCheckIcon() {
-  return (
-    <svg className="prompt-billing__check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M6.5 10.2 8.8 12.5 13.5 7.8"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+const PRO_BILLING_FEATURES = [
+  { key: 'deskBilling.featureLibrary' },
+  { key: 'deskBilling.featureEmbed' },
+  { key: 'deskBilling.featureTeleprompt', premium: true },
+  { key: 'deskBilling.featureCover' },
+  { key: 'deskBilling.featureCopy' },
+  { key: 'deskBilling.featureStorage' },
+];
 
 function BillingSettings() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const profile = usePlanStore((state) => state.profile);
   const fetchProfile = usePlanStore((state) => state.fetchProfile);
   const pro = profile.plan === 'pro';
@@ -1023,25 +1020,6 @@ function BillingSettings() {
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [note, setNote] = useState('');
-  const [promoUrl, setPromoUrl] = useState('');
-  const [copied, setCopied] = useState(false);
-
-  const shareMessage = useMemo(
-    () => buildPromoShareMessage(promoUrl, t),
-    [promoUrl, t],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchAffiliateLink()
-      .then((data) => {
-        if (!cancelled) setPromoUrl(data?.url || '');
-      })
-      .catch(() => {
-        if (!cancelled) setPromoUrl('');
-      });
-    return () => { cancelled = true; };
-  }, []);
 
   const upgrade = async () => {
     if (busy) return;
@@ -1073,93 +1051,225 @@ function BillingSettings() {
     }
   };
 
-  const copyPromo = async () => {
-    if (!shareMessage) return;
-    try {
-      await copyReferralShareMessage(shareMessage, promoUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   return (
     <div className="prompt-desk__page prompt-billing">
       <header className="prompt-desk__bar">
         <p className="prompt-desk__mark">{t('deskBilling.title')}</p>
       </header>
       <div className="prompt-billing__sheet">
-        <section className="prompt-billing__card" aria-labelledby="prompt-billing-plan">
-          <p className="prompt-billing__kicker">{pro ? t('deskBilling.pro') : t('deskBilling.free')}</p>
-          <h2 id="prompt-billing-plan" className="prompt-billing__plan">{t('deskBilling.planName')}</h2>
-          <p className="prompt-billing__price">
-            $10.99<span>{t('deskBilling.priceSuffix')}</span>
-          </p>
-          <p className="prompt-billing__note">{t('deskBilling.desc')}</p>
-          <ul className="prompt-billing__list" role="list">
-            {PRO_BILLING_FEATURE_KEYS.map((key) => (
-              <li key={key} className="prompt-billing__list-item">
-                <BillingCheckIcon />
-                <span>{t(key)}</span>
-              </li>
-            ))}
-          </ul>
-          {note ? <p className="prompt-billing__status" role="status">{note}</p> : null}
-          {pro && !canCancel ? (
-            <p className="prompt-billing__note">{t('deskBilling.managedNote')}</p>
-          ) : null}
-          {pro ? (
-            canCancel ? (
-              confirmCancel ? (
-                <div className="prompt-billing__actions">
-                  <button type="button" className="prompt-billing__cancel" onClick={cancelPlan} disabled={busy}>
-                    {busy ? t('deskBilling.processing') : t('deskBilling.confirmCancel')}
-                  </button>
-                  <button
-                    type="button"
-                    className="prompt-desk__new"
-                    onClick={() => setConfirmCancel(false)}
-                    disabled={busy}
-                  >
-                    {t('deskBilling.keepPro')}
-                  </button>
-                </div>
-              ) : (
-                <button type="button" className="prompt-billing__ghost" onClick={() => setConfirmCancel(true)}>
-                  {t('deskBilling.cancelPlan')}
-                </button>
-              )
-            ) : null
-          ) : (
-            <button type="button" className="prompt-billing__cta" onClick={upgrade} disabled={busy}>
-              {busy ? t('deskBilling.openingCheckout') : t('deskBilling.upgrade')}
-            </button>
-          )}
-        </section>
+        <h2 id="prompt-billing-plan" className="prompt-billing__heading">
+          {pro ? t('deskBilling.compareTitlePro') : t('deskBilling.compareTitleFree')}
+        </h2>
+        <p className="prompt-billing__lead">
+          {pro ? t('deskBilling.compareLeadPro') : t('deskBilling.compareLeadFree')}
+        </p>
 
-        <section className="prompt-billing__promo" aria-labelledby="prompt-billing-promo">
-          <h2 id="prompt-billing-promo" className="prompt-billing__promo-title">{t('deskBilling.promoTitle')}</h2>
-          <p className="prompt-billing__promo-hint">{t('deskBilling.promoHint')}</p>
-          <label className="prompt-billing__promo-label" htmlFor="prompt-billing-promo-text">
-            {t('deskBilling.promoLabel')}
-          </label>
-          <textarea
-            id="prompt-billing-promo-text"
-            className="prompt-billing__promo-text scroll-match-bg"
-            rows={8}
-            readOnly
-            value={shareMessage}
-            placeholder={t('deskBilling.promoPlaceholder')}
-          />
+        <div className="prompt-billing__compare">
+          <section
+            className={pro ? 'prompt-billing__col' : 'prompt-billing__col is-current'}
+            aria-label={t('deskBilling.free')}
+          >
+            <div className="prompt-billing__col-head">
+              <h3>{t('deskBilling.free')}</h3>
+              {!pro ? (
+                <span className="prompt-billing__badge">{t('deskBilling.currentPlan')}</span>
+              ) : null}
+            </div>
+            <p className="prompt-billing__tag">{t('deskBilling.freeTag')}</p>
+            <p className="prompt-billing__section">{t('deskBilling.freeSection')}</p>
+            <ul className="prompt-billing__list" role="list">
+              {FREE_BILLING_FEATURES.map((item) => (
+                <li
+                  key={item.key}
+                  className={item.muted ? 'is-muted' : undefined}
+                >
+                  {t(item.key)}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            className={pro ? 'prompt-billing__col prompt-billing__col--pro is-current' : 'prompt-billing__col prompt-billing__col--pro'}
+            aria-label={t('deskBilling.pro')}
+          >
+            <div className="prompt-billing__col-head">
+              <h3>{t('deskBilling.pro')}</h3>
+              {pro ? (
+                <span className="prompt-billing__badge">{t('deskBilling.currentPlan')}</span>
+              ) : null}
+            </div>
+            <p className="prompt-billing__tag">{t('deskBilling.proTag')}</p>
+            <p className="prompt-billing__price">
+              $10.99<span>{t('deskBilling.priceSuffix')}</span>
+            </p>
+            <p className="prompt-billing__section">{t('deskBilling.proSection')}</p>
+            <ul className="prompt-billing__list" role="list">
+              {PRO_BILLING_FEATURES.map((item) => (
+                <li key={item.key}>
+                  <span>{t(item.key)}</span>
+                  {item.premium ? (
+                    <span className="prompt-billing__premium-tag">{t('deskBilling.premiumTag')}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <p className="prompt-billing__sales-note">{t('deskBilling.featureSales')}</p>
+
+            {note ? <p className="prompt-billing__status" role="status">{note}</p> : null}
+            {pro && !canCancel ? (
+              <p className="prompt-billing__managed">{t('deskBilling.managedNote')}</p>
+            ) : null}
+
+            {pro ? (
+              canCancel ? (
+                confirmCancel ? (
+                  <div className="prompt-billing__actions">
+                    <button type="button" className="prompt-billing__cancel" onClick={cancelPlan} disabled={busy}>
+                      {busy ? t('deskBilling.processing') : t('deskBilling.confirmCancel')}
+                    </button>
+                    <button
+                      type="button"
+                      className="prompt-billing__ghost"
+                      onClick={() => setConfirmCancel(false)}
+                      disabled={busy}
+                    >
+                      {t('deskBilling.keepPro')}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" className="prompt-billing__ghost" onClick={() => setConfirmCancel(true)}>
+                    {t('deskBilling.cancelPlan')}
+                  </button>
+                )
+              ) : null
+            ) : (
+              <button type="button" className="prompt-billing__cta" onClick={upgrade} disabled={busy}>
+                {busy ? t('deskBilling.openingCheckout') : t('deskBilling.upgrade')}
+              </button>
+            )}
+          </section>
+        </div>
+
+        <p className="prompt-billing__close-hint">
           <button
             type="button"
-            className="prompt-billing__cta"
-            onClick={() => { void copyPromo(); }}
-            disabled={!shareMessage}
+            className="prompt-billing__close-link"
+            onClick={() => navigate('/app/settings/account')}
           >
-            {copied ? t('deskBilling.promoCopied') : t('deskBilling.promoCopy')}
+            {t('deskAccount.closeFromBilling')}
           </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const ACCOUNT_DELETE_CONFIRM = 'DELETE';
+
+function AccountSettings() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const email = useAuthStore((state) => state.user?.email || '');
+  const signOut = useAuthStore((state) => state.signOut);
+  const plan = usePlanStore((state) => state.profile.plan);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+
+  const canSubmit = confirmText.trim() === ACCOUNT_DELETE_CONFIRM && !busy;
+
+  const closeAccount = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setNote('');
+    try {
+      await deleteUserAccount(ACCOUNT_DELETE_CONFIRM);
+      await signOut();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : t('deskAccount.deleteFailed'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="prompt-desk__page prompt-account">
+      <header className="prompt-desk__bar">
+        <p className="prompt-desk__mark">{t('deskAccount.title')}</p>
+      </header>
+      <div className="prompt-account__sheet">
+        <h2 className="prompt-account__heading">{t('deskAccount.heading')}</h2>
+        <p className="prompt-account__lead">{t('deskAccount.lead')}</p>
+
+        <dl className="prompt-account__meta">
+          <div>
+            <dt>{t('deskAccount.emailLabel')}</dt>
+            <dd>{email || '—'}</dd>
+          </div>
+          <div>
+            <dt>{t('deskAccount.planLabel')}</dt>
+            <dd>{plan === 'pro' ? t('deskBilling.pro') : t('deskBilling.free')}</dd>
+          </div>
+        </dl>
+
+        <section className="prompt-account__danger" aria-labelledby="prompt-account-danger">
+          <h3 id="prompt-account-danger">{t('deskAccount.dangerTitle')}</h3>
+          <p>{t('deskAccount.dangerBody')}</p>
+          {!confirmOpen ? (
+            <button
+              type="button"
+              className="prompt-account__danger-btn"
+              onClick={() => {
+                setConfirmOpen(true);
+                setConfirmText('');
+                setNote('');
+              }}
+            >
+              {t('deskAccount.closeAccount')}
+            </button>
+          ) : (
+            <div className="prompt-account__confirm">
+              <p className="prompt-account__confirm-copy">
+                {t('deskAccount.confirmHint', { word: ACCOUNT_DELETE_CONFIRM })}
+              </p>
+              <input
+                type="text"
+                className="prompt-account__confirm-input"
+                value={confirmText}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={t('deskAccount.confirmLabel')}
+                placeholder={ACCOUNT_DELETE_CONFIRM}
+                onChange={(event) => setConfirmText(event.target.value)}
+                disabled={busy}
+              />
+              {note ? <p className="prompt-account__status" role="alert">{note}</p> : null}
+              <div className="prompt-account__confirm-actions">
+                <button
+                  type="button"
+                  className="prompt-account__danger-btn"
+                  disabled={!canSubmit}
+                  onClick={() => { void closeAccount(); }}
+                >
+                  {busy ? t('deskAccount.deleting') : t('deskAccount.confirmClose')}
+                </button>
+                <button
+                  type="button"
+                  className="prompt-account__cancel"
+                  disabled={busy}
+                  onClick={() => {
+                    setConfirmOpen(false);
+                    setConfirmText('');
+                    setNote('');
+                  }}
+                >
+                  {t('deskAccount.keepAccount')}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -1168,6 +1278,9 @@ function BillingSettings() {
 
 function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDeleteFile }) {
   const navigate = useNavigate();
+  const email = useAuthStore((state) => state.user?.email || '');
+  const profilePlan = usePlanStore((state) => state.profile.plan);
+  const plan = deskPlan(email, profilePlan);
   const [bytesById, setBytesById] = useState({});
   const [brandBytes, setBrandBytes] = useState(0);
   const [note, setNote] = useState('');
@@ -1266,7 +1379,7 @@ function StorageSettings({ folders, focusView, focusFileId, focusFolderId, onDel
       {note ? <p className="prompt-desk__limit" role="status">{note}</p> : null}
       <StorageDistrict
         root={root}
-        capacityBytes={PROMPT_STORAGE_BYTES}
+        capacityBytes={promptStorageBytes(plan)}
         title="Storage"
         defaultView={focusView || 'district'}
         focusFileId={focusFileId}
@@ -2187,7 +2300,8 @@ export default function PromptDesk() {
         />
       ) : null}
       {view === 'settings' && settingsPane === 'billing' ? <BillingSettings /> : null}
-      {view === 'settings' && settingsPane !== 'billing' ? (
+      {view === 'settings' && settingsPane === 'account' ? <AccountSettings /> : null}
+      {view === 'settings' && settingsPane === 'storage' ? (
         <StorageSettings
           folders={folders || []}
           focusView={storageFocus.view}
@@ -2279,6 +2393,7 @@ export default function PromptDesk() {
           compact={compact}
           parked={floating}
           plan={plan}
+          storageUsedBytes={treeBytes(storageTreeFromDesk(folders || []))}
           clicksLeft={clicksLeft}
           onSpendClick={spendClick}
           onPatch={patchPrompt}
@@ -2399,6 +2514,7 @@ function InstructionPanel({
   compact,
   parked,
   plan,
+  storageUsedBytes = 0,
   clicksLeft,
   onSpendClick,
   onPatch,
@@ -2498,7 +2614,9 @@ function InstructionPanel({
   const showSide = showVideo || showPdfPreview;
   const chipImage = coverImage(prompt);
   const cover = coverImage(prompt);
-  const needCoverChoice = !cover && !prompt.coverSkipped;
+  const coverAllowed = canUsePromptCover(plan);
+  const imageAddFrozen = !canAddPromptImage(plan, storageUsedBytes, 0);
+  const needCoverChoice = coverAllowed && !cover && !prompt.coverSkipped;
   const promptCount = savedPromptCount(steps, (item) => (
     promptHasText(item?.prompt)
     || Boolean(String(item?.image || '').trim() || String(item?.imagePath || '').trim())
@@ -2863,6 +2981,16 @@ function InstructionPanel({
 
   function takeCover(file) {
     if (!file || !file.type.startsWith('image/')) return;
+    if (!canUsePromptCover(plan)) {
+      setCoverAsk(false);
+      setLimitNote(PROMPT_LIMIT_COPY.coverPro);
+      return;
+    }
+    if (!canAddPromptImage(plan, storageUsedBytes, file.size || 0)) {
+      setCoverAsk(false);
+      setLimitNote(PROMPT_LIMIT_COPY.imageFrozen);
+      return;
+    }
     setCoverAsk(false);
     readImageFile(file, (cover) => {
       onPatch({ cover, coverSkipped: false });
@@ -2894,8 +3022,19 @@ function InstructionPanel({
   }
 
   function askCover() {
+    if (!coverAllowed || imageAddFrozen) {
+      setLimitNote(coverAllowed ? PROMPT_LIMIT_COPY.imageFrozen : PROMPT_LIMIT_COPY.coverPro);
+      return;
+    }
     setCoverAsk(true);
   }
+
+  useEffect(() => {
+    if (coverAllowed || prompt.coverSkipped || cover) return;
+    onPatch({ coverSkipped: true });
+    // One-shot skip for Free — avoid re-firing when onPatch identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coverAllowed, prompt.id, prompt.coverSkipped, cover]);
 
   function saveVideo(raw) {
     const parsed = parseVideoEmbedInput(raw);
@@ -4558,20 +4697,33 @@ function InstructionPanel({
                       key={page?.id || `empty-${place}`}
                       className="prompt-index__card prompt-index__card--front"
                     >
-                      <label className="prompt-index__cover-hit">
-                        {inner}
-                        <input
-                          ref={coverPickRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/*"
-                          aria-label="Upload cover"
-                          onChange={(event) => {
-                            takeCover(event.target.files?.[0]);
-                            event.target.value = '';
-                          }}
-                        />
-                      </label>
-                      {cover ? (
+                      {coverAllowed && !imageAddFrozen ? (
+                        <label className="prompt-index__cover-hit">
+                          {inner}
+                          <input
+                            ref={coverPickRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/*"
+                            aria-label="Upload cover"
+                            onChange={(event) => {
+                              takeCover(event.target.files?.[0]);
+                              event.target.value = '';
+                            }}
+                          />
+                        </label>
+                      ) : (
+                        <button
+                          type="button"
+                          className="prompt-index__cover-hit is-frozen"
+                          aria-label={coverAllowed ? 'Storage full' : 'Cover images on paid plan'}
+                          aria-disabled="true"
+                          onClick={askCover}
+                        >
+                          {inner}
+                          <span className="prompt-index__cover-plus" aria-hidden="true">+</span>
+                        </button>
+                      )}
+                      {cover && coverAllowed ? (
                         <button
                           type="button"
                           className="prompt-index__cover-remove"

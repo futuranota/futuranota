@@ -3,21 +3,26 @@ import {
   DESK_FREE_PREVIEW_EMAIL,
   EMBED_BRAND_MAX_BYTES,
   FREE_PROMPT_LIMITS,
+  FREE_PROMPT_STORAGE_BYTES,
   FREE_TELEPROMPT_EDIT_MS,
   FREE_TELEPROMPT_MAX,
   PROMPT_LIMITS_ENFORCED,
   PROMPT_STORAGE_BYTES,
   PRO_PROMPT_CREDITS,
+  PRO_PROMPT_STORAGE_BYTES,
   canAddPromptFile,
   canAddPromptFolder,
+  canAddPromptImage,
   canAddPromptPage,
   canAddTeleprompt,
   canEditTeleprompt,
+  canUsePromptCover,
   creditBalance,
   deskPlan,
   formatTelepromptEditCountdown,
   localDayKey,
   promptLimits,
+  promptStorageBytes,
   promptToolCallsLeft,
   telepromptEditRemainingMs,
 } from './promptPlanLimits.js';
@@ -29,28 +34,34 @@ describe('promptPlanLimits', () => {
     expect(PROMPT_LIMITS_ENFORCED).toBe(true);
     expect(EMBED_BRAND_MAX_BYTES).toBe(5 * 1024 * 1024);
     expect(FREE_PROMPT_LIMITS.maxFolders).toBe(Infinity);
-    expect(FREE_PROMPT_LIMITS.maxFiles).toBe(6);
-    expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(10);
+    expect(FREE_PROMPT_LIMITS.maxFiles).toBe(Infinity);
+    expect(FREE_PROMPT_LIMITS.maxPagesPerFile).toBe(20);
     expect(FREE_PROMPT_LIMITS.maxToolCalls).toBe(3);
     expect(promptLimits('free').maxFolders).toBe(Infinity);
-    expect(promptLimits('free').maxFiles).toBe(6);
-    expect(promptLimits('free').maxPagesPerFile).toBe(10);
+    expect(promptLimits('free').maxFiles).toBe(Infinity);
+    expect(promptLimits('free').maxPagesPerFile).toBe(20);
     expect(promptLimits('pro').maxFiles).toBe(Infinity);
     expect(promptLimits('pro').maxToolCalls).toBe(200);
-    expect(promptLimits('free').storageBytes).toBe(PROMPT_STORAGE_BYTES);
+    expect(promptStorageBytes('free')).toBe(FREE_PROMPT_STORAGE_BYTES);
+    expect(promptStorageBytes('pro')).toBe(PRO_PROMPT_STORAGE_BYTES);
+    expect(promptLimits('free').storageBytes).toBe(FREE_PROMPT_STORAGE_BYTES);
     expect(PROMPT_STORAGE_BYTES).toBe(5 * 1024 * 1024 * 1024);
+    expect(canUsePromptCover('free')).toBe(false);
+    expect(canUsePromptCover('pro')).toBe(true);
+    expect(canAddPromptImage('free', 0, 100)).toBe(false);
+    expect(canAddPromptImage('pro', PRO_PROMPT_STORAGE_BYTES, 1)).toBe(false);
+    expect(canAddPromptImage('pro', 0, 100)).toBe(true);
   });
 
-  it('caps free files at 6 total across folders and 10 pages per file', () => {
+  it('allows unlimited free files/folders and caps pages at 20', () => {
     const folders = [
       { id: 'folder-1', prompts: [{}, {}, {}] },
       { id: 'folder-2', prompts: [{}, {}, {}] },
     ];
     expect(canAddPromptFolder(folders, 'free')).toBe(true);
-    expect(canAddPromptFile(folders, 'free', 'folder-1')).toBe(false);
-    expect(canAddPromptFile([{ id: 'folder-1', prompts: [{}] }], 'free', 'folder-1')).toBe(true);
-    expect(canAddPromptPage(10, 'free')).toBe(false);
-    expect(canAddPromptPage(9, 'free')).toBe(true);
+    expect(canAddPromptFile(folders, 'free', 'folder-1')).toBe(true);
+    expect(canAddPromptPage(20, 'free')).toBe(false);
+    expect(canAddPromptPage(19, 'free')).toBe(true);
     expect(canAddPromptPage(40, 'pro')).toBe(true);
   });
 
