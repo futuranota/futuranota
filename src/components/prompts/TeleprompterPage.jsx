@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { copyToClipboard } from '../../lib/copyToClipboard.js';
 import {
@@ -70,10 +71,95 @@ function readStoredPaceMode() {
 function readStoredRightTab() {
   try {
     const value = localStorage.getItem(RIGHT_TAB_STORE);
-    return value === 'folders' ? 'folders' : 'list';
+    if (value === 'folders' || value === 'design') return value;
+    return 'list';
   } catch {
     return 'list';
   }
+}
+
+function isTypingTarget(target) {
+  if (!target || !(target instanceof Element)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest('[contenteditable="true"]'));
+}
+
+function ScriptDesignPanel({ videoRef }) {
+  const [videoUrl, setVideoUrl] = useState('');
+  const [fileName, setFileName] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => () => {
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+  }, [videoUrl]);
+
+  function takeVideo(file) {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('video/')) return;
+    setVideoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setFileName(file.name || 'Video');
+  }
+
+  function clearVideo() {
+    setVideoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return '';
+    });
+    setFileName('');
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  return (
+    <div className="tp-design">
+      <p className="tp-design__lead">
+        Import your recorded video and reuse it as a visual reference to design your Script frame by frame.
+      </p>
+      <p className="tp-design__note">
+        Plays on this device only — not saved to your plan storage.
+      </p>
+      <p className="tp-design__shortcut" aria-label="Keyboard shortcut">
+        <kbd>Space</kbd>
+        <span>Pause script or reference video</span>
+      </p>
+      {videoUrl ? (
+        <div className="tp-design__player-wrap">
+          <video
+            ref={videoRef}
+            className="tp-design__player"
+            src={videoUrl}
+            controls
+            playsInline
+            preload="metadata"
+          />
+          <div className="tp-design__meta">
+            <span className="tp-design__file" title={fileName}>{fileName}</span>
+            <button type="button" className="tp-design__clear" onClick={clearVideo}>
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <label className="tp-design__pick">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="video/*"
+            aria-label="Import reference video"
+            onChange={(event) => {
+              takeVideo(event.target.files?.[0]);
+              event.target.value = '';
+            }}
+          />
+          <span>Import video</span>
+        </label>
+      )}
+    </div>
+  );
 }
 
 const FLOAT_CSS = `
@@ -293,6 +379,71 @@ function IconCollapse() {
   );
 }
 
+function IconGhost() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4c-3.3 0-6 2.5-6 5.7v7.8c0 .7.6 1.1 1.1.7l1.5-1 1.4 1c.4.3 1 .3 1.4 0l1.2-.9 1.2.9c.4.3 1 .3 1.4 0l1.4-1 1.5 1c.5.4 1.1 0 1.1-.7v-7.8C18 6.5 15.3 4 12 4Z" />
+      <path d="M9.5 10.2v.2M14.5 10.2v.2" />
+    </svg>
+  );
+}
+
+function GhostSurface({
+  nodes,
+  cursor,
+  cps,
+  durationLabel,
+  elapsedLabel,
+  playing,
+  activeBlockId,
+  copyFlash,
+  canPlay,
+  onPlay,
+  onPause,
+  onClose,
+  onCopyBlock,
+}) {
+  return (
+    <div className="tp-ghost" data-tp-theme={TP_THEME} role="dialog" aria-label="Ghost teleprompter">
+      <div className="tp-ghost__panel">
+        <div className="tp-ghost__head">
+          <div className="tp-ghost__titles">
+            <p className="tp-ghost__title">Ghost</p>
+            <p className="tp-ghost__hint">Visible on the main screen · Space pauses</p>
+          </div>
+          <div className="tp-ghost__actions">
+            {playing ? (
+              <button type="button" className="tp-ghost__btn" onClick={onPause} title="Pause · Space">
+                Pause
+              </button>
+            ) : (
+              <button type="button" className="tp-ghost__btn" onClick={onPlay} disabled={!canPlay} title="Play">
+                Play
+              </button>
+            )}
+            <button type="button" className="tp-ghost__btn tp-ghost__btn--close" onClick={onClose} aria-label="Close Ghost">
+              Close
+            </button>
+          </div>
+        </div>
+        <ScriptReader
+          nodes={nodes}
+          cursor={cursor}
+          activeBlockId={activeBlockId}
+          copyFlash={copyFlash}
+          onCopyBlock={onCopyBlock}
+          className="tp-ghost__reader"
+        />
+        <div className="tp-ghost__meta">
+          <span>{`SPEED ${cps}`}</span>
+          <span>{elapsedLabel} / {durationLabel}</span>
+          <span className="tp-ghost__shortcut"><kbd>Esc</kbd> Close</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function IconEdit() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -462,9 +613,9 @@ function FloatSurface({
         <p className="tp-float__title">Teleprompter</p>
         <div style={{ display: 'flex', gap: 6 }}>
           {playing ? (
-            <button type="button" onClick={onPause}>Pause</button>
+            <button type="button" onClick={onPause} title="Pause · Space">Pause</button>
           ) : (
-            <button type="button" onClick={onPlay} disabled={!canPlay}>Play</button>
+            <button type="button" onClick={onPlay} disabled={!canPlay} title="Play">Play</button>
           )}
           <button
             type="button"
@@ -1060,6 +1211,8 @@ export default function TeleprompterPage({ folders = [] }) {
   const [playing, setPlaying] = useState(false);
   const [floating, setFloating] = useState(false);
   const [floatCollapsed, setFloatCollapsed] = useState(false);
+  const [ghostOpen, setGhostOpen] = useState(false);
+  const [insertAfterTextId, setInsertAfterTextId] = useState('');
   const [copyFlash, setCopyFlash] = useState({ id: '', kind: '' });
   const [saveFlash, setSaveFlash] = useState(false);
   const [createPulse, setCreatePulse] = useState(false);
@@ -1072,6 +1225,7 @@ export default function TeleprompterPage({ folders = [] }) {
   const libraryRef = useRef(library);
 
   const floatRef = useRef(null);
+  const designVideoRef = useRef(null);
   const playingRef = useRef(false);
   const cursorRef = useRef(0);
   const textRef = useRef('');
@@ -1393,6 +1547,23 @@ export default function TeleprompterPage({ folders = [] }) {
     stopLoop();
   }
 
+  function pauseReferenceVideo() {
+    const video = designVideoRef.current;
+    if (!video || video.paused) return false;
+    video.pause();
+    return true;
+  }
+
+  function pauseWithSpaceShortcut() {
+    let handled = false;
+    if (playingRef.current) {
+      pausePlay();
+      handled = true;
+    }
+    if (pauseReferenceVideo()) handled = true;
+    return handled;
+  }
+
   function resetPlay() {
     pausePlay();
     cursorRef.current = 0;
@@ -1457,6 +1628,7 @@ export default function TeleprompterPage({ folders = [] }) {
     setActiveTelepromptId('');
     setScriptTitle('');
     setIsEditing(false);
+    setInsertAfterTextId('');
     setNodes([blankTextNode('')]);
     cursorRef.current = 0;
     carryRef.current = 0;
@@ -1518,6 +1690,7 @@ export default function TeleprompterPage({ folders = [] }) {
     pausePlay();
     setSessionOpen(true);
     setIsEditing(false);
+    setInsertAfterTextId('');
     setActiveTelepromptId(item.id);
     setScriptTitle(item.name || '');
     setNodes(item.nodes?.length ? item.nodes : [blankTextNode('')]);
@@ -1558,6 +1731,7 @@ export default function TeleprompterPage({ folders = [] }) {
     setScriptTitle(nextItem.name);
     setActiveTelepromptId(nextItem.id);
     setIsEditing(false);
+    setInsertAfterTextId('');
     setRightTab('list');
     setSaveFlash(true);
     if (saveFlashTimerRef.current) window.clearTimeout(saveFlashTimerRef.current);
@@ -1603,14 +1777,53 @@ export default function TeleprompterPage({ folders = [] }) {
     setCursor(0);
   }
 
+  function trailingTextId(list) {
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      if (list[i]?.type === 'text') return list[i].id;
+    }
+    return '';
+  }
+
   function removeNode(id) {
     if (!canEditContent) return;
+    const target = nodes.find((node) => node.id === id);
+    if (target?.type === 'text' && trailingTextId(nodes) === id) return;
+    setInsertAfterTextId((current) => (current === id ? '' : current));
     setNodes((prev) => {
       const next = prev.filter((node) => node.id !== id);
       return next.length ? next : [blankTextNode('')];
     });
     resetGates();
     setCursor(0);
+  }
+
+  function placeBlockInScript(prev, block) {
+    const anchorId = insertAfterTextId;
+    const anchorIndex = anchorId
+      ? prev.findIndex((node) => node.id === anchorId && node.type === 'text')
+      : -1;
+    let insertAt = prev.length;
+    if (anchorIndex >= 0) {
+      insertAt = anchorIndex + 1;
+      while (
+        insertAt < prev.length
+        && (prev[insertAt].type === 'prompt' || prev[insertAt].type === 'url')
+      ) {
+        insertAt += 1;
+      }
+    }
+    const head = prev.slice(0, insertAt);
+    const tail = prev.slice(insertAt);
+    const prevNode = insertAt > 0 ? prev[insertAt - 1] : null;
+    const extendingSequence = prevNode?.type === 'prompt' || prevNode?.type === 'url';
+    // First prompt/URL in a sequence creates one text placeholder; later ones reuse it.
+    if (extendingSequence) {
+      return [...head, block, ...tail];
+    }
+    if (tail[0]?.type === 'text' && !String(tail[0].body || '').trim()) {
+      return [...head, block, tail[0], ...tail.slice(1)];
+    }
+    return [...head, block, blankTextNode(''), ...tail];
   }
 
   function insertPromptBlock(payload) {
@@ -1630,11 +1843,7 @@ export default function TeleprompterPage({ folders = [] }) {
         modelSrc: payload.modelSrc || '',
         recommendedModel: payload.recommendedModel || '',
       };
-      const last = prev[prev.length - 1];
-      if (last?.type === 'text' && !String(last.body || '').trim()) {
-        return [...prev.slice(0, -1), block, blankTextNode('')];
-      }
-      return [...prev, block, blankTextNode('')];
+      return placeBlockInScript(prev, block);
     });
     resetGates();
     setCursor(0);
@@ -1651,11 +1860,7 @@ export default function TeleprompterPage({ folders = [] }) {
         title: payload.title || href,
         body: String(payload.body || href),
       };
-      const last = prev[prev.length - 1];
-      if (last?.type === 'text' && !String(last.body || '').trim()) {
-        return [...prev.slice(0, -1), block, blankTextNode('')];
-      }
-      return [...prev, block, blankTextNode('')];
+      return placeBlockInScript(prev, block);
     });
     resetGates();
     setCursor(0);
@@ -1788,6 +1993,42 @@ export default function TeleprompterPage({ folders = [] }) {
     });
   }
 
+  function openGhost() {
+    setGhostOpen(true);
+  }
+
+  function closeGhost() {
+    setGhostOpen(false);
+  }
+
+  useEffect(() => {
+    if (!ghostOpen) return undefined;
+    function onEscape(event) {
+      if (event.key !== 'Escape') return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      closeGhost();
+    }
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [ghostOpen]);
+
+  useEffect(() => () => {
+    setGhostOpen(false);
+  }, []);
+
+  useEffect(() => {
+    function onSpacePause(event) {
+      if (event.code !== 'Space' && event.key !== ' ') return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (!pauseWithSpaceShortcut()) return;
+      event.preventDefault();
+    }
+    window.addEventListener('keydown', onSpacePause);
+    return () => window.removeEventListener('keydown', onSpacePause);
+  }, []);
+
   useEffect(() => {
     const slot = floatRef.current;
     if (!slot?.root || !floating) return;
@@ -1797,6 +2038,15 @@ export default function TeleprompterPage({ folders = [] }) {
       return;
     }
     applyFloatTheme(slot.window);
+    const floatWindow = slot.window;
+    function onFloatSpacePause(event) {
+      if (event.code !== 'Space' && event.key !== ' ') return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (!pauseWithSpaceShortcut()) return;
+      event.preventDefault();
+    }
+    floatWindow?.addEventListener('keydown', onFloatSpacePause);
     slot.root.render(
       <FloatSurface
         nodes={nodes}
@@ -1815,6 +2065,9 @@ export default function TeleprompterPage({ folders = [] }) {
         onCopyBlock={(node) => { void copyBlock(node, slot.window); }}
       />,
     );
+    return () => {
+      floatWindow?.removeEventListener('keydown', onFloatSpacePause);
+    };
   }, [floating, nodes, cursor, cps, durationLabel, elapsedLabel, playing, floatCollapsed, activeBlockId, copyFlash, canPlay, folders]);
 
   useEffect(() => () => {
@@ -1928,24 +2181,56 @@ export default function TeleprompterPage({ folders = [] }) {
               >
                 {nodes.map((node) => (
                   node.type === 'text' ? (
-                    <textarea
+                    <div
                       key={node.id}
-                      className="tp-script__field"
-                      placeholder="Write or paste your script…"
-                      value={node.body}
-                      rows={4}
-                      readOnly={!canEditContent}
-                      onPointerDown={(event) => {
-                        if (guardIdleEditor(event)) return;
+                      className={
+                        insertAfterTextId === node.id
+                          ? 'tp-script__text-wrap is-anchor'
+                          : 'tp-script__text-wrap'
+                      }
+                      onClick={(event) => {
+                        if (!canEditContent) return;
+                        if (event.target.closest('.tp-script__text-remove')) return;
+                        setInsertAfterTextId(node.id);
                       }}
-                      onFocus={(event) => {
-                        if (guardIdleEditor(event)) return;
-                      }}
-                      onKeyDown={(event) => {
-                        if (!sessionOpen) guardIdleEditor(event);
-                      }}
-                      onChange={(event) => updateTextNode(node.id, event.target.value)}
-                    />
+                    >
+                      {canEditContent && trailingTextId(nodes) !== node.id ? (
+                        <button
+                          type="button"
+                          className="tp-script__text-remove"
+                          aria-label="Remove text block"
+                          title="Remove text block"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeNode(node.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                      {insertAfterTextId === node.id ? (
+                        <span className="tp-script__anchor-tag">Insert below</span>
+                      ) : null}
+                      <textarea
+                        className="tp-script__field"
+                        placeholder="Write or paste your script…"
+                        value={node.body}
+                        rows={4}
+                        readOnly={!canEditContent}
+                        onPointerDown={(event) => {
+                          if (guardIdleEditor(event)) return;
+                          if (canEditContent) setInsertAfterTextId(node.id);
+                        }}
+                        onFocus={(event) => {
+                          if (guardIdleEditor(event)) return;
+                          if (canEditContent) setInsertAfterTextId(node.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!sessionOpen) guardIdleEditor(event);
+                        }}
+                        onChange={(event) => updateTextNode(node.id, event.target.value)}
+                      />
+                    </div>
                   ) : (
                     <ScriptBlockCard
                       key={node.id}
@@ -1967,7 +2252,9 @@ export default function TeleprompterPage({ folders = [] }) {
                   ? 'Saved · press Edit to change this script'
                   : paceMode === 'voice'
                     ? 'Voice mode · scroll advances while you speak · Play pauses on each block for Copy'
-                    : 'Insert prompts or URLs from the library · Play pauses on each block for Copy · resume with Play'}
+                    : insertAfterTextId
+                      ? 'Selected text block · first Insert adds a text placeholder · more Inserts stack without new text'
+                      : 'Click a text block to choose insert spot · last text block stays · remove earlier text with ×'}
             </p>
             {voiceNote ? <p className="tp-paste__hint tp-paste__hint--alert" role="status">{voiceNote}</p> : null}
           </div>
@@ -2043,7 +2330,7 @@ export default function TeleprompterPage({ folders = [] }) {
                   onClick={pausePlay}
                   disabled={!sessionOpen}
                   aria-label="Pause"
-                  title="Pause"
+                  title="Pause · Space"
                 >
                   <IconPause />
                 </button>
@@ -2059,6 +2346,9 @@ export default function TeleprompterPage({ folders = [] }) {
                   <IconPlay />
                 </button>
               )}
+              <p className="tp-shortcut-hint" aria-hidden="true">
+                <kbd>Space</kbd> Pause
+              </p>
             </div>
 
             <div className="tp-toolkit__actions">
@@ -2084,6 +2374,20 @@ export default function TeleprompterPage({ folders = [] }) {
                   <IconEdit />
                 </button>
               ) : null}
+              <button
+                type="button"
+                className={ghostOpen ? 'tp-icon-btn is-active' : 'tp-icon-btn'}
+                disabled={!sessionOpen}
+                onClick={() => {
+                  if (ghostOpen) closeGhost();
+                  else openGhost();
+                }}
+                aria-label={ghostOpen ? 'Close Ghost' : 'Open Ghost overlay'}
+                aria-pressed={ghostOpen}
+                title={ghostOpen ? 'Close Ghost' : 'Ghost · on-screen overlay for recording'}
+              >
+                <IconGhost />
+              </button>
               <button
                 type="button"
                 className="tp-icon-btn"
@@ -2117,6 +2421,15 @@ export default function TeleprompterPage({ folders = [] }) {
             <button
               type="button"
               role="tab"
+              className={rightTab === 'design' ? 'tp-right__tab is-active' : 'tp-right__tab'}
+              aria-selected={rightTab === 'design'}
+              onClick={() => setRightTab('design')}
+            >
+              Script Design
+            </button>
+            <button
+              type="button"
+              role="tab"
               className={rightTab === 'folders' ? 'tp-right__tab is-active' : 'tp-right__tab'}
               aria-selected={rightTab === 'folders'}
               onClick={() => setRightTab('folders')}
@@ -2139,6 +2452,8 @@ export default function TeleprompterPage({ folders = [] }) {
               quotaUsed={Math.min(createdCount, FREE_TELEPROMPT_MAX)}
               quotaMax={FREE_TELEPROMPT_MAX}
             />
+          ) : rightTab === 'design' ? (
+            <ScriptDesignPanel videoRef={designVideoRef} />
           ) : (
             <DeskBrowser
               folders={folders}
@@ -2158,6 +2473,26 @@ export default function TeleprompterPage({ folders = [] }) {
         }}
         onUpgrade={() => { void upgradeToProCheckout(); }}
       />
+      {ghostOpen
+        ? createPortal(
+          <GhostSurface
+            nodes={nodes}
+            cursor={cursor}
+            cps={cps}
+            durationLabel={durationLabel}
+            elapsedLabel={elapsedLabel}
+            playing={playing}
+            activeBlockId={activeBlockId}
+            copyFlash={copyFlash}
+            canPlay={canPlay}
+            onPlay={startPlay}
+            onPause={pausePlay}
+            onClose={closeGhost}
+            onCopyBlock={(node) => { void copyBlock(node); }}
+          />,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

@@ -32,7 +32,6 @@ import {
 } from '../../lib/promptPlanLimits.js';
 import { storageTreeFromDesk, treeBytes } from '../../lib/promptStorageTree.js';
 import { supabase } from '../../lib/supabaseClient.js';
-import { normalizeEmbedSrcForPlayback, parseVideoEmbedInput } from '../../lib/videoEmbed.js';
 import { beautifyPastedText, prepareFileHomeText } from '../../lib/promptBeautify.js';
 import { fixPromptText } from '../../lib/promptFixText.js';
 import { savedPromptCount, stepsMarkedAfterSave } from '../../lib/promptStepSave.js';
@@ -583,21 +582,6 @@ function PromptTitleField({ className, value, onChange, titleRef, placeholder = 
       }}
     />
   );
-}
-
-function playbackSrc(video) {
-  const src = normalizeEmbedSrcForPlayback(video?.embedSrc || '');
-  if (!src) return '';
-  try {
-    const url = new URL(src);
-    if (video?.provider === 'youtube') {
-      url.searchParams.set('enablejsapi', '1');
-      url.searchParams.set('origin', window.location.origin);
-    }
-    return url.toString();
-  } catch {
-    return src;
-  }
 }
 
 function blankPrompt() {
@@ -2530,7 +2514,6 @@ function InstructionPanel({
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [pdfFolded, setPdfFolded] = useState(false);
   const [pdfError, setPdfError] = useState('');
@@ -2578,8 +2561,6 @@ function InstructionPanel({
   const pdfViewportRef = useRef(null);
   const pdfPanDrag = useRef(null);
   const textPanelKept = useRef(false);
-  const [videoDraft, setVideoDraft] = useState('');
-  const [videoError, setVideoError] = useState('');
   const [homeSaveAsk, setHomeSaveAsk] = useState(false);
   const [coverAsk, setCoverAsk] = useState(false);
   const coverPickRef = useRef(null);
@@ -2611,7 +2592,7 @@ function InstructionPanel({
   const showPdfPreview = showPdf && !pdfFolded;
   const pdfTranscriptWide = false;
   // Image upload + Assets panel retired — side only for video / PDF preview.
-  const showSide = showVideo || showPdfPreview;
+  const showSide = showPdfPreview;
   const chipImage = coverImage(prompt);
   const cover = coverImage(prompt);
   const coverAllowed = canUsePromptCover(plan);
@@ -2667,8 +2648,6 @@ function InstructionPanel({
     setRecommendedOpen(false);
     setFormatOpen(false);
     setCustomModel('');
-    setVideoDraft(prompt.video?.rawInput || '');
-    setVideoError('');
     setPdfError('');
     setPdfPasted(false);
     setUrlOffer('');
@@ -2693,7 +2672,6 @@ function InstructionPanel({
     textPanelKept.current = false;
     imageHold.current = false;
     sideHold.current = false;
-    setShowVideo(false);
     setShowPdf(false);
     setHomeSaveAsk(false);
     savedPromptRef.current = null;
@@ -2748,16 +2726,9 @@ function InstructionPanel({
     if (!sheetOpen || sideHold.current) return;
     if (prompt.pdf?.name) {
       setShowPdf(true);
-      setShowVideo(false);
-      return;
-    }
-    if (prompt.video?.embedSrc) {
-      setShowVideo(true);
-      setShowPdf(false);
       return;
     }
     setShowPdf(false);
-    setShowVideo(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
@@ -3036,33 +3007,6 @@ function InstructionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coverAllowed, prompt.id, prompt.coverSkipped, cover]);
 
-  function saveVideo(raw) {
-    const parsed = parseVideoEmbedInput(raw);
-    if (parsed.error || !parsed.embedSrc) {
-      setVideoError(parsed.error || 'Paste a YouTube, Vimeo, or Instagram link.');
-      return;
-    }
-    setVideoError('');
-    setVideoDraft(parsed.rawInput);
-    onPatch({
-      video: {
-        rawInput: parsed.rawInput,
-        provider: parsed.provider,
-        videoId: parsed.videoId,
-        embedSrc: parsed.embedSrc,
-      },
-    });
-  }
-
-  function removeVideo() {
-    setVideoDraft('');
-    setVideoError('');
-    sideHold.current = false;
-    setShowVideo(true);
-    setShowPdf(false);
-    onPatch({ video: null });
-  }
-
   function takePdf(file) {
     if (!file) return;
     const kind = fileDocumentKind(file);
@@ -3076,7 +3020,6 @@ function InstructionPanel({
     setPdfPasted(false);
     setPdfPlain('');
     setShowPdf(true);
-    setShowVideo(false);
     // PDF only — hide the writing sheet / text panel on the right until Extract.
     setSheetOpen(false);
     onPatch({ pdf: { name: file.name, path: '', url: '', kind } });
@@ -3116,7 +3059,6 @@ function InstructionPanel({
     setPdfScan(cleaned);
     setPdfFolded(false);
     setShowPdf(true);
-    setShowVideo(false);
     setSheetOpen(true);
     setOrganizeAsk(null);
     setOrganizePreview(null);
@@ -3493,7 +3435,6 @@ function InstructionPanel({
   function hideSide() {
     sideHold.current = true;
     setShowPdf(false);
-    setShowVideo(false);
   }
 
   function deletePdf() {
@@ -3537,7 +3478,7 @@ function InstructionPanel({
   function openBuiltPrompt() {
     imageHold.current = false;
     setSheetOpen(true);
-    if (prompt.pdf?.name || prompt.video?.embedSrc) {
+    if (prompt.pdf?.name) {
       showIndexMedia();
     }
   }
@@ -3546,15 +3487,10 @@ function InstructionPanel({
     imageHold.current = false;
     if (sideHold.current) {
       setShowPdf(false);
-      setShowVideo(false);
       return;
     }
     if (prompt.pdf?.name) {
       setShowPdf(true);
-      setShowVideo(false);
-    } else if (prompt.video?.embedSrc) {
-      setShowVideo(true);
-      setShowPdf(false);
     }
   }
 
@@ -4124,7 +4060,7 @@ function InstructionPanel({
                     <span>Settings</span>
                   </button>
                 ) : null}
-                {(showPdf && prompt.pdf?.name) || (showVideo && prompt.video?.embedSrc) ? (
+                {showPdf && prompt.pdf?.name ? (
                   <button type="button" className="prompt-models__item" onClick={hideSide}>
                     <span className="prompt-models__glyph" aria-hidden="true">
                       <svg viewBox="0 0 24 24">
@@ -4137,24 +4073,6 @@ function InstructionPanel({
                     <span>Hide</span>
                   </button>
                 ) : null}
-                {showVideo ? null : (
-                  <button
-                    type="button"
-                    className="prompt-models__item"
-                    onClick={() => {
-                      sideHold.current = false;
-                      setShowVideo(true);
-                      setShowPdf(false);
-                    }}
-                  >
-                    <span className="prompt-models__glyph" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path className="prompt-models__play" d="M9 7v10l8-5-8-5z" />
-                      </svg>
-                    </span>
-                    <span>Embed video</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   className={promptCount ? 'prompt-models__item is-counted' : 'prompt-models__item is-counted is-empty'}
@@ -4230,43 +4148,6 @@ function InstructionPanel({
             </div>
           ) : null}
         </div>
-        {showVideo ? (
-          <div className="prompt-panel__video">
-            {prompt.video?.embedSrc ? (
-              <iframe
-                className="prompt-panel__player"
-                src={playbackSrc(prompt.video)}
-                title="Video"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                sandbox={prompt.video?.provider === 'instagram'
-                  ? 'allow-scripts allow-same-origin allow-presentation'
-                  : undefined}
-              />
-            ) : (
-              <form
-                className="prompt-panel__video-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  saveVideo(videoDraft);
-                }}
-              >
-                <img className="prompt-panel__video-art" src="/Embed%20code.png" alt="" />
-                <input
-                  value={videoDraft}
-                  placeholder="Paste a YouTube, Vimeo, or Instagram link"
-                  aria-label="Video link"
-                  onChange={(event) => setVideoDraft(event.target.value)}
-                />
-                <button type="submit">Embed</button>
-                <button type="button" className="prompt-panel__remove" onClick={hideSide}>
-                  Hide
-                </button>
-                {videoError ? <p role="alert">{videoError}</p> : null}
-              </form>
-            )}
-          </div>
-        ) : null}
         {showPdfPreview ? (
           <div className={`prompt-panel__pdf${pdfPages.length || pdfPlain ? ' prompt-panel__pdf--pages' : ''}`}>
             {pdfPages.length ? (
@@ -4410,13 +4291,6 @@ function InstructionPanel({
               </div>
             ) : null}
             {pdfError ? <p className="prompt-pdf__inline-error" role="alert">{pdfError}</p> : null}
-          </div>
-        ) : null}
-        {showVideo && prompt.video?.embedSrc ? (
-          <div className="prompt-panel__media-foot">
-            <button type="button" className="prompt-panel__remove" onClick={removeVideo}>
-              Remove
-            </button>
           </div>
         ) : null}
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
