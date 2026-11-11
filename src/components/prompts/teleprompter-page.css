@@ -8,6 +8,7 @@
 
 /* Light-only teleprompter (dark theme removed) */
 .tp-page {
+  color-scheme: light;
   --tp-surface: #fff;
   --tp-ink: #1a1a1a;
   --tp-muted: rgba(20, 20, 22, 0.45);
@@ -1458,6 +1459,56 @@
   background: var(--tp-icon-hover);
 }
 
+.tp-instruction {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 2px;
+}
+
+.tp-instruction.is-under {
+  margin-top: -2px;
+}
+
+.tp-instruction__arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 18px;
+  margin: 0 0 2px;
+  color: var(--tp-muted);
+  opacity: 0.85;
+}
+
+.tp-instruction__stem {
+  width: 1.5px;
+  flex: 1;
+  min-height: 8px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.tp-instruction__head {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  margin-top: -1px;
+}
+
+.tp-block--instruction {
+  border-style: dashed;
+  background: rgba(20, 20, 22, 0.02);
+  padding: 10px 12px;
+}
+
+.tp-block--instruction .tp-block__kind {
+  color: color-mix(in srgb, var(--tp-play) 70%, var(--tp-muted));
+}
+
 .tp-browser {
   display: flex;
   flex-direction: column;
@@ -1733,6 +1784,67 @@
 .tp-browser__insert:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.tp-browser__instruction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 8px;
+  color-scheme: light;
+  color: #1a1a1a;
+}
+
+.tp-browser__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(20, 20, 22, 0.45);
+}
+
+.tp-browser__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(20, 20, 22, 0.45);
+}
+
+.tp-browser__field input,
+.tp-browser__field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(20, 20, 22, 0.12);
+  border-radius: 10px;
+  background: #f4f1eb;
+  color: #1a1a1a;
+  caret-color: #1a1a1a;
+  font: 500 13px/1.35 ui-sans-serif, system-ui, sans-serif;
+  padding: 9px 11px;
+  text-transform: none;
+  letter-spacing: normal;
+  resize: vertical;
+  color-scheme: light;
+}
+
+.tp-browser__field input::placeholder,
+.tp-browser__field textarea::placeholder {
+  color: rgba(20, 20, 22, 0.38);
+}
+
+.tp-browser__field input:focus,
+.tp-browser__field textarea:focus {
+  outline: none;
+  border-color: rgba(20, 20, 22, 0.28);
+  background: #f7f5f1;
+}
+
+.tp-browser__instruction-form .tp-browser__insert {
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 @media (max-width: 900px) {

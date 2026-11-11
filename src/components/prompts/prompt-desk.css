@@ -379,10 +379,26 @@
   text-transform: uppercase;
 }
 
+.prompt-desk__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .prompt-desk__logo {
   display: block;
-  height: 40px;
-  width: auto;
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.prompt-desk__brand-type {
+  font: 400 16px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+  color: inherit;
+  white-space: nowrap;
 }
 
 .prompt-desk__new-wrap {

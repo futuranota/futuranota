@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Mark } from './Mark.jsx';
 import { MailchimpSubscribeForm } from './MailchimpSubscribeForm.jsx';
-import { PATHS, sectionPath } from '../lib/paths.js';
+import { Wordmark } from './Wordmark.jsx';
+import { sectionPath } from '../lib/paths.js';
 import { getSite, FOOTER_SECTION_SLUGS } from '../lib/content.js';
 import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
 import { useI18n } from '../../i18n/useI18n.js';
@@ -20,10 +20,7 @@ export function Footer() {
     <footer className="footer" data-screen-label="footer">
       <div className="container footer__grid">
         <div className="footer__brand">
-          <Link to={PATHS.home} className="brand footer__brand-link">
-            <span className="brand__mark"><Mark /></span>
-            <span className="brand__type">FUTURA<span className="brand__type-thin"> NOTA</span></span>
-          </Link>
+          <Wordmark className="footer__brand-link" />
           <div className="footer__news-intro">
             <h3 className="footer__news-title">{t('marketing.newsletterTitle')}</h3>
             <p className="footer__news-body">{t('marketing.newsletterBody')}</p>

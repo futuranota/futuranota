@@ -2314,7 +2314,14 @@ export default function PromptDesk() {
       {view === 'home' ? (
       <>
       <header className="prompt-desk__bar">
-        <img src="/navbar.svg" alt="Futura Nota" className="prompt-desk__logo" />
+        <span className="prompt-desk__brand" aria-label="Futura Nota">
+          <img
+            src="/logo-json/futura-nota-teleprompter-logo.svg"
+            alt=""
+            className="prompt-desk__logo"
+          />
+          <span className="prompt-desk__brand-type">Futura Nota</span>
+        </span>
         <span className={folderLimitReached ? 'prompt-desk__new-wrap prompt-desk__new-wrap--tip' : 'prompt-desk__new-wrap'}>
           <button
             type="button"

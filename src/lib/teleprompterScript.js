@@ -200,12 +200,23 @@ export function resolveBlockCopyText(node, folders) {
   if (node.type === 'url') {
     return String(node.body || node.href || '').trim();
   }
+  if (node.type === 'instruction') {
+    const note = String(node.body || '').trim();
+    const href = String(node.href || '').trim();
+    if (note && href) return `${note}\n${href}`;
+    return note || href;
+  }
   if (node.type === 'prompt') {
     const found = findDeskStep(folders, node.fileId, node.stepId);
     const live = found ? stepPlainBody(found.file, found.step) : '';
     return String(live || node.body || '').trim();
   }
   return String(node.body || '').trim();
+}
+
+/** @param {object} [node] */
+export function isTeleprompterCopyBlock(node) {
+  return node?.type === 'prompt' || node?.type === 'url' || node?.type === 'instruction';
 }
 
 /**

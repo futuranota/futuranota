@@ -21,9 +21,7 @@ export function Nav() {
     return (
       <header className={pathname === PATHS.home ? 'nav nav--plain' : 'nav nav--plain nav--doc'} data-screen-label="nav">
         <div className="nav__inner container">
-          <Link to={PATHS.home} className="plain-nav__brand" aria-label="Futura Nota home">
-            <img src="/navbar.svg" alt="" className="plain-nav__logo" />
-          </Link>
+          <Wordmark className="plain-nav__brand" />
           <div className="nav__actions">
             <Link to={authPath('signin')} className="plain-nav__login">{t('marketing.logIn')}</Link>
             <Link to={authPath()} className="plain-signup">{t('marketing.signUp')}</Link>

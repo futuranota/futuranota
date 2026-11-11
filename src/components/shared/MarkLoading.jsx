@@ -1,22 +1,56 @@
-import { createPortal } from "react-dom";
-import { Mark } from "../../marketing/components/Mark.jsx";
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import Lottie from 'lottie-react';
+
+const LOADING_LOTTIE_SRC = '/logo-json/futura-nota-loading-v2.json';
 
 /**
- * Brand Mark animated as if writing (stroke + marker).
+ * Brand loading animation (Lottie from public/logo-json).
  */
-export function MarkLoading({ label = "Loading…", size = 36, className = "" }) {
+export function MarkLoading({ label = 'Loading…', size = 96, className = '' }) {
+  const [animationData, setAnimationData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(LOADING_LOTTIE_SRC)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Failed to load ${LOADING_LOTTIE_SRC}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled) setAnimationData(data);
+      })
+      .catch((error) => {
+        console.warn('[MarkLoading] lottie failed', error?.message || error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div
-      className={["mark-loading", className].filter(Boolean).join(" ")}
+      className={['mark-loading', className].filter(Boolean).join(' ')}
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
-      <span className="mark-loading__stage" aria-hidden="true">
-        <span className="mark-loading__stroke" />
-        <span className="mark-loading__mark">
-          <Mark size={size} />
-        </span>
+      <span
+        className="mark-loading__stage mark-loading__stage--lottie"
+        style={{ width: size, height: size }}
+        aria-hidden="true"
+      >
+        {animationData ? (
+          <Lottie
+            animationData={animationData}
+            loop
+            autoplay
+            className="mark-loading__lottie"
+            style={{ width: size, height: size }}
+          />
+        ) : (
+          <span className="mark-loading__fallback" />
+        )}
       </span>
       {label ? (
         <span className="mark-loading__label">{label}</span>
@@ -31,10 +65,10 @@ export function MarkLoading({ label = "Loading…", size = 36, className = "" })
  */
 export function MarkLoadingOverlay({
   open = false,
-  label = "Loading…",
-  size = 36,
+  label = 'Loading…',
+  size = 96,
 }) {
-  if (!open || typeof document === "undefined") return null;
+  if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="mark-loading-overlay" role="presentation">

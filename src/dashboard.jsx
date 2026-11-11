@@ -3,7 +3,7 @@ import { URL_EXTRACT_SAMPLE } from './data.jsx';
 import { NavPreferences } from './components/shared/NavPreferences.jsx';
 import { UserMenu } from './components/shared/UserMenu.jsx';
 import { useI18n } from './i18n/useI18n.js';
-import { Mark } from './marketing/components/Mark.jsx';
+import { BrandCursor } from './marketing/components/BrandCursor.jsx';
 
 /* dashboard.jsx — TopBar, MetaBar, ScanOverlay, UrlModal, Toast */
 
@@ -21,10 +21,8 @@ function TopBar({ onBack, onAltSeed }) {
       </div>
 
       <div className="topbar-center brand brand--centered" aria-label="Futura Nota">
-        <span className="brand-mark"><Mark size={22} /></span>
-        <span className="brand-type">
-          FUTURA<span className="brand-type-thin"> NOTA</span>
-        </span>
+        <span className="brand-mark"><BrandCursor size={22} /></span>
+        <span className="brand-type">Futura Nota</span>
       </div>
 
       <div className="topbar-end">

@@ -19,12 +19,9 @@ body.marketing-body {
   --signal-line: oklch(0.48 0.15 159 / 0.35);
 }
 
-/* Highlighter logo — body follows nav text; brush stays brand pink via .fn-mark__brush */
-body.marketing-body .brand__mark {
-  color: #ffffff;
-}
-body.marketing-body .brand:hover .brand__mark {
-  color: #ffffff;
+/* Brand cursor + regular “Futura Nota” */
+body.marketing-body .brand__type {
+  font-weight: 400;
 }
 :root[data-theme="light"] body.marketing-body .brand__mark {
   color: var(--text);

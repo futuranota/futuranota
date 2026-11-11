@@ -9,9 +9,23 @@
 }
 .nav__inner { display: flex; align-items: center; gap: 24px; height: 66px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; }
-.brand__mark { color: var(--text); display: inline-flex; transition: color .15s ease; }
+.brand__mark { color: var(--text); display: inline-flex; align-items: center; transition: color .15s ease; }
 .brand:hover .brand__mark { color: var(--text); }
-.brand__type { font-family: var(--font-report, "Quicksand", sans-serif); font-weight: 600; font-size: 18px; letter-spacing: 0.01em; white-space: nowrap; }
+.brand__mark .fn-brand-cursor {
+  display: block;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.brand__type {
+  font-family: var(--font-report, "Quicksand", sans-serif);
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--text);
+}
 .fn-mark__brush {
   fill: var(--brand-brush, #f4a4be);
 }

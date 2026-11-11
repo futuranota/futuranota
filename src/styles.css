@@ -8265,6 +8265,28 @@ body.prompt-desk-body .mark-loading__label {
   place-items: center;
 }
 
+.mark-loading__stage--lottie {
+  width: 96px;
+  height: 96px;
+}
+
+.mark-loading__lottie {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mark-loading__fallback {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.45;
+  animation: mark-loading-spin 0.8s linear infinite;
+}
+
 .mark-loading__mark {
   display: block;
   transform-origin: 70% 30%;
@@ -8284,6 +8306,12 @@ body.prompt-desk-body .mark-loading__label {
   transform-origin: left center;
   animation: mark-stroke 1.4s ease-in-out infinite;
   pointer-events: none;
+}
+
+@keyframes mark-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mark-loading__label {
