@@ -121,7 +121,8 @@ export function nextBlockPause(nodes, fromCursor, toCursor, clearedBlockIds) {
   for (let i = 0; i < offsets.length; i += 1) {
     const meta = offsets[i];
     const node = nodes[i];
-    if (!node || node.type === 'text' || cleared.has(node.id)) continue;
+    /* Instructions are read-only notes — do not pause play for Copy. */
+    if (!node || node.type === 'text' || node.type === 'instruction' || cleared.has(node.id)) continue;
     const at = meta.start;
     if (at > to) continue;
     if (from < at && to >= at) return { blockId: node.id, at };
@@ -196,15 +197,10 @@ export function buildPromptInsertPayload(folder, file, step) {
  * @param {object[]} folders
  */
 export function resolveBlockCopyText(node, folders) {
-  if (!node || node.type === 'text') return '';
+  if (!node || node.type === 'text' || node.type === 'instruction') return '';
   if (node.type === 'url') {
-    return String(node.body || node.href || '').trim();
-  }
-  if (node.type === 'instruction') {
-    const note = String(node.body || '').trim();
-    const href = String(node.href || '').trim();
-    if (note && href) return `${note}\n${href}`;
-    return note || href;
+    /* Single reference only — never join body+href (avoids doubled URLs). */
+    return String(node.href || node.body || '').trim();
   }
   if (node.type === 'prompt') {
     const found = findDeskStep(folders, node.fileId, node.stepId);

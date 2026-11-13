@@ -196,7 +196,8 @@ describe("prepareSheetFields", () => {
     );
     expect(prepared.variables).toHaveLength(1);
     expect(prepared.variables[0].name).toBe("info here");
-    expect(prepared.prompt).toContain(`<mark>{{${prepared.variables[0].id}}}</mark>`);
+    expect(prepared.prompt).toContain(`{{${prepared.variables[0].id}}}`);
+    expect(prepared.prompt).not.toContain(`<mark>{{${prepared.variables[0].id}}}</mark>`);
     expect(prepared.prompt).toContain("<strong>HELLO</strong>");
     expect(prepared.prompt).toContain("<u>hola@correo.com</u>");
     expect(prepared.prompt).toContain("<em>¿listo?</em>");

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   liftDocumentPlaceholders,
   liftPromptPlaceholders,
+  mergeVariablesOnRename,
+  remapVariableTokens,
+  remapVariableTokensInSteps,
   resetDocumentPlaceholders,
 } from './promptVariables.js';
 
@@ -59,5 +62,39 @@ describe('resetDocumentPlaceholders', () => {
     expect(reset.steps[0].prompt).toBe('Step one [Nombre de variable]');
     expect(reset.steps[1].prompt).toBe('Step two [Nombre de variable]');
     expect(reset.steps[1].description).toBe('Meta [Nombre de variable]');
+  });
+});
+
+describe('mergeVariablesOnRename', () => {
+  it('renames when the name is free', () => {
+    const variables = [
+      { id: 'a', name: 'Uno', value: '1' },
+      { id: 'b', name: 'Dos', value: '2' },
+    ];
+    const next = mergeVariablesOnRename(variables, 'a', 'Tres', '3');
+    expect(next.remaps).toEqual([]);
+    expect(next.variables).toEqual([
+      { id: 'a', name: 'Tres', value: '3' },
+      { id: 'b', name: 'Dos', value: '2' },
+    ]);
+  });
+
+  it('overrides into the existing name and remaps chips', () => {
+    const variables = [
+      { id: 'a', name: 'Uno', value: '1' },
+      { id: 'b', name: 'Dos', value: 'old' },
+    ];
+    const next = mergeVariablesOnRename(variables, 'a', 'Dos', 'new');
+    expect(next.remaps).toEqual([{ from: 'a', to: 'b' }]);
+    expect(next.variables).toEqual([
+      { id: 'b', name: 'Dos', value: 'new' },
+    ]);
+    expect(remapVariableTokens('Hola {{a}} y {{b}}', 'a', 'b')).toBe('Hola {{b}} y {{b}}');
+    const steps = remapVariableTokensInSteps(
+      [{ id: 's1', prompt: 'Page {{a}}', description: 'Meta {{a}}' }],
+      next.remaps,
+    );
+    expect(steps[0].prompt).toBe('Page {{b}}');
+    expect(steps[0].description).toBe('Meta {{b}}');
   });
 });

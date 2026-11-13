@@ -336,6 +336,81 @@ const FLOAT_CSS = `
     cursor: pointer;
     font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
   }
+  .tp-instruction {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 4px;
+    padding-left: 18px;
+  }
+  .tp-instruction__arrow {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    height: 22px;
+    margin: 0 0 2px 10px;
+    color: rgba(20, 20, 22, 0.38);
+  }
+  .tp-instruction__l {
+    position: relative;
+    display: block;
+    width: 28px;
+    height: 22px;
+  }
+  .tp-instruction__vert {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.5px;
+    height: 16px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+  .tp-instruction__horiz {
+    position: absolute;
+    left: 0;
+    top: 15px;
+    width: 22px;
+    height: 1.5px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+  .tp-instruction__head {
+    position: absolute;
+    left: 18px;
+    top: 11px;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid currentColor;
+  }
+  .tp-block--instruction {
+    border-style: dashed;
+    background: rgba(255,255,255,0.04);
+    padding: 10px 12px;
+    margin-left: 4px;
+  }
+  .tp-block__note {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--tp-ink);
+    overflow-wrap: anywhere;
+  }
+  .tp-block__remove {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--tp-line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--tp-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
 `;
 
 function IconPlay() {
@@ -483,8 +558,9 @@ function CharSpan({ text, cursor, baseOffset = 0, cursorRef }) {
   });
 }
 
-function blockCopyLabel(flash, nodeId) {
-  if (!flash || flash.id !== nodeId) return 'Copy';
+function blockCopyLabel(flash, nodeId, nodeType) {
+  const idle = nodeType === 'url' ? 'Copy URL' : 'Copy';
+  if (!flash || flash.id !== nodeId) return idle;
   if (flash.kind === 'copied') return 'Copied';
   if (flash.kind === 'empty') return 'Empty';
   return 'Failed';
@@ -507,6 +583,7 @@ function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing, u
   const isInstruction = node.type === 'instruction';
   const targetBits = [node.modelLabel, node.recommendedModel].filter((part) => String(part || '').trim());
   const preview = String(node.preview || node.body || '').trim();
+  const href = String(node.href || '').trim();
   const kindLabel = isInstruction ? 'Instruction' : isUrl ? 'URL' : 'Prompt';
   const cardClass = [
     'tp-block',
@@ -525,21 +602,9 @@ function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing, u
         <div className="tp-block__meta">
           <span className="tp-block__kind">{kindLabel}</span>
           {isUrl ? (
-            <>
-              {String(node.title || '').trim() ? (
-                <strong className="tp-block__title">{node.title}</strong>
-              ) : null}
-              {node.href ? (
-                <span className="tp-block__href">{node.href}</span>
-              ) : null}
-            </>
+            href ? <span className="tp-block__href">{href}</span> : null
           ) : isInstruction ? (
-            <>
-              <strong className="tp-block__title">{node.title || 'Instruction'}</strong>
-              {node.href ? (
-                <span className="tp-block__href">{node.href}</span>
-              ) : null}
-            </>
+            preview ? <p className="tp-block__note">{preview}</p> : null
           ) : (
             <>
               <strong className="tp-block__title">{node.title || 'Prompt'}</strong>
@@ -550,9 +615,11 @@ function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing, u
           )}
         </div>
         <div className="tp-block__actions">
-          <button type="button" className="tp-block__copy" onClick={onCopy}>
-            {copyLabel}
-          </button>
+          {!isInstruction ? (
+            <button type="button" className="tp-block__copy" onClick={onCopy}>
+              {copyLabel}
+            </button>
+          ) : null}
           {editing ? (
             <button type="button" className="tp-block__remove" onClick={onRemove} aria-label="Remove block">
               ×
@@ -560,7 +627,7 @@ function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing, u
           ) : null}
         </div>
       </div>
-      {(isInstruction || !isUrl) && preview ? (
+      {!isUrl && !isInstruction && preview ? (
         <p className="tp-block__preview">{preview}</p>
       ) : null}
     </div>
@@ -572,8 +639,11 @@ function ScriptBlockCard({ node, active, copyLabel, onCopy, onRemove, editing, u
     <div className={underPrevious ? 'tp-instruction is-under' : 'tp-instruction'}>
       {underPrevious ? (
         <div className="tp-instruction__arrow" aria-hidden="true">
-          <span className="tp-instruction__stem" />
-          <span className="tp-instruction__head" />
+          <span className="tp-instruction__l">
+            <span className="tp-instruction__vert" />
+            <span className="tp-instruction__horiz" />
+            <span className="tp-instruction__head" />
+          </span>
         </div>
       ) : null}
       {card}
@@ -611,7 +681,7 @@ function ScriptReader({ nodes, cursor, activeBlockId, copyFlash, onCopyBlock, cl
             key={node.id}
             node={node}
             active={activeBlockId === node.id}
-            copyLabel={blockCopyLabel(copyFlash, node.id)}
+            copyLabel={blockCopyLabel(copyFlash, node.id, node.type)}
             onCopy={() => onCopyBlock(node)}
             editing={false}
             underPrevious={node.type === 'instruction' && Boolean(prev)}
@@ -945,9 +1015,7 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, onInsertInstruction
   const [folderId, setFolderId] = useState(null);
   const [fileId, setFileId] = useState(null);
   const [leaf, setLeaf] = useState(null); /* 'prompt' | 'urls' | 'instructions' | null */
-  const [instructionTitle, setInstructionTitle] = useState('');
   const [instructionBody, setInstructionBody] = useState('');
-  const [instructionHref, setInstructionHref] = useState('');
 
   const list = useMemo(
     () => deskFoldersForTeleprompter(folders, TRANSCRIPT_FOLDER_LABEL),
@@ -1170,9 +1238,6 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, onInsertInstruction
             <div key={entry.id} className="tp-browser__item">
               <div className="tp-browser__item-copy">
                 <span className="tp-browser__badge">URL</span>
-                {String(entry.name || '').trim() ? (
-                  <strong>{entry.name}</strong>
-                ) : null}
                 <p className="tp-browser__href">{entry.url}</p>
               </div>
               <button
@@ -1181,8 +1246,6 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, onInsertInstruction
                 disabled={!canInsert}
                 onClick={() => onInsertUrl({
                   href: entry.url,
-                  title: String(entry.name || '').trim(),
-                  body: entry.url,
                 })}
               >
                 Insert
@@ -1194,50 +1257,25 @@ function DeskBrowser({ folders, onInsertPrompt, onInsertUrl, onInsertInstruction
         ) : leaf === 'instructions' ? (
           <div className="tp-browser__instruction-form">
             <p className="tp-browser__hint">
-              Short note for the teleprompter — paste a folder name, link, or reminder under the last block.
+              Quick note under the last block — read-only in the teleprompter (not copyable).
             </p>
             <label className="tp-browser__field">
-              <span>Title</span>
-              <input
-                type="text"
-                value={instructionTitle}
-                placeholder="e.g. Paste Drive folder"
-                onChange={(event) => setInstructionTitle(event.target.value)}
-              />
-            </label>
-            <label className="tp-browser__field">
-              <span>Note to copy</span>
+              <span>Instruction</span>
               <textarea
                 rows={3}
                 value={instructionBody}
-                placeholder="Text you’ll paste into the tool"
+                placeholder="e.g. Open Drive folder before pasting"
                 onChange={(event) => setInstructionBody(event.target.value)}
-              />
-            </label>
-            <label className="tp-browser__field">
-              <span>Link (optional)</span>
-              <input
-                type="url"
-                value={instructionHref}
-                placeholder="https://"
-                onChange={(event) => setInstructionHref(event.target.value)}
               />
             </label>
             <button
               type="button"
               className="tp-browser__insert"
-              disabled={
-                !canInsert
-                || (!String(instructionBody || '').trim() && !String(instructionHref || '').trim())
-              }
+              disabled={!canInsert || !String(instructionBody || '').trim()}
               onClick={() => {
-                const title = String(instructionTitle || '').trim() || 'Instruction';
                 const body = String(instructionBody || '').trim();
-                const href = String(instructionHref || '').trim();
-                onInsertInstruction?.({ title, body, href, preview: body.slice(0, 180) });
-                setInstructionTitle('');
+                onInsertInstruction?.({ body, preview: body.slice(0, 180) });
                 setInstructionBody('');
-                setInstructionHref('');
               }}
             >
               Insert
@@ -1953,13 +1991,13 @@ export default function TeleprompterPage({ folders = [] }) {
   function insertUrlBlock(payload) {
     if (!canEditContent) return;
     setNodes((prev) => {
-      const href = String(payload.href || '').trim();
+      const href = String(payload.href || payload.body || '').trim();
       const block = {
         id: makeTpId(),
         type: 'url',
         href,
-        title: payload.title || href,
-        body: String(payload.body || href),
+        title: '',
+        body: '',
       };
       return placeBlockInScript(prev, block);
     });
@@ -1971,13 +2009,12 @@ export default function TeleprompterPage({ folders = [] }) {
     if (!canEditContent) return;
     setNodes((prev) => {
       const body = String(payload.body || '').trim();
-      const href = String(payload.href || '').trim();
       const block = {
         id: makeTpId(),
         type: 'instruction',
-        title: String(payload.title || '').trim() || 'Instruction',
+        title: '',
         body,
-        href,
+        href: '',
         preview: String(payload.preview || body).slice(0, 180),
       };
       return placeBlockInScript(prev, block);
@@ -1999,12 +2036,14 @@ export default function TeleprompterPage({ folders = [] }) {
   }
 
   async function copyBlock(node, hostWindow) {
+    if (node?.type === 'instruction') return;
     const plain = resolveBlockCopyText(node, folders);
     if (!plain) {
       flashCopy(node.id, 'empty');
       return;
     }
-    if (node.type !== 'text' && plain !== String(node.body || '').trim()) {
+    /* Keep URL body empty so clipboard stays href-only (no doubled paste). */
+    if (node.type === 'prompt' && plain !== String(node.body || '').trim()) {
       setNodes((prev) => prev.map((item) => (
         item.id === node.id ? { ...item, body: plain } : item
       )));
@@ -2356,7 +2395,7 @@ export default function TeleprompterPage({ folders = [] }) {
                       key={node.id}
                       node={node}
                       active={false}
-                      copyLabel={blockCopyLabel(copyFlash, node.id)}
+                      copyLabel={blockCopyLabel(copyFlash, node.id, node.type)}
                       onCopy={() => { void copyBlock(node, window); }}
                       onRemove={() => removeNode(node.id)}
                       underPrevious={node.type === 'instruction' && index > 0}

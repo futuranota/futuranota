@@ -42,6 +42,7 @@ import {
   documentVariables,
   liftDocumentPlaceholders,
   liftPromptPlaceholders,
+  remapVariableTokensInSteps,
   resetDocumentPlaceholders,
   resolvePrompt,
   stampVariables,
@@ -1659,7 +1660,7 @@ function FolderCard({ folder, appearDelay, searchOpen, highlightQuery, onAdd, on
 
 function saveMode(patch, beforePrompt) {
   if (!patch) return 'debounce';
-  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'references' in patch || 'coverPath' in patch || 'coverSkipped' in patch) return 'now';
+  if ('stepIndex' in patch || 'modelId' in patch || 'name' in patch || 'pdf' in patch || 'video' in patch || 'assets' in patch || 'referenceUrl' in patch || 'referenceName' in patch || 'references' in patch || 'coverPath' in patch || 'coverSkipped' in patch || 'variables' in patch) return 'now';
   if (patch.steps && beforePrompt) {
     const prevIds = (beforePrompt.steps || []).map((item) => item.id).join();
     const nextIds = patch.steps.map((item) => item.id).join();
@@ -4772,7 +4773,19 @@ function InstructionPanel({
         title={prompt.name}
         variables={ownedVariables}
         documentId={prompt.id}
-        onChange={(next) => onPatch(markStepUnsaved(step.id, { variables: stampVariables(next, prompt.id) }))}
+        onChange={(next, meta) => {
+          const remaps = meta?.remaps || [];
+          const stamped = stampVariables(next, prompt.id);
+          if (!remaps.length) {
+            onPatch({ variables: stamped }, 'now');
+            return;
+          }
+          const nextSteps = remapVariableTokensInSteps(steps, remaps);
+          onPatch({
+            variables: stamped,
+            steps: nextSteps,
+          }, 'now');
+        }}
         onResetPlaceholders={resetAutoVariables}
         onClose={() => setVarsOpen(false)}
       />

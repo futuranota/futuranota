@@ -1,7 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { markFromInlineStyle } from '../../lib/promptInlineMark.js';
-import { documentVariables, dropUnknownTokens, parsePrompt, variableIsEmpty } from '../../lib/promptVariables.js';
+import {
+  documentVariables,
+  dropUnknownTokens,
+  mergeVariablesOnRename,
+  parsePrompt,
+  variableIsEmpty,
+} from '../../lib/promptVariables.js';
 
 function fieldText(variable) {
   if (!variable) return '[?]';
@@ -84,6 +90,21 @@ function appendClipboard(doc, parent, node) {
   if (node.tagName === 'BR') {
     parent.appendChild(doc.createElement('br'));
     return;
+  }
+  /* Keep variable chips — purple bg was misread as yellow <mark> and dropped data-var-id. */
+  const varId = node.getAttribute?.('data-var-id') || node.dataset?.varId || '';
+  if (varId || /\bprompt-var\b/.test(node.getAttribute?.('class') || '')) {
+    if (varId) {
+      const span = doc.createElement('span');
+      span.className = /\bprompt-var\b/.test(node.getAttribute('class') || '')
+        ? node.getAttribute('class')
+        : 'prompt-var';
+      span.contentEditable = 'false';
+      span.dataset.varId = varId;
+      span.textContent = node.textContent || '';
+      parent.appendChild(span);
+      return;
+    }
   }
   const mark = clipboardMark(node);
   if (mark) {
@@ -1104,15 +1125,11 @@ export function VariableDeck({
   function commitRename(id) {
     const current = list.find((item) => item.id === id);
     if (!current) return;
-    const typed = editNameRef.current.trim();
+    const typed = String(editNameRef.current || editName || '').trim();
     const name = typed || current.name;
-    const taken = list.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase());
-    const nextName = taken ? current.name : name;
-    onChange(list.map((item) => (
-      item.id === id
-        ? { ...item, name: nextName, value: editValueRef.current }
-        : item
-    )));
+    const value = editValueRef.current != null ? editValueRef.current : editValue;
+    const merged = mergeVariablesOnRename(list, id, name, value);
+    onChange(merged.variables, { remaps: merged.remaps });
     setRenamingId(null);
     setEditName('');
     setEditValue('');

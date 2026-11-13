@@ -16,6 +16,8 @@ const MODEL_ALIASES = {
 
 const PAGE_LINE = /^---\s*PAGE\s+(\d+)\s*---$/i;
 const PLACEHOLDER = /\{\{[^{}\n]+\}\}|\[\[[^\[\]\n]+\]\]|\{[^{}\n]+\}|\[[^\[\]\n]+\]/g;
+/** Visual marks for Organizar — brackets only; never {{id}} (yellow broke paste/override). */
+const MARKABLE_PLACEHOLDER = /\[\[[^\[\]\n]+\]\]|\[[^\[\]\n]+\]/g;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const HANDLE = /(?<![\w@])@[A-Za-z0-9_]+/g;
 const HASHTAG = /(?<![\w#/])#[A-Za-z0-9_]+/g;
@@ -401,14 +403,14 @@ function occupyPattern(ranges, source, pattern, tag) {
 
 /**
  * Visual marks on the original words. Does not rewrite them.
- * `{{id}}` tokens stay intact so variable chips still resolve.
+ * Live `{{id}}` tokens stay unmarked so chips stay purple and editable/overridable.
  * @param {string} value
  */
 export function applyMarks(value) {
   const source = String(value ?? "");
   if (!source) return "";
   const ranges = [];
-  occupyPattern(ranges, source, PLACEHOLDER, "mark");
+  occupyPattern(ranges, source, MARKABLE_PLACEHOLDER, "mark");
   occupyPattern(ranges, source, EMAIL, "u");
   occupyPattern(ranges, source, HANDLE, "u");
   occupyPattern(ranges, source, HASHTAG, "u");

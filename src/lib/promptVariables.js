@@ -140,6 +140,85 @@ export function stampVariables(variables, documentId) {
   ));
 }
 
+/**
+ * Replace {{fromId}} tokens with {{toId}} in a template string.
+ * @param {string} template
+ * @param {string} fromId
+ * @param {string} toId
+ */
+export function remapVariableTokens(template, fromId, toId) {
+  const from = String(fromId || '');
+  const to = String(toId || '');
+  if (!from || !to || from === to) return String(template || '');
+  const token = `{{${from}}}`;
+  const next = `{{${to}}}`;
+  return String(template || '').split(token).join(next);
+}
+
+/**
+ * Apply id remaps across every step prompt + description.
+ * @param {object[]} steps
+ * @param {{ from: string, to: string }[]} remaps
+ */
+export function remapVariableTokensInSteps(steps, remaps) {
+  if (!Array.isArray(steps) || !remaps?.length) return steps || [];
+  return steps.map((step) => {
+    let prompt = step?.prompt || '';
+    let description = step?.description || '';
+    let changed = false;
+    for (const remap of remaps) {
+      const nextPrompt = remapVariableTokens(prompt, remap.from, remap.to);
+      const nextDescription = remapVariableTokens(description, remap.from, remap.to);
+      if (nextPrompt !== prompt || nextDescription !== description) changed = true;
+      prompt = nextPrompt;
+      description = nextDescription;
+    }
+    if (!changed) return step;
+    /* Keep promptSaved — id remap is not a draft edit (avoids storage revert). */
+    return { ...step, prompt, description };
+  });
+}
+
+/**
+ * Rename a variable. Same name as another → merge into that row (override),
+ * remap chips from the renamed id onto the kept id.
+ * @param {object[]} variables
+ * @param {string} fromId
+ * @param {string} name
+ * @param {string} [value]
+ * @returns {{ variables: object[], remaps: { from: string, to: string }[] }}
+ */
+export function mergeVariablesOnRename(variables, fromId, name, value) {
+  const list = normalizeVariables(variables);
+  const current = list.find((item) => item.id === fromId);
+  if (!current) return { variables: list, remaps: [] };
+
+  const nextName = normalizePlaceholderName(name) || current.name;
+  const nextValue = value == null ? current.value : String(value);
+  const target = list.find((item) => (
+    item.id !== fromId
+    && normalizePlaceholderName(item.name).toLowerCase() === nextName.toLowerCase()
+  ));
+
+  if (!target) {
+    return {
+      variables: list.map((item) => (
+        item.id === fromId ? { ...item, name: nextName, value: nextValue } : item
+      )),
+      remaps: [],
+    };
+  }
+
+  return {
+    variables: list
+      .filter((item) => item.id !== fromId)
+      .map((item) => (
+        item.id === target.id ? { ...item, name: nextName, value: nextValue } : item
+      )),
+    remaps: [{ from: fromId, to: target.id }],
+  };
+}
+
 function promptText(prompt) {
   return (prompt?.steps || [])
     .map((step) => `${step?.prompt || ''}\n${step?.description || ''}`)
