@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/useI18n.js';
 import { PROMPT_FORMATS } from '../../lib/codeBlockLanguages.js';
-import { copyRichText } from '../../lib/copyToClipboard.js';
+import { copyRichText, copyToClipboard } from '../../lib/copyToClipboard.js';
 import {
   currentPromptUserId,
   downloadPromptDocument,
@@ -47,7 +47,7 @@ import {
   resolvePrompt,
   stampVariables,
 } from '../../lib/promptVariables.js';
-import { exportPromptDocumentMarkdown } from '../../lib/exportPromptDocumentMarkdown.js';
+import { buildPromptDocumentMarkdown } from '../../lib/exportPromptDocumentMarkdown.js';
 import {
   STRUCTURE_MODEL_IDS,
   joinParagraphs,
@@ -1734,13 +1734,20 @@ export default function PromptDesk() {
   useStripeCheckoutReturn();
 
   useEffect(() => {
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
     document.body.classList.add('prompt-desk-body');
     document.body.style.background = '#f4f1eb';
     document.body.style.backgroundImage = 'none';
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
     return () => {
       document.body.classList.remove('prompt-desk-body');
       document.body.style.background = '';
       document.body.style.backgroundImage = '';
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
     };
   }, []);
 
@@ -2519,6 +2526,11 @@ function InstructionPanel({
   const ownedVariables = useMemo(() => documentVariables(prompt), [prompt]);
   const copiedText = plainCopy(step.prompt, ownedVariables);
   const canCopy = Boolean(step.promptSaved && copiedText);
+  const canCopyAll = (steps || []).some((item) => (
+    promptHasText(item?.prompt)
+    || promptHasText(item?.description)
+    || String(item?.title || '').trim()
+  ));
   const snippet = (copiedText || 'Prompt vacío').slice(0, 90);
   const [copied, setCopied] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -2576,7 +2588,9 @@ function InstructionPanel({
   const [recommendedOpen, setRecommendedOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [varsOpen, setVarsOpen] = useState(false);
+  const [copyAllFlash, setCopyAllFlash] = useState(false);
   const [customModel, setCustomModel] = useState('');
+  const copyAllTimerRef = useRef(0);
   const sheetWasOpen = useRef(false);
   const editRoot = useRef(null);
   const editRange = useRef(null);
@@ -3704,8 +3718,17 @@ function InstructionPanel({
     });
   }
 
-  function exportDocumentMarkdown() {
-    exportPromptDocumentMarkdown(prompt, ownedVariables);
+  async function copyAllPrompts() {
+    const text = buildPromptDocumentMarkdown(prompt, ownedVariables);
+    if (!String(text || '').replace(/^#\s+.*/m, '').trim()) return;
+    const ok = await copyToClipboard(text);
+    if (!ok) return;
+    if (copyAllTimerRef.current) window.clearTimeout(copyAllTimerRef.current);
+    setCopyAllFlash(true);
+    copyAllTimerRef.current = window.setTimeout(() => {
+      setCopyAllFlash(false);
+      copyAllTimerRef.current = 0;
+    }, 1200);
   }
 
   function commitBody({ prompt: nextPrompt, variables, keepSaved }) {
@@ -4005,23 +4028,6 @@ function InstructionPanel({
                   </span>
                   <span>Variables</span>
                 </button>
-                {(steps || []).some((item) => promptHasText(item?.prompt) || promptHasText(item?.description) || String(item?.title || '').trim()) ? (
-                  <button
-                    type="button"
-                    className="prompt-models__item"
-                    onClick={() => { exportDocumentMarkdown(); }}
-                    title="Export all prompts as Markdown"
-                  >
-                    <span className="prompt-models__glyph" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M12 3v12" />
-                        <path d="m8 11 4 4 4-4" />
-                        <path d="M5 19h14" />
-                      </svg>
-                    </span>
-                    <span>Export .md</span>
-                  </button>
-                ) : null}
                 {stepHasDraft(step) ? (
                   <button
                     type="button"
@@ -4304,17 +4310,19 @@ function InstructionPanel({
           {textBesidePrompt ? renderPdfTextSheet(true) : null}
           {sheetOpen && PROMPT_SPLIT_LAYOUT ? (
             <aside className="prompt-step-rail" aria-label="Prompt list">
-              <p className="prompt-step-rail__label">
-                <span>Prompts</span>
-                {Number.isFinite(pageCap) ? (
-                  <span
-                    className="prompt-step-rail__quota"
-                    aria-label={`${steps.length} of ${pageCap} prompts`}
-                  >
-                    {steps.length}/{pageCap}
-                  </span>
-                ) : null}
-              </p>
+              <div className="prompt-step-rail__head">
+                <p className="prompt-step-rail__label">
+                  <span>Prompts</span>
+                  {Number.isFinite(pageCap) ? (
+                    <span
+                      className="prompt-step-rail__quota"
+                      aria-label={`${steps.length} of ${pageCap} prompts`}
+                    >
+                      {steps.length}/{pageCap}
+                    </span>
+                  ) : null}
+                </p>
+              </div>
               <ul className="prompt-step-rail__list">
                 {steps.map((item, itemIndex) => {
                   const named = String(item.title || '').trim();
@@ -4362,6 +4370,16 @@ function InstructionPanel({
                   );
                 })}
               </ul>
+              {canCopyAll ? (
+                <button
+                  type="button"
+                  className="prompt-step-rail__copy-all"
+                  onClick={() => { void copyAllPrompts(); }}
+                  title="Copy all prompts with titles"
+                >
+                  {copyAllFlash ? 'Copied' : 'Copy all'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="prompt-step-rail__add"
