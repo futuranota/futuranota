@@ -226,11 +226,18 @@
   display: inline-flex;
 }
 
+.tp-edit-wrap.is-gated {
+  cursor: not-allowed;
+}
+
 .tp-title-action.is-gated,
 .tp-title-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  pointer-events: none;
+}
+
+.tp-edit-wrap .tp-plan-popover p {
+  margin: 0;
 }
 
 .tp-plan-popover {
@@ -1044,6 +1051,12 @@
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tp-toolkit__actions .tp-icon-btn--expand {
+  margin-left: auto;
 }
 
 .tp-icon-btn {
@@ -1415,6 +1428,45 @@
   overflow-wrap: anywhere;
 }
 
+.tp-block__link-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 8px 2px 8px 10px;
+  border: 1px solid var(--tp-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tp-block__link-copy .tp-block__href {
+  grid-column: 1;
+  min-width: 0;
+  color: var(--tp-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tp-block__link-copy .tp-block__copy {
+  grid-column: 2;
+  justify-self: end;
+  margin: 0;
+  padding: 0 10px;
+}
+
+.tp-block--instruction .tp-block__link-copy {
+  background: rgba(255, 255, 255, 0.55);
+  width: 100%;
+  max-width: none;
+  padding-right: 0;
+}
+
 .tp-block__preview {
   margin: 0;
   display: -webkit-box;
@@ -1428,6 +1480,18 @@
   align-items: center;
   gap: 6px;
   flex: none;
+}
+
+.tp-block--url {
+  padding-right: 6px;
+}
+
+.tp-block--url .tp-block__actions {
+  margin-right: 0;
+}
+
+.tp-block--url .tp-block__copy {
+  padding-right: 10px;
 }
 
 .tp-block__copy,
@@ -1522,7 +1586,7 @@
 .tp-block--instruction {
   border-style: dashed;
   background: rgba(20, 20, 22, 0.02);
-  padding: 10px 12px;
+  padding: 10px 6px 10px 12px;
   margin-left: 4px;
 }
 
@@ -1823,6 +1887,13 @@
   padding: 4px 2px 8px;
   color-scheme: light;
   color: #1a1a1a;
+}
+
+.tp-instructions-panel {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 14px 18px;
+  overflow: auto;
 }
 
 .tp-browser__hint {

@@ -197,7 +197,11 @@ export function buildPromptInsertPayload(folder, file, step) {
  * @param {object[]} folders
  */
 export function resolveBlockCopyText(node, folders) {
-  if (!node || node.type === 'text' || node.type === 'instruction') return '';
+  if (!node || node.type === 'text') return '';
+  if (node.type === 'instruction') {
+    /* Instruction copy is href-only — never the note body. */
+    return String(node.href || '').trim();
+  }
   if (node.type === 'url') {
     /* Single reference only — never join body+href (avoids doubled URLs). */
     return String(node.href || node.body || '').trim();

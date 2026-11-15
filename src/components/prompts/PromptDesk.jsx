@@ -2324,7 +2324,7 @@ export default function PromptDesk() {
       <header className="prompt-desk__bar">
         <span className="prompt-desk__brand" aria-label="Futura Nota">
           <img
-            src="/logo-json/futura-nota-teleprompter-logo.svg"
+            src="/logo-json/prompsy-vector.svg"
             alt=""
             className="prompt-desk__logo"
           />
