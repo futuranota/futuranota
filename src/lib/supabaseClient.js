@@ -77,8 +77,10 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         flowType: 'pkce',
-        // Manual exchange in authRedirect.js — avoid double PKCE redemption.
-        detectSessionInUrl: false,
+        // Client exchanges ?code= once during initialize. Do not also call
+        // exchangeCodeForSession — a second redeem deletes the PKCE verifier
+        // and Google sign-in returns to /login with no session.
+        detectSessionInUrl: true,
         persistSession: true,
       },
     })

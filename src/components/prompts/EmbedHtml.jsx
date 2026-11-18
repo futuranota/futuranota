@@ -853,7 +853,7 @@ function EmbedAllowance({ plan, used = 0 }) {
       <p>{spent} of {max} daily embeds used</p>
       <progress max={max} value={spent} />
       <button type="button" onClick={() => navigate('/app/settings/billing')}>
-        <img src="/favicon.svg" alt="" />
+        <img src="/logo-json/prompsy-sticker.png" alt="" />
         Upgrade to Unlimited
       </button>
     </div>

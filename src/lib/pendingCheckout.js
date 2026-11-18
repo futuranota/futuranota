@@ -20,22 +20,18 @@ export function readPendingProCheckout() {
 }
 
 /**
- * Local storage + signup metadata (survives email confirm in another tab/device).
- * @param {{ user_metadata?: Record<string, unknown> } | null | undefined} [user]
+ * Explicit Pro checkout only (storage). Signup metadata is not a pending payment:
+ * `user_metadata.plan` stays "pro" and was sending every later sign-in through Stripe.
+ * Email confirm still sets storage via `/login?plan=pro`.
+ * @param {{ user_metadata?: Record<string, unknown> } | null | undefined} [_user]
  * @returns {PendingProCheckout | null}
  */
-export function resolvePendingProCheckout(user) {
+export function resolvePendingProCheckout(_user) {
   if (localStorage.getItem(PENDING_PRO_CHECKOUT_SKIPPED_KEY) === '1') {
     return null;
   }
 
-  const stored = readPendingProCheckout();
-  if (stored) return stored;
-
-  const meta = user?.user_metadata;
-  if (meta?.plan !== 'pro') return null;
-
-  return { plan: 'pro', billing: 'monthly' };
+  return readPendingProCheckout();
 }
 
 /**

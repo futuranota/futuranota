@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { confirmCheckoutSession } from "./billingApi.js";
 import {
-  clearPendingProCheckout,
   hasPendingProCheckout,
+  skipPendingProCheckout,
   pauseAutoProCheckoutRedirect,
 } from "./pendingCheckout.js";
 import { clearStoredReferralCode } from "./referralStorage.js";
@@ -35,7 +35,7 @@ export function useStripeCheckoutReturn() {
             console.warn("confirmCheckoutSession:", err);
           }
         }
-        clearPendingProCheckout();
+        skipPendingProCheckout();
         await fetchProfile();
         clearStoredReferralCode();
         setSearchParams({}, { replace: true });

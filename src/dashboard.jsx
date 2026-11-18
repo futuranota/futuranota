@@ -21,7 +21,7 @@ function TopBar({ onBack, onAltSeed }) {
       </div>
 
       <div className="topbar-center brand brand--centered" aria-label="Futura Nota">
-        <span className="brand-mark"><BrandCursor size={22} /></span>
+        <span className="brand-mark"><BrandCursor size={28} /></span>
         <span className="brand-type">Futura Nota</span>
       </div>
 

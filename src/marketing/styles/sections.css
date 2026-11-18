@@ -13,8 +13,8 @@
 .brand:hover .brand__mark { color: var(--text); }
 .brand__mark .fn-brand-cursor {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   border-radius: 6px;
 }
@@ -1118,10 +1118,13 @@
   color: #1a1a1a;
 }
 
-.auth-simple__brand img {
-  width: 26px;
-  height: 24px;
+.auth-simple__brand img,
+.auth-simple__brand .fn-brand-cursor {
+  width: 36px;
+  height: 36px;
   flex: none;
+  object-fit: contain;
+  border-radius: 6px;
 }
 
 .auth-simple__name {
@@ -1228,7 +1231,7 @@
 }
 
 .auth-simple__submit,
-.auth-simple__google {
+.auth-simple__oauth-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1254,19 +1257,26 @@
   background: #2a2a2a;
 }
 
-.auth-simple__google {
+.auth-simple__oauth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.auth-simple__oauth-btn {
   border: 1px solid #e4e4e7;
   background: #fff;
   color: #1a1a1a;
 }
 
-.auth-simple__google:hover:not(:disabled) {
+.auth-simple__oauth-btn:hover:not(:disabled) {
   background: #f7f7f8;
   border-color: #d4d4d8;
 }
 
 .auth-simple__submit:disabled,
-.auth-simple__google:disabled {
+.auth-simple__oauth-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }

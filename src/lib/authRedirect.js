@@ -79,6 +79,8 @@ function applyOAuthOnboardingFlags() {
   else clearPendingLibrary();
 }
 
+const OAUTH_PENDING_KEY = 'fn_oauth_pending';
+
 let oauthReturnPromise = null;
 
 /**
@@ -101,68 +103,47 @@ async function resolveOAuthReturnImpl() {
   }
 
   const hadOAuthParams = hasOAuthReturnParams();
-  if (!hadOAuthParams) {
-    const { data: { session } } = await supabase.auth.getSession();
-    return { session, hadOAuthParams: false };
-  }
-
+  const oauthPending = sessionStorage.getItem(OAUTH_PENDING_KEY) === '1';
   const search = new URLSearchParams(window.location.search);
   const hash = readHashParams();
-  const code = search.get('code') || hash?.get('code');
-  const accessToken = hash?.get('access_token');
   const authError = search.get('error_description') || search.get('error')
     || hash?.get('error_description') || hash?.get('error');
 
   if (authError) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
     stripOAuthParamsFromUrl();
-    throw new Error(String(authError));
+    throw new Error(String(authError).replace(/\+/g, ' '));
   }
 
-  if (code) {
-    let { data: { session: existing } } = await supabase.auth.getSession();
-    if (!existing) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) {
-        const { data: { session: recovered } } = await supabase.auth.getSession();
-        if (!recovered) throw error;
-      }
-    }
+  // One redeem only: supabase-js initialize() consumes ?code= when
+  // detectSessionInUrl is on. A second exchangeCodeForSession fails PKCE.
+  const initResult = await supabase.auth.initialize();
+  if (initResult?.error && (hadOAuthParams || oauthPending)) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
     stripOAuthParamsFromUrl();
-  } else if (accessToken) {
-    const { error } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: hash?.get('refresh_token') || '',
-    });
-    if (error) throw error;
-    stripOAuthParamsFromUrl();
-  } else {
-    await new Promise((resolve) => {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          subscription.unsubscribe();
-          resolve(session);
-        }
-      });
-      window.setTimeout(() => {
-        subscription.unsubscribe();
-        resolve(null);
-      }, 4000);
-    });
-    stripOAuthParamsFromUrl();
+    throw initResult.error;
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error && (hadOAuthParams || oauthPending)) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    throw error;
+  }
+
+  if (hadOAuthParams) stripOAuthParamsFromUrl();
+
   if (session) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
     applyOAuthOnboardingFlags();
     const onApp = window.location.pathname === '/app'
       || window.location.pathname.startsWith('/app/');
     const onCallback = window.location.pathname === '/auth/callback';
-    if (!onApp && !onCallback) {
+    if (!onApp && !onCallback && (hadOAuthParams || oauthPending)) {
       sessionStorage.setItem(OAUTH_RETURN_REDIRECT_KEY, '1');
     }
   }
 
-  return { session, hadOAuthParams };
+  return { session, hadOAuthParams: hadOAuthParams || oauthPending };
 }
 
 /** @returns {boolean} */
@@ -174,24 +155,43 @@ export function consumeOAuthDashboardRedirect() {
 }
 
 /**
- * Starts Google OAuth — always navigates to Google (never a silent local redirect).
+ * Starts OAuth for a Supabase social provider. Navigates away; page unloads.
+ * @param {'google' | 'github' | 'discord'} provider
  * @returns {Promise<void>}
  */
-export async function startGoogleOAuth() {
+export async function startOAuth(provider) {
   const redirectTo = getOAuthRedirectUrl();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+  sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
+  /** @type {Record<string, string>|undefined} */
+  let queryParams;
+  if (provider === 'google') {
+    queryParams = { prompt: 'select_account' };
+  }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
     options: {
       redirectTo,
-      skipBrowserRedirect: true,
-      queryParams: { prompt: 'select_account' },
+      ...(queryParams ? { queryParams } : {}),
     },
   });
 
-  if (error) throw error;
-  if (!data?.url) {
-    throw new Error('No se pudo iniciar Google OAuth. Revisá Supabase → Authentication → Google.');
+  if (error) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    throw error;
   }
+}
 
-  window.location.assign(data.url);
+/** @returns {Promise<void>} */
+export async function startGoogleOAuth() {
+  return startOAuth('google');
+}
+
+/** @returns {Promise<void>} */
+export async function startGitHubOAuth() {
+  return startOAuth('github');
+}
+
+/** @returns {Promise<void>} */
+export async function startDiscordOAuth() {
+  return startOAuth('discord');
 }

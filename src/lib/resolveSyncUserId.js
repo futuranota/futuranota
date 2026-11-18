@@ -53,14 +53,23 @@ export async function resolveSyncUserId() {
     console.warn("[futura-nota] getSession threw:", err?.message || err);
   }
 
+  // Only refresh when we already have a refresh_token. Calling refreshSession()
+  // with an empty session throws AuthSessionMissingError and can SIGNED_OUT
+  // a brand-new Google login mid-hydrate.
   if (!session?.user?.id) {
-    try {
-      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-      if (!refreshErr && refreshed?.session?.user?.id) {
-        session = refreshed.session;
+    const storedForRefresh = readStoredAuthSession();
+    if (storedForRefresh?.refresh_token) {
+      try {
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession({
+          access_token: storedForRefresh.access_token,
+          refresh_token: storedForRefresh.refresh_token,
+        });
+        if (!refreshErr && refreshed?.session?.user?.id) {
+          session = refreshed.session;
+        }
+      } catch {
+        // fall through to storage recovery
       }
-    } catch {
-      // fall through to storage recovery
     }
   }
 

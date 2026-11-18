@@ -969,7 +969,7 @@ export function PromptBody({
                 confirmName();
               }}
             >
-              <img src="/favicon.svg" alt="" />
+              <img src="/logo-json/prompsy-sticker.png" alt="" />
               <p>¿Cómo quieres nombrar tu variable?</p>
               <input
                 ref={nameRef}

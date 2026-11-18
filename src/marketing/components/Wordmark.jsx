@@ -10,7 +10,7 @@ export function Wordmark({ to = PATHS.home, className = '' }) {
       aria-label="Futura Nota home"
     >
       <span className="brand__mark">
-        <BrandCursor size={28} />
+        <BrandCursor size={36} />
       </span>
       <span className="brand__type">Futura Nota</span>
     </Link>

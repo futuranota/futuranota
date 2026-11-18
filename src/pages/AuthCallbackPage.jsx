@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabaseClient.js';
 import { resolveOAuthReturn } from '../lib/authRedirect.js';
 import { PATHS } from '../marketing/lib/paths.js';
 import { useAuthStore } from '../stores/authStore.js';
-import { tryRedirectPendingProCheckout } from '../lib/redirectPendingProCheckout.js';
 import { MarkLoading } from '../components/shared/MarkLoading.jsx';
 
 /** Handles Google OAuth return, then sends user to the dashboard. */
@@ -32,20 +31,14 @@ export function AuthCallbackPage() {
         handledRef.current = true;
         syncSession(session);
         setStatus('Redirecting to Futura Nota…');
-        const { redirected, pending, error } = await tryRedirectPendingProCheckout(session.user);
-        if (cancelled || redirected) return;
-        if (pending) {
-          if (error) {
-            setStatus(error);
-            navigate(`${PATHS.login}?plan=pro`, { replace: true });
-          }
-          return;
-        }
+        if (cancelled) return;
         navigate(PATHS.app, { replace: true });
       } else {
         handledRef.current = true;
-        setStatus('Sign-in failed. Redirecting…');
-        navigate(PATHS.login, { replace: true });
+        const message = 'Google sign-in did not return a session.';
+        setStatus(message);
+        const params = new URLSearchParams({ auth_error: message });
+        navigate(`${PATHS.login}?${params.toString()}`, { replace: true });
       }
     };
 
@@ -66,8 +59,10 @@ export function AuthCallbackPage() {
           return;
         }
         if (!cancelled) {
-          setStatus(err?.message || 'Sign-in failed. Redirecting…');
-          window.setTimeout(() => navigate(PATHS.login, { replace: true }), 1200);
+          const message = err?.message || 'Google sign-in failed. Try again.';
+          setStatus(message);
+          const params = new URLSearchParams({ auth_error: message });
+          window.setTimeout(() => navigate(`${PATHS.login}?${params.toString()}`, { replace: true }), 800);
         }
       }
     };
@@ -86,8 +81,8 @@ export function AuthCallbackPage() {
   }, [navigate]);
 
   return (
-    <div className="landing">
-      <div className="landing-card glass" style={{ maxWidth: 320, textAlign: 'center' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f4f1eb' }}>
+      <div className="landing-card glass" style={{ maxWidth: 320, textAlign: 'center', background: '#fff' }}>
         <MarkLoading label={status} />
       </div>
     </div>

@@ -28,7 +28,12 @@ export function usePendingProCheckoutRedirect(opts = {}) {
     void tryRedirectPendingProCheckout(user).then(({ redirected, pending, error }) => {
       if (redirected) return;
       setRedirecting(false);
-      if (pending && error) {
+      if (!pending) {
+        // Already Pro / skipped — WelcomePage can navigate to /app.
+        attemptedRef.current = false;
+        return;
+      }
+      if (error) {
         setCheckoutError(error);
         attemptedRef.current = false;
       }
@@ -41,7 +46,8 @@ export function usePendingProCheckoutRedirect(opts = {}) {
     const { redirected, pending, error } = await tryRedirectPendingProCheckout(user);
     if (redirected) return;
     setRedirecting(false);
-    if (pending && error) setCheckoutError(error);
+    if (!pending) return;
+    if (error) setCheckoutError(error);
   };
 
   return { checkoutError, redirecting, retryCheckout };

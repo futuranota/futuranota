@@ -213,8 +213,9 @@ export function spendPreviewEmbed(email, day = localDayKey()) {
 /** Read today's embed boxes. Opening the page does not spend a box. */
 export async function readPromptEmbedDay(day) {
   if (!PROMPT_LIMITS_ENFORCED) return { ok: true, unlimited: true, embedCount: 0 };
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id;
+  // getSession only — getUser() can SIGNED_OUT on AuthSessionMissingError.
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
   if (!userId) return { ok: false, reason: 'auth' };
   const { data, error } = await supabase
     .from('prompt_desk_usage')

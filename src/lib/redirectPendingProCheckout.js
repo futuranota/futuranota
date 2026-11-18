@@ -1,8 +1,8 @@
 import { startProCheckout } from './billingApi.js';
 import {
-  clearPendingProCheckout,
   persistPendingProCheckout,
   resolvePendingProCheckout,
+  skipPendingProCheckout,
 } from './pendingCheckout.js';
 import { supabase } from './supabaseClient.js';
 
@@ -84,14 +84,19 @@ async function executePendingProCheckout(user) {
   }
 
   if (recentCheckoutAttempt()) {
-    return { redirected: false, pending: true };
+    return {
+      redirected: false,
+      pending: true,
+      error: 'Checkout already started — try again in a moment.',
+    };
   }
 
   persistPendingProCheckout(pending);
 
   const userId = sessionUser?.id;
   if (userId && await userAlreadyPro(userId)) {
-    clearPendingProCheckout();
+    // Skip (not clear): user_metadata.plan=pro must not re-open the gate forever.
+    skipPendingProCheckout();
     return { redirected: false, pending: false };
   }
 

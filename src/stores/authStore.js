@@ -1,7 +1,13 @@
 // src/stores/authStore.js
 import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
-import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authRedirect.js';
+import {
+  getAppOrigin,
+  resolveOAuthReturn,
+  startDiscordOAuth,
+  startGitHubOAuth,
+  startGoogleOAuth,
+} from '../lib/authRedirect.js';
 import { getSupabaseConfigError } from '../lib/supabaseClient';
 import {
   cancelRemoteSyncForLogout,
@@ -25,25 +31,30 @@ export const useAuthStore = create((set, get) => ({
     const bindAuthListener = () => {
       if (authListenerBound) return;
       authListenerBound = true;
-      supabase.auth.onAuthStateChange((_event, nextSession) => {
-        set({ session: nextSession, user: nextSession?.user ?? null, loading: false });
+      supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (nextSession) {
+          set({ session: nextSession, user: nextSession.user, loading: false });
+          return;
+        }
+        // INITIAL_SESSION / TOKEN_REFRESHED can arrive null while a Google
+        // session is already in the store. Only SIGNED_OUT may clear it.
+        if (event !== 'SIGNED_OUT' && get().user) return;
+        if (event === 'SIGNED_OUT') {
+          console.warn('[auth] SIGNED_OUT — clearing session (was bounce source if unexpected)');
+        }
+        set({ session: null, user: null, loading: false });
       });
     };
 
     try {
-      const onCallback = typeof window !== 'undefined'
-        && window.location.pathname === '/auth/callback';
-
-      if (!onCallback) {
-        try {
-          const { session: oauthSession, hadOAuthParams } = await resolveOAuthReturn();
-          if (oauthSession && hadOAuthParams) {
-            set({ session: oauthSession, user: oauthSession.user, loading: false });
-            return;
-          }
-        } catch (err) {
-          console.error('OAuth return failed:', err);
+      try {
+        const { session: oauthSession, hadOAuthParams } = await resolveOAuthReturn();
+        if (oauthSession && hadOAuthParams) {
+          set({ session: oauthSession, user: oauthSession.user, loading: false });
+          return;
         }
+      } catch (err) {
+        console.error('OAuth return failed:', err);
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -116,6 +127,18 @@ export const useAuthStore = create((set, get) => ({
     const configError = getSupabaseConfigError();
     if (configError) throw new Error(configError);
     await startGoogleOAuth();
+  },
+
+  signInWithGitHub: async () => {
+    const configError = getSupabaseConfigError();
+    if (configError) throw new Error(configError);
+    await startGitHubOAuth();
+  },
+
+  signInWithDiscord: async () => {
+    const configError = getSupabaseConfigError();
+    if (configError) throw new Error(configError);
+    await startDiscordOAuth();
   },
 
   signOut: async () => {

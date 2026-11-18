@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { GoogleIcon } from './AuthOAuthIcons.jsx';
+import { BrandCursor } from './BrandCursor.jsx';
+import { DiscordIcon, GitHubIcon, GoogleIcon } from './AuthOAuthIcons.jsx';
 import { PATHS } from '../lib/paths.js';
 
 /** Primary brand art — swap path when hosting locally if needed. */
@@ -20,6 +21,8 @@ export function AuthSignupCard({
   onModeChange,
   onSubmit,
   onGoogleSignIn,
+  onGitHubSignIn,
+  onDiscordSignIn,
   loading = false,
   loadingLabel,
   errorMessage = null,
@@ -63,7 +66,7 @@ export function AuthSignupCard({
   return (
     <div className="auth-simple card">
       <Link to={PATHS.home} className="auth-simple__brand" aria-label="Futura Nota">
-        <img src="/favicon.svg" alt="" width="26" height="24" />
+        <BrandCursor size={36} />
         <span className="auth-simple__name">Futura Nota</span>
       </Link>
 
@@ -164,15 +167,35 @@ export function AuthSignupCard({
         </button>
       </form>
 
-      <button
-        type="button"
-        className="auth-simple__google"
-        onClick={onGoogleSignIn}
-        disabled={loading}
-      >
-        <GoogleIcon />
-        {isSignup ? 'Sign up with Google' : 'Sign in with Google'}
-      </button>
+      <div className="auth-simple__oauth">
+        <button
+          type="button"
+          className="auth-simple__oauth-btn"
+          onClick={onGoogleSignIn}
+          disabled={loading}
+        >
+          <GoogleIcon />
+          {isSignup ? 'Sign up with Google' : 'Sign in with Google'}
+        </button>
+        <button
+          type="button"
+          className="auth-simple__oauth-btn"
+          onClick={onGitHubSignIn}
+          disabled={loading}
+        >
+          <GitHubIcon />
+          {isSignup ? 'Sign up with GitHub' : 'Sign in with GitHub'}
+        </button>
+        <button
+          type="button"
+          className="auth-simple__oauth-btn"
+          onClick={onDiscordSignIn}
+          disabled={loading}
+        >
+          <DiscordIcon />
+          {isSignup ? 'Sign up with Discord' : 'Sign in with Discord'}
+        </button>
+      </div>
 
       <p className="auth-simple__switch">
         {isSignup ? 'Already have an account? ' : "Don't have an account? "}

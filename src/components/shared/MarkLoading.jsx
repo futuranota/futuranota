@@ -1,33 +1,10 @@
-import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Lottie from 'lottie-react';
-
-const LOADING_LOTTIE_SRC = '/logo-json/futura-nota-loading-v2.json';
+import { BRAND_MARK_SRC } from '../../marketing/components/BrandCursor.jsx';
 
 /**
- * Brand loading animation (Lottie from public/logo-json).
+ * Brand loading mark (canonical face logo from public/logo-json).
  */
-export function MarkLoading({ label = 'Loading…', size = 96, className = '' }) {
-  const [animationData, setAnimationData] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(LOADING_LOTTIE_SRC)
-      .then((response) => {
-        if (!response.ok) throw new Error(`Failed to load ${LOADING_LOTTIE_SRC}`);
-        return response.json();
-      })
-      .then((data) => {
-        if (!cancelled) setAnimationData(data);
-      })
-      .catch((error) => {
-        console.warn('[MarkLoading] lottie failed', error?.message || error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+export function MarkLoading({ label = 'Loading…', size = 112, className = '' }) {
   return (
     <div
       className={['mark-loading', className].filter(Boolean).join(' ')}
@@ -36,21 +13,19 @@ export function MarkLoading({ label = 'Loading…', size = 96, className = '' })
       aria-live="polite"
     >
       <span
-        className="mark-loading__stage mark-loading__stage--lottie"
+        className="mark-loading__stage mark-loading__stage--mark"
         style={{ width: size, height: size }}
         aria-hidden="true"
       >
-        {animationData ? (
-          <Lottie
-            animationData={animationData}
-            loop
-            autoplay
-            className="mark-loading__lottie"
-            style={{ width: size, height: size }}
-          />
-        ) : (
-          <span className="mark-loading__fallback" />
-        )}
+        <img
+          src={BRAND_MARK_SRC}
+          alt=""
+          width={size}
+          height={size}
+          className="mark-loading__logo"
+          decoding="async"
+          draggable={false}
+        />
       </span>
       {label ? (
         <span className="mark-loading__label">{label}</span>
@@ -61,12 +36,12 @@ export function MarkLoading({ label = 'Loading…', size = 96, className = '' })
 
 /**
  * Full-viewport gate: dim overlay + glass card with MarkLoading.
- * Use during login waits and save delays so the brand motion is visible.
+ * Use during login waits and save delays so the brand mark is visible.
  */
 export function MarkLoadingOverlay({
   open = false,
   label = 'Loading…',
-  size = 96,
+  size = 112,
 }) {
   if (!open || typeof document === 'undefined') return null;
 

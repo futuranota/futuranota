@@ -18,12 +18,19 @@ import { supabase } from './supabaseClient.js';
 
 const BUCKET = 'prompt-images';
 
+/**
+ * Desk user id from the local session only.
+ * Do NOT call auth.getUser() here — a transient AuthSessionMissingError
+ * makes supabase-js wipe storage and emit SIGNED_OUT, which bounces /app → /login
+ * a few seconds after Google sign-in (folders flash empty, then redirect).
+ */
 export async function currentPromptUserId() {
-  const first = await supabase.auth.getUser();
-  if (!first.error && first.data?.user?.id) return first.data.user.id;
-  const refreshed = await supabase.auth.refreshSession();
-  if (refreshed.error) throw first.error || refreshed.error;
-  return refreshed.data?.session?.user?.id || null;
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) {
+    console.warn('[prompt-desk] getSession:', error.message);
+  }
+  if (session?.user?.id) return session.user.id;
+  return null;
 }
 
 export function promptDocumentKind(name) {

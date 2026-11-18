@@ -78,6 +78,7 @@ import { useKofiOverlay } from '../../lib/useKofiOverlay.js';
 import { useStripeCheckoutReturn } from '../../lib/useStripeCheckoutReturn.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { usePlanStore } from '../../stores/planStore.js';
+import { BrandCursor } from '../../marketing/components/BrandCursor.jsx';
 import GlassFolder, { MAX_VISIBLE } from './GlassFolder.jsx';
 import {
   extractPdfPageTexts,
@@ -2323,11 +2324,7 @@ export default function PromptDesk() {
       <>
       <header className="prompt-desk__bar">
         <span className="prompt-desk__brand" aria-label="Futura Nota">
-          <img
-            src="/logo-json/prompsy-vector.svg"
-            alt=""
-            className="prompt-desk__logo"
-          />
+          <BrandCursor size={36} className="prompt-desk__logo" />
           <span className="prompt-desk__brand-type">Futura Nota</span>
         </span>
         <span className={folderLimitReached ? 'prompt-desk__new-wrap prompt-desk__new-wrap--tip' : 'prompt-desk__new-wrap'}>

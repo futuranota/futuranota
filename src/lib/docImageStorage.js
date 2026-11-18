@@ -27,11 +27,12 @@ export async function uploadDocImageBlob(blob, options = {}) {
     throw new Error("No image blob to upload.");
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    throw new Error(userError.message || "Auth error while uploading image.");
+  // Prefer local session — getUser() can wipe auth on AuthSessionMissingError.
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error(sessionError.message || "Auth error while uploading image.");
   }
-  const userId = userData?.user?.id;
+  const userId = session?.user?.id;
   if (!userId) {
     throw new Error("Sign in required to upload document images.");
   }
@@ -103,11 +104,11 @@ export async function uploadDocAttachmentFile(file, options = {}) {
     throw new Error("No file to upload.");
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    throw new Error(userError.message || "Auth error while uploading attachment.");
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error(sessionError.message || "Auth error while uploading attachment.");
   }
-  const userId = userData?.user?.id;
+  const userId = session?.user?.id;
   if (!userId) {
     throw new Error("Sign in required to upload attachments.");
   }

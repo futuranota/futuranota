@@ -16,6 +16,7 @@ import {
   buildCheckoutLoginQuery,
   hasPendingProCheckout,
   markPendingProCheckout,
+  skipPendingProCheckout,
   syncPendingProCheckoutFromParams,
 } from '../../lib/pendingCheckout.js';
 import { usePendingProCheckoutRedirect } from '../../lib/usePendingProCheckoutRedirect.js';
@@ -29,7 +30,13 @@ export function WelcomePage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { t } = useI18n();
-  const { signIn, signUp, signInWithGoogle } = useAuthStore();
+  const {
+    signIn,
+    signUp,
+    signInWithGoogle,
+    signInWithGitHub,
+    signInWithDiscord,
+  } = useAuthStore();
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
   const onAuthPage = location.pathname === PATHS.login || location.pathname === PATHS.signup;
@@ -46,6 +53,7 @@ export function WelcomePage() {
 
   const planId = searchParams.get('plan');
   const billing = 'monthly';
+  const authError = searchParams.get('auth_error');
 
   const selectedPlan = useMemo(() => {
     if (!planId) return null;
@@ -60,16 +68,25 @@ export function WelcomePage() {
   }, [planId]);
 
   useEffect(() => {
+    if (authError) setErrorMessage(authError);
+  }, [authError]);
+
+  useEffect(() => {
     captureReferralFromSearch(searchParams);
+    // Plain /login must not inherit a stale Pro checkout from a previous visit.
+    if (location.pathname === PATHS.login && planId !== 'pro') {
+      skipPendingProCheckout();
+      return;
+    }
     syncPendingProCheckoutFromParams(planId, billing);
-  }, [searchParams, planId, billing]);
+  }, [searchParams, planId, billing, location.pathname]);
 
   useEffect(() => {
     if (authLoading || !user || !onAuthPage) return;
-    if (!hasPendingProCheckout(user)) {
-      navigate(PATHS.app, { replace: true });
-    }
-  }, [authLoading, user, onAuthPage, navigate]);
+    // Stay on /login while Stripe is redirecting or a checkout error needs retry.
+    if (hasPendingProCheckout(user)) return;
+    navigate(PATHS.app, { replace: true });
+  }, [authLoading, user, onAuthPage, navigate, redirecting, checkoutError]);
 
   useLayoutEffect(() => applyAuthLightCanvas(), []);
 
@@ -125,6 +142,7 @@ export function WelcomePage() {
       } else {
         await signIn(form.email, form.password);
         clearPendingLibrary();
+        if (planId !== 'pro') skipPendingProCheckout();
       }
     } catch (err) {
       setErrorMessage(err.message);
@@ -133,7 +151,7 @@ export function WelcomePage() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const startSocialSignIn = async (start) => {
     setErrorMessage(null);
     setLoading(true);
     try {
@@ -141,14 +159,18 @@ export function WelcomePage() {
       if (tab === 'signup' && planId === 'pro') {
         markPendingProCheckout(billing);
       }
-      await signInWithGoogle();
-      // Navigation continues in Google — page unloads.
+      await start();
+      // Provider navigates away — page unloads.
     } catch (err) {
       sessionStorage.removeItem(OAUTH_MODE_KEY);
       setErrorMessage(err.message);
       setLoading(false);
     }
   };
+
+  const handleGoogleSignIn = () => startSocialSignIn(signInWithGoogle);
+  const handleGitHubSignIn = () => startSocialSignIn(signInWithGitHub);
+  const handleDiscordSignIn = () => startSocialSignIn(signInWithDiscord);
 
   const proAwaitingPayment = Boolean(user && hasPendingProCheckout(user));
   const awaitingStripe = proAwaitingPayment && redirecting;
@@ -162,11 +184,15 @@ export function WelcomePage() {
   const checkoutErrorMessage = checkoutError && /too many/i.test(checkoutError)
     ? t('proCheckoutAbandon.rateLimited')
     : checkoutError;
-  /** Session check, form submit, Google OAuth wait, or post-login redirect. */
+  /**
+   * Gate only while session/form/Stripe work is in flight.
+   * Do not block forever when user is set + pending Pro without an active redirect
+   * (that used to leave "Opening Futura Nota…" stuck with no way out).
+   */
   const showMarkGate = Boolean(
     formLoading
     || (authLoading && !showInbox)
-    || (user && onAuthPage && !showInbox && !checkoutError),
+    || (user && onAuthPage && !showInbox && !checkoutError && !proAwaitingPayment),
   );
   const markGateLabel = submitLoadingLabel
     || (user && onAuthPage ? 'Opening Futura Nota…' : 'Loading…');
@@ -192,6 +218,8 @@ export function WelcomePage() {
           onModeChange={go}
           onSubmit={handleSubmit}
           onGoogleSignIn={handleGoogleSignIn}
+          onGitHubSignIn={handleGitHubSignIn}
+          onDiscordSignIn={handleDiscordSignIn}
           loading={formLoading}
           loadingLabel={submitLoadingLabel}
           errorMessage={checkoutErrorMessage || errorMessage}
